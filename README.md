@@ -80,6 +80,58 @@ openwcs/
 
 ---
 
+## Data model & schemas
+
+Persistent state is split by ownership (build.md §5–§6, §16):
+
+| Schema | Owner | Holds |
+|---|---|---|
+| `master_data` | master-data | Warehouse, SKU (global core) + per-warehouse `SkuProfile` overlays, `AttributeSchema`, DangerousGoods, UoM/bundles, Barcode + BarcodeType, Location, HandlingUnitType, Equipment |
+| `transaction_log` | txlog | Append-only event log — system of record (scaffolded separately) |
+| `inventory` | inventory | Durable `stock` table (qty per SKU × batch × location × HU × status), `reservation`, and the **instance** data created at goods-in: `batch`/lot + `serial_unit`; `projection_offset` replay cursor |
+
+Each owning service ships its schema as **Flyway** migrations and references rows in
+other services' schemas by **UUID only — no cross-schema foreign keys** (§5.3), so a
+service-local schema can later move to its own database unchanged. Batch/lot & serial
+ownership is recorded in [`docs/adr/0001-inventory-data-ownership.md`](./docs/adr/0001-inventory-data-ownership.md).
+
+The `inventory` service keeps `stock` in lockstep with the log by **consuming the
+streamed transaction log** (Kafka topic `txlog.stream`, §9): movement events
+(`GoodsReceived`, `PutawayCompleted`/`StockMoved`, `Picked`, `StockAdjusted`,
+`StockStatusChanged`) move `stock.qty` and advance the `stock` projection cursor.
+Application is **idempotent** — every applied event is recorded in a `processed_event`
+inbox keyed on `event_id` (§5.5), so redelivery/replay is a no-op and the read model
+can be rebuilt from the log.
+
+---
+
+## REST contracts & the goods-in → stock loop
+
+API contracts live in [`contracts/openapi/`](./contracts/openapi/) (`txlog.yaml`,
+`inventory.yaml`, `master-data.yaml`). The first end-to-end slice runs through three
+services:
+
+1. **Append** a movement event to the log — `POST /api/txlog/events` (txlog writes the
+   immutable event + an outbox row in one transaction).
+2. The **outbox relay** publishes it to `txlog.stream` (Kafka).
+3. The **inventory projection** consumes it and moves `stock.qty`.
+
+```bash
+# 1. record a goods-in (qty in the SKU base UoM)
+curl -X POST localhost:8086/api/txlog/events -H 'Content-Type: application/json' -d '{
+  "streamId":"HU-1","eventType":"GoodsReceived",
+  "payload":{"warehouseId":"<wh-uuid>","skuId":"<sku-uuid>","locationId":"<loc-uuid>","qty":12,"uomCode":"EACH"}}'
+
+# 2. (relay publishes automatically) then read the projected stock / availability
+curl "localhost:8082/api/inventory/availability?warehouseId=<wh-uuid>&skuId=<sku-uuid>"
+
+# 3. allocate against available-to-promise
+curl -X POST localhost:8082/api/inventory/reservations -H 'Content-Type: application/json' -d '{
+  "warehouseId":"<wh-uuid>","skuId":"<sku-uuid>","qty":5,"orderRef":"ORD-1"}'
+```
+
+---
+
 ## Getting started
 
 ### Prerequisites
@@ -105,6 +157,12 @@ docker compose -f platform/docker-compose.yml --profile apps up --build
 ./gradlew :services:master-data:bootRun     # http://localhost:8081
 curl localhost:8081/actuator/health
 ```
+On startup each persistent service applies its own **Flyway migrations**
+(`src/main/resources/db/migration/`) against the Postgres from step 1, then
+Hibernate runs in `validate` mode — migrations own the schema, never auto-DDL.
+Datasource host/credentials are overridable via `SPRING_DATASOURCE_URL` /
+`SPRING_DATASOURCE_USERNAME` / `SPRING_DATASOURCE_PASSWORD` (defaults target the
+local compose Postgres).
 
 ### 3. Run a Go adapter
 ```bash

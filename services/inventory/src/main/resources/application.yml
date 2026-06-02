@@ -3,6 +3,46 @@ server:
 spring:
   application:
     name: inventory
+  # Service-local store (build.md §4.2/§5.3). In production this is its OWN database;
+  # for local dev it is an isolated `inventory` schema that only this service touches.
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/openwcs}
+    username: ${SPRING_DATASOURCE_USERNAME:openwcs}
+    password: ${SPRING_DATASOURCE_PASSWORD:openwcs}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: inventory
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    schemas: inventory
+    default-schema: inventory
+    create-schemas: true
+  # Consumes the streamed transaction log (build.md §9) to project stock.
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: inventory-stock-projection
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # Commit the offset only after a record is successfully projected (at-least-once;
+      # the processed_event inbox makes re-delivery idempotent).
+      ack-mode: record
+
+# Application-specific settings.
+openwcs:
+  inventory:
+    # Topic carrying the streamed transaction log (build.md §9: `txlog.stream`).
+    txlog-topic: txlog.stream
+
 management:
   endpoints:
     web:

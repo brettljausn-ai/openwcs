@@ -1,0 +1,29 @@
+package org.openwcs.inventory.api;
+
+import org.openwcs.inventory.service.InsufficientStockException;
+import org.openwcs.inventory.service.ReservationNotFoundException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+/** Maps inventory domain failures to RFC 9457 problem responses. */
+@RestControllerAdvice
+public class ApiExceptionHandler {
+
+    @ExceptionHandler(InsufficientStockException.class)
+    public ProblemDetail onInsufficientStock(InsufficientStockException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        problem.setTitle("Insufficient stock");
+        problem.setDetail(ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(ReservationNotFoundException.class)
+    public ProblemDetail onNotFound(ReservationNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Reservation not found");
+        problem.setDetail(ex.getMessage());
+        return problem;
+    }
+}

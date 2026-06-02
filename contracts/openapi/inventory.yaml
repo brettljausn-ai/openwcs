@@ -1,0 +1,205 @@
+openapi: 3.0.3
+info:
+  title: openWCS Inventory API
+  version: 0.1.0
+  description: >
+    Real-time stock and reservations within the automated area (build.md §4.2). Stock
+    is the durable projection of the transaction log (kept current by the txlog.stream
+    consumer); this API exposes stock buckets, available-to-promise, and the reservation
+    lifecycle used by outbound allocation.
+servers:
+  - url: /api/inventory
+    description: Via the API gateway
+
+tags:
+  - name: Stock
+  - name: Reservations
+
+paths:
+  /stock:
+    get:
+      tags: [Stock]
+      summary: List stock buckets for a SKU
+      description: One row per SKU × batch/lot × location × handling-unit × status bucket.
+      operationId: listStock
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: skuId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Stock' }
+
+  /availability:
+    get:
+      tags: [Stock]
+      summary: Available-to-promise for a SKU
+      description: "`availableToPromise = onHand − reserved`, counting only AVAILABLE stock."
+      operationId: availability
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: skuId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Availability' }
+
+  /reservations:
+    post:
+      tags: [Reservations]
+      summary: Reserve (allocate) stock
+      description: >
+        Holds quantity against available-to-promise. The check runs under a lock on the
+        SKU's AVAILABLE rows so concurrent reservations cannot over-allocate; an
+        over-request returns 409.
+      operationId: reserve
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReserveRequest' }
+      responses:
+        "201":
+          description: Reserved
+          headers:
+            Location:
+              description: URI of the created reservation.
+              schema: { type: string, format: uri }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        "409":
+          description: Insufficient available-to-promise
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        "422":
+          description: Request failed validation
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+    get:
+      tags: [Reservations]
+      summary: List reservations for an order
+      operationId: reservationsByOrder
+      parameters:
+        - { name: orderRef, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Reservation' }
+
+  /reservations/{reservationId}/release:
+    parameters:
+      - { name: reservationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Reservations]
+      summary: Release a held reservation
+      operationId: releaseReservation
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        "404":
+          description: Reservation not found
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /reservations/{reservationId}/consume:
+    parameters:
+      - { name: reservationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Reservations]
+      summary: Mark a held reservation consumed
+      description: Called after the pick is confirmed; the allocation becomes a physical decrement.
+      operationId: consumeReservation
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        "404":
+          description: Reservation not found
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+components:
+  schemas:
+    StockStatus:
+      type: string
+      enum: [AVAILABLE, LOCKED, QUARANTINE, DAMAGED]
+    ReservationStatus:
+      type: string
+      enum: [HELD, CONSUMED, RELEASED, EXPIRED]
+    Stock:
+      type: object
+      properties:
+        stockId: { type: string, format: uuid }
+        warehouseId: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        batchId: { type: string, format: uuid, nullable: true }
+        locationId: { type: string, format: uuid }
+        huId: { type: string, format: uuid, nullable: true }
+        status: { $ref: '#/components/schemas/StockStatus' }
+        qty: { type: number, description: Quantity in the SKU base UoM. }
+        uomCode: { type: string, example: EACH }
+    Availability:
+      type: object
+      properties:
+        warehouseId: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        onHand: { type: number, description: Sum of AVAILABLE stock. }
+        reserved: { type: number, description: Sum of HELD reservations. }
+        availableToPromise: { type: number, description: onHand − reserved. }
+    ReserveRequest:
+      type: object
+      required: [warehouseId, skuId, qty]
+      properties:
+        warehouseId: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        qty: { type: number, minimum: 0, exclusiveMinimum: true }
+        batchId: { type: string, format: uuid, nullable: true }
+        locationId: { type: string, format: uuid, nullable: true }
+        huId: { type: string, format: uuid, nullable: true }
+        orderRef: { type: string, nullable: true, description: Outbound order / wave id. }
+        correlationId: { type: string, format: uuid, nullable: true, description: Owning process instance. }
+        expiresAt: { type: string, format: date-time, nullable: true }
+    Reservation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        warehouseId: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        batchId: { type: string, format: uuid, nullable: true }
+        locationId: { type: string, format: uuid, nullable: true }
+        huId: { type: string, format: uuid, nullable: true }
+        orderRef: { type: string, nullable: true }
+        correlationId: { type: string, format: uuid, nullable: true }
+        qty: { type: number }
+        status: { $ref: '#/components/schemas/ReservationStatus' }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+    Problem:
+      type: object
+      description: RFC 9457 problem detail.
+      properties:
+        type: { type: string, format: uri, default: about:blank }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string, format: uri }

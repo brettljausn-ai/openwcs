@@ -12,6 +12,6 @@ public class InfoController {
         return Map.of(
             "service", "inventory",
             "description", "Real-time stock (SKU x batch/lot x location x HU x status) as a projection of the transaction log; reservations; FEFO/FIFO.",
-            "status", "skeleton");
+            "status", "active");
     }
 }

@@ -3,6 +3,44 @@ server:
 spring:
   application:
     name: txlog
+  # Shared PostgreSQL — txlog owns the `transaction_log` schema (build.md §5.1).
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/openwcs}
+    username: ${SPRING_DATASOURCE_USERNAME:openwcs}
+    password: ${SPRING_DATASOURCE_PASSWORD:openwcs}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: transaction_log
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    schemas: transaction_log
+    default-schema: transaction_log
+    create-schemas: true
+  # Publishes the outbox to the streamed-log topic (build.md §9).
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+
+openwcs:
+  txlog:
+    # Target topic for the streamed transaction log (build.md §9: consumed by inventory).
+    stream-topic: txlog.stream
+    relay:
+      enabled: true
+      interval-ms: 1000
+      batch-size: 100
+
 management:
   endpoints:
     web:

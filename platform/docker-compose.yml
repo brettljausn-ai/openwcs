@@ -59,12 +59,24 @@ services:
     build: ../services/master-data
     ports: ["8081:8081"]
     depends_on: [postgres, kafka]
+    environment:
+      # master-data owns the `master_data` schema in the shared DB (build.md §5.1).
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
+      SPRING_DATASOURCE_USERNAME: openwcs
+      SPRING_DATASOURCE_PASSWORD: openwcs
 
   inventory:
     profiles: ["apps"]
     build: ../services/inventory
     ports: ["8082:8082"]
     depends_on: [postgres, kafka]
+    environment:
+      # Service-local store; dev uses an isolated `inventory` schema (build.md §4.2).
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
+      SPRING_DATASOURCE_USERNAME: openwcs
+      SPRING_DATASOURCE_PASSWORD: openwcs
+      # Consumes the streamed transaction log to project stock (build.md §9).
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
   process-engine:
     profiles: ["apps"]
@@ -89,6 +101,12 @@ services:
     build: ../services/txlog
     ports: ["8086:8086"]
     depends_on: [postgres, kafka]
+    environment:
+      # Owns the `transaction_log` schema in the shared DB; relays it to Kafka (build.md §5.1, §5.5).
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
+      SPRING_DATASOURCE_USERNAME: openwcs
+      SPRING_DATASOURCE_PASSWORD: openwcs
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
   iam:
     profiles: ["apps"]

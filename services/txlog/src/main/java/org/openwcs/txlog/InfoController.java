@@ -11,7 +11,7 @@ public class InfoController {
     public Map<String, String> info() {
         return Map.of(
             "service", "txlog",
-            "description", "Owns the append-only transaction log in shared Postgres; append, query, replay.",
-            "status", "skeleton");
+            "description", "Owns the append-only transaction log in shared Postgres; append, query, replay; relays to txlog.stream via the transactional outbox.",
+            "status", "active");
     }
 }

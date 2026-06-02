@@ -3,6 +3,27 @@ server:
 spring:
   application:
     name: master-data
+  # Shared PostgreSQL — the master-data service owns the `master_data` schema.
+  # build.md §5.1: only master-data + transaction_log live in the shared DB.
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/openwcs}
+    username: ${SPRING_DATASOURCE_USERNAME:openwcs}
+    password: ${SPRING_DATASOURCE_PASSWORD:openwcs}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Schema is owned by Flyway, never by Hibernate auto-DDL.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: master_data
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    schemas: master_data
+    default-schema: master_data
+    create-schemas: true
 management:
   endpoints:
     web:

@@ -1,12 +1,1049 @@
 openapi: 3.0.3
 info:
-  title: openwcs Master Data API
+  title: openWCS Master Data API
   version: 0.1.0
-  description: Skeleton spec. Flesh out per build.md §4.1 / §6.
+  description: >
+    Authoritative catalog for the automated area (build.md §4.1, §6): warehouses,
+    SKUs (global core) + per-warehouse SkuProfile overlays, attribute schemas,
+    dangerous goods, units of measure (bundle hierarchy), barcodes & barcode types,
+    locations/topology, handling-unit types, and equipment.
+
+    Master data is multi-warehouse: the SKU carries only stable, global identity;
+    everything site-variable lives in a per-warehouse SkuProfile whose JSONB metadata
+    is validated against an admin-defined AttributeSchema.
+servers:
+  - url: /api/master-data
+    description: Via the API gateway (build.md §3)
+
+tags:
+  - name: Warehouses
+  - name: SKUs
+  - name: SkuProfiles
+  - name: AttributeSchemas
+  - name: DangerousGoods
+  - name: UnitsOfMeasure
+  - name: Barcodes
+  - name: BarcodeTypes
+  - name: Locations
+  - name: HandlingUnitTypes
+  - name: Equipment
+
 paths:
-  /api/master-data/skus:
+  # ---------------------------------------------------------------- Warehouses
+  /warehouses:
     get:
-      summary: List SKUs
+      tags: [Warehouses]
+      summary: List warehouses
+      operationId: listWarehouses
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: status
+          in: query
+          schema: { type: string, example: ACTIVE }
       responses:
         "200":
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WarehousePage'
+    post:
+      tags: [Warehouses]
+      summary: Create a warehouse
+      operationId: createWarehouse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Warehouse' }
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Warehouse' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "422": { $ref: '#/components/responses/ValidationError' }
+  /warehouses/{warehouseId}:
+    parameters:
+      - $ref: '#/components/parameters/WarehouseId'
+    get:
+      tags: [Warehouses]
+      summary: Get a warehouse
+      operationId: getWarehouse
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Warehouse' }
+        "404": { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Warehouses]
+      summary: Update a warehouse
+      operationId: updateWarehouse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Warehouse' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Warehouse' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "422": { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Warehouses]
+      summary: Archive a warehouse
+      operationId: deleteWarehouse
+      responses:
+        "204": { description: Archived }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  # ---------------------------------------------------------------------- SKUs
+  /skus:
+    get:
+      tags: [SKUs]
+      summary: List / search SKUs
+      operationId: listSkus
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: code
+          in: query
+          description: Exact SKU code.
+          schema: { type: string }
+        - name: q
+          in: query
+          description: Free-text match on code/description.
+          schema: { type: string }
+        - name: ownerClient
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SkuPage' }
+    post:
+      tags: [SKUs]
+      summary: Create a SKU
+      operationId: createSku
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Sku' }
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sku' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "422": { $ref: '#/components/responses/ValidationError' }
+  /skus/import:
+    post:
+      tags: [SKUs]
+      summary: Bulk import SKUs (CSV or JSON)
+      description: >
+        Bulk catalog load (build.md §4.1). Accepts a JSON array of SKUs or a CSV
+        upload; rows are validated and applied, returning a per-row result report.
+      operationId: importSkus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: '#/components/schemas/Sku' }
+          text/csv:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: Import report
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BulkImportReport' }
+        "422": { $ref: '#/components/responses/ValidationError' }
+  /skus/{skuId}:
+    parameters:
+      - $ref: '#/components/parameters/SkuId'
+    get:
+      tags: [SKUs]
+      summary: Get a SKU
+      operationId: getSku
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sku' }
+        "404": { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [SKUs]
+      summary: Update a SKU
+      operationId: updateSku
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Sku' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sku' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "422": { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [SKUs]
+      summary: Archive a SKU
+      operationId: deleteSku
+      responses:
+        "204": { description: Archived }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  # ---------------------------------------------------------- SKU sub-resources
+  /skus/{skuId}/profiles:
+    parameters:
+      - $ref: '#/components/parameters/SkuId'
+    get:
+      tags: [SkuProfiles]
+      summary: List a SKU's per-warehouse profiles
+      operationId: listSkuProfiles
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SkuProfile' }
+    put:
+      tags: [SkuProfiles]
+      summary: Upsert the SKU's profile for a warehouse
+      description: >
+        Creates or replaces the (sku, warehouse) overlay. The `metadata` blob is
+        validated against the referenced AttributeSchema before being stored (§6).
+      operationId: upsertSkuProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SkuProfile' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SkuProfile' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "422": { $ref: '#/components/responses/ValidationError' }
+  /skus/{skuId}/uoms:
+    parameters:
+      - $ref: '#/components/parameters/SkuId'
+    get:
+      tags: [UnitsOfMeasure]
+      summary: List the SKU's units of measure (bundle hierarchy)
+      operationId: listUoms
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/UnitOfMeasure' }
+    post:
+      tags: [UnitsOfMeasure]
+      summary: Add a unit of measure
+      operationId: createUom
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UnitOfMeasure' }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UnitOfMeasure' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "422": { $ref: '#/components/responses/ValidationError' }
+  /skus/{skuId}/barcodes:
+    parameters:
+      - $ref: '#/components/parameters/SkuId'
+    get:
+      tags: [Barcodes]
+      summary: List the SKU's barcodes
+      operationId: listSkuBarcodes
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Barcode' }
+    post:
+      tags: [Barcodes]
+      summary: Register a barcode for the SKU
+      operationId: createBarcode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Barcode' }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Barcode' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "422": { $ref: '#/components/responses/ValidationError' }
+  /skus/{skuId}/dangerous-goods:
+    parameters:
+      - $ref: '#/components/parameters/SkuId'
+    get:
+      tags: [DangerousGoods]
+      summary: Get the SKU's dangerous-goods classification
+      operationId: getDangerousGoods
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DangerousGoods' }
+        "404": { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [DangerousGoods]
+      summary: Set / replace the SKU's dangerous-goods classification
+      operationId: putDangerousGoods
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DangerousGoods' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DangerousGoods' }
+        "422": { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [DangerousGoods]
+      summary: Clear the SKU's dangerous-goods classification
+      operationId: deleteDangerousGoods
+      responses:
+        "204": { description: Cleared }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  # ----------------------------------------------------------- AttributeSchemas
+  /attribute-schemas:
+    get:
+      tags: [AttributeSchemas]
+      summary: List attribute schemas
+      operationId: listAttributeSchemas
+      parameters:
+        - name: warehouseId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: appliesTo
+          in: query
+          schema: { $ref: '#/components/schemas/AttributeScope' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AttributeSchema' }
+    post:
+      tags: [AttributeSchemas]
+      summary: Publish a new attribute-schema version
+      operationId: createAttributeSchema
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AttributeSchema' }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttributeSchema' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "422": { $ref: '#/components/responses/ValidationError' }
+  /attribute-schemas/{attributeSchemaId}:
+    parameters:
+      - name: attributeSchemaId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [AttributeSchemas]
+      summary: Get an attribute schema
+      operationId: getAttributeSchema
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttributeSchema' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  # --------------------------------------------------------------- BarcodeTypes
+  /barcode-types:
+    get:
+      tags: [BarcodeTypes]
+      summary: List barcode types
+      operationId: listBarcodeTypes
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/BarcodeType' }
+    post:
+      tags: [BarcodeTypes]
+      summary: Create a barcode type
+      operationId: createBarcodeType
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BarcodeType' }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BarcodeType' }
+        "409": { $ref: '#/components/responses/Conflict' }
+
+  # -------------------------------------------------------------- Barcode lookup
+  /barcodes:
+    get:
+      tags: [Barcodes]
+      summary: Resolve a scanned barcode value
+      description: >
+        Look up barcodes by value (used at goods-in / picking to identify a SKU and
+        packaging level). The barcode type drives parsing/validation (e.g. GS1-128).
+      operationId: findBarcodes
+      parameters:
+        - name: value
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Barcode' }
+  /barcodes/{barcodeId}:
+    parameters:
+      - name: barcodeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Barcodes]
+      summary: Remove a barcode
+      operationId: deleteBarcode
+      responses:
+        "204": { description: Removed }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  # ------------------------------------------------------------------ Locations
+  /locations:
+    get:
+      tags: [Locations]
+      summary: List / search locations
+      operationId: listLocations
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: warehouseId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: purpose
+          in: query
+          schema: { $ref: '#/components/schemas/LocationPurpose' }
+        - name: locationType
+          in: query
+          schema: { $ref: '#/components/schemas/LocationType' }
+        - name: parentId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocationPage' }
+    post:
+      tags: [Locations]
+      summary: Create a location
+      operationId: createLocation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Location' }
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Location' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "422": { $ref: '#/components/responses/ValidationError' }
+  /locations/{locationId}:
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Locations]
+      summary: Get a location
+      operationId: getLocation
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Location' }
+        "404": { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Locations]
+      summary: Update a location
+      operationId: updateLocation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Location' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Location' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "422": { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Locations]
+      summary: Archive a location
+      operationId: deleteLocation
+      responses:
+        "204": { description: Archived }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  # ----------------------------------------------------------- HandlingUnitTypes
+  /handling-unit-types:
+    get:
+      tags: [HandlingUnitTypes]
+      summary: List handling-unit types
+      operationId: listHandlingUnitTypes
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/HandlingUnitType' }
+    post:
+      tags: [HandlingUnitTypes]
+      summary: Create a handling-unit type
+      operationId: createHandlingUnitType
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HandlingUnitType' }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HandlingUnitType' }
+        "409": { $ref: '#/components/responses/Conflict' }
+
+  # ------------------------------------------------------------------ Equipment
+  /equipment:
+    get:
+      tags: [Equipment]
+      summary: List equipment
+      operationId: listEquipment
+      parameters:
+        - name: warehouseId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: family
+          in: query
+          schema: { $ref: '#/components/schemas/EquipmentFamily' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Equipment' }
+    post:
+      tags: [Equipment]
+      summary: Register a piece of equipment
+      operationId: createEquipment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Equipment' }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Equipment' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "422": { $ref: '#/components/responses/ValidationError' }
+  /equipment/{equipmentId}:
+    parameters:
+      - name: equipmentId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Equipment]
+      summary: Get equipment
+      operationId: getEquipment
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Equipment' }
+        "404": { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Equipment]
+      summary: Update equipment
+      operationId: updateEquipment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Equipment' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Equipment' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+components:
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: Zero-based page index.
+      schema: { type: integer, minimum: 0, default: 0 }
+    Size:
+      name: size
+      in: query
+      description: Page size.
+      schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+    WarehouseId:
+      name: warehouseId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SkuId:
+      name: skuId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  headers:
+    Location:
+      description: URI of the created resource.
+      schema: { type: string, format: uri }
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: Conflict (e.g. duplicate code / version mismatch)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ValidationError:
+      description: Request failed validation (incl. AttributeSchema validation)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    # --------------------------------------------------------------- Enumerations
+    LifecycleStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE, ARCHIVED]
+      default: ACTIVE
+    AttributeScope:
+      type: string
+      enum: [SKU, LOCATION, HU, EQUIPMENT]
+    LocationType:
+      type: string
+      enum: [BIN, PALLET, FREE_SPACE, SHELF, GRID_BIN, ASRS_SLOT, CONVEYOR_SEGMENT, ROBOT_PORT, STATION]
+    LocationPurpose:
+      type: string
+      enum: [STORAGE, TRANSPORT, STAGING, PICK, PACK, INDUCT, RECEIVING, SHIPPING, QUARANTINE, RETURNS]
+    EquipmentFamily:
+      type: string
+      enum: [CONVEYOR, ASRS, AMR, AUTOSTORE]
+
+    # ------------------------------------------------------------------ Auditable
+    AuditFields:
+      type: object
+      properties:
+        createdAt: { type: string, format: date-time, readOnly: true }
+        updatedAt: { type: string, format: date-time, readOnly: true }
+        version:
+          type: integer
+          format: int64
+          readOnly: true
+          description: Optimistic-lock version.
+
+    # ------------------------------------------------------------------ Warehouse
+    Warehouse:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [code, name]
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+            code: { type: string, example: DC1 }
+            name: { type: string, example: "Distribution Center 1" }
+            timezone: { type: string, default: UTC, example: Europe/Vienna }
+            status: { $ref: '#/components/schemas/LifecycleStatus' }
+    WarehousePage:
+      allOf:
+        - $ref: '#/components/schemas/Page'
+        - type: object
+          properties:
+            content:
+              type: array
+              items: { $ref: '#/components/schemas/Warehouse' }
+
+    # ------------------------------------------------------------------------ SKU
+    Sku:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [code]
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+            code: { type: string, example: TS-001-BLK-M }
+            description: { type: string, example: "Black t-shirt, size M" }
+            status: { $ref: '#/components/schemas/LifecycleStatus' }
+            ownerClient:
+              type: string
+              description: Owning client / 3PL tenant.
+            isBatchTracked: { type: boolean, default: false }
+            isSerialTracked: { type: boolean, default: false }
+            isDateTracked: { type: boolean, default: false }
+    SkuPage:
+      allOf:
+        - $ref: '#/components/schemas/Page'
+        - type: object
+          properties:
+            content:
+              type: array
+              items: { $ref: '#/components/schemas/Sku' }
+
+    # ----------------------------------------------------------------- SkuProfile
+    SkuProfile:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [warehouseId]
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+            skuId: { type: string, format: uuid, readOnly: true }
+            warehouseId: { type: string, format: uuid }
+            metadata:
+              type: object
+              additionalProperties: true
+              description: >
+                Site-variable attributes (brand, season, color, size, velocity class …).
+                Validated on write against the referenced AttributeSchema.
+              example: { brand: Acme, season: SS26, color: black, size: M }
+            storageStrategy:
+              type: object
+              additionalProperties: true
+              description: >
+                Storage "teach-in": allowed/preferred storage types & zones, putaway
+                rules, min/max levels, mixing constraints.
+              example: { allowed: [AUTOSTORE, MANUAL_BIN], min: 0, max: 240 }
+            attributeSchemaId:
+              type: string
+              format: uuid
+              nullable: true
+
+    # ------------------------------------------------------------ AttributeSchema
+    AttributeSchema:
+      type: object
+      required: [warehouseId, appliesTo, category, jsonSchema]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        warehouseId: { type: string, format: uuid }
+        appliesTo: { $ref: '#/components/schemas/AttributeScope' }
+        category: { type: string, example: fashion }
+        jsonSchema:
+          type: object
+          additionalProperties: true
+          description: JSON Schema document governing the matching metadata blobs.
+        schemaVersion: { type: integer, default: 1 }
+        createdAt: { type: string, format: date-time, readOnly: true }
+        updatedAt: { type: string, format: date-time, readOnly: true }
+
+    # ------------------------------------------------------------- DangerousGoods
+    DangerousGoods:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+            skuId: { type: string, format: uuid, readOnly: true }
+            unNumber: { type: string, example: UN1993 }
+            hazardClass: { type: string, example: "3" }
+            packingGroup: { type: string, example: II }
+            properShippingName: { type: string }
+            adrImdgIataCodes:
+              type: array
+              items: { type: string }
+            flashPoint: { type: number, format: double, nullable: true }
+            netExplosiveQty: { type: number, format: double, nullable: true }
+            storageSegregationRules:
+              type: object
+              additionalProperties: true
+            handlingConstraints:
+              type: object
+              additionalProperties: true
+
+    # -------------------------------------------------------------- UnitOfMeasure
+    UnitOfMeasure:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [code]
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+            skuId: { type: string, format: uuid, readOnly: true }
+            code: { type: string, example: CASE }
+            parentUomId:
+              type: string
+              format: uuid
+              nullable: true
+              description: Parent UoM in the bundle hierarchy.
+            qtyInParent:
+              type: number
+              format: double
+              description: How many of this UoM make up one parent UoM.
+              example: 12
+            lengthMm: { type: number, format: double, nullable: true }
+            widthMm: { type: number, format: double, nullable: true }
+            heightMm: { type: number, format: double, nullable: true }
+            weightG: { type: number, format: double, nullable: true }
+            isBaseUnit: { type: boolean, default: false }
+
+    # -------------------------------------------------------------------- Barcode
+    Barcode:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [value]
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+            skuId: { type: string, format: uuid, readOnly: true }
+            uomId:
+              type: string
+              format: uuid
+              nullable: true
+              description: Which packaging level (UoM) this barcode identifies.
+            value: { type: string, example: "5012345678900" }
+            barcodeTypeId:
+              type: string
+              format: uuid
+              nullable: true
+    BarcodeType:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [name]
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+            name: { type: string, example: GS1-128 }
+            symbology: { type: string, example: CODE128 }
+            lengthRule: { type: string, nullable: true }
+            checkDigitRule: { type: string, nullable: true }
+            gs1AiParsing:
+              type: boolean
+              default: false
+              description: Whether GS1 application-identifier parsing applies.
+
+    # ------------------------------------------------------------------- Location
+    Location:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [warehouseId, code, locationType, purpose]
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+            warehouseId: { type: string, format: uuid }
+            code: { type: string, example: A-01-02-03 }
+            locationType: { $ref: '#/components/schemas/LocationType' }
+            purpose: { $ref: '#/components/schemas/LocationPurpose' }
+            parentId:
+              type: string
+              format: uuid
+              nullable: true
+              description: Zone / aisle / grid parent.
+            coordinates:
+              type: object
+              additionalProperties: true
+              nullable: true
+            equipmentId:
+              type: string
+              format: uuid
+              nullable: true
+            status: { $ref: '#/components/schemas/LifecycleStatus' }
+            capacity:
+              type: object
+              additionalProperties: true
+              nullable: true
+              description: qty / volume / weight limits.
+            allowedHuTypes:
+              type: array
+              items: { type: string }
+            allowedSkuAttrs:
+              type: object
+              additionalProperties: true
+              nullable: true
+            isMixedAllowed: { type: boolean, default: true }
+            replenishmentClass: { type: string, nullable: true }
+    LocationPage:
+      allOf:
+        - $ref: '#/components/schemas/Page'
+        - type: object
+          properties:
+            content:
+              type: array
+              items: { $ref: '#/components/schemas/Location' }
+
+    # ----------------------------------------------------------- HandlingUnitType
+    HandlingUnitType:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [name]
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+            name: { type: string, example: TOTE }
+            lengthMm: { type: number, format: double, nullable: true }
+            widthMm: { type: number, format: double, nullable: true }
+            heightMm: { type: number, format: double, nullable: true }
+            weightLimitG: { type: number, format: double, nullable: true }
+            nestable: { type: boolean, default: false }
+
+    # ------------------------------------------------------------------ Equipment
+    Equipment:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [warehouseId, family]
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+            warehouseId: { type: string, format: uuid }
+            family: { $ref: '#/components/schemas/EquipmentFamily' }
+            vendor: { type: string, nullable: true }
+            model: { type: string, nullable: true }
+            adapterEndpoint:
+              type: string
+              nullable: true
+              description: URL of the Go device adapter that speaks the vendor protocol.
+            capabilities:
+              type: object
+              additionalProperties: true
+              nullable: true
+            status: { $ref: '#/components/schemas/LifecycleStatus' }
+
+    # ---------------------------------------------------------------- Shared bits
+    Page:
+      type: object
+      description: Spring-Data style page envelope.
+      properties:
+        content:
+          type: array
+          items: {}
+        page: { type: integer, example: 0 }
+        size: { type: integer, example: 50 }
+        totalElements: { type: integer, format: int64, example: 1 }
+        totalPages: { type: integer, example: 1 }
+    BulkImportReport:
+      type: object
+      properties:
+        total: { type: integer }
+        created: { type: integer }
+        updated: { type: integer }
+        failed: { type: integer }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              row: { type: integer }
+              code: { type: string }
+              message: { type: string }
+    Problem:
+      type: object
+      description: RFC 9457 problem detail.
+      properties:
+        type: { type: string, format: uri, default: about:blank }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string, format: uri }

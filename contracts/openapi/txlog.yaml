@@ -1,0 +1,158 @@
+openapi: 3.0.3
+info:
+  title: openWCS Transaction Log API
+  version: 0.1.0
+  description: >
+    Append, query, and replay the immutable transaction log (build.md §4 txlog, §5.2).
+    Every appended event is also staged in a transactional outbox and relayed to the
+    Kafka topic `txlog.stream` (§5.5, §9), from which services build read models
+    (e.g. the inventory stock projection).
+servers:
+  - url: /api/txlog
+    description: Via the API gateway
+
+tags:
+  - name: Events
+
+paths:
+  /events:
+    post:
+      tags: [Events]
+      summary: Append an event to the log
+      description: >
+        Appends one immutable event. With no `expectedSeq` the next per-stream sequence
+        is auto-assigned; supplying `expectedSeq` enforces optimistic concurrency via the
+        (streamId, seq) uniqueness guarantee — a clash returns 409.
+      operationId: appendEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AppendEventRequest' }
+      responses:
+        "201":
+          description: Appended
+          headers:
+            Location:
+              description: URI of the appended event.
+              schema: { type: string, format: uri }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Event' }
+        "409":
+          description: Concurrency conflict — (streamId, seq) already exists
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        "422":
+          description: Request failed validation
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+    get:
+      tags: [Events]
+      summary: Global replay feed
+      description: Events in global `position` order after a cursor — used to (re)build read models.
+      operationId: feed
+      parameters:
+        - name: afterPosition
+          in: query
+          description: Return events with position greater than this value.
+          schema: { type: integer, format: int64, default: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Event' }
+
+  /streams/{streamId}/events:
+    parameters:
+      - name: streamId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Events]
+      summary: Replay a single stream
+      description: All events for one aggregate (stream) in sequence order.
+      operationId: streamEvents
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Event' }
+
+components:
+  schemas:
+    AppendEventRequest:
+      type: object
+      required: [streamId, eventType]
+      properties:
+        streamId:
+          type: string
+          description: Aggregate id (handling unit / order / location …).
+          example: HU-000123
+        eventType:
+          type: string
+          example: GoodsReceived
+        occurredAt:
+          type: string
+          format: date-time
+          description: Device/business time; defaults to now if omitted.
+        actor:
+          type: string
+          example: receiving-station-3
+        correlationId:
+          type: string
+          format: uuid
+          nullable: true
+        payload:
+          type: object
+          additionalProperties: true
+          description: Event-specific body (schema-versioned).
+          example: { warehouseId: "9f1c…", skuId: "3b2a…", locationId: "7c5d…", qty: 12, uomCode: EACH }
+        payloadVersion:
+          type: integer
+          default: 1
+        expectedSeq:
+          type: integer
+          format: int64
+          nullable: true
+          description: For optimistic concurrency; omit to auto-assign the next sequence.
+    Event:
+      type: object
+      properties:
+        position:
+          type: integer
+          format: int64
+          description: Global total-order cursor (build.md §5.4).
+        eventId: { type: string, format: uuid }
+        streamId: { type: string }
+        seq: { type: integer, format: int64 }
+        eventType: { type: string }
+        occurredAt: { type: string, format: date-time }
+        recordedAt: { type: string, format: date-time }
+        actor: { type: string, nullable: true }
+        correlationId: { type: string, format: uuid, nullable: true }
+        payload:
+          type: object
+          additionalProperties: true
+        payloadVersion: { type: integer }
+    Problem:
+      type: object
+      description: RFC 9457 problem detail.
+      properties:
+        type: { type: string, format: uri, default: about:blank }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string, format: uri }
