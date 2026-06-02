@@ -44,7 +44,7 @@ not committed (`gradle wrapper` once).
 
 | Phase | Status | Detail |
 |---|---|---|
-| **0 — Foundations** | 🟡 | Repo + compose + shared schemas + txlog/outbox/relay + Kafka ✅; **IAM authorization model ✅, gateway JWT validation + identity propagation ✅ (toggleable)**. Gaps: Keycloak realm + per-endpoint RBAC enforcement in services, CI ⬜. |
+| **0 — Foundations** | 🟡 | Repo + compose + shared schemas + txlog/outbox/relay + Kafka ✅; **IAM model ✅, gateway JWT ✅, per-endpoint RBAC across all services ✅, inter-service identity propagation ✅ (all toggleable)**. Gaps: a Keycloak `openwcs` realm to exercise it end-to-end, mTLS, CI ⬜. |
 | **1 — Master data + inventory MVP** | ✅ | Master Data ✅, Inventory projection ✅, log→projection loop proven ✅. |
 | **2 — Process engine + one equipment family** | ⬜ | process-engine, flow-orchestrator, first adapter, goods-in-via-BPMN ⬜. |
 | **3 — Outbound + more equipment** | 🟡 | **order-management ✅, allocation + cubing + batch picking + release management ✅, inventory reservation/ATP ✅.** Gaps: host-integration gateways ⬜; the *BPMN* outbound process ⬜; more adapters ⬜. |
@@ -57,7 +57,7 @@ not committed (`gradle wrapper` once).
 
 | Service | Tests | Kind |
 |---|---|---|
-| master-data | `MasterDataPersistenceTest`, `MasterDataApiTest` | Testcontainers (persistence + MockMvc) |
+| master-data | `MasterDataPersistenceTest`, `MasterDataApiTest`, `MasterDataRbacTest` | Testcontainers + MockMvc (incl. RBAC: read=VIEW, write=EDIT) |
 | txlog | `TransactionLogServiceTest`, `OutboxRelayTest` | Testcontainers + Mockito |
 | inventory | `InventoryPersistenceTest`, `StockProjectionServiceTest`, `InventoryServiceTest` | Testcontainers |
 | allocation | `AllocationEngineTest`, `AllocationServiceTest` | Pure logic + Testcontainers (allocate → cancel releases reservations) |
@@ -86,18 +86,16 @@ not committed (`gradle wrapper` once).
 
 ## 5. Suggested next steps
 
-1. **Extend RBAC enforcement** to the remaining services (master-data, inventory, allocation,
-   txlog) using the shared `AccessGuard`/`RoleCatalog` (wired in order-management as the
-   reference). Plus a Keycloak `openwcs` realm + `gradle wrapper` so the JWT path is
-   exercisable end-to-end, and (optionally) resolving custom IAM roles at runtime.
+1. **Stand up a Keycloak `openwcs` realm** + `gradle wrapper` so the JWT + RBAC path is
+   exercisable end-to-end (enforcement is wired across all services but only verifiable with a
+   realm). Consider resolving custom IAM roles at runtime and mTLS between services.
 2. **End-to-end MockMvc tests** across the outbound slice (release → allocate → ship → cancel)
    and the inbound/count/adjust posting + relay flow.
 3. **master-data catalog events** + shipper/fulfillment-config paths in `master-data.yaml`.
 4. **Order auto-complete** when a line is fully posted (`postedQty` ≥ `qty`).
 5. **process-engine + flow-orchestrator + first adapter** (Phase 2): goods-in/outbound via BPMN.
 
-> Done since last revision: **IAM service** (users → roles → coded permissions, seeded roles,
-> effective permissions; `IamServiceTest`); **gateway JWT validation + identity propagation**
-> (toggleable, forwards/strips `X-Auth-*`); order-management records the **authenticated
-> actor** and **enforces per-endpoint RBAC** via the shared `RoleCatalog`/`AccessGuard`
-> (`OrderAuthorizationTest`).
+> Done since last revision: **per-endpoint RBAC extended to all services** (master-data /
+> inventory / allocation / txlog via an `RbacFilter`; order-management via `AccessGuard`) plus
+> **inter-service identity propagation** (allocation, order-management forward `X-Auth-*` on
+> outbound calls). `MasterDataRbacTest` added.
