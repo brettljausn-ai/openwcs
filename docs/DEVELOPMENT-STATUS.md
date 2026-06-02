@@ -20,7 +20,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | gateway | Java | 8080 | ✅ | Routes `/api/<service>/**`; env-overridable URIs (incl. allocation). |
 | master-data | Java | 8081 | ✅ | Catalog CRUD + outbound config: shippers, fulfillment config (pick types, cubing mode, batch config). |
 | inventory | Java | 8082 | ✅ | Stock projection + SKU- and location-scoped availability/reservations. |
-| order-management | Java | 8084 | ✅ | Outbound orders, lifecycle, release management (priority/dispatch time); delegates allocation. |
+| order-management | Java | 8084 | ✅ | Orders of all types (INBOUND/OUTBOUND/COUNT/ADJUSTMENT), lifecycle, release mgmt (priority/dispatch time), line stock transactions → txlog; delegates allocation. |
 | allocation | Java | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing (APP/1:1), batch picking. |
 | txlog | Java | 8086 | ✅ | Append-only events + outbox + relay. |
 | process-engine | Java | 8083 | 🟦 | Needs Flowable BPMN + designer. |
@@ -32,8 +32,8 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | ui | React/TS | 5173 | 🟦 | Vite skeleton. |
 | libs/common | Java | — | ✅ | `EventEnvelope`. |
 
-**Contracts:** OpenAPI ✅ master-data, inventory, txlog, allocation; ⬜ order-management,
-master-data shipper/fulfillment-config paths, other services. Avro/Schema-Registry ⬜.
+**Contracts:** OpenAPI ✅ master-data, inventory, txlog, allocation, order-management;
+⬜ master-data shipper/fulfillment-config paths, other services. Avro/Schema-Registry ⬜.
 
 **Platform:** docker-compose ✅ (incl. allocation). CI ⬜. Helm/k8s ⬜. Gradle wrapper jar
 not committed (`gradle wrapper` once).
@@ -61,7 +61,7 @@ not committed (`gradle wrapper` once).
 | txlog | `TransactionLogServiceTest`, `OutboxRelayTest` | Testcontainers + Mockito |
 | inventory | `InventoryPersistenceTest`, `StockProjectionServiceTest`, `InventoryServiceTest` | Testcontainers |
 | allocation | `AllocationEngineTest`, `AllocationServiceTest` | Pure logic + Testcontainers (allocate → cancel releases reservations) |
-| order-management | — | ⬜ none yet |
+| order-management | `OrderTransactionTest` | Testcontainers + mocked clients (post line transaction → appends event + records it) |
 
 ---
 
@@ -76,17 +76,23 @@ not committed (`gradle wrapper` once).
   SPLIT_CASE is treated as eaches for quantity.
 - **Allocation↔services** calls are synchronous REST; partial-failure compensation exists
   in the allocator but cross-service consistency is best-effort (no saga/outbox there yet).
-- No allocation/order **integration tests**; events only on `txlog.stream`.
+- **Line transaction posting** appends to txlog then saves the local row in two steps (not
+  atomic); a local outbox in order-management would close this. Order status is not
+  auto-advanced by postings (no auto-complete on `postedQty` ≥ `qty`).
+- Events only on `txlog.stream`; no contract tests; no CI.
 
 ---
 
 ## 5. Suggested next steps
 
-1. **order-management ↔ allocation MockMvc tests** to exercise the outbound slice
-   end-to-end (allocate → ship → cancel).
-2. **master-data catalog events** + master-data/order-management OpenAPI specs.
-3. **IAM + gateway JWT** (Phase 0 close-out).
-4. **process-engine + flow-orchestrator + first adapter** (Phase 2): goods-in/outbound via BPMN.
+1. **order-management local outbox** so a line transaction's txlog append + local record
+   commit atomically; optional order auto-complete when fully posted.
+2. **End-to-end MockMvc tests** across the outbound slice (release → allocate → ship → cancel)
+   and the inbound/count/adjust posting flow.
+3. **master-data catalog events** + shipper/fulfillment-config paths in `master-data.yaml`.
+4. **IAM + gateway JWT** (Phase 0 close-out).
+5. **process-engine + flow-orchestrator + first adapter** (Phase 2): goods-in/outbound via BPMN.
 
-> Done since last revision: allocation **order-cancel** endpoint releasing held
-> reservations, wired into order-management cancel, with an `AllocationServiceTest`.
+> Done since last revision: order types (INBOUND/OUTBOUND/COUNT/ADJUSTMENT) + per-line
+> stock transactions posting to txlog (`OrderTransactionTest`); `order-management.yaml`
+> OpenAPI; allocation order-cancel wired into order cancel.

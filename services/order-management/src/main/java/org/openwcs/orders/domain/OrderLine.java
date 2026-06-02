@@ -1,5 +1,6 @@
 package org.openwcs.orders.domain;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -10,11 +11,18 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
-/** A SKU + quantity on an outbound order; carries its inventory reservation once allocated. */
+/**
+ * A SKU + quantity on an order line. For OUTBOUND it carries the inventory reservation
+ * once allocated; for every type it accumulates the stock transactions posted against it
+ * ({@code postedQty} is their signed sum).
+ */
 @Entity
 @Table(name = "order_line")
 public class OrderLine extends Auditable {
@@ -46,6 +54,19 @@ public class OrderLine extends Auditable {
 
     @Column(name = "reservation_id")
     private UUID reservationId;
+
+    /** Signed sum of posted transaction quantities (received / picked / counted / adjusted). */
+    @Column(name = "posted_qty", nullable = false)
+    private BigDecimal postedQty = BigDecimal.ZERO;
+
+    @OneToMany(mappedBy = "line", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<OrderLineTransaction> transactions = new ArrayList<>();
+
+    public void addTransaction(OrderLineTransaction txn) {
+        txn.setLine(this);
+        this.transactions.add(txn);
+        this.postedQty = this.postedQty.add(txn.getQty());
+    }
 
     public UUID getId() {
         return id;
@@ -105,5 +126,13 @@ public class OrderLine extends Auditable {
 
     public void setReservationId(UUID reservationId) {
         this.reservationId = reservationId;
+    }
+
+    public BigDecimal getPostedQty() {
+        return postedQty;
+    }
+
+    public List<OrderLineTransaction> getTransactions() {
+        return transactions;
     }
 }

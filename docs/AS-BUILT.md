@@ -46,7 +46,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 | `master_data` | master-data | warehouse, attribute_schema, sku, sku_profile, dangerous_goods, unit_of_measure, barcode_type, barcode, handling_unit_type, equipment, location, **shipper**, **warehouse_fulfillment_config** |
 | `transaction_log` | txlog | events (append-only; UPDATE/DELETE blocked by trigger), outbox |
 | `inventory` | inventory | batch, serial_unit, stock, reservation, projection_offset, processed_event |
-| `orders` | order-management | outbound_order, order_line |
+| `orders` | order-management | outbound_order (all order types), order_line, order_line_transaction |
 | `allocation` | allocation | order_allocation, allocation_line, pick_batch |
 
 ---
@@ -79,14 +79,22 @@ Reservations check ATP under a pessimistic lock so concurrent allocations can't 
 `OutboxRelay` publishes to `txlog.stream` in order. Query/replay by stream or global
 position.
 
-## 6. order-management (outbound lifecycle + release)
+## 6. order-management (orders, release, line transactions)
 
-`/api/orders`: create order (lines, `priority`, `dispatchBy`), get/list, **release**,
-cancel, ship. **Release management**: `GET /release-queue?warehouseId=` (most-urgent-first
-— priority desc, then dispatch time) and `POST /release-due?warehouseId=&withinMinutes=`.
-Release **delegates to the allocation service**; the order becomes `ALLOCATED` or
-`NOT_FULFILLABLE` (the latter waits for instructions — re-release or cancel). Lifecycle:
-CREATED → RELEASED → ALLOCATED / PARTIALLY_ALLOCATED / NOT_FULFILLABLE → SHIPPED / CANCELLED.
+`/api/orders` (see `contracts/openapi/order-management.yaml`). Orders carry an
+**`orderType`** — INBOUND | OUTBOUND | COUNT | ADJUSTMENT — with lines.
+
+- **Lifecycle / release** (OUTBOUND): create → **release** (delegates to allocation →
+  `ALLOCATED` / `NOT_FULFILLABLE`) → ship; cancel releases held reservations via allocation.
+  **Release management**: `GET /release-queue?warehouseId=` (priority desc, then dispatch
+  time) and `POST /release-due?warehouseId=&withinMinutes=`.
+- **Line stock transactions** (every type): `POST /orders/{id}/lines/{lineNo}/transactions`
+  records a receipt / pick / count / adjustment (type derived from `orderType`), **appends
+  the matching event** (`GoodsReceived` / `Picked` / `StockAdjusted`) to the transaction log
+  (correlation = order, stream = line), stores the `event_id` on the line transaction, and
+  rolls up `postedQty`. The physical stock change is then applied by the inventory projection.
+- The `outbound_order` table now holds all order types (legacy name retained; a rename is a
+  documented follow-up).
 
 ## 7. allocation (pick-location allocation + cubing + batching) — ADR 0002
 
@@ -115,6 +123,11 @@ priority/dispatch-time ordered) → order-management calls allocation → alloca
 at PICK locations (inventory) + cubes → order `ALLOCATED`/`NOT_FULFILLABLE` →
 `POST /api/allocation/batches` clusters small orders for picking.
 
+**Line transactions (all order types):** `POST /api/orders/{id}/lines/{lineNo}/transactions`
+→ order-management appends `GoodsReceived` / `Picked` / `StockAdjusted` to txlog → outbox
+relay → `txlog.stream` → inventory projection moves `stock.qty`. INBOUND = receipts (+),
+OUTBOUND = picks (−), COUNT / ADJUSTMENT = signed adjustments.
+
 ---
 
 ## 9. Testing (not yet executed here)
@@ -124,8 +137,10 @@ required). Present: master-data (`MasterDataPersistenceTest`, `MasterDataApiTest
 (`TransactionLogServiceTest`, `OutboxRelayTest`), inventory (`InventoryPersistenceTest`,
 `StockProjectionServiceTest`, `InventoryServiceTest`), allocation (`AllocationEngineTest`
 — pure pick-breakdown / cubing / batch-merge logic; `AllocationServiceTest` — Testcontainers
-+ mocked clients covering allocate → cancel-releases-reservations). No JVM/Gradle in the
-authoring environment, so nothing has been compiled; treat the test suite as the gate.
++ mocked clients covering allocate → cancel-releases-reservations), order-management
+(`OrderTransactionTest` — Testcontainers + mocked clients: posting a line transaction
+appends the event + records it). No JVM/Gradle in the authoring environment, so nothing has
+been compiled; treat the test suite as the gate.
 
 ## 10. Not built / known gaps
 
@@ -134,8 +149,13 @@ authoring environment, so nothing has been compiled; treat the test suite as the
 - **No auth** (Keycloak runs in compose; no JWT/RBAC enforcement).
 - Cubing is volume+weight (not 3D bin-packing); shipper selection is default/first.
 - Pick-type breakdown assumes stock is base-UoM and reads case size from the "CASE" UoM.
-- Allocation/order REST lack integration tests (only pure-logic + per-service persistence
-  tests); no contract tests; no CI; events only on `txlog.stream` (no Avro/Schema-Registry,
-  no master-data catalog events, no DLQs).
-- OpenAPI: `allocation.yaml` present; master-data shipper/config paths and an
-  order-management spec are not yet written.
+- No CI; no contract tests; events only on `txlog.stream` (no Avro/Schema-Registry, no
+  master-data catalog events, no DLQs).
+- Posting a line transaction (txlog append) and recording it locally are **not one atomic
+  transaction** — the append happens, then the local row is saved; a crash between them
+  could drop the local record (the stock effect still lands via the log). A local outbox in
+  order-management would close this; documented follow-up.
+- Order status is not auto-advanced by postings (no auto-complete when `postedQty` meets
+  `qty`); lifecycle orchestration is a follow-up.
+- OpenAPI: `allocation.yaml` + `order-management.yaml` present; master-data
+  shipper/fulfillment-config paths not yet added to `master-data.yaml`.

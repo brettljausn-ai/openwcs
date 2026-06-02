@@ -20,20 +20,24 @@ public interface OutboundOrderRepository extends JpaRepository<OutboundOrder, UU
 
     Page<OutboundOrder> findByWarehouseIdAndStatus(UUID warehouseId, OrderStatus status, Pageable pageable);
 
-    /** Release queue: most urgent first — highest priority, then earliest dispatch time. */
+    /** Release queue (OUTBOUND only): most urgent first — highest priority, then earliest dispatch. */
     @Query("""
         select o from OutboundOrder o
-        where o.warehouseId = :warehouseId and o.status in :statuses
+        where o.warehouseId = :warehouseId
+          and o.orderType = org.openwcs.orders.domain.OrderType.OUTBOUND
+          and o.status in :statuses
         order by o.priority desc, o.dispatchBy asc nulls last
         """)
     List<OutboundOrder> releaseQueue(
             @Param("warehouseId") UUID warehouseId,
             @Param("statuses") Collection<OrderStatus> statuses);
 
-    /** CREATED orders due by the cut-off (null dispatch time = always due), most urgent first. */
+    /** CREATED OUTBOUND orders due by the cut-off (null dispatch time = always due), most urgent first. */
     @Query("""
         select o from OutboundOrder o
-        where o.warehouseId = :warehouseId and o.status = org.openwcs.orders.domain.OrderStatus.CREATED
+        where o.warehouseId = :warehouseId
+          and o.orderType = org.openwcs.orders.domain.OrderType.OUTBOUND
+          and o.status = org.openwcs.orders.domain.OrderStatus.CREATED
           and (o.dispatchBy is null or o.dispatchBy <= :cutoff)
         order by o.priority desc, o.dispatchBy asc nulls last
         """)

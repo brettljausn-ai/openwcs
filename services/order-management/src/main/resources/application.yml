@@ -25,8 +25,10 @@ spring:
 
 openwcs:
   orders:
-    # Inventory service base URL used to reserve/release stock on order release/cancel.
-    inventory-base-url: ${OPENWCS_INVENTORY_BASE_URL:http://localhost:8082}
+    # Allocation service: pick-location allocation + cubing on release; reservation release on cancel.
+    allocation-base-url: ${OPENWCS_ALLOCATION_BASE_URL:http://localhost:8091}
+    # Transaction log: stock transactions posted beneath order lines are appended here.
+    txlog-base-url: ${OPENWCS_TXLOG_BASE_URL:http://localhost:8086}
 
 management:
   endpoints:

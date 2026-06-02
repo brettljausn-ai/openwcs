@@ -1,17 +1,24 @@
 package org.openwcs.orders.service;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.openwcs.orders.api.CreateOrderRequest;
 import org.openwcs.orders.api.IllegalOrderStateException;
 import org.openwcs.orders.api.OrderNotFoundException;
 import org.openwcs.orders.api.OrderView;
 import org.openwcs.orders.api.PageResponse;
+import org.openwcs.orders.api.PostTransactionRequest;
 import org.openwcs.orders.client.AllocationClient;
+import org.openwcs.orders.client.TxLogClient;
 import org.openwcs.orders.domain.OrderLine;
+import org.openwcs.orders.domain.OrderLineTransaction;
 import org.openwcs.orders.domain.OrderStatus;
+import org.openwcs.orders.domain.OrderType;
 import org.openwcs.orders.domain.OutboundOrder;
+import org.openwcs.orders.domain.TransactionType;
 import org.openwcs.orders.repo.OutboundOrderRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,20 +26,22 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Outbound order lifecycle + release management (build.md §4.6, §7; ADR 0002). Release
- * delegates pick-location allocation + cubing to the allocation service and records the
- * resulting fulfilment status; orders are released most-urgent-first by priority then
- * dispatch time.
+ * Order lifecycle, release management, and stock-transaction posting (build.md §4.6, §7;
+ * ADR 0002). OUTBOUND release delegates allocation + cubing to the allocation service;
+ * every order type posts stock transactions beneath its lines (receipts / picks / counts /
+ * adjustments), appended to the transaction log and applied by the inventory projection.
  */
 @Service
 public class OrderService {
 
     private final OutboundOrderRepository orders;
     private final AllocationClient allocation;
+    private final TxLogClient txlog;
 
-    public OrderService(OutboundOrderRepository orders, AllocationClient allocation) {
+    public OrderService(OutboundOrderRepository orders, AllocationClient allocation, TxLogClient txlog) {
         this.orders = orders;
         this.allocation = allocation;
+        this.txlog = txlog;
     }
 
     @Transactional
@@ -42,6 +51,7 @@ public class OrderService {
         });
         OutboundOrder order = new OutboundOrder();
         order.setOrderRef(request.orderRef());
+        order.setOrderType(request.orderType() == null ? OrderType.OUTBOUND : OrderType.valueOf(request.orderType()));
         order.setWarehouseId(request.warehouseId());
         order.setCustomerRef(request.customerRef());
         order.setPriority(request.priority() == null ? 0 : request.priority());
@@ -122,7 +132,76 @@ public class OrderService {
         return OrderView.from(order);
     }
 
+    /**
+     * Post a stock transaction against a line: append the matching event to the
+     * transaction log (correlation = order, stream = line) and record it locally. The
+     * physical stock change is applied by the inventory projection.
+     */
+    @Transactional
+    public OrderView postTransaction(UUID orderId, int lineNo, PostTransactionRequest request) {
+        OutboundOrder order = require(orderId);
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            throw new IllegalOrderStateException("Cannot post transactions to a cancelled order");
+        }
+        OrderLine line = order.getLines().stream()
+                .filter(l -> l.getLineNo() == lineNo)
+                .findFirst()
+                .orElseThrow(() -> new IllegalOrderStateException(
+                        "No line " + lineNo + " on order " + order.getOrderRef()));
+
+        TransactionType txnType = transactionTypeFor(order.getOrderType());
+        UUID eventId = txlog.append(
+                line.getId().toString(),
+                eventTypeFor(txnType),
+                order.getId(),
+                request.actor(),
+                buildPayload(order, line, txnType, request));
+
+        line.addTransaction(new OrderLineTransaction(line, txnType, request.qty(),
+                request.locationId(), request.huId(), request.batchId(), eventId, request.actor()));
+        return OrderView.from(order);
+    }
+
+    private static TransactionType transactionTypeFor(OrderType orderType) {
+        return switch (orderType) {
+            case INBOUND -> TransactionType.RECEIPT;
+            case OUTBOUND -> TransactionType.PICK;
+            case COUNT -> TransactionType.COUNT;
+            case ADJUSTMENT -> TransactionType.ADJUSTMENT;
+        };
+    }
+
+    private static String eventTypeFor(TransactionType txnType) {
+        return switch (txnType) {
+            case RECEIPT -> "GoodsReceived";
+            case PICK -> "Picked";
+            case COUNT, ADJUSTMENT -> "StockAdjusted";
+        };
+    }
+
+    private static Map<String, Object> buildPayload(
+            OutboundOrder order, OrderLine line, TransactionType txnType, PostTransactionRequest req) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("warehouseId", order.getWarehouseId());
+        payload.put("skuId", line.getSkuId());
+        payload.put("batchId", req.batchId());
+        payload.put("locationId", req.locationId());
+        payload.put("huId", req.huId());
+        payload.put("status", req.status());
+        payload.put("uomCode", req.uomCode() == null ? "EACH" : req.uomCode());
+        // GoodsReceived/Picked carry `qty`; StockAdjusted carries a signed `qtyDelta`.
+        if (txnType == TransactionType.RECEIPT || txnType == TransactionType.PICK) {
+            payload.put("qty", req.qty());
+        } else {
+            payload.put("qtyDelta", req.qty());
+        }
+        return payload;
+    }
+
     private OutboundOrder releaseOrder(OutboundOrder order) {
+        if (order.getOrderType() != OrderType.OUTBOUND) {
+            throw new IllegalOrderStateException("Only OUTBOUND orders are released/allocated");
+        }
         if (order.getStatus() != OrderStatus.CREATED && order.getStatus() != OrderStatus.NOT_FULFILLABLE) {
             throw new IllegalOrderStateException(
                     "Only CREATED or NOT_FULFILLABLE orders can be released (was " + order.getStatus() + ")");

@@ -103,11 +103,13 @@ services:
     ports: ["8084:8084"]
     depends_on: [postgres, kafka]
     environment:
-      # Service-local `orders` schema; delegates allocation to the allocation service (ADR 0002).
+      # Service-local `orders` schema; delegates allocation to the allocation service (ADR 0002)
+      # and appends line stock transactions to the transaction log.
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
       SPRING_DATASOURCE_USERNAME: openwcs
       SPRING_DATASOURCE_PASSWORD: openwcs
       OPENWCS_ALLOCATION_BASE_URL: http://allocation:8091
+      OPENWCS_TXLOG_BASE_URL: http://txlog:8086
 
   allocation:
     profiles: ["apps"]

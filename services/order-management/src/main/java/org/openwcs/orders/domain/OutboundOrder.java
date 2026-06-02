@@ -28,6 +28,10 @@ public class OutboundOrder extends Auditable {
     @Column(name = "order_ref", nullable = false, unique = true)
     private String orderRef;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_type", nullable = false)
+    private OrderType orderType = OrderType.OUTBOUND;
+
     @Column(name = "warehouse_id", nullable = false)
     private UUID warehouseId;
 
@@ -67,6 +71,14 @@ public class OutboundOrder extends Auditable {
 
     public void setOrderRef(String orderRef) {
         this.orderRef = orderRef;
+    }
+
+    public OrderType getOrderType() {
+        return orderType;
+    }
+
+    public void setOrderType(OrderType orderType) {
+        this.orderType = orderType;
     }
 
     public UUID getWarehouseId() {

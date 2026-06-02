@@ -8,10 +8,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-/** Request body to create an outbound order with its lines. */
+/** Request body to create an order (any type) with its lines. */
 public record CreateOrderRequest(
         @NotNull String orderRef,
         @NotNull UUID warehouseId,
+        /** INBOUND | OUTBOUND | COUNT | ADJUSTMENT; defaults to OUTBOUND. */
+        String orderType,
         String customerRef,
         Integer priority,
         /** Required ship / cut-off time; drives release ordering with priority. */

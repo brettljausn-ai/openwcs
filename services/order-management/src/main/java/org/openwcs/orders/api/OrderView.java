@@ -1,15 +1,17 @@
 package org.openwcs.orders.api;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.openwcs.orders.domain.OrderLine;
 import org.openwcs.orders.domain.OutboundOrder;
 
-/** Read model for an outbound order and its lines. */
+/** Read model for an order and its lines (with each line's posted stock transactions). */
 public record OrderView(
         UUID id,
         String orderRef,
+        String orderType,
         UUID warehouseId,
         String customerRef,
         String status,
@@ -22,14 +24,20 @@ public record OrderView(
             UUID id,
             int lineNo,
             UUID skuId,
-            java.math.BigDecimal qty,
-            java.math.BigDecimal allocatedQty,
+            BigDecimal qty,
+            BigDecimal allocatedQty,
+            BigDecimal postedQty,
             String status,
-            UUID reservationId) {
+            UUID reservationId,
+            List<TransactionView> transactions) {
 
         static LineView from(OrderLine l) {
+            List<TransactionView> txns = l.getTransactions().stream()
+                    .sorted((a, b) -> a.getPostedAt().compareTo(b.getPostedAt()))
+                    .map(TransactionView::from)
+                    .toList();
             return new LineView(l.getId(), l.getLineNo(), l.getSkuId(), l.getQty(),
-                    l.getAllocatedQty(), l.getStatus().name(), l.getReservationId());
+                    l.getAllocatedQty(), l.getPostedQty(), l.getStatus().name(), l.getReservationId(), txns);
         }
     }
 
@@ -38,7 +46,8 @@ public record OrderView(
                 .sorted((a, b) -> Integer.compare(a.getLineNo(), b.getLineNo()))
                 .map(LineView::from)
                 .toList();
-        return new OrderView(o.getId(), o.getOrderRef(), o.getWarehouseId(), o.getCustomerRef(),
-                o.getStatus().name(), o.getPriority(), o.getDispatchBy(), o.getCreatedAt(), lines);
+        return new OrderView(o.getId(), o.getOrderRef(), o.getOrderType().name(), o.getWarehouseId(),
+                o.getCustomerRef(), o.getStatus().name(), o.getPriority(), o.getDispatchBy(),
+                o.getCreatedAt(), lines);
     }
 }

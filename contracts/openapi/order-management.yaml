@@ -1,0 +1,252 @@
+openapi: 3.0.3
+info:
+  title: openWCS Order Management API
+  version: 0.1.0
+  description: >
+    Warehouse orders of every type (INBOUND, OUTBOUND, COUNT, ADJUSTMENT), their
+    lifecycle, release management (priority + dispatch time), and the stock transactions
+    posted beneath each line (build.md §4.6; ADR 0002). OUTBOUND release delegates
+    pick-location allocation + cubing to the allocation service; line transactions are
+    appended to the transaction log and applied by the inventory projection.
+servers:
+  - url: /
+    description: Via the API gateway (routes /api/orders/**)
+
+tags:
+  - name: Orders
+  - name: Release
+  - name: Transactions
+
+paths:
+  /api/orders:
+    post:
+      tags: [Orders]
+      summary: Create an order
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrderRequest' }
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location: { schema: { type: string, format: uri } }
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Order' } }
+        "400": { $ref: '#/components/responses/Problem' }
+        "409": { $ref: '#/components/responses/Problem' }
+    get:
+      tags: [Orders]
+      summary: List orders
+      operationId: listOrders
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/OrderStatus' } }
+        - { name: page, in: query, schema: { type: integer, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, default: 50 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/OrderPage' } }
+
+  /api/orders/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Orders]
+      summary: Get an order
+      operationId: getOrder
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Order' } }
+        "404": { $ref: '#/components/responses/Problem' }
+
+  /api/orders/release-queue:
+    get:
+      tags: [Release]
+      summary: Orders awaiting release, most urgent first
+      description: OUTBOUND CREATED/NOT_FULFILLABLE orders ordered by priority desc, then dispatch time.
+      operationId: releaseQueue
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Order' } }
+  /api/orders/release-due:
+    post:
+      tags: [Release]
+      summary: Release all OUTBOUND orders due within a window
+      operationId: releaseDue
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: withinMinutes, in: query, schema: { type: integer, format: int64, default: 0 } }
+      responses:
+        "200":
+          description: Released orders (with resulting status)
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Order' } }
+
+  /api/orders/{id}/release:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+    post:
+      tags: [Release]
+      summary: Release an OUTBOUND order (allocate)
+      description: Delegates to the allocation service; the order becomes ALLOCATED or NOT_FULFILLABLE.
+      operationId: releaseOrder
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
+        "409": { $ref: '#/components/responses/Problem' }
+        "502": { $ref: '#/components/responses/Problem' }
+  /api/orders/{id}/cancel:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+    post:
+      tags: [Orders]
+      summary: Cancel an order
+      description: Releases any held allocation reservations, then marks the order CANCELLED.
+      operationId: cancelOrder
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
+        "409": { $ref: '#/components/responses/Problem' }
+  /api/orders/{id}/ship:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+    post:
+      tags: [Orders]
+      summary: Ship an allocated order
+      operationId: shipOrder
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
+        "409": { $ref: '#/components/responses/Problem' }
+
+  /api/orders/{id}/lines/{lineNo}/transactions:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: lineNo, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: [Transactions]
+      summary: Post a stock transaction against a line
+      description: >
+        Records a receipt / pick / count / adjustment (type derived from the order type) and
+        appends the matching event (GoodsReceived / Picked / StockAdjusted) to the
+        transaction log. `qty` is positive for receipts/picks and signed for count/adjustment.
+      operationId: postLineTransaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostTransactionRequest' }
+      responses:
+        "200":
+          description: Updated order (with the new transaction under its line)
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Order' } }
+        "409": { $ref: '#/components/responses/Problem' }
+
+components:
+  responses:
+    Problem:
+      description: RFC 9457 problem detail
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    OrderType:
+      type: string
+      enum: [INBOUND, OUTBOUND, COUNT, ADJUSTMENT]
+    OrderStatus:
+      type: string
+      enum: [CREATED, RELEASED, ALLOCATED, PARTIALLY_ALLOCATED, NOT_FULFILLABLE, SHIPPED, CANCELLED]
+    CreateOrderRequest:
+      type: object
+      required: [orderRef, warehouseId, lines]
+      properties:
+        orderRef: { type: string }
+        warehouseId: { type: string, format: uuid }
+        orderType: { $ref: '#/components/schemas/OrderType' }
+        customerRef: { type: string, nullable: true }
+        priority: { type: integer, default: 0 }
+        dispatchBy: { type: string, format: date-time, nullable: true, description: Required ship / cut-off time. }
+        lines:
+          type: array
+          items:
+            type: object
+            required: [skuId, qty]
+            properties:
+              skuId: { type: string, format: uuid }
+              qty: { type: number }
+    PostTransactionRequest:
+      type: object
+      required: [qty, locationId]
+      properties:
+        qty: { type: number, description: Positive for receipt/pick; signed for count/adjustment. }
+        locationId: { type: string, format: uuid }
+        huId: { type: string, format: uuid, nullable: true }
+        batchId: { type: string, format: uuid, nullable: true }
+        uomCode: { type: string, nullable: true, default: EACH }
+        status: { type: string, nullable: true }
+        actor: { type: string, nullable: true }
+    Order:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        orderRef: { type: string }
+        orderType: { $ref: '#/components/schemas/OrderType' }
+        warehouseId: { type: string, format: uuid }
+        customerRef: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        priority: { type: integer }
+        dispatchBy: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/OrderLine' }
+    OrderLine:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        lineNo: { type: integer }
+        skuId: { type: string, format: uuid }
+        qty: { type: number }
+        allocatedQty: { type: number }
+        postedQty: { type: number, description: Signed sum of posted transactions. }
+        status: { type: string }
+        reservationId: { type: string, format: uuid, nullable: true }
+        transactions:
+          type: array
+          items: { $ref: '#/components/schemas/Transaction' }
+    Transaction:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        txnType: { type: string, enum: [RECEIPT, PICK, COUNT, ADJUSTMENT] }
+        qty: { type: number }
+        locationId: { type: string, format: uuid }
+        huId: { type: string, format: uuid, nullable: true }
+        batchId: { type: string, format: uuid, nullable: true }
+        eventId: { type: string, format: uuid, description: The transaction-log event applied. }
+        actor: { type: string, nullable: true }
+        postedAt: { type: string, format: date-time }
+    OrderPage:
+      type: object
+      properties:
+        content: { type: array, items: { $ref: '#/components/schemas/Order' } }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    Problem:
+      type: object
+      properties:
+        type: { type: string, format: uri, default: about:blank }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string, format: uri }

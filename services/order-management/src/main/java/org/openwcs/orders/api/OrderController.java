@@ -78,4 +78,13 @@ public class OrderController {
     public OrderView ship(@PathVariable UUID id) {
         return service.ship(id);
     }
+
+    /** Post a stock transaction beneath a line (receipt / pick / count / adjustment by order type). */
+    @PostMapping("/{id}/lines/{lineNo}/transactions")
+    public OrderView postTransaction(
+            @PathVariable UUID id,
+            @PathVariable int lineNo,
+            @Valid @RequestBody PostTransactionRequest request) {
+        return service.postTransaction(id, lineNo, request);
+    }
 }

@@ -35,12 +35,21 @@ public class ApiExceptionHandler {
         return problem;
     }
 
-    /** The inventory service was unreachable or errored while allocating. */
+    /** e.g. an unknown orderType value. */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ProblemDetail onBadRequest(IllegalArgumentException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Invalid request");
+        problem.setDetail(ex.getMessage());
+        return problem;
+    }
+
+    /** A downstream service (allocation / txlog) was unreachable or errored. */
     @ExceptionHandler(RestClientException.class)
     public ProblemDetail onDownstreamFailure(RestClientException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_GATEWAY);
-        problem.setTitle("Inventory service unavailable");
-        problem.setDetail("Stock allocation failed talking to the inventory service; the order was not released.");
+        problem.setTitle("Downstream service unavailable");
+        problem.setDetail("A call to the allocation or transaction-log service failed; the action did not complete.");
         return problem;
     }
 }
