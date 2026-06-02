@@ -27,6 +27,7 @@ tags:
   - name: Locations
   - name: HandlingUnitTypes
   - name: Equipment
+  - name: Dispatch
 
 paths:
   # ---------------------------------------------------------------- Warehouses
@@ -671,6 +672,153 @@ paths:
               schema: { $ref: '#/components/schemas/Equipment' }
         "404": { $ref: '#/components/responses/NotFound' }
 
+  /shipping-services:
+    get:
+      tags: [Dispatch]
+      summary: List shipping services (optionally look up by code)
+      operationId: listShippingServices
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema: { type: string }
+          description: If given, returns the single service with this code (or empty).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ShippingService' } }
+    post:
+      tags: [Dispatch]
+      summary: Create a shipping service
+      operationId: createShippingService
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ShippingService' }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShippingService' }
+  /shipping-services/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Dispatch]
+      summary: Get a shipping service
+      operationId: getShippingService
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShippingService' }
+        "404": { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Dispatch]
+      summary: Update a shipping service
+      operationId: updateShippingService
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ShippingService' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShippingService' }
+        "404": { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Dispatch]
+      summary: Archive a shipping service
+      operationId: deleteShippingService
+      responses:
+        "204": { description: Archived }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /routes:
+    get:
+      tags: [Dispatch]
+      summary: List routes (optionally look up by code)
+      operationId: listRoutes
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema: { type: string }
+          description: If given, returns the single route with this code (or empty).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Route' } }
+    post:
+      tags: [Dispatch]
+      summary: Create a route
+      description: Routes are normally fed from a host system; this also allows manual entry.
+      operationId: createRoute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Route' }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Route' }
+  /routes/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Dispatch]
+      summary: Get a route
+      operationId: getRoute
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Route' }
+        "404": { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Dispatch]
+      summary: Update a route
+      operationId: updateRoute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Route' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Route' }
+        "404": { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Dispatch]
+      summary: Archive a route
+      operationId: deleteRoute
+      responses:
+        "204": { description: Archived }
+        "404": { $ref: '#/components/responses/NotFound' }
+
 components:
   parameters:
     Page:
@@ -1038,6 +1186,29 @@ components:
               row: { type: integer }
               code: { type: string }
               message: { type: string }
+    ShippingService:
+      type: object
+      description: A dispatch service level (EXPRESS/STANDARD…), optionally tied to a carrier. Code is unique.
+      required: [code]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        code: { type: string, example: EXPRESS }
+        name: { type: string, nullable: true }
+        carrier: { type: string, nullable: true, example: DPD }
+        status: { type: string, default: ACTIVE, enum: [ACTIVE, ARCHIVED] }
+    Route:
+      type: object
+      description: >
+        A dispatch route (region/depot). Transacted from a host system (SAP/Manhattan) — hostRef
+        carries its id there. Code is unique.
+      required: [code]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        code: { type: string, example: CENTRAL_LONDON }
+        name: { type: string, nullable: true, example: Central London }
+        region: { type: string, nullable: true }
+        hostRef: { type: string, nullable: true, description: The route's id in the originating host system. }
+        status: { type: string, default: ACTIVE, enum: [ACTIVE, ARCHIVED] }
     Problem:
       type: object
       description: RFC 9457 problem detail.
