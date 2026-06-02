@@ -45,7 +45,7 @@ class LabelTemplateApiTest {
 
     private String createTemplate() throws Exception {
         Map<String, Object> body = Map.of(
-                "code", "SHIP-4X6", "name", "Shipping 4x6",
+                "code", "SHIP-4X6-" + java.util.UUID.randomUUID(), "name", "Shipping 4x6",
                 "widthMm", 101.6, "heightMm", 152.4, "dpi", 203,
                 "elements", List.of(
                         Map.of("type", "TEXT", "key", "shipToName", "xMm", 5, "yMm", 5, "fontPt", 12),
