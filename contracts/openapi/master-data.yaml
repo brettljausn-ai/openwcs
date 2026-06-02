@@ -819,6 +819,102 @@ paths:
         "204": { description: Archived }
         "404": { $ref: '#/components/responses/NotFound' }
 
+  /label-templates:
+    get:
+      tags: [Dispatch]
+      summary: List label templates (optionally look up by code)
+      operationId: listLabelTemplates
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/LabelTemplate' } }
+    post:
+      tags: [Dispatch]
+      summary: Create a label template (designed in the admin UI)
+      operationId: createLabelTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LabelTemplate' }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LabelTemplate' }
+  /label-templates/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Dispatch]
+      summary: Get a label template
+      operationId: getLabelTemplate
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LabelTemplate' }
+        "404": { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Dispatch]
+      summary: Update a label template
+      operationId: updateLabelTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LabelTemplate' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LabelTemplate' }
+        "404": { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Dispatch]
+      summary: Archive a label template
+      operationId: deleteLabelTemplate
+      responses:
+        "204": { description: Archived }
+        "404": { $ref: '#/components/responses/NotFound' }
+  /label-templates/{id}/render:
+    post:
+      tags: [Dispatch]
+      summary: Render a label template to a print payload
+      description: Renders the template with the supplied field values to ZPL (default) or PDF, returned as base64.
+      operationId: renderLabelTemplate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RenderLabelRequest' }
+      responses:
+        "200":
+          description: Rendered label
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RenderedLabel' }
+        "400": { description: Unsupported format }
+        "404": { $ref: '#/components/responses/NotFound' }
+
 components:
   parameters:
     Page:
@@ -1209,6 +1305,47 @@ components:
         region: { type: string, nullable: true }
         hostRef: { type: string, nullable: true, description: The route's id in the originating host system. }
         status: { type: string, default: ACTIVE, enum: [ACTIVE, ARCHIVED] }
+    LabelElement:
+      type: object
+      description: One positioned element of a label design (mm from the top-left).
+      properties:
+        type: { type: string, enum: [TEXT, ADDRESS, BARCODE, IMAGE] }
+        key: { type: string, nullable: true, description: Data-binding key resolved at render time. }
+        value: { type: string, nullable: true, description: Static value (overrides key). }
+        xMm: { type: number }
+        yMm: { type: number }
+        widthMm: { type: number }
+        heightMm: { type: number }
+        fontPt: { type: number, nullable: true }
+        barcodeSymbology: { type: string, nullable: true, example: CODE128 }
+    LabelTemplate:
+      type: object
+      description: A dispatch-label design (admin-authored). Code is unique.
+      required: [code, widthMm, heightMm]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        code: { type: string, example: SHIP-4X6 }
+        name: { type: string, nullable: true }
+        widthMm: { type: number, example: 101.6 }
+        heightMm: { type: number, example: 152.4 }
+        dpi: { type: integer, default: 203 }
+        elements:
+          type: array
+          items: { $ref: '#/components/schemas/LabelElement' }
+        status: { type: string, default: ACTIVE, enum: [ACTIVE, ARCHIVED] }
+    RenderLabelRequest:
+      type: object
+      properties:
+        format: { type: string, enum: [ZPL, PDF], default: ZPL }
+        data:
+          type: object
+          additionalProperties: { type: string }
+          description: Field values for the template's data-bound elements (by element key).
+    RenderedLabel:
+      type: object
+      properties:
+        format: { type: string, enum: [ZPL, PDF] }
+        payloadBase64: { type: string, description: "The rendered label bytes, base64-encoded." }
     Problem:
       type: object
       description: RFC 9457 problem detail.
