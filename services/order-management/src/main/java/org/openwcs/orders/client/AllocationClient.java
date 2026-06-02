@@ -18,10 +18,17 @@ public interface AllocationClient {
     record Line(int lineNo, UUID skuId, BigDecimal qty) {
     }
 
-    /** {@code FULFILLABLE} when every line was reserved against pick locations. */
-    record AllocationResult(String status) {
+    /**
+     * {@code FULFILLABLE} when every line was reserved against pick locations. {@code detail}
+     * carries the reason for a non-fulfillable outcome (e.g. why cubing failed), for the UI.
+     */
+    record AllocationResult(String status, String detail) {
         public boolean fulfillable() {
             return "FULFILLABLE".equals(status);
+        }
+
+        public boolean cubingFailed() {
+            return "CUBING_FAILED".equals(status);
         }
     }
 }

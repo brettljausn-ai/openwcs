@@ -23,6 +23,6 @@ public record AllocateOrderRequest(
     public record CubeInstruction(@NotNull String shipperCode, List<Content> contents) {
     }
 
-    public record Content(@NotNull UUID skuId, @NotNull BigDecimal qty) {
+    public record Content(@NotNull Integer lineNo, @NotNull UUID skuId, @NotNull BigDecimal qty) {
     }
 }

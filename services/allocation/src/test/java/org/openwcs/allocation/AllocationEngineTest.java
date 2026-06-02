@@ -73,7 +73,7 @@ class AllocationEngineTest {
         UUID sku = UUID.randomUUID();
         // 3 units @ 400g: 2 fit (800 ≤ 900), the 3rd opens a second shipper.
         List<ShipperAssignment> assignments =
-                CubingEngine.appCube(List.of(new CubingEngine.Item(sku, 3, 0d, 400d)), shipper);
+                CubingEngine.appCube(List.of(new CubingEngine.Item(1, sku, 3, 0d, 400d)), List.of(shipper));
 
         assertThat(assignments).hasSize(2);
         long totalUnits = assignments.stream()
@@ -82,5 +82,41 @@ class AllocationEngineTest {
                 .sum();
         assertThat(totalUnits).isEqualTo(3);
         assertThat(assignments.get(0).grossWeightG()).isEqualByComparingTo("900"); // 100 tare + 800
+        // Each carton has a stable identity and the content traces back to the order line.
+        assertThat(assignments).allSatisfy(a -> assertThat(a.shipperUnitId()).isNotNull());
+        assertThat(assignments.get(0).contents().get(0).lineNo()).isEqualTo(1);
+    }
+
+    @Test
+    void cubesIntoLargestThenSmallerCartonAndSplitsTheLine() {
+        // Two carton sizes; volume is the constraint (no weight cap). BIG holds 4 units, SMALL holds 2.
+        ShipperDef big = new ShipperDef(UUID.randomUUID(), "CARTON-BIG",
+                BigDecimal.valueOf(100), BigDecimal.valueOf(100), BigDecimal.valueOf(100),
+                BigDecimal.ZERO, BigDecimal.ONE, null, "ACTIVE");
+        ShipperDef small = new ShipperDef(UUID.randomUUID(), "CARTON-SMALL",
+                BigDecimal.valueOf(100), BigDecimal.valueOf(100), BigDecimal.valueOf(50),
+                BigDecimal.ZERO, BigDecimal.ONE, null, "ACTIVE");
+        UUID sku = UUID.randomUUID();
+
+        // One order line, 5 units @ 250_000 mm³: BIG takes 4, the remaining 1 downsizes to SMALL.
+        // Shippers passed smallest-first to prove the engine ranks them itself.
+        List<ShipperAssignment> assignments = CubingEngine.appCube(
+                List.of(new CubingEngine.Item(7, sku, 5, 250_000d, 0d)), List.of(small, big));
+
+        assertThat(assignments).hasSize(2);
+        assertThat(assignments.get(0).shipperCode()).isEqualTo("CARTON-BIG");
+        assertThat(assignments.get(0).seqNo()).isEqualTo(1);
+        assertThat(assignments.get(1).shipperCode()).isEqualTo("CARTON-SMALL"); // smaller carton for the remainder
+        assertThat(assignments.get(1).seqNo()).isEqualTo(2);
+
+        // The single line (7) is split across both cartons, 4 + 1 = 5 units, and stays traceable.
+        assertThat(assignments).allSatisfy(a -> {
+            assertThat(a.shipperUnitId()).isNotNull();
+            assertThat(a.contents()).allSatisfy(c -> assertThat(c.lineNo()).isEqualTo(7));
+        });
+        assertThat(assignments.get(0).contents().get(0).qty()).isEqualByComparingTo("4");
+        assertThat(assignments.get(1).contents().get(0).qty()).isEqualByComparingTo("1");
+        // Distinct physical cartons → distinct identities.
+        assertThat(assignments.get(0).shipperUnitId()).isNotEqualTo(assignments.get(1).shipperUnitId());
     }
 }
