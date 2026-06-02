@@ -69,7 +69,10 @@ class TransactionLogServiceTest {
         assertThat(stream).hasSize(2);
 
         // Each append staged exactly one unsent outbox row carrying the serialized envelope.
-        List<OutboxMessage> staged = outbox.findAll();
+        // Scope to this test's stream — the DB is shared across test methods in the class.
+        List<OutboxMessage> staged = outbox.findAll().stream()
+                .filter(m -> "HU-1".equals(m.getMessageKey()))
+                .toList();
         assertThat(staged).hasSize(2);
         assertThat(staged).allSatisfy(m -> {
             assertThat(m.getPublishedAt()).isNull();
