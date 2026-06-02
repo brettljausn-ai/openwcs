@@ -147,6 +147,11 @@ services:
     build: ../services/iam
     ports: ["8087:8087"]
     depends_on: [postgres, kafka]
+    environment:
+      # openWCS authorization model in its own `iam` schema (build.md §4.8).
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
+      SPRING_DATASOURCE_USERNAME: openwcs
+      SPRING_DATASOURCE_PASSWORD: openwcs
 
   notification:
     profiles: ["apps"]

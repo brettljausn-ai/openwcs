@@ -24,6 +24,11 @@ spring:
     create-schemas: true
 
 openwcs:
+  # Per-endpoint RBAC enforcement (build.md §4.8). Off by default (permits) so the stack runs
+  # before a Keycloak realm exists; on, endpoints require the caller's X-Auth-Roles to grant
+  # the coded permission. Match the gateway's flag.
+  security:
+    enabled: ${OPENWCS_SECURITY_ENABLED:false}
   orders:
     # Allocation service: pick-location allocation + cubing on release; reservation release on cancel.
     allocation-base-url: ${OPENWCS_ALLOCATION_BASE_URL:http://localhost:8091}

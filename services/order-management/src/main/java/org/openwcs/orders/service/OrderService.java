@@ -134,12 +134,15 @@ public class OrderService {
     }
 
     /**
-     * Post a stock transaction against a line: append the matching event to the
-     * transaction log (correlation = order, stream = line) and record it locally. The
-     * physical stock change is applied by the inventory projection.
+     * Post a stock transaction against a line: record it + an outbox row in one transaction
+     * (the relay appends the event to the log). {@code actor} is the authenticated user
+     * (gateway-forwarded) or the request fallback — required for audit.
      */
     @Transactional
-    public OrderView postTransaction(UUID orderId, int lineNo, PostTransactionRequest request) {
+    public OrderView postTransaction(UUID orderId, int lineNo, PostTransactionRequest request, String actor) {
+        if (actor == null || actor.isBlank()) {
+            throw new IllegalArgumentException("actor is required to post a stock transaction (audit)");
+        }
         OutboundOrder order = require(orderId);
         if (order.getStatus() == OrderStatus.CANCELLED) {
             throw new IllegalOrderStateException("Cannot post transactions to a cancelled order");
@@ -156,12 +159,12 @@ public class OrderService {
         // Record the transaction (event id filled in later by the relay) and the outbox row
         // in ONE local transaction, so the audit record can never be lost.
         OrderLineTransaction txn = new OrderLineTransaction(line, txnType, request.qty(),
-                request.locationId(), request.huId(), request.batchId(), null, request.actor());
+                request.locationId(), request.huId(), request.batchId(), null, actor);
         line.addTransaction(txn);
         orders.flush(); // assign the transaction id for the outbox foreign key
         outbox.save(new OrderOutboxMessage(
                 txn.getId(), line.getId().toString(), eventTypeFor(txnType),
-                order.getId(), request.actor(), payload));
+                order.getId(), actor, payload));
         return OrderView.from(order);
     }
 

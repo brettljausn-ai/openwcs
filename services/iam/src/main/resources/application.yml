@@ -3,6 +3,24 @@ server:
 spring:
   application:
     name: iam
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/openwcs}
+    username: ${SPRING_DATASOURCE_USERNAME:openwcs}
+    password: ${SPRING_DATASOURCE_PASSWORD:openwcs}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: iam
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    schemas: iam
+    default-schema: iam
+    create-schemas: true
 management:
   endpoints:
     web:

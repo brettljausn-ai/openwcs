@@ -62,7 +62,8 @@ class OrderTransactionTest {
                 List.of(new CreateOrderRequest.Line(sku, new BigDecimal("10")))));
 
         OrderView view = service.postTransaction(created.id(), 1,
-                new PostTransactionRequest(new BigDecimal("4"), location, null, null, "EACH", null, "operator-1"));
+                new PostTransactionRequest(new BigDecimal("4"), location, null, null, "EACH", null, null),
+                "operator-1"); // resolved actor (gateway-forwarded user)
 
         OrderView.LineView line = view.lines().get(0);
         assertThat(line.postedQty()).isEqualByComparingTo("4");

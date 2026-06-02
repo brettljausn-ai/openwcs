@@ -63,7 +63,7 @@ openwcs/
 
 | Service | Lang | Port | Responsibility |
 |---|---|---|---|
-| `gateway` | Java | 8080 | API gateway: ingress, auth, routing |
+| `gateway` | Java | 8080 | API gateway: routing + JWT validation (toggleable) + forwards `X-Auth-User`/`X-Auth-Roles` |
 | `services/master-data` | Java | 8081 | SKUs, UoM/bundles, barcodes, locations, equipment, warehouses |
 | `services/inventory` | Java | 8082 | Real-time stock: durable stock table (current qty) kept in lockstep with the tx log; lock/unavailable; location-scoped reservations; FEFO/FIFO |
 | `services/process-engine` | Java | 8083 | Admin-designed BPMN process definitions + execution (Flowable) |
@@ -71,7 +71,7 @@ openwcs/
 | `services/allocation` | Java | 8091 | Outbound prep: pick-location allocation (UoM breakdown), cubing (shippers / 1:1), batch picking |
 | `services/flow-orchestrator` | Java | 8085 | Turns process steps into device tasks; routing, contention |
 | `services/txlog` | Java | 8086 | Append-only transaction log (shared Postgres) |
-| `services/iam` | Java | 8087 | Users, MS Entra SSO + local accounts, RBAC (coded permissions) |
+| `services/iam` | Java | 8087 | Authorization model: users → roles → coded permissions (Keycloak does auth) |
 | `services/notification` | Java | 8088 | Operator alerts, exceptions, andon |
 | `services/integration-sap` | Java | 8089 | Host gateway: SAP S/4HANA / HANA (OData/BAPI/RFC/IDoc) |
 | `services/integration-manhattan` | Java | 8090 | Host gateway: Manhattan Active (REST) |
