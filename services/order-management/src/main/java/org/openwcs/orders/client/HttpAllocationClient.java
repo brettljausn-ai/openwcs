@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 /** {@link AllocationClient} backed by the allocation service REST API. */
@@ -35,6 +36,18 @@ public class HttpAllocationClient implements AllocationClient {
                 .retrieve()
                 .body(AllocationResponse.class);
         return new AllocationResult(response == null ? "NOT_FULFILLABLE" : response.status());
+    }
+
+    @Override
+    public void cancel(String orderRef) {
+        try {
+            http.post()
+                    .uri("/api/allocation/orders/{ref}/cancel", orderRef)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (HttpClientErrorException.NotFound e) {
+            // No allocation for this order (e.g. it was never released) — nothing to cancel.
+        }
     }
 
     private record AllocationResponse(String status) {

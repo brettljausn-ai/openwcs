@@ -60,6 +60,24 @@ paths:
           description: No allocation for the order
           content:
             application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+  /orders/{orderRef}/cancel:
+    parameters:
+      - { name: orderRef, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [Allocation]
+      summary: Cancel an order's allocation
+      description: Releases all held reservations and marks the plan CANCELLED (kept for audit).
+      operationId: cancelAllocation
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Allocation' }
+        "404":
+          description: No allocation for the order
+          content:
+            application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
 
   /batches:
     post:

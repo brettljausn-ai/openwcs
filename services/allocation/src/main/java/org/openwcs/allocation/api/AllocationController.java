@@ -33,4 +33,10 @@ public class AllocationController {
     public AllocationView get(@PathVariable String orderRef) {
         return service.get(orderRef);
     }
+
+    /** Cancel an order's allocation, releasing all held reservations. */
+    @PostMapping("/orders/{orderRef}/cancel")
+    public AllocationView cancel(@PathVariable String orderRef) {
+        return service.cancel(orderRef);
+    }
 }

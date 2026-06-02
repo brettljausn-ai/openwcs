@@ -12,6 +12,9 @@ public interface AllocationClient {
 
     AllocationResult allocate(String orderRef, UUID warehouseId, List<Line> lines);
 
+    /** Cancel an order's allocation, releasing any held reservations. No-op if none exists. */
+    void cancel(String orderRef);
+
     record Line(int lineNo, UUID skuId, BigDecimal qty) {
     }
 

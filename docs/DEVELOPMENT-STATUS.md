@@ -60,7 +60,7 @@ not committed (`gradle wrapper` once).
 | master-data | `MasterDataPersistenceTest`, `MasterDataApiTest` | Testcontainers (persistence + MockMvc) |
 | txlog | `TransactionLogServiceTest`, `OutboxRelayTest` | Testcontainers + Mockito |
 | inventory | `InventoryPersistenceTest`, `StockProjectionServiceTest`, `InventoryServiceTest` | Testcontainers |
-| allocation | `AllocationEngineTest` | Pure logic (pick breakdown, cubing, batch merge) |
+| allocation | `AllocationEngineTest`, `AllocationServiceTest` | Pure logic + Testcontainers (allocate → cancel releases reservations) |
 | order-management | — | ⬜ none yet |
 
 ---
@@ -71,8 +71,6 @@ not committed (`gradle wrapper` once).
 - **`ddl-auto: validate` + JSONB** — usually fine on Hibernate 6; fallback is
   `ddl-auto: none` (tests still cover mappings).
 - **No auth** anywhere.
-- **order-management cancel** doesn't release the allocation's held reservations (no
-  allocation order-cancel endpoint yet).
 - **Cubing** is volume+weight greedy (not 3D); shipper selection is default/first only.
 - **Pick-type breakdown** assumes base-UoM stock and reads case size from the "CASE" UoM;
   SPLIT_CASE is treated as eaches for quantity.
@@ -84,9 +82,11 @@ not committed (`gradle wrapper` once).
 
 ## 5. Suggested next steps
 
-1. **order-management ↔ allocation tests** + an allocation integration test (WireMock/mock
-   clients) to exercise the outbound slice end-to-end.
-2. **Allocation order-cancel** endpoint so order cancel releases held reservations.
-3. **master-data catalog events** + master-data/order-management OpenAPI specs.
-4. **IAM + gateway JWT** (Phase 0 close-out).
-5. **process-engine + flow-orchestrator + first adapter** (Phase 2): goods-in/outbound via BPMN.
+1. **order-management ↔ allocation MockMvc tests** to exercise the outbound slice
+   end-to-end (allocate → ship → cancel).
+2. **master-data catalog events** + master-data/order-management OpenAPI specs.
+3. **IAM + gateway JWT** (Phase 0 close-out).
+4. **process-engine + flow-orchestrator + first adapter** (Phase 2): goods-in/outbound via BPMN.
+
+> Done since last revision: allocation **order-cancel** endpoint releasing held
+> reservations, wired into order-management cancel, with an `AllocationServiceTest`.

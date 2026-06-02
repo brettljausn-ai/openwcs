@@ -100,6 +100,14 @@ public class OrderService {
         if (order.getStatus() == OrderStatus.SHIPPED) {
             throw new IllegalOrderStateException("Cannot cancel a shipped order");
         }
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            return OrderView.from(order);
+        }
+        // Release any held reservations via the allocation service (no-op for a CREATED
+        // order that was never released).
+        if (order.getStatus() != OrderStatus.CREATED) {
+            allocation.cancel(order.getOrderRef());
+        }
         order.setStatus(OrderStatus.CANCELLED);
         return OrderView.from(order);
     }

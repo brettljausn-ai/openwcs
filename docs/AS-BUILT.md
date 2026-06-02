@@ -97,6 +97,8 @@ CREATED → RELEASED → ALLOCATED / PARTIALLY_ALLOCATED / NOT_FULFILLABLE → S
   with a pick plan + **cube plan**; else release all reservations → **NOT_FULFILLABLE**.
 - **Cubing**: `APP` (greedy volume + weight against a chosen shipper, honouring max fill
   level / max weight / tare) or `ONE_TO_ONE` (validate & record host-supplied shippers).
+- `POST /orders/{orderRef}/cancel` — release every held reservation for the order and
+  mark the plan CANCELLED (kept for audit). order-management's cancel calls this.
 - `POST /batches` — **batch (cluster) picking**: group eligible small orders
   (FULFILLABLE, pieces ≤ `batchMaxPieces`) into pick totes (≤ `batchMaxOrders`), merge
   their picks into one combined pick list, and record the per-order separation plan.
@@ -121,16 +123,15 @@ Testcontainers + JUnit 5 + Mockito. Run with `./gradlew :services:<name>:test` (
 required). Present: master-data (`MasterDataPersistenceTest`, `MasterDataApiTest`), txlog
 (`TransactionLogServiceTest`, `OutboxRelayTest`), inventory (`InventoryPersistenceTest`,
 `StockProjectionServiceTest`, `InventoryServiceTest`), allocation (`AllocationEngineTest`
-— pure pick-breakdown / cubing / batch-merge logic). No JVM/Gradle in the authoring
-environment, so nothing has been compiled; treat the test suite as the verification gate.
+— pure pick-breakdown / cubing / batch-merge logic; `AllocationServiceTest` — Testcontainers
++ mocked clients covering allocate → cancel-releases-reservations). No JVM/Gradle in the
+authoring environment, so nothing has been compiled; treat the test suite as the gate.
 
 ## 10. Not built / known gaps
 
 - Scaffold-only: process-engine, flow-orchestrator, iam, notification, integration-*,
   Go adapters, UI.
 - **No auth** (Keycloak runs in compose; no JWT/RBAC enforcement).
-- **order-management cancel** does not yet release the allocation's held reservations
-  (allocation has no order-cancel endpoint yet) — documented gap.
 - Cubing is volume+weight (not 3D bin-packing); shipper selection is default/first.
 - Pick-type breakdown assumes stock is base-UoM and reads case size from the "CASE" UoM.
 - Allocation/order REST lack integration tests (only pure-logic + per-service persistence

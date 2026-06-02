@@ -51,6 +51,30 @@ public class AllocationService {
                 .orElseThrow(() -> new AllocationNotFoundException(orderRef)));
     }
 
+    /**
+     * Cancel an order's allocation: release every held reservation and mark the plan
+     * CANCELLED (kept for audit). Idempotent — a missing plan is a no-op via 404 upstream,
+     * an already-cancelled plan is returned unchanged.
+     */
+    @Transactional
+    public AllocationView cancel(String orderRef) {
+        OrderAllocation allocation = allocations.findByOrderRef(orderRef)
+                .orElseThrow(() -> new AllocationNotFoundException(orderRef));
+        if (!"CANCELLED".equals(allocation.getStatus())) {
+            for (AllocationLine line : allocation.getLines()) {
+                List<Pick> released = new ArrayList<>();
+                for (Pick pick : line.getPicks()) {
+                    safeRelease(pick.reservationId());
+                    released.add(new Pick(pick.locationId(), pick.qty(), null, pick.uomBreakdown()));
+                }
+                line.setPicks(released);
+            }
+            allocation.setStatus("CANCELLED");
+            allocation.setShippers(List.of());
+        }
+        return AllocationView.from(allocation);
+    }
+
     @Transactional
     public AllocationView allocate(AllocateOrderRequest request) {
         // Idempotent / retry: a prior FULFILLABLE plan is returned as-is; a prior
