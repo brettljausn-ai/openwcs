@@ -57,6 +57,7 @@ services:
       # Route to services by their compose hostnames (overrides the localhost defaults).
       OPENWCS_URI_MASTER_DATA: http://master-data:8081
       OPENWCS_URI_INVENTORY: http://inventory:8082
+      OPENWCS_URI_ALLOCATION: http://allocation:8091
       OPENWCS_URI_PROCESS_ENGINE: http://process-engine:8083
       OPENWCS_URI_ORDER_MANAGEMENT: http://order-management:8084
       OPENWCS_URI_FLOW_ORCHESTRATOR: http://flow-orchestrator:8085
@@ -101,6 +102,25 @@ services:
     build: ../services/order-management
     ports: ["8084:8084"]
     depends_on: [postgres, kafka]
+    environment:
+      # Service-local `orders` schema; delegates allocation to the allocation service (ADR 0002).
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
+      SPRING_DATASOURCE_USERNAME: openwcs
+      SPRING_DATASOURCE_PASSWORD: openwcs
+      OPENWCS_ALLOCATION_BASE_URL: http://allocation:8091
+
+  allocation:
+    profiles: ["apps"]
+    build: ../services/allocation
+    ports: ["8091:8091"]
+    depends_on: [postgres, kafka]
+    environment:
+      # Service-local `allocation` schema; calls master-data + inventory (ADR 0002).
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
+      SPRING_DATASOURCE_USERNAME: openwcs
+      SPRING_DATASOURCE_PASSWORD: openwcs
+      OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
+      OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
 
   flow-orchestrator:
     profiles: ["apps"]

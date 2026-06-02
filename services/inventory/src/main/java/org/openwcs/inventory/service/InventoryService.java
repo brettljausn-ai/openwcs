@@ -37,6 +37,14 @@ public class InventoryService {
         return new Availability(warehouseId, skuId, onHand, reserved, onHand.subtract(reserved));
     }
 
+    /** Available-to-promise for a SKU at one location (used by pick-location allocation). */
+    @Transactional(readOnly = true)
+    public Availability availabilityAtLocation(UUID warehouseId, UUID skuId, UUID locationId) {
+        BigDecimal onHand = nz(stock.sumAvailableAtLocation(warehouseId, skuId, locationId));
+        BigDecimal reserved = nz(reservations.sumHeldAtLocation(warehouseId, skuId, locationId));
+        return new Availability(warehouseId, skuId, onHand, reserved, onHand.subtract(reserved));
+    }
+
     @Transactional(readOnly = true)
     public List<Stock> listStock(UUID warehouseId, UUID skuId) {
         return stock.findByWarehouseIdAndSkuId(warehouseId, skuId);
@@ -45,9 +53,21 @@ public class InventoryService {
     @Transactional
     public Reservation reserve(ReserveCommand command) {
         // Lock the AVAILABLE rows so the ATP total is stable for the duration of this tx.
-        List<Stock> locked = stock.lockAvailable(command.warehouseId(), command.skuId());
-        BigDecimal onHand = locked.stream().map(Stock::getQty).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal reserved = nz(reservations.sumHeld(command.warehouseId(), command.skuId()));
+        // When a location is given the check is location-scoped (pick-location allocation);
+        // otherwise it is SKU-wide across the warehouse.
+        BigDecimal onHand;
+        BigDecimal reserved;
+        if (command.locationId() != null) {
+            List<Stock> locked = stock.lockAvailableAtLocation(
+                    command.warehouseId(), command.skuId(), command.locationId());
+            onHand = locked.stream().map(Stock::getQty).reduce(BigDecimal.ZERO, BigDecimal::add);
+            reserved = nz(reservations.sumHeldAtLocation(
+                    command.warehouseId(), command.skuId(), command.locationId()));
+        } else {
+            List<Stock> locked = stock.lockAvailable(command.warehouseId(), command.skuId());
+            onHand = locked.stream().map(Stock::getQty).reduce(BigDecimal.ZERO, BigDecimal::add);
+            reserved = nz(reservations.sumHeld(command.warehouseId(), command.skuId()));
+        }
         BigDecimal availableToPromise = onHand.subtract(reserved);
 
         if (command.qty().compareTo(availableToPromise) > 0) {

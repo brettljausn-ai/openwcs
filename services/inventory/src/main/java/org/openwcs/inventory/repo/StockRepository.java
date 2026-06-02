@@ -60,4 +60,31 @@ public interface StockRepository extends JpaRepository<Stock, UUID> {
           and s.status = 'AVAILABLE'
         """)
     List<Stock> lockAvailable(@Param("warehouseId") UUID warehouseId, @Param("skuId") UUID skuId);
+
+    /** On-hand AVAILABLE quantity for a SKU at a specific location. */
+    @Query("""
+        select coalesce(sum(s.qty), 0) from Stock s
+        where s.warehouseId = :warehouseId
+          and s.skuId = :skuId
+          and s.locationId = :locationId
+          and s.status = 'AVAILABLE'
+        """)
+    BigDecimal sumAvailableAtLocation(
+            @Param("warehouseId") UUID warehouseId,
+            @Param("skuId") UUID skuId,
+            @Param("locationId") UUID locationId);
+
+    /** Lock the AVAILABLE rows for a SKU at one location (location-scoped allocation). */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select s from Stock s
+        where s.warehouseId = :warehouseId
+          and s.skuId = :skuId
+          and s.locationId = :locationId
+          and s.status = 'AVAILABLE'
+        """)
+    List<Stock> lockAvailableAtLocation(
+            @Param("warehouseId") UUID warehouseId,
+            @Param("skuId") UUID skuId,
+            @Param("locationId") UUID locationId);
 }

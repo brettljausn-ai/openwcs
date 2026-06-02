@@ -9,6 +9,7 @@ include 'gateway'
 // core domain services
 include 'services:master-data'
 include 'services:inventory'
+include 'services:allocation'
 include 'services:process-engine'
 include 'services:order-management'
 include 'services:flow-orchestrator'

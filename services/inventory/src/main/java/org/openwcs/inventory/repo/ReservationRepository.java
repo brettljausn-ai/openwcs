@@ -22,4 +22,17 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
           and r.status = 'HELD'
         """)
     BigDecimal sumHeld(@Param("warehouseId") UUID warehouseId, @Param("skuId") UUID skuId);
+
+    /** Quantity HELD against a SKU pinned to a specific location (location-scoped ATP). */
+    @Query("""
+        select coalesce(sum(r.qty), 0) from Reservation r
+        where r.warehouseId = :warehouseId
+          and r.skuId = :skuId
+          and r.locationId = :locationId
+          and r.status = 'HELD'
+        """)
+    BigDecimal sumHeldAtLocation(
+            @Param("warehouseId") UUID warehouseId,
+            @Param("skuId") UUID skuId,
+            @Param("locationId") UUID locationId);
 }

@@ -12,6 +12,8 @@ cycle count) that run the building.
 
 > 📐 **Architecture & design rationale:** [`build.md`](./build.md)
 > 🎨 **UI design system & tokens:** [`styling.md`](./styling.md)
+> 🏗️ **As-built (what's actually implemented):** [`docs/AS-BUILT.md`](./docs/AS-BUILT.md)
+> 📊 **Development status:** [`docs/DEVELOPMENT-STATUS.md`](./docs/DEVELOPMENT-STATUS.md)
 
 ---
 
@@ -63,9 +65,10 @@ openwcs/
 |---|---|---|---|
 | `gateway` | Java | 8080 | API gateway: ingress, auth, routing |
 | `services/master-data` | Java | 8081 | SKUs, UoM/bundles, barcodes, locations, equipment, warehouses |
-| `services/inventory` | Java | 8082 | Real-time stock: durable stock table (current qty) kept in lockstep with the tx log; lock/unavailable; reservations; FEFO/FIFO |
+| `services/inventory` | Java | 8082 | Real-time stock: durable stock table (current qty) kept in lockstep with the tx log; lock/unavailable; location-scoped reservations; FEFO/FIFO |
 | `services/process-engine` | Java | 8083 | Admin-designed BPMN process definitions + execution (Flowable) |
-| `services/order-management` | Java | 8084 | Inbound ASNs + outbound orders; fulfilment lifecycle |
+| `services/order-management` | Java | 8084 | Outbound orders + fulfilment lifecycle + release management (priority/dispatch-time); delegates allocation |
+| `services/allocation` | Java | 8091 | Outbound prep: pick-location allocation (UoM breakdown), cubing (shippers / 1:1), batch picking |
 | `services/flow-orchestrator` | Java | 8085 | Turns process steps into device tasks; routing, contention |
 | `services/txlog` | Java | 8086 | Append-only transaction log (shared Postgres) |
 | `services/iam` | Java | 8087 | Users, MS Entra SSO + local accounts, RBAC (coded permissions) |

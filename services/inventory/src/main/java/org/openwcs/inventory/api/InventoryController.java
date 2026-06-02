@@ -33,10 +33,15 @@ public class InventoryController {
         return service.listStock(warehouseId, skuId).stream().map(StockView::from).toList();
     }
 
-    /** Available-to-promise summary (on-hand − reserved). */
+    /** Available-to-promise summary (on-hand − reserved); pass locationId for a pick-location ATP. */
     @GetMapping("/availability")
-    public Availability availability(@RequestParam UUID warehouseId, @RequestParam UUID skuId) {
-        return service.availability(warehouseId, skuId);
+    public Availability availability(
+            @RequestParam UUID warehouseId,
+            @RequestParam UUID skuId,
+            @RequestParam(required = false) UUID locationId) {
+        return locationId != null
+                ? service.availabilityAtLocation(warehouseId, skuId, locationId)
+                : service.availability(warehouseId, skuId);
     }
 
     @PostMapping("/reservations")

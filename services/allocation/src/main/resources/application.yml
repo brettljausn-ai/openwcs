@@ -1,0 +1,39 @@
+server:
+  port: 8091
+spring:
+  application:
+    name: allocation
+  # Service-local store: an isolated `allocation` schema in dev.
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/openwcs}
+    username: ${SPRING_DATASOURCE_USERNAME:openwcs}
+    password: ${SPRING_DATASOURCE_PASSWORD:openwcs}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: allocation
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    schemas: allocation
+    default-schema: allocation
+    create-schemas: true
+
+openwcs:
+  allocation:
+    master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
+    inventory-base-url: ${OPENWCS_INVENTORY_BASE_URL:http://localhost:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

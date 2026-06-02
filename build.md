@@ -800,6 +800,7 @@ openwcs/
 ├── services/
 │   ├── master-data/
 │   ├── inventory/
+│   ├── allocation/             # outbound prep: pick-location allocation, cubing, batch picking (ADR 0002)
 │   ├── process-engine/
 │   ├── order-management/
 │   ├── flow-orchestrator/

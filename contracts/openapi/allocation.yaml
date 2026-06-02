@@ -1,0 +1,242 @@
+openapi: 3.0.3
+info:
+  title: openWCS Allocation API
+  version: 0.1.0
+  description: >
+    Outbound fulfilment prep (ADR 0002): allocate order lines against pick-able locations
+    (with a pick-type UoM breakdown), cube orders into shippers (app-computed or host 1:1),
+    and build pick batches (cluster picking). Calls master-data and inventory.
+servers:
+  - url: /api/allocation
+    description: Via the API gateway
+
+tags:
+  - name: Allocation
+  - name: Batches
+
+paths:
+  /orders:
+    post:
+      tags: [Allocation]
+      summary: Allocate (and cube) an order
+      description: >
+        Reserves each line against PICK-purpose locations and cubes the order. Returns the
+        plan with status FULFILLABLE or NOT_FULFILLABLE (in which case all reservations are
+        released). Idempotent for an already-FULFILLABLE order.
+      operationId: allocateOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AllocateOrderRequest' }
+      responses:
+        "200":
+          description: Allocation plan
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Allocation' }
+        "422":
+          description: Cannot cube (an item does not fit any shipper)
+          content:
+            application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+        "502":
+          description: master-data or inventory unavailable
+          content:
+            application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+  /orders/{orderRef}:
+    parameters:
+      - { name: orderRef, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Allocation]
+      summary: Get an order's allocation plan
+      operationId: getAllocation
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Allocation' }
+        "404":
+          description: No allocation for the order
+          content:
+            application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+
+  /batches:
+    post:
+      tags: [Batches]
+      summary: Build pick batches from allocated orders
+      description: >
+        Groups eligible orders (FULFILLABLE, total pieces ≤ the warehouse batchMaxPieces)
+        into pick totes (≤ batchMaxOrders each), merges their picks into one combined pick
+        list, and records the per-order separation plan. Ineligible orders are returned in
+        notBatched. 409 if batch picking is disabled for the warehouse.
+      operationId: buildBatches
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BuildBatchesRequest' }
+      responses:
+        "200":
+          description: Batches built
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BatchingResult' }
+        "409":
+          description: Batch picking disabled for the warehouse
+          content:
+            application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+  /batches/{batchId}:
+    parameters:
+      - { name: batchId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Batches]
+      summary: Get a pick batch
+      operationId: getBatch
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PickBatch' }
+        "404":
+          description: Batch not found
+          content:
+            application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+
+components:
+  schemas:
+    AllocateOrderRequest:
+      type: object
+      required: [orderRef, warehouseId, lines]
+      properties:
+        orderRef: { type: string }
+        warehouseId: { type: string, format: uuid }
+        cubingMode: { type: string, enum: [APP, ONE_TO_ONE], description: Override the warehouse cubing mode. }
+        lines:
+          type: array
+          items:
+            type: object
+            required: [lineNo, skuId, qty]
+            properties:
+              lineNo: { type: integer }
+              skuId: { type: string, format: uuid }
+              qty: { type: number }
+        cubeInstructions:
+          type: array
+          description: Host-supplied cube plan, used when cubingMode is ONE_TO_ONE.
+          items:
+            type: object
+            properties:
+              shipperCode: { type: string }
+              contents:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    skuId: { type: string, format: uuid }
+                    qty: { type: number }
+    Allocation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        orderRef: { type: string }
+        warehouseId: { type: string, format: uuid }
+        status: { type: string, enum: [FULFILLABLE, NOT_FULFILLABLE] }
+        cubingMode: { type: string, enum: [APP, ONE_TO_ONE] }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/AllocationLine' }
+        shippers:
+          type: array
+          items: { $ref: '#/components/schemas/ShipperAssignment' }
+    AllocationLine:
+      type: object
+      properties:
+        lineNo: { type: integer }
+        skuId: { type: string, format: uuid }
+        requestedQty: { type: number }
+        allocatedQty: { type: number }
+        status: { type: string, enum: [ALLOCATED, SHORT] }
+        picks:
+          type: array
+          items: { $ref: '#/components/schemas/Pick' }
+    Pick:
+      type: object
+      properties:
+        locationId: { type: string, format: uuid }
+        qty: { type: number }
+        reservationId: { type: string, format: uuid, nullable: true }
+        uomBreakdown:
+          type: object
+          additionalProperties: { type: integer }
+          example: { CASE: 2, EACH: 6 }
+    ShipperAssignment:
+      type: object
+      properties:
+        seqNo: { type: integer }
+        shipperId: { type: string, format: uuid, nullable: true }
+        shipperCode: { type: string }
+        contents:
+          type: array
+          items:
+            type: object
+            properties:
+              skuId: { type: string, format: uuid }
+              qty: { type: number }
+        grossWeightG: { type: number }
+        usedVolumeMm3: { type: number }
+    BuildBatchesRequest:
+      type: object
+      required: [warehouseId, orderRefs]
+      properties:
+        warehouseId: { type: string, format: uuid }
+        orderRefs:
+          type: array
+          items: { type: string }
+    BatchingResult:
+      type: object
+      properties:
+        batches:
+          type: array
+          items: { $ref: '#/components/schemas/PickBatch' }
+        notBatched:
+          type: array
+          items: { type: string }
+    PickBatch:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        warehouseId: { type: string, format: uuid }
+        pickToteShipperId: { type: string, format: uuid, nullable: true }
+        status: { type: string, enum: [OPEN, PICKED, SEPARATED, CLOSED] }
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              orderRef: { type: string }
+              totePosition: { type: integer }
+              finalShippers:
+                type: array
+                items: { $ref: '#/components/schemas/ShipperAssignment' }
+        pickLines:
+          type: array
+          items:
+            type: object
+            properties:
+              locationId: { type: string, format: uuid }
+              skuId: { type: string, format: uuid }
+              qty: { type: number }
+              reservationIds:
+                type: array
+                items: { type: string, format: uuid }
+    Problem:
+      type: object
+      description: RFC 9457 problem detail.
+      properties:
+        type: { type: string, format: uri, default: about:blank }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string, format: uri }

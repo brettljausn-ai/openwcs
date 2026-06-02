@@ -3,6 +3,31 @@ server:
 spring:
   application:
     name: order-management
+  # Service-local store (build.md §5.3): an isolated `orders` schema in dev.
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/openwcs}
+    username: ${SPRING_DATASOURCE_USERNAME:openwcs}
+    password: ${SPRING_DATASOURCE_PASSWORD:openwcs}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: orders
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    schemas: orders
+    default-schema: orders
+    create-schemas: true
+
+openwcs:
+  orders:
+    # Inventory service base URL used to reserve/release stock on order release/cancel.
+    inventory-base-url: ${OPENWCS_INVENTORY_BASE_URL:http://localhost:8082}
+
 management:
   endpoints:
     web:

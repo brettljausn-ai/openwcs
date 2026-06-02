@@ -14,6 +14,9 @@ spring:
         - id: inventory
           uri: ${OPENWCS_URI_INVENTORY:http://localhost:8082}
           predicates: [ "Path=/api/inventory/**" ]
+        - id: allocation
+          uri: ${OPENWCS_URI_ALLOCATION:http://localhost:8091}
+          predicates: [ "Path=/api/allocation/**" ]
         - id: process-engine
           uri: ${OPENWCS_URI_PROCESS_ENGINE:http://localhost:8083}
           predicates: [ "Path=/api/process/**" ]
