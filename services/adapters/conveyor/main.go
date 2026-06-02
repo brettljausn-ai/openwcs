@@ -43,6 +43,7 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ready"))
 	})
+	mux.HandleFunc("/tasks", handleTask)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{
@@ -75,6 +76,62 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
+}
+
+// deviceTaskRequest is the uniform device contract envelope (build.md §8) as posted by the
+// flow-orchestrator's synchronous HTTP DeviceClient.
+type deviceTaskRequest struct {
+	TaskID      string                 `json:"taskId"`
+	WarehouseID string                 `json:"warehouseId"`
+	EquipmentID string                 `json:"equipmentId"`
+	Command     string                 `json:"command"`
+	Payload     map[string]interface{} `json:"payload"`
+}
+
+// deviceTaskResult is the synchronous reply; status is COMPLETED or FAILED.
+type deviceTaskResult struct {
+	Status        string                 `json:"status"`
+	Detail        string                 `json:"detail"`
+	ResultPayload map[string]interface{} `json:"resultPayload"`
+}
+
+// supportedCommands are the moves this conveyor simulator accepts.
+var supportedCommands = map[string]bool{"CONVEY": true, "DIVERT": true, "MERGE": true, "SCAN": true}
+
+// handleTask simulates executing a device task: it validates the command and echoes a
+// COMPLETED result (or FAILED for an unknown command). The real adapter would drive the PLC
+// and reconcile the outcome asynchronously.
+func handleTask(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req deviceTaskRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if !supportedCommands[req.Command] {
+		log.Printf("%s: task %s rejected unsupported command %q", serviceName, req.TaskID, req.Command)
+		_ = json.NewEncoder(w).Encode(deviceTaskResult{
+			Status: "FAILED",
+			Detail: "unsupported command: " + req.Command,
+		})
+		return
+	}
+
+	log.Printf("%s: executing task %s command=%s equipment=%s", serviceName, req.TaskID, req.Command, req.EquipmentID)
+	_ = json.NewEncoder(w).Encode(deviceTaskResult{
+		Status: "COMPLETED",
+		Detail: "conveyor simulated " + req.Command,
+		ResultPayload: map[string]interface{}{
+			"command":   req.Command,
+			"equipment": req.EquipmentID,
+			"simulated": true,
+		},
+	})
 }
 
 func deviceLoop(ctx context.Context) {

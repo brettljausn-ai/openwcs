@@ -27,8 +27,10 @@ What is **actually implemented** today (not the target architecture). Design int
 | allocation | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing, batch picking. |
 | txlog | 8086 | ✅ | Append-only event log + transactional outbox + relay to `txlog.stream`. |
 | iam | 8087 | ✅ | openWCS authorization model: users → roles → coded permissions (Keycloak does auth). |
-| process-engine / flow-orchestrator / notification / integration-sap / integration-manhattan | 8083/8085/8088–8090 | 🟦 | Scaffold (health/info only). |
-| adapters/{conveyor,asrs,amr-geekplus,autostore} | 9091–9094 | 🟦 | Go; health/readiness + stub loop. |
+| flow-orchestrator | 8085 | 🟡 | Device-task lifecycle over the uniform device contract; routes to adapters by family (below). |
+| process-engine / notification / integration-sap / integration-manhattan | 8083/8088–8090 | 🟦 | Scaffold (health/info only). |
+| adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop + `POST /tasks` device-task simulator. |
+| adapters/{asrs,amr-geekplus,autostore} | 9092–9094 | 🟦 | Go; health/readiness + stub loop. |
 | ui | 5173 | 🟦 | Vite skeleton. |
 
 All Java services: Java 21 / Spring Boot 3.3.2, PostgreSQL 16 via Flyway + JPA/Hibernate 6
@@ -51,6 +53,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 | `orders` | order-management | outbound_order (all order types), order_line, order_line_transaction, order_outbox |
 | `allocation` | allocation | order_allocation, allocation_line, pick_batch |
 | `iam` | iam | role, role_permission, app_user, user_role |
+| `flow` | flow-orchestrator | device_task |
 
 ---
 
@@ -154,6 +157,34 @@ position.
   txlog append) forward nothing — which is why **txlog append is not user-RBAC enforced**
   (it's internal infrastructure, authorized upstream at the action that produced the event).
 
+## 7b. flow-orchestrator & the uniform device contract (Phase 2)
+
+The flow-orchestrator dispatches **device tasks** to equipment adapters over the **uniform
+internal device contract** (build.md §8). A task moves through REQUESTED → DISPATCHED →
+COMPLETED/FAILED and is persisted in `flow.device_task` (warehouse, equipment **family**,
+optional equipment id, command, JSONB payload, correlation id, status, detail, JSONB result,
+actor).
+
+- **API** (`/api/flow/device-tasks`, `contracts/openapi/flow-orchestrator.yaml`):
+  `POST` dispatches a task (DEVICE_OPERATE); `GET /{id}` and `GET ?correlationId=` read tasks
+  (DEVICE_VIEW). The actor is taken from the gateway-forwarded `X-Auth-User`. `RbacFilter`
+  enforces DEVICE_VIEW on reads / DEVICE_OPERATE on writes, gated by `openwcs.security.enabled`.
+- **Routing**: `HttpDeviceClient` resolves the adapter base URL by the task's **family** from
+  `openwcs.flow.adapters` (e.g. `CONVEYOR → conveyor-adapter:9091`) and `POST`s `/tasks`.
+  An unknown family → 422; an unreachable adapter is recorded as **FAILED** (the task is never
+  lost) and surfaced as 502.
+- **Transport**: synchronous HTTP for now (simulator-friendly); the production target is
+  **asynchronous Kafka** (`device.tasks` / `device.results`, build.md §9). `DeviceClient` is
+  the seam — swapping transports doesn't touch the lifecycle service.
+- **Conveyor adapter** (`services/adapters/conveyor`, Go): `POST /tasks` simulates a move,
+  accepting CONVEY/DIVERT/MERGE/SCAN (→ COMPLETED with a result payload) and rejecting unknown
+  commands (→ FAILED).
+- **RBAC catalog**: `DEVICE_VIEW`/`DEVICE_OPERATE` added to `Permission` + `RoleCatalog`
+  (VIEWER sees, OPERATOR operates) and seeded in IAM (`iam/V2__device_permissions.sql`).
+
+Not yet wired: a BPMN process (process-engine) that *originates* these tasks — today they are
+driven directly via the API.
+
 ## 8. The two working vertical slices
 
 **Goods-in → stock:** `POST /api/txlog/events {GoodsReceived}` → outbox relay →
@@ -188,14 +219,20 @@ Testcontainers + JUnit 5 + Mockito. Run locally with `./gradlew build` or
 relay appends + stamps event id; `OrderAuthorizationTest` — MockMvc: VIEWER blocked / SUPERVISOR
 allowed to create with security on), master-data (`MasterDataRbacTest` — read needs VIEW,
 write needs EDIT), iam (`IamServiceTest` — Testcontainers: seeded roles, effective-permission
-resolution, catalog validation). Not compiled in the authoring environment (no local
-JVM/Gradle) — **CI is the gate** (it has run green); the first run surfaced one test-isolation
-bug, now fixed. The gateway JWT path can be exercised against the imported `openwcs` realm.
+resolution, catalog validation), flow-orchestrator (`DeviceTaskServiceTest` — Testcontainers +
+mocked `DeviceClient`: COMPLETED on success, FAILED on adapter error without losing the task,
+query by id/correlation). Go: conveyor `main_test.go` (`POST /tasks` COMPLETED / FAILED / 405).
+Not compiled in the authoring environment (no local JVM/Gradle) — **CI is the gate** (it has
+run green); the first run surfaced one test-isolation bug, now fixed. The gateway JWT path can
+be exercised against the imported `openwcs` realm.
 
 ## 10. Not built / known gaps
 
-- Scaffold-only: process-engine, flow-orchestrator, notification, integration-*,
-  Go adapters, UI.
+- Scaffold-only: process-engine, notification, integration-*, the asrs/amr/autostore
+  adapters, UI.
+- flow-orchestrator dispatches device tasks but **no BPMN process originates them yet**
+  (process-engine is still a scaffold); the device contract is synchronous HTTP, not the
+  production Kafka transport.
 - **Auth is built but off by default** — gateway JWT validation + per-endpoint RBAC across all
   six REST services + inter-service identity propagation, all toggled by
   `openwcs.security.enabled`. Needs a Keycloak realm to exercise end-to-end (the `openwcs`

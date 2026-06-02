@@ -21,5 +21,7 @@ public enum Permission {
     BATCH_BUILD,
     TXLOG_VIEW,
     TXLOG_APPEND,
+    DEVICE_VIEW,
+    DEVICE_OPERATE,
     IAM_ADMIN
 }

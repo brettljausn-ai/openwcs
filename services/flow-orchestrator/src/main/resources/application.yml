@@ -3,6 +3,35 @@ server:
 spring:
   application:
     name: flow-orchestrator
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/openwcs}
+    username: ${SPRING_DATASOURCE_USERNAME:openwcs}
+    password: ${SPRING_DATASOURCE_PASSWORD:openwcs}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: flow
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    schemas: flow
+    default-schema: flow
+    create-schemas: true
+
+openwcs:
+  # Per-endpoint RBAC (build.md §4.8); off by default so the stack runs before a Keycloak realm.
+  security:
+    enabled: ${OPENWCS_SECURITY_ENABLED:false}
+  flow:
+    # Device adapter base URLs by equipment family (build.md §8 uniform device contract).
+    # The first adapter is the conveyor simulator; others are added as they come online.
+    adapters:
+      CONVEYOR: ${OPENWCS_ADAPTER_CONVEYOR:http://localhost:9091}
+
 management:
   endpoints:
     web:
