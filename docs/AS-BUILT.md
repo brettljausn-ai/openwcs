@@ -137,12 +137,22 @@ position.
 - **Authenticated actor**: order-management records a stock transaction's `actor` from the
   gateway-forwarded `X-Auth-User` (the request-body actor is only a fallback). So once
   security is on, every stock change is attributed to the authenticated user.
-- **Per-endpoint RBAC**: `libs/common` carries a pure role→permission catalog (`RoleCatalog`,
-  mirroring the IAM seed) + `AccessControl`. **order-management enforces** a coded
-  `Permission` per endpoint (`ORDER_CREATE`, `ORDER_VIEW`, `ORDER_RELEASE`, `ORDER_CANCEL`,
-  `ORDER_SHIP`, `ORDER_POST_TRANSACTION`) against the forwarded `X-Auth-Roles` via an
-  `AccessGuard` — a no-op when `openwcs.security.enabled=false`, a 403 on a missing permission
-  when on. This is the reference; other services adopt the same guard as a follow-up.
+- **Per-endpoint RBAC (all services)**: `libs/common` carries a pure role→permission catalog
+  (`RoleCatalog`, mirroring the IAM seed) + `AccessControl`. Each service enforces a coded
+  `Permission` against the forwarded `X-Auth-Roles`, gated by `openwcs.security.enabled`
+  (no-op off, 403 on a missing permission when on):
+  - order-management — per-endpoint via `AccessGuard` (`ORDER_CREATE`/`VIEW`/`RELEASE`/
+    `CANCEL`/`SHIP`/`POST_TRANSACTION`).
+  - master-data / inventory / allocation / txlog — an `RbacFilter` mapping method+path to a
+    permission (master-data: VIEW/EDIT; inventory: INVENTORY_VIEW + ALLOCATION_RUN for
+    reservations; allocation: ALLOCATION_RUN / BATCH_BUILD / ORDER_VIEW; txlog: TXLOG_VIEW on
+    reads — append is left internal, see below).
+- **Inter-service identity propagation**: allocation and order-management add a
+  `RestClientCustomizer` that forwards `X-Auth-User`/`X-Auth-Roles` from the incoming request
+  onto outbound calls, so a downstream service (e.g. allocation→inventory) authorizes against
+  the **original user**. Background calls with no request context (the order outbox relay →
+  txlog append) forward nothing — which is why **txlog append is not user-RBAC enforced**
+  (it's internal infrastructure, authorized upstream at the action that produced the event).
 
 ## 8. The two working vertical slices
 
@@ -176,29 +186,28 @@ Testcontainers + JUnit 5 + Mockito. Run locally with `./gradlew build` or
 + mocked clients covering allocate → cancel-releases-reservations), order-management
 (`OrderTransactionTest` — record + stage outbox atomically; `OrderTransactionRelayTest` —
 relay appends + stamps event id; `OrderAuthorizationTest` — MockMvc: VIEWER blocked / SUPERVISOR
-allowed to create with security on), iam (`IamServiceTest` — Testcontainers: seeded roles,
-effective-permission resolution, catalog validation). Not compiled in the authoring
-environment (no local JVM/Gradle) — **CI is the gate**; the first run may surface compile
-errors not catchable locally. The gateway JWT path can now be exercised against the imported
-`openwcs` realm.
+allowed to create with security on), master-data (`MasterDataRbacTest` — read needs VIEW,
+write needs EDIT), iam (`IamServiceTest` — Testcontainers: seeded roles, effective-permission
+resolution, catalog validation). Not compiled in the authoring environment (no local
+JVM/Gradle) — **CI is the gate** (it has run green); the first run surfaced one test-isolation
+bug, now fixed. The gateway JWT path can be exercised against the imported `openwcs` realm.
 
 ## 10. Not built / known gaps
 
 - Scaffold-only: process-engine, flow-orchestrator, notification, integration-*,
   Go adapters, UI.
-- **Auth is scaffolded but off by default** — gateway JWT validation + per-endpoint RBAC are
-  toggled by `openwcs.security.enabled` and need a Keycloak realm to exercise. **Enforcement
-  is wired in order-management (reference); the other services still need the same
-  `AccessGuard` applied** (mechanical follow-up). `RoleCatalog` reflects the shipped seed
-  roles only — custom IAM roles would need a runtime IAM lookup. No mTLS yet.
+- **Auth is built but off by default** — gateway JWT validation + per-endpoint RBAC across all
+  six REST services + inter-service identity propagation, all toggled by
+  `openwcs.security.enabled`. Needs a Keycloak realm to exercise end-to-end (the `openwcs`
+  realm is now imported by compose). `RoleCatalog` reflects the shipped seed roles only —
+  custom IAM roles would need a runtime IAM lookup. No mTLS yet (inter-service trust rides on
+  forwarded headers behind the edge).
+- `actor` is authenticated (from the gateway-forwarded identity) when security is on, and
+  caller-asserted when off (the default).
 - Cubing is volume+weight (not 3D bin-packing); shipper selection is default/first.
 - Pick-type breakdown assumes stock is base-UoM and reads case size from the "CASE" UoM.
-- No CI; no contract tests; events only on `txlog.stream` (no Avro/Schema-Registry, no
-  master-data catalog events, no DLQs).
+- Events only on `txlog.stream` (no Avro/Schema-Registry, no master-data catalog events, no
+  DLQs); no consumer-driven contract tests (CI validates the OpenAPI specs structurally).
 - Order status is not auto-advanced by postings (no auto-complete when `postedQty` meets
   `qty`); lifecycle orchestration is a follow-up.
-- `actor` is recorded everywhere but is **caller-asserted** until IAM/JWT is wired (then the
-  gateway/IAM supplies the authenticated principal and services read it from the security
-  context rather than the request body).
-- OpenAPI: `allocation.yaml` + `order-management.yaml` present; master-data
-  shipper/fulfillment-config paths not yet added to `master-data.yaml`.
+- OpenAPI: master-data shipper/fulfillment-config paths not yet added to `master-data.yaml`.

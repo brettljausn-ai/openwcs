@@ -39,6 +39,9 @@ spring:
 
 # Application-specific settings.
 openwcs:
+  # Per-endpoint RBAC (build.md §4.8); off by default so the stack runs before a Keycloak realm.
+  security:
+    enabled: ${OPENWCS_SECURITY_ENABLED:false}
   inventory:
     # Topic carrying the streamed transaction log (build.md §9: `txlog.stream`).
     txlog-topic: txlog.stream

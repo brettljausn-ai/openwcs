@@ -33,3 +33,8 @@ management:
     health:
       probes:
         enabled: true
+
+# Per-endpoint RBAC (build.md §4.8); off by default so the stack runs before a Keycloak realm.
+openwcs:
+  security:
+    enabled: ${OPENWCS_SECURITY_ENABLED:false}
