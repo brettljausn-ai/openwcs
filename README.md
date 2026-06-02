@@ -1,5 +1,7 @@
 # openwcs
 
+[![CI](https://github.com/brettljausn-ai/openwcs/actions/workflows/ci.yml/badge.svg)](https://github.com/brettljausn-ai/openwcs/actions/workflows/ci.yml)
+
 An **open-source Warehouse Control System (WCS)** that orchestrates automated
 material-handling equipment — conveyors, ASRS (shuttles & cranes), AMRs (e.g.
 Geek+), and storage systems (e.g. AutoStore) — and manages the flow and storage
@@ -136,6 +138,23 @@ curl -X POST localhost:8082/api/inventory/reservations -H 'Content-Type: applica
   "warehouseId":"<wh-uuid>","skuId":"<sku-uuid>","qty":5,"orderRef":"ORD-1"}'
 ```
 
+### Authentication (optional, off by default)
+
+Auth is built but disabled so the stack runs without setup. The compose Keycloak imports an
+**`openwcs` realm** (`platform/keycloak/openwcs-realm.json`) with the roles
+`ADMIN`/`SUPERVISOR`/`OPERATOR`/`VIEWER`, a public client `openwcs-web`, and demo users
+(`admin`/`admin`, `supervisor`/`supervisor`, `operator`/`operator`, `viewer`/`viewer` — **dev only**).
+
+To turn it on, set `OPENWCS_SECURITY_ENABLED=true` on the gateway + services and point the
+gateway's resource server at the realm
+(`SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8180/realms/openwcs`).
+Then the gateway validates the JWT, forwards `X-Auth-User`/`X-Auth-Roles`, and services
+enforce the coded permissions (build.md §4.8). Get a token via password grant:
+```bash
+curl -s -d client_id=openwcs-web -d grant_type=password -d username=supervisor -d password=supervisor \
+  http://localhost:8180/realms/openwcs/protocol/openid-connect/token | jq -r .access_token
+```
+
 ---
 
 ## Getting started
@@ -156,12 +175,14 @@ docker compose -f platform/docker-compose.yml --profile apps up --build
 ```
 
 ### 2. Run a Java service
-> First time only: this repo ships `gradle-wrapper.properties` but not the
-> wrapper jar. Generate it once with a local Gradle (`gradle wrapper`), then use
-> `./gradlew` thereafter.
+The Gradle wrapper is committed, so use `./gradlew` directly (Gradle 8.10, JDK 21).
 ```bash
 ./gradlew :services:master-data:bootRun     # http://localhost:8081
 curl localhost:8081/actuator/health
+```
+Build & test everything (Testcontainers tests need Docker — same as CI):
+```bash
+./gradlew build
 ```
 On startup each persistent service applies its own **Flyway migrations**
 (`src/main/resources/db/migration/`) against the Postgres from step 1, then

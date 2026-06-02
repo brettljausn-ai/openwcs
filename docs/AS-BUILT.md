@@ -10,8 +10,9 @@ What is **actually implemented** today (not the target architecture). Design int
 > **inventory**, **allocation**, **order-management**, and the **gateway**. Together they
 > implement two vertical slices: (1) goods-in → stock (event log → projection), and
 > (2) outbound order → release → pick-location allocation + cubing (+ batch picking). All
-> other services and the device adapters are scaffolds (health endpoint only). **None of
-> this has been compiled/run in the authoring environment** — see Testing.
+> other services and the device adapters are scaffolds (health endpoint only). The code is
+> **not compiled in the authoring environment**; **GitHub Actions CI is the build/test gate**
+> — see Testing & CI.
 
 ---
 
@@ -129,7 +130,10 @@ position.
 - **Gateway JWT** (build.md §12): with `openwcs.security.enabled=true` the gateway validates
   the JWT against the Keycloak realm, requires auth on `/api/**`, forwards the identity
   downstream as `X-Auth-User`/`X-Auth-Roles`, and **always strips client-supplied** versions
-  (anti-spoofing). Off by default so the stack runs before a realm exists.
+  (anti-spoofing). Off by default so the stack runs without setup.
+- **Keycloak realm**: compose imports `platform/keycloak/openwcs-realm.json` — realm
+  `openwcs` with roles ADMIN/SUPERVISOR/OPERATOR/VIEWER, the `openwcs-web` client, and demo
+  users (dev-only passwords). Enabling auth + getting a token is documented in the README.
 - **Authenticated actor**: order-management records a stock transaction's `actor` from the
   gateway-forwarded `X-Auth-User` (the request-body actor is only a fallback). So once
   security is on, every stock change is attributed to the authenticated user.
@@ -167,10 +171,15 @@ OUTBOUND = picks (−), COUNT / ADJUSTMENT = signed adjustments.
 
 ---
 
-## 9. Testing (not yet executed here)
+## 9. Testing & CI
 
-Testcontainers + JUnit 5 + Mockito. Run with `./gradlew :services:<name>:test` (Docker
-required). Present: master-data (`MasterDataPersistenceTest`, `MasterDataApiTest`), txlog
+**CI** runs on GitHub Actions (`.github/workflows/ci.yml`): Java `./gradlew build`
+(Testcontainers tests on the runner's Docker), Go adapter build/vet/test, UI build, and
+OpenAPI structural validation. The Gradle wrapper is committed (Gradle 8.10).
+
+Testcontainers + JUnit 5 + Mockito. Run locally with `./gradlew build` or
+`./gradlew :services:<name>:test` (Docker required). Present: master-data
+(`MasterDataPersistenceTest`, `MasterDataApiTest`), txlog
 (`TransactionLogServiceTest`, `OutboxRelayTest`), inventory (`InventoryPersistenceTest`,
 `StockProjectionServiceTest`, `InventoryServiceTest`), allocation (`AllocationEngineTest`
 — pure pick-breakdown / cubing / batch-merge logic; `AllocationServiceTest` — Testcontainers
@@ -179,27 +188,26 @@ required). Present: master-data (`MasterDataPersistenceTest`, `MasterDataApiTest
 relay appends + stamps event id; `OrderAuthorizationTest` — MockMvc: VIEWER blocked / SUPERVISOR
 allowed to create with security on), master-data (`MasterDataRbacTest` — read needs VIEW,
 write needs EDIT), iam (`IamServiceTest` — Testcontainers: seeded roles, effective-permission
-resolution, catalog validation). No JVM/Gradle in the authoring
-environment, so nothing has been compiled; treat the test suite as the gate. The gateway
-JWT path needs a running Keycloak realm to exercise end-to-end.
+resolution, catalog validation). Not compiled in the authoring environment (no local
+JVM/Gradle) — **CI is the gate** (it has run green); the first run surfaced one test-isolation
+bug, now fixed. The gateway JWT path can be exercised against the imported `openwcs` realm.
 
 ## 10. Not built / known gaps
 
 - Scaffold-only: process-engine, flow-orchestrator, notification, integration-*,
   Go adapters, UI.
-- **Auth is scaffolded but off by default** — gateway JWT validation + per-endpoint RBAC are
-  toggled by `openwcs.security.enabled` and need a Keycloak realm to exercise end-to-end.
-  Enforcement is now wired in **all six** REST services + inter-service identity propagation.
-  `RoleCatalog` reflects the shipped seed roles only — custom IAM roles would need a runtime
-  IAM lookup. No mTLS yet (the inter-service trust currently rides on forwarded headers).
+- **Auth is built but off by default** — gateway JWT validation + per-endpoint RBAC across all
+  six REST services + inter-service identity propagation, all toggled by
+  `openwcs.security.enabled`. Needs a Keycloak realm to exercise end-to-end (the `openwcs`
+  realm is now imported by compose). `RoleCatalog` reflects the shipped seed roles only —
+  custom IAM roles would need a runtime IAM lookup. No mTLS yet (inter-service trust rides on
+  forwarded headers behind the edge).
+- `actor` is authenticated (from the gateway-forwarded identity) when security is on, and
+  caller-asserted when off (the default).
 - Cubing is volume+weight (not 3D bin-packing); shipper selection is default/first.
 - Pick-type breakdown assumes stock is base-UoM and reads case size from the "CASE" UoM.
-- No CI; no contract tests; events only on `txlog.stream` (no Avro/Schema-Registry, no
-  master-data catalog events, no DLQs).
+- Events only on `txlog.stream` (no Avro/Schema-Registry, no master-data catalog events, no
+  DLQs); no consumer-driven contract tests (CI validates the OpenAPI specs structurally).
 - Order status is not auto-advanced by postings (no auto-complete when `postedQty` meets
   `qty`); lifecycle orchestration is a follow-up.
-- `actor` is recorded everywhere but is **caller-asserted** until IAM/JWT is wired (then the
-  gateway/IAM supplies the authenticated principal and services read it from the security
-  context rather than the request body).
-- OpenAPI: `allocation.yaml` + `order-management.yaml` present; master-data
-  shipper/fulfillment-config paths not yet added to `master-data.yaml`.
+- OpenAPI: master-data shipper/fulfillment-config paths not yet added to `master-data.yaml`.

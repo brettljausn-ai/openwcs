@@ -41,11 +41,15 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:25.0
-    command: ["start-dev"]
+    # Imports the openWCS realm (roles ADMIN/SUPERVISOR/OPERATOR/VIEWER + demo users)
+    # from keycloak/openwcs-realm.json on startup.
+    command: ["start-dev", "--import-realm"]
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
     ports: ["8180:8080"]
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
 
 
   gateway:
