@@ -12,6 +12,7 @@ import org.openwcs.orders.api.OrderView;
 import org.openwcs.orders.api.PageResponse;
 import org.openwcs.orders.api.PostTransactionRequest;
 import org.openwcs.orders.client.AllocationClient;
+import org.openwcs.orders.client.MasterDataClient;
 import org.openwcs.orders.domain.OrderLine;
 import org.openwcs.orders.domain.OrderLineTransaction;
 import org.openwcs.orders.domain.OrderOutboxMessage;
