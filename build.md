@@ -155,15 +155,22 @@ Each service below lists its **responsibility**, **data ownership**, key
 ### 4.2 Inventory / Stock Service
 - **Responsibility:** Real-time stock within the automated area — quantity by
   SKU × **batch/lot** × location × handling-unit × status (available, allocated,
-  blocked, in-transit). Allocation/reservation for outbound, with **FEFO/FIFO**
+  **locked/unavailable**, blocked, in-transit). Stock can be explicitly
+  **locked/made unavailable** (e.g. hold, inspection, manual block) so it stays
+  on the books but is excluded from allocatable/available quantity reported to
+  the host. Allocation/reservation for outbound, with **FEFO/FIFO**
   strategies driven by batch expiry/production dates.
-- **Data:** **Service-local** store (its own Postgres DB or schema) holding a
-  **read model projected from the transaction log**. It is *not* in the shared DB.
+- **Data:** **Service-local** store (its own Postgres DB or schema), *not* in the
+  shared DB. Stock is **hard-persisted in a stock table** keyed by SKU × batch/lot
+  × location × HU × status with the **current level as `qty`** — a durable,
+  authoritative current-state row, not recomputed on demand. It is kept in lockstep
+  with the **transaction log**, which is **safely retained as the immutable audit
+  trail** of every movement and can rebuild/replay the stock table on demand.
 - **APIs:** Stock queries, reservations, availability checks.
 - **Events:** Consumes movement events; publishes `StockReserved`,
   `StockAdjusted`, `StockSyncToWms`.
-- Inventory truth = replay of the transaction log; the service holds a fast,
-  queryable materialized view.
+- Audit & truth: the persisted stock table is the fast query surface; the
+  transaction log is the system of record for audit and can replay the table.
 
 ### 4.3 Process / Workflow Engine Service
 - **Responsibility:** Stores process **definitions** authored by admins and
@@ -286,6 +293,14 @@ each host gets its own service, integrations can grow independently without
 touching one another (the orchestrator/order-management core never speaks SAP or
 Manhattan directly).
 
+**Stock ownership & sync model (decided).** Within the automated area, **openWCS
+is the master/source of truth for stock** — the WMS/ERP does not direct moves
+there. Sync to the host is **hybrid per host**: a **full daily reconciliation
+sync** plus **intraday event-driven deltas** (publishing `StockSyncToWms` as
+movements occur), so the host stays near-real-time without a constant full feed.
+Stock the WCS marks **locked/unavailable** (§4.2) is reported as non-allocatable
+so the host's available quantity matches what the WCS will actually ship.
+
 - **SAP integration gateway** (`integration-sap`)
   - **Responsibility:** Integrate **SAP S/4HANA / SAP HANA** — inbound master
     data (materials/SKUs, UoM, batches) and orders (deliveries, transfer/production
@@ -391,6 +406,11 @@ SkuProfile                (warehouse-scoped overlay — the part that varies per
                           --   fashion: { brand, style, season:"SS26", color,
                           --              size, size_scale, model_year, gender }
                           --   handling/slotting/velocity class, client-specific fields
+  -- storage strategy ("teach-in"): where THIS sku may/should live in THIS
+  -- warehouse. The same globally-shared SKU stores differently per site.
+  storage_strategy(JSONB) -- allowed/preferred storage types (PALLET, ASRS,
+                          --   AUTOSTORE, MANUAL_BIN, SHELF …), zones, putaway
+                          --   rules, min/max levels, mixing constraints
   attribute_schema_id     -- which schema validates this metadata (below)
   UNIQUE (sku_id, warehouse_id)
 
@@ -519,10 +539,11 @@ Admin users design processes visually; the engine executes them. This is the
 "processes are data" principle in §2.
 
 ### Approach
-- Use a **BPMN 2.0 engine** (Flowable or Camunda, embeddable, open-source
-  editions) **or** a purpose-built JSON/YAML step DSL if BPMN is too heavy. Start
-  with BPMN — mature visual editor, versioning, and execution semantics out of
-  the box.
+- **Decided: BPMN 2.0 via Flowable** (embeddable, Apache-2.0, actively
+  maintained — preferred over Camunda 7, whose open-source Community Edition is
+  on a sunset track). A purpose-built JSON/YAML step DSL was considered and
+  rejected as too limited; BPMN gives a mature visual editor, versioning, and
+  execution semantics out of the box.
 - The **designer UI** (BPMN modeler, e.g. `bpmn-js`) runs in the admin SPA.
 - Each process step maps to a **service task** that emits an internal command
   (e.g. `RequestPutaway`, `RequestPick`, `RequestCount`, `Scan`, `Weigh`,
@@ -581,7 +602,9 @@ per category:
   conveyors, stacker cranes). Custom binary framing, persistent connection,
   heartbeat/reconnect. **Go is the recommended default** here (precise byte-level
   framing, goroutine-per-connection); Rust for the rare latency-/safety-critical
-  case.
+  case. **Some PLC comms have a hard ~10 ms response budget** — those paths must
+  avoid GC/runtime pauses, so they run on Go (or Rust), never a JVM adapter
+  (see §16: real-time latency).
 - **(b) REST + WebSocket** — newer/vendor-managed systems (AMR fleet managers
   like Geek+ RCS, AutoStore grid controller, some modern PLC gateways). The work
   is HTTP request/response for commands plus a **WebSocket (or webhook) stream**
@@ -636,7 +659,7 @@ per category:
 | Service language (perf/safety-critical adapter) | **Rust** (`tokio`) — only when justified | No-GC, memory-safe option for genuinely latency-sensitive or safety-adjacent edge components. Over-engineering for typical adapters — reserve for the rare case. |
 | Database | **PostgreSQL 16** | Shared (master data + tx log) and per-service stores. JSONB for flexible payloads. |
 | Event backbone | **Apache Kafka** (+ Schema Registry) | Durable, ordered, log-shaped — fits the transaction-log model. |
-| Workflow engine | **Flowable / Camunda 7 (open source)** + `bpmn-js` editor | Visual admin-designable processes, versioning, execution. |
+| Workflow engine | **Flowable** (BPMN 2.0, Apache-2.0) + `bpmn-js` editor | Visual admin-designable processes, versioning, execution. |
 | Device protocols | **Eclipse Milo (OPC-UA)**, Modbus, vendor REST/TCP | Standard industrial connectivity. |
 | API style | REST (OpenAPI) for queries/commands; gRPC optional internal | Tooling + clarity. |
 | API gateway | **Spring Cloud Gateway** or **Kong** | Ingress, authn/z, routing. |
@@ -851,20 +874,32 @@ openwcs/
 
 ## 16. Open Questions / Decisions to Confirm
 
-- **Workflow engine:** full BPMN (Flowable/Camunda) vs. lightweight custom DSL?
-  (Recommendation: start BPMN.)
-- **WMS/ERP boundary:** mediated by per-host integration gateways (§4.9; SAP +
-  Manhattan Active first). Open: who owns inventory truth across the host↔WCS
-  boundary, and the sync cadence/direction per host (event-driven vs. batch)?
-- **Real-time latency budget** for device control — does any control loop need
-  hard real-time guarantees the WCS must respect (vs. delegating to PLC/RCS)?
+- **Workflow engine** — **decided: full BPMN 2.0 via Flowable** (§7), not a
+  custom DSL. Flowable is embeddable, Apache-2.0, and actively maintained
+  (preferred over Camunda 7, whose Community Edition is sunsetting).
+- **WMS/ERP boundary** — **decided.** Within the automated area **openWCS is the
+  master of stock**; the host does not direct moves there. Host sync is **hybrid
+  per host: a full daily reconciliation plus intraday event-driven deltas**
+  (§4.9). Stock can be **locked/unavailable** and is then reported as
+  non-allocatable to the host (§4.2).
+- **Real-time latency budget** — **decided.** Hard real-time stays in the
+  **PLC/RCS**; the WCS is supervisory. However **some PLC comms carry a hard
+  ~10 ms response budget**, so those raw-socket adapters must avoid GC/runtime
+  pauses — implemented in **Go (or Rust), never a JVM adapter** on that path
+  (§9 integration styles).
 - **Multi-tenancy / multi-site** — **decided: multi-warehouse from the start.**
   SKUs carry a stable global core; site-variable master data lives in
   per-warehouse `SkuProfile.metadata` overlays governed by an `AttributeSchema`
-  (§6). Open sub-question: is the global SKU core truly shared across warehouses,
-  or is even the SKU code namespaced per warehouse/client?
-- **Inventory store:** pure projection-from-log, or projection + periodic
-  snapshotting for fast cold-start?
+  (§6). **Sub-question decided: SKU master data IS shared globally** (one SKU
+  identity across warehouses). Warehouse-specific SKU information — notably the
+  **storage strategy / "teach-in"** (where it may/should be stored: pallet,
+  ASRS, AutoStore, manual bin …) — lives in the per-warehouse `SkuProfile`
+  (`storage_strategy`, §6).
+- **Inventory store** — **decided.** Stock is **hard-persisted in a stock table
+  with the current level as `qty`** (durable authoritative current state, not
+  recomputed on demand), while the **transaction log is safely retained as the
+  immutable audit trail** for every movement. The stock table is the fast query
+  surface; the log gives auditability and replay/rebuild (§4.2).
 
 ---
 

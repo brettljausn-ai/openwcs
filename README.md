@@ -63,8 +63,8 @@ openwcs/
 |---|---|---|---|
 | `gateway` | Java | 8080 | API gateway: ingress, auth, routing |
 | `services/master-data` | Java | 8081 | SKUs, UoM/bundles, barcodes, locations, equipment, warehouses |
-| `services/inventory` | Java | 8082 | Real-time stock (projection of the tx log); reservations; FEFO/FIFO |
-| `services/process-engine` | Java | 8083 | Admin-designed process definitions + execution |
+| `services/inventory` | Java | 8082 | Real-time stock: durable stock table (current qty) kept in lockstep with the tx log; lock/unavailable; reservations; FEFO/FIFO |
+| `services/process-engine` | Java | 8083 | Admin-designed BPMN process definitions + execution (Flowable) |
 | `services/order-management` | Java | 8084 | Inbound ASNs + outbound orders; fulfilment lifecycle |
 | `services/flow-orchestrator` | Java | 8085 | Turns process steps into device tasks; routing, contention |
 | `services/txlog` | Java | 8086 | Append-only transaction log (shared Postgres) |
