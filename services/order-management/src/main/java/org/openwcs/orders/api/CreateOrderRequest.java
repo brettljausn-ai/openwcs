@@ -18,6 +18,10 @@ public record CreateOrderRequest(
         Integer priority,
         /** Required ship / cut-off time; drives release ordering with priority. */
         Instant dispatchBy,
+        /** Dispatch service level (master-data shipping-service code), e.g. EXPRESS. */
+        String serviceCode,
+        /** Dispatch route (master-data route code, host-fed), e.g. CENTRAL_LONDON. */
+        String routeCode,
         @NotEmpty List<Line> lines) {
 
     public record Line(

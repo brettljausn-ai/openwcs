@@ -38,11 +38,14 @@ public class OrderService {
     private final OutboundOrderRepository orders;
     private final AllocationClient allocation;
     private final OrderOutboxRepository outbox;
+    private final MasterDataClient masterData;
 
-    public OrderService(OutboundOrderRepository orders, AllocationClient allocation, OrderOutboxRepository outbox) {
+    public OrderService(OutboundOrderRepository orders, AllocationClient allocation, OrderOutboxRepository outbox,
+                        MasterDataClient masterData) {
         this.orders = orders;
         this.allocation = allocation;
         this.outbox = outbox;
+        this.masterData = masterData;
     }
 
     @Transactional
@@ -57,6 +60,15 @@ public class OrderService {
         order.setCustomerRef(request.customerRef());
         order.setPriority(request.priority() == null ? 0 : request.priority());
         order.setDispatchBy(request.dispatchBy());
+        // Dispatch service + route reference master-data catalogs (routes are host-fed).
+        if (request.serviceCode() != null && !masterData.shippingServiceExists(request.serviceCode())) {
+            throw new IllegalArgumentException("Unknown shipping service: " + request.serviceCode());
+        }
+        if (request.routeCode() != null && !masterData.routeExists(request.routeCode())) {
+            throw new IllegalArgumentException("Unknown route: " + request.routeCode());
+        }
+        order.setServiceCode(request.serviceCode());
+        order.setRouteCode(request.routeCode());
         order.setStatus(OrderStatus.CREATED);
 
         int lineNo = 1;
