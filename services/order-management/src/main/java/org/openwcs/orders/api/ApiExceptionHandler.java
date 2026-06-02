@@ -27,6 +27,14 @@ public class ApiExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    public ProblemDetail onForbidden(ForbiddenException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
+        problem.setTitle("Forbidden");
+        problem.setDetail(ex.getMessage());
+        return problem;
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail onConflict(DataIntegrityViolationException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);

@@ -61,7 +61,7 @@ not committed (`gradle wrapper` once).
 | txlog | `TransactionLogServiceTest`, `OutboxRelayTest` | Testcontainers + Mockito |
 | inventory | `InventoryPersistenceTest`, `StockProjectionServiceTest`, `InventoryServiceTest` | Testcontainers |
 | allocation | `AllocationEngineTest`, `AllocationServiceTest` | Pure logic + Testcontainers (allocate → cancel releases reservations) |
-| order-management | `OrderTransactionTest`, `OrderTransactionRelayTest` | Testcontainers (post → record + stage outbox atomically) + Mockito (relay appends + stamps event id) |
+| order-management | `OrderTransactionTest`, `OrderTransactionRelayTest`, `OrderAuthorizationTest` | Testcontainers + Mockito (outbox, relay, and per-endpoint RBAC: VIEWER 403 / SUPERVISOR 201) |
 | iam | `IamServiceTest` | Testcontainers (seeded roles, effective permissions, catalog validation) |
 
 ---
@@ -86,10 +86,10 @@ not committed (`gradle wrapper` once).
 
 ## 5. Suggested next steps
 
-1. **Per-endpoint RBAC enforcement** in services — read `X-Auth-Roles` / call IAM effective
-   permissions and check the coded `Permission` per endpoint (catalog + gateway auth exist;
-   enforcement does not). Plus a Keycloak `openwcs` realm + `gradle wrapper` so the JWT path
-   is exercisable end-to-end.
+1. **Extend RBAC enforcement** to the remaining services (master-data, inventory, allocation,
+   txlog) using the shared `AccessGuard`/`RoleCatalog` (wired in order-management as the
+   reference). Plus a Keycloak `openwcs` realm + `gradle wrapper` so the JWT path is
+   exercisable end-to-end, and (optionally) resolving custom IAM roles at runtime.
 2. **End-to-end MockMvc tests** across the outbound slice (release → allocate → ship → cancel)
    and the inbound/count/adjust posting + relay flow.
 3. **master-data catalog events** + shipper/fulfillment-config paths in `master-data.yaml`.
@@ -99,4 +99,5 @@ not committed (`gradle wrapper` once).
 > Done since last revision: **IAM service** (users → roles → coded permissions, seeded roles,
 > effective permissions; `IamServiceTest`); **gateway JWT validation + identity propagation**
 > (toggleable, forwards/strips `X-Auth-*`); order-management records the **authenticated
-> actor** from the forwarded identity.
+> actor** and **enforces per-endpoint RBAC** via the shared `RoleCatalog`/`AccessGuard`
+> (`OrderAuthorizationTest`).

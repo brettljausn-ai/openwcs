@@ -133,6 +133,12 @@ position.
 - **Authenticated actor**: order-management records a stock transaction's `actor` from the
   gateway-forwarded `X-Auth-User` (the request-body actor is only a fallback). So once
   security is on, every stock change is attributed to the authenticated user.
+- **Per-endpoint RBAC**: `libs/common` carries a pure role→permission catalog (`RoleCatalog`,
+  mirroring the IAM seed) + `AccessControl`. **order-management enforces** a coded
+  `Permission` per endpoint (`ORDER_CREATE`, `ORDER_VIEW`, `ORDER_RELEASE`, `ORDER_CANCEL`,
+  `ORDER_SHIP`, `ORDER_POST_TRANSACTION`) against the forwarded `X-Auth-Roles` via an
+  `AccessGuard` — a no-op when `openwcs.security.enabled=false`, a 403 on a missing permission
+  when on. This is the reference; other services adopt the same guard as a follow-up.
 
 ## 8. The two working vertical slices
 
@@ -160,7 +166,8 @@ required). Present: master-data (`MasterDataPersistenceTest`, `MasterDataApiTest
 — pure pick-breakdown / cubing / batch-merge logic; `AllocationServiceTest` — Testcontainers
 + mocked clients covering allocate → cancel-releases-reservations), order-management
 (`OrderTransactionTest` — record + stage outbox atomically; `OrderTransactionRelayTest` —
-relay appends + stamps event id), iam (`IamServiceTest` — Testcontainers: seeded roles,
+relay appends + stamps event id; `OrderAuthorizationTest` — MockMvc: VIEWER blocked / SUPERVISOR
+allowed to create with security on), iam (`IamServiceTest` — Testcontainers: seeded roles,
 effective-permission resolution, catalog validation). No JVM/Gradle in the authoring
 environment, so nothing has been compiled; treat the test suite as the gate. The gateway
 JWT path needs a running Keycloak realm to exercise end-to-end.
@@ -169,10 +176,11 @@ JWT path needs a running Keycloak realm to exercise end-to-end.
 
 - Scaffold-only: process-engine, flow-orchestrator, notification, integration-*,
   Go adapters, UI.
-- **Auth is scaffolded but off by default** — gateway JWT validation is toggled by
-  `openwcs.security.enabled` and needs a Keycloak realm; **per-endpoint permission
-  enforcement inside services is not yet wired** (the catalog + IAM model + gateway coarse
-  authentication exist; services don't yet check specific permissions). No mTLS yet.
+- **Auth is scaffolded but off by default** — gateway JWT validation + per-endpoint RBAC are
+  toggled by `openwcs.security.enabled` and need a Keycloak realm to exercise. **Enforcement
+  is wired in order-management (reference); the other services still need the same
+  `AccessGuard` applied** (mechanical follow-up). `RoleCatalog` reflects the shipped seed
+  roles only — custom IAM roles would need a runtime IAM lookup. No mTLS yet.
 - Cubing is volume+weight (not 3D bin-packing); shipper selection is default/first.
 - Pick-type breakdown assumes stock is base-UoM and reads case size from the "CASE" UoM.
 - No CI; no contract tests; events only on `txlog.stream` (no Avro/Schema-Registry, no
