@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -79,12 +80,18 @@ public class OrderController {
         return service.ship(id);
     }
 
-    /** Post a stock transaction beneath a line (receipt / pick / count / adjustment by order type). */
+    /**
+     * Post a stock transaction beneath a line (receipt / pick / count / adjustment by order
+     * type). The actor recorded for audit is the gateway-forwarded authenticated user
+     * ({@code X-Auth-User}); the request-body {@code actor} is only a fallback for direct calls.
+     */
     @PostMapping("/{id}/lines/{lineNo}/transactions")
     public OrderView postTransaction(
             @PathVariable UUID id,
             @PathVariable int lineNo,
+            @RequestHeader(name = "X-Auth-User", required = false) String authUser,
             @Valid @RequestBody PostTransactionRequest request) {
-        return service.postTransaction(id, lineNo, request);
+        String actor = (authUser != null && !authUser.isBlank()) ? authUser : request.actor();
+        return service.postTransaction(id, lineNo, request, actor);
     }
 }

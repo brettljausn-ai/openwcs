@@ -41,6 +41,16 @@ spring:
         - id: integration-manhattan
           uri: ${OPENWCS_URI_INTEGRATION_MANHATTAN:http://localhost:8090}
           predicates: [ "Path=/api/integration/manhattan/**" ]
+
+# Edge security (build.md §4.8, §12). Off by default so the stack runs without a realm.
+# To enable JWT validation, set OPENWCS_SECURITY_ENABLED=true AND point the resource server
+# at the Keycloak realm, e.g.
+#   SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8180/realms/openwcs
+# The gateway then validates the JWT and forwards X-Auth-User / X-Auth-Roles downstream.
+openwcs:
+  security:
+    enabled: ${OPENWCS_SECURITY_ENABLED:false}
+
 management:
   endpoints:
     web:

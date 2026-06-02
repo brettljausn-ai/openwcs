@@ -17,7 +17,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 
 | Component | Lang | Port | Status | Notes |
 |---|---|---|---|---|
-| gateway | Java | 8080 | ✅ | Routes `/api/<service>/**`; env-overridable URIs (incl. allocation). |
+| gateway | Java | 8080 | ✅ | Routes `/api/<service>/**`; JWT validation (toggleable) + forwards/strips X-Auth-* identity. |
 | master-data | Java | 8081 | ✅ | Catalog CRUD + outbound config: shippers, fulfillment config (pick types, cubing mode, batch config). |
 | inventory | Java | 8082 | ✅ | Stock projection + SKU- and location-scoped availability/reservations. |
 | order-management | Java | 8084 | ✅ | Orders of all types (INBOUND/OUTBOUND/COUNT/ADJUSTMENT), lifecycle, release mgmt, line stock transactions via a local outbox → txlog (audit: actor required); delegates allocation. |
@@ -25,14 +25,14 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | txlog | Java | 8086 | ✅ | Append-only events + outbox + relay. |
 | process-engine | Java | 8083 | 🟦 | Needs Flowable BPMN + designer. |
 | flow-orchestrator | Java | 8085 | 🟦 | Needs device-task contract + routing. |
-| iam | Java | 8087 | 🟦 | Keycloak in compose; no OIDC/JWT enforcement. |
+| iam | Java | 8087 | ✅ | Authorization model: users → roles → coded permissions; seeded roles; effective-permission resolution. (Keycloak does auth.) |
 | notification | Java | 8088 | 🟦 | — |
 | integration-sap / integration-manhattan | Java | 8089/8090 | 🟦 | Host gateways. |
 | adapters/{conveyor,asrs,amr-geekplus,autostore} | Go | 9091–9094 | 🟦 | Health + stub loop. |
 | ui | React/TS | 5173 | 🟦 | Vite skeleton. |
 | libs/common | Java | — | ✅ | `EventEnvelope`. |
 
-**Contracts:** OpenAPI ✅ master-data, inventory, txlog, allocation, order-management;
+**Contracts:** OpenAPI ✅ master-data, inventory, txlog, allocation, order-management, iam;
 ⬜ master-data shipper/fulfillment-config paths, other services. Avro/Schema-Registry ⬜.
 
 **Platform:** docker-compose ✅ (incl. allocation). CI ⬜. Helm/k8s ⬜. Gradle wrapper jar
@@ -44,7 +44,7 @@ not committed (`gradle wrapper` once).
 
 | Phase | Status | Detail |
 |---|---|---|
-| **0 — Foundations** | 🟡 | Repo + compose + shared schemas + txlog/outbox/relay + Kafka ✅. Gaps: IAM/SSO/JWT ⬜, CI ⬜. |
+| **0 — Foundations** | 🟡 | Repo + compose + shared schemas + txlog/outbox/relay + Kafka ✅; **IAM authorization model ✅, gateway JWT validation + identity propagation ✅ (toggleable)**. Gaps: Keycloak realm + per-endpoint RBAC enforcement in services, CI ⬜. |
 | **1 — Master data + inventory MVP** | ✅ | Master Data ✅, Inventory projection ✅, log→projection loop proven ✅. |
 | **2 — Process engine + one equipment family** | ⬜ | process-engine, flow-orchestrator, first adapter, goods-in-via-BPMN ⬜. |
 | **3 — Outbound + more equipment** | 🟡 | **order-management ✅, allocation + cubing + batch picking + release management ✅, inventory reservation/ATP ✅.** Gaps: host-integration gateways ⬜; the *BPMN* outbound process ⬜; more adapters ⬜. |
@@ -62,6 +62,7 @@ not committed (`gradle wrapper` once).
 | inventory | `InventoryPersistenceTest`, `StockProjectionServiceTest`, `InventoryServiceTest` | Testcontainers |
 | allocation | `AllocationEngineTest`, `AllocationServiceTest` | Pure logic + Testcontainers (allocate → cancel releases reservations) |
 | order-management | `OrderTransactionTest`, `OrderTransactionRelayTest` | Testcontainers (post → record + stage outbox atomically) + Mockito (relay appends + stamps event id) |
+| iam | `IamServiceTest` | Testcontainers (seeded roles, effective permissions, catalog validation) |
 
 ---
 
@@ -85,14 +86,17 @@ not committed (`gradle wrapper` once).
 
 ## 5. Suggested next steps
 
-1. **IAM + gateway JWT** (Phase 0 close-out) — turn caller-asserted `actor` into an
-   authenticated principal; coded-permission RBAC.
+1. **Per-endpoint RBAC enforcement** in services — read `X-Auth-Roles` / call IAM effective
+   permissions and check the coded `Permission` per endpoint (catalog + gateway auth exist;
+   enforcement does not). Plus a Keycloak `openwcs` realm + `gradle wrapper` so the JWT path
+   is exercisable end-to-end.
 2. **End-to-end MockMvc tests** across the outbound slice (release → allocate → ship → cancel)
    and the inbound/count/adjust posting + relay flow.
 3. **master-data catalog events** + shipper/fulfillment-config paths in `master-data.yaml`.
 4. **Order auto-complete** when a line is fully posted (`postedQty` ≥ `qty`).
 5. **process-engine + flow-orchestrator + first adapter** (Phase 2): goods-in/outbound via BPMN.
 
-> Done since last revision: enforced audit `actor` (required on transactions +
-> `events.actor` NOT NULL); order-management **local outbox** making the line-transaction
-> record + txlog append atomic (`OrderTransactionTest`, `OrderTransactionRelayTest`).
+> Done since last revision: **IAM service** (users → roles → coded permissions, seeded roles,
+> effective permissions; `IamServiceTest`); **gateway JWT validation + identity propagation**
+> (toggleable, forwards/strips `X-Auth-*`); order-management records the **authenticated
+> actor** from the forwarded identity.

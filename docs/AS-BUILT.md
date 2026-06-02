@@ -19,13 +19,14 @@ What is **actually implemented** today (not the target architecture). Design int
 
 | Service | Port | Status | What it does |
 |---|---|---|---|
-| gateway | 8080 | ✅ | Spring Cloud Gateway; routes `/api/<service>/**` (env-overridable URIs). |
+| gateway | 8080 | ✅ | Spring Cloud Gateway; routes `/api/<service>/**`; JWT validation (toggleable) + forwards `X-Auth-User`/`X-Auth-Roles`. |
 | master-data | 8081 | ✅ | Catalog + outbound config (below). |
 | inventory | 8082 | ✅ | Durable stock projection + availability/reservations (SKU- and location-scoped). |
-| order-management | 8084 | ✅ | Outbound orders + lifecycle + release management; delegates allocation. |
+| order-management | 8084 | ✅ | Orders (all types) + lifecycle + release management + line transactions; delegates allocation. |
 | allocation | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing, batch picking. |
 | txlog | 8086 | ✅ | Append-only event log + transactional outbox + relay to `txlog.stream`. |
-| process-engine / flow-orchestrator / iam / notification / integration-sap / integration-manhattan | 8083/8085/8087–8090 | 🟦 | Scaffold (health/info only). |
+| iam | 8087 | ✅ | openWCS authorization model: users → roles → coded permissions (Keycloak does auth). |
+| process-engine / flow-orchestrator / notification / integration-sap / integration-manhattan | 8083/8085/8088–8090 | 🟦 | Scaffold (health/info only). |
 | adapters/{conveyor,asrs,amr-geekplus,autostore} | 9091–9094 | 🟦 | Go; health/readiness + stub loop. |
 | ui | 5173 | 🟦 | Vite skeleton. |
 
@@ -48,6 +49,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 | `inventory` | inventory | batch, serial_unit, stock, reservation, projection_offset, processed_event |
 | `orders` | order-management | outbound_order (all order types), order_line, order_line_transaction, order_outbox |
 | `allocation` | allocation | order_allocation, allocation_line, pick_batch |
+| `iam` | iam | role, role_permission, app_user, user_role |
 
 ---
 
@@ -117,6 +119,21 @@ position.
 
 ---
 
+## 7a. IAM & edge security
+
+- **IAM service** (`/api/iam`, `contracts/openapi/iam.yaml`): the openWCS authorization
+  model — users → roles → **code-defined permissions**
+  (`org.openwcs.common.security.Permission`). Flyway seeds ADMIN/SUPERVISOR/OPERATOR/VIEWER.
+  Manage users/roles, assign roles, read a user's **effective permissions** (union across
+  roles). Authentication itself is Keycloak's job; this layers RBAC on top (build.md §4.8).
+- **Gateway JWT** (build.md §12): with `openwcs.security.enabled=true` the gateway validates
+  the JWT against the Keycloak realm, requires auth on `/api/**`, forwards the identity
+  downstream as `X-Auth-User`/`X-Auth-Roles`, and **always strips client-supplied** versions
+  (anti-spoofing). Off by default so the stack runs before a realm exists.
+- **Authenticated actor**: order-management records a stock transaction's `actor` from the
+  gateway-forwarded `X-Auth-User` (the request-body actor is only a fallback). So once
+  security is on, every stock change is attributed to the authenticated user.
+
 ## 8. The two working vertical slices
 
 **Goods-in → stock:** `POST /api/txlog/events {GoodsReceived}` → outbox relay →
@@ -142,16 +159,20 @@ required). Present: master-data (`MasterDataPersistenceTest`, `MasterDataApiTest
 `StockProjectionServiceTest`, `InventoryServiceTest`), allocation (`AllocationEngineTest`
 — pure pick-breakdown / cubing / batch-merge logic; `AllocationServiceTest` — Testcontainers
 + mocked clients covering allocate → cancel-releases-reservations), order-management
-(`OrderTransactionTest` — Testcontainers: posting a line transaction records it + stages the
-outbox atomically; `OrderTransactionRelayTest` — Mockito: relay appends to txlog + stamps the
-event id). No JVM/Gradle in the authoring environment, so nothing has been compiled; treat the
-test suite as the gate.
+(`OrderTransactionTest` — record + stage outbox atomically; `OrderTransactionRelayTest` —
+relay appends + stamps event id), iam (`IamServiceTest` — Testcontainers: seeded roles,
+effective-permission resolution, catalog validation). No JVM/Gradle in the authoring
+environment, so nothing has been compiled; treat the test suite as the gate. The gateway
+JWT path needs a running Keycloak realm to exercise end-to-end.
 
 ## 10. Not built / known gaps
 
-- Scaffold-only: process-engine, flow-orchestrator, iam, notification, integration-*,
+- Scaffold-only: process-engine, flow-orchestrator, notification, integration-*,
   Go adapters, UI.
-- **No auth** (Keycloak runs in compose; no JWT/RBAC enforcement).
+- **Auth is scaffolded but off by default** — gateway JWT validation is toggled by
+  `openwcs.security.enabled` and needs a Keycloak realm; **per-endpoint permission
+  enforcement inside services is not yet wired** (the catalog + IAM model + gateway coarse
+  authentication exist; services don't yet check specific permissions). No mTLS yet.
 - Cubing is volume+weight (not 3D bin-packing); shipper selection is default/first.
 - Pick-type breakdown assumes stock is base-UoM and reads case size from the "CASE" UoM.
 - No CI; no contract tests; events only on `txlog.stream` (no Avro/Schema-Registry, no

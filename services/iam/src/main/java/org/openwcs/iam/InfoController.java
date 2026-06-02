@@ -11,7 +11,7 @@ public class InfoController {
     public Map<String, String> info() {
         return Map.of(
             "service", "iam",
-            "description", "Users, MS Entra SSO + local accounts, RBAC with coded permissions (users -> roles -> permissions).",
-            "status", "skeleton");
+            "description", "openWCS authorization model: users -> roles -> coded permissions (Keycloak handles auth). REST per contracts/openapi/iam.yaml.",
+            "status", "active");
     }
 }

@@ -1,0 +1,187 @@
+openapi: 3.0.3
+info:
+  title: openWCS IAM API
+  version: 0.1.0
+  description: >
+    The openWCS authorization model (build.md §4.8): users → roles → code-defined
+    permissions. Authentication itself is handled by Keycloak (OIDC); this service owns the
+    RBAC layered on top. The gateway validates JWTs and forwards the identity; per-endpoint
+    permission enforcement uses the catalog exposed here.
+servers:
+  - url: /
+    description: Via the API gateway (routes /api/iam/**)
+
+tags:
+  - name: Permissions
+  - name: Roles
+  - name: Users
+
+paths:
+  /api/iam/permissions:
+    get:
+      tags: [Permissions]
+      summary: The code-defined permission catalog
+      operationId: listPermissions
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json: { schema: { type: array, items: { type: string } } }
+
+  /api/iam/roles:
+    get:
+      tags: [Roles]
+      summary: List roles
+      operationId: listRoles
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Role' } } }
+    post:
+      tags: [Roles]
+      summary: Create a role
+      operationId: createRole
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CreateRole' } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Role' } } } }
+        "400": { $ref: '#/components/responses/Problem' }
+        "409": { $ref: '#/components/responses/Problem' }
+  /api/iam/roles/{name}:
+    parameters: [ { name: name, in: path, required: true, schema: { type: string } } ]
+    get:
+      tags: [Roles]
+      summary: Get a role
+      operationId: getRole
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Role' } } } }
+        "404": { $ref: '#/components/responses/Problem' }
+  /api/iam/roles/{name}/permissions:
+    parameters: [ { name: name, in: path, required: true, schema: { type: string } } ]
+    put:
+      tags: [Roles]
+      summary: Replace a role's permissions
+      operationId: setRolePermissions
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/SetPermissions' } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Role' } } } }
+        "400": { $ref: '#/components/responses/Problem' }
+        "404": { $ref: '#/components/responses/Problem' }
+
+  /api/iam/users:
+    get:
+      tags: [Users]
+      summary: List users
+      operationId: listUsers
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json: { schema: { type: array, items: { $ref: '#/components/schemas/User' } } }
+    post:
+      tags: [Users]
+      summary: Create a user
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CreateUser' } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        "409": { $ref: '#/components/responses/Problem' }
+  /api/iam/users/{username}:
+    parameters: [ { name: username, in: path, required: true, schema: { type: string } } ]
+    get:
+      tags: [Users]
+      summary: Get a user (with roles + effective permissions)
+      operationId: getUser
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        "404": { $ref: '#/components/responses/Problem' }
+  /api/iam/users/{username}/roles:
+    parameters: [ { name: username, in: path, required: true, schema: { type: string } } ]
+    put:
+      tags: [Users]
+      summary: Replace a user's roles
+      operationId: setUserRoles
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/SetRoles' } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        "404": { $ref: '#/components/responses/Problem' }
+  /api/iam/users/{username}/permissions:
+    parameters: [ { name: username, in: path, required: true, schema: { type: string } } ]
+    get:
+      tags: [Users]
+      summary: A user's effective permissions
+      operationId: userPermissions
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json: { schema: { type: array, items: { type: string } } }
+        "404": { $ref: '#/components/responses/Problem' }
+
+components:
+  responses:
+    Problem:
+      description: RFC 9457 problem detail
+      content:
+        application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+  schemas:
+    Role:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        system: { type: boolean }
+        permissions: { type: array, items: { type: string } }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        displayName: { type: string, nullable: true }
+        externalId: { type: string, nullable: true, description: Keycloak subject. }
+        status: { type: string }
+        roles: { type: array, items: { type: string } }
+        permissions: { type: array, items: { type: string }, description: Effective (union across roles). }
+    CreateUser:
+      type: object
+      required: [username]
+      properties:
+        username: { type: string }
+        displayName: { type: string, nullable: true }
+        externalId: { type: string, nullable: true }
+    CreateRole:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string, nullable: true }
+        permissions: { type: array, items: { type: string } }
+    SetRoles:
+      type: object
+      properties:
+        roleNames: { type: array, items: { type: string } }
+    SetPermissions:
+      type: object
+      properties:
+        permissions: { type: array, items: { type: string } }
+    Problem:
+      type: object
+      properties:
+        type: { type: string, format: uri, default: about:blank }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string, format: uri }
