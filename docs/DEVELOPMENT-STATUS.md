@@ -23,7 +23,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | master-data | Java | 8081 | ✅ | Catalog CRUD + outbound config: shippers, fulfillment config (pick types, cubing mode, batch config). |
 | inventory | Java | 8082 | ✅ | Stock projection + SKU- and location-scoped availability/reservations. |
 | order-management | Java | 8084 | ✅ | Orders of all types (INBOUND/OUTBOUND/COUNT/ADJUSTMENT), lifecycle, release mgmt, line stock transactions via a local outbox → txlog (audit: actor required); delegates allocation. |
-| allocation | Java | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing (APP/1:1), batch picking. |
+| allocation | Java | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing (APP multi-size largest-first / 1:1) with per-line carton traceability, batch picking. |
 | txlog | Java | 8086 | ✅ | Append-only events + outbox + relay. |
 | process-engine | Java | 8083 | 🟦 | Needs Flowable BPMN + designer. |
 | flow-orchestrator | Java | 8085 | 🟡 | Device-task lifecycle (REQUESTED→DISPATCHED→COMPLETED/FAILED) over the uniform device contract; routes to adapters by family. BPMN-driven routing still pending. |
@@ -65,7 +65,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | master-data | `MasterDataPersistenceTest`, `MasterDataApiTest`, `MasterDataRbacTest` | Testcontainers + MockMvc (incl. RBAC: read=VIEW, write=EDIT) |
 | txlog | `TransactionLogServiceTest`, `OutboxRelayTest` | Testcontainers + Mockito |
 | inventory | `InventoryPersistenceTest`, `StockProjectionServiceTest`, `InventoryServiceTest` | Testcontainers |
-| allocation | `AllocationEngineTest`, `AllocationServiceTest` | Pure logic + Testcontainers (allocate → cancel releases reservations) |
+| allocation | `AllocationEngineTest`, `AllocationServiceTest` | Pure logic (incl. multi-size cubing: largest-first + line split across cartons with `lineNo`/`shipperUnitId` links) + Testcontainers (allocate → cancel releases reservations) |
 | order-management | `OrderTransactionTest`, `OrderTransactionRelayTest`, `OrderAuthorizationTest` | Testcontainers + Mockito (outbox, relay, and per-endpoint RBAC: VIEWER 403 / SUPERVISOR 201) |
 | iam | `IamServiceTest` | Testcontainers (seeded roles, effective permissions, catalog validation) |
 | flow-orchestrator | `DeviceTaskServiceTest` | Testcontainers + Mockito (`@MockBean DeviceClient`: COMPLETED on success, FAILED on adapter error without losing the task, query by id/correlation) |
@@ -80,7 +80,8 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 - **`ddl-auto: validate` + JSONB** — usually fine on Hibernate 6; fallback is
   `ddl-auto: none` (tests still cover mappings).
 - **No auth** anywhere.
-- **Cubing** is volume+weight greedy (not 3D); shipper selection is default/first only.
+- **Cubing** is volume+weight greedy (not 3D); it packs across multiple shipper sizes
+  (largest-first, downsizing the last carton) but doesn't optimise for fewest cartons.
 - **Pick-type breakdown** assumes base-UoM stock and reads case size from the "CASE" UoM;
   SPLIT_CASE is treated as eaches for quantity.
 - **Allocation↔services** calls are synchronous REST; partial-failure compensation exists

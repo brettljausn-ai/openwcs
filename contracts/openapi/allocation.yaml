@@ -151,7 +151,9 @@ components:
                 type: array
                 items:
                   type: object
+                  required: [lineNo, skuId, qty]
                   properties:
+                    lineNo: { type: integer, description: Order line this content fulfils. }
                     skuId: { type: string, format: uuid }
                     qty: { type: number }
     Allocation:
@@ -191,15 +193,25 @@ components:
           example: { CASE: 2, EACH: 6 }
     ShipperAssignment:
       type: object
+      description: >
+        One physical carton/tote the order is cubed into. The shipper→order link is the owning
+        allocation (order_ref); shipperUnitId gives each carton a stable identity within the
+        order. An order may span several cartons of different sizes (largest-first, downsizing
+        the final carton to the remainder), and a single order line may be split across cartons.
       properties:
-        seqNo: { type: integer }
-        shipperId: { type: string, format: uuid, nullable: true }
+        shipperUnitId:
+          type: string
+          format: uuid
+          description: Stable identity of this physical carton within the order.
+        seqNo: { type: integer, description: Carton sequence within the order (1..N). }
+        shipperId: { type: string, format: uuid, nullable: true, description: Shipper *type* (master-data). }
         shipperCode: { type: string }
         contents:
           type: array
           items:
             type: object
             properties:
+              lineNo: { type: integer, description: Order line this content fulfils. }
               skuId: { type: string, format: uuid }
               qty: { type: number }
         grossWeightG: { type: number }

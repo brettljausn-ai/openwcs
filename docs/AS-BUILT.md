@@ -113,8 +113,14 @@ position.
   (inventory location-scoped ATP) until met; compute the **pick-type UoM breakdown**
   (cases/eaches, gated by allowed pick types). If every line is reserved → **FULFILLABLE**
   with a pick plan + **cube plan**; else release all reservations → **NOT_FULFILLABLE**.
-- **Cubing**: `APP` (greedy volume + weight against a chosen shipper, honouring max fill
-  level / max weight / tare) or `ONE_TO_ONE` (validate & record host-supplied shippers).
+- **Cubing**: `APP` (greedy volume + weight across the warehouse's **active shipper sizes** —
+  packs the **largest** carton that fits while a lot remains, then **downsizes** the final
+  carton to the remainder; honours max fill level / max weight / tare) or `ONE_TO_ONE`
+  (validate & record host-supplied shippers). The cube plan is a list of `ShipperAssignment`
+  cartons on `order_allocation.shippers` (JSONB); each carton has a stable **`shipperUnitId`**
+  (its identity within the order — the carton→order link is the owning `order_ref`) and its
+  **contents carry the order `lineNo`**, so a line split across several cartons (and a carton
+  holding several lines) is fully traceable.
 - `POST /orders/{orderRef}/cancel` — release every held reservation for the order and
   mark the plan CANCELLED (kept for audit). order-management's cancel calls this.
 - `POST /batches` — **batch (cluster) picking**: group eligible small orders
@@ -244,7 +250,9 @@ run green); the first run surfaced one test-isolation bug, now fixed.
   IAM lookup. No mTLS yet (inter-service trust rides on forwarded headers behind the edge).
 - `actor` is authenticated (from the gateway-forwarded identity) when security is on, and
   caller-asserted when off (the default).
-- Cubing is volume+weight (not 3D bin-packing); shipper selection is default/first.
+- Cubing is volume+weight (not 3D bin-packing); it now uses multiple shipper sizes
+  (largest-first, downsizing the final carton), but carton-size ranking is by usable volume
+  then net weight — it does not try alternative packings to minimise carton count.
 - Pick-type breakdown assumes stock is base-UoM and reads case size from the "CASE" UoM.
 - Events only on `txlog.stream` (no Avro/Schema-Registry, no master-data catalog events, no
   DLQs); no consumer-driven contract tests (CI validates the OpenAPI specs structurally).

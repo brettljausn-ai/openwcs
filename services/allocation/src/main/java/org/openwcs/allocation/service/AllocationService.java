@@ -169,19 +169,20 @@ public class AllocationService {
 
     private List<ShipperAssignment> appCube(AllocateOrderRequest request, List<ShipperDef> shippers,
                                             Map<UUID, List<UomDef>> uomsBySku) {
-        MasterDataClient.FulfillmentConfig config = masterData.fulfillmentConfig(request.warehouseId());
-        ShipperDef shipper = selectShipper(shippers, config.defaultShipperId());
-        if (shipper == null) {
+        List<ShipperDef> active = activeShippers(shippers);
+        if (active.isEmpty()) {
             log.warn("No shipper configured for warehouse {}; order {} left un-cubed",
                     request.warehouseId(), request.orderRef());
             return List.of();
         }
         List<CubingEngine.Item> items = new ArrayList<>();
         for (AllocateOrderRequest.Line line : request.lines()) {
-            items.add(item(line.skuId(), line.qty().longValue(),
+            items.add(item(line.lineNo(), line.skuId(), line.qty().longValue(),
                     uomsBySku.computeIfAbsent(line.skuId(), masterData::skuUoms)));
         }
-        return CubingEngine.appCube(items, shipper);
+        // The engine ranks the active shippers by size and packs largest-first, downsizing the
+        // final carton to the remainder (ADR 0002).
+        return CubingEngine.appCube(items, active);
     }
 
     private List<ShipperAssignment> oneToOneCube(AllocateOrderRequest request, List<ShipperDef> shippers,
@@ -202,31 +203,26 @@ public class AllocationService {
             List<ShipperAssignment.Content> contents = new ArrayList<>();
             if (instruction.contents() != null) {
                 for (AllocateOrderRequest.Content c : instruction.contents()) {
-                    CubingEngine.Item unit = item(c.skuId(), 1,
+                    CubingEngine.Item unit = item(c.lineNo(), c.skuId(), 1,
                             uomsBySku.computeIfAbsent(c.skuId(), masterData::skuUoms));
                     volume += unit.unitVolumeMm3() * c.qty().doubleValue();
                     weight += unit.unitWeightG() * c.qty().doubleValue();
-                    contents.add(new ShipperAssignment.Content(c.skuId(), c.qty()));
+                    contents.add(new ShipperAssignment.Content(c.lineNo(), c.skuId(), c.qty()));
                 }
             }
-            assignments.add(new ShipperAssignment(seq++, shipper.id(), shipper.code(), contents,
-                    BigDecimal.valueOf(weight), BigDecimal.valueOf(volume)));
+            assignments.add(new ShipperAssignment(UUID.randomUUID(), seq++, shipper.id(), shipper.code(),
+                    contents, BigDecimal.valueOf(weight), BigDecimal.valueOf(volume)));
         }
         return assignments;
     }
 
-    private static ShipperDef selectShipper(List<ShipperDef> shippers, UUID defaultShipperId) {
-        List<ShipperDef> active = shippers.stream()
+    private static List<ShipperDef> activeShippers(List<ShipperDef> shippers) {
+        return shippers.stream()
                 .filter(s -> !"ARCHIVED".equals(s.status()))
                 .toList();
-        if (defaultShipperId != null) {
-            return active.stream().filter(s -> defaultShipperId.equals(s.id())).findFirst()
-                    .orElse(active.isEmpty() ? null : active.get(0));
-        }
-        return active.isEmpty() ? null : active.get(0);
     }
 
-    private static CubingEngine.Item item(UUID skuId, long qty, List<UomDef> uoms) {
+    private static CubingEngine.Item item(int lineNo, UUID skuId, long qty, List<UomDef> uoms) {
         UomDef base = uoms == null ? null : uoms.stream().filter(UomDef::baseUnit).findFirst().orElse(null);
         double volume = 0;
         double weight = 0;
@@ -238,7 +234,7 @@ public class AllocationService {
                 weight = base.weightG().doubleValue();
             }
         }
-        return new CubingEngine.Item(skuId, qty, volume, weight);
+        return new CubingEngine.Item(lineNo, skuId, qty, volume, weight);
     }
 
     private static List<Pick> dropReservations(List<Pick> picks) {
