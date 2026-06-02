@@ -222,9 +222,12 @@ write needs EDIT), iam (`IamServiceTest` — Testcontainers: seeded roles, effec
 resolution, catalog validation), flow-orchestrator (`DeviceTaskServiceTest` — Testcontainers +
 mocked `DeviceClient`: COMPLETED on success, FAILED on adapter error without losing the task,
 query by id/correlation). Go: conveyor `main_test.go` (`POST /tasks` COMPLETED / FAILED / 405).
+The gateway has `GatewayAuthEndToEndTest` — a **live Keycloak Testcontainer** that imports the
+canonical `openwcs` realm, mints a real JWT via the password grant, and drives a route to an
+in-test echo server: no token → 401, a realm JWT → 200 with the identity forwarded as
+`X-Auth-User`/`X-Auth-Roles`, and client-supplied identity headers stripped (anti-spoof).
 Not compiled in the authoring environment (no local JVM/Gradle) — **CI is the gate** (it has
-run green); the first run surfaced one test-isolation bug, now fixed. The gateway JWT path can
-be exercised against the imported `openwcs` realm.
+run green); the first run surfaced one test-isolation bug, now fixed.
 
 ## 10. Not built / known gaps
 
@@ -235,10 +238,10 @@ be exercised against the imported `openwcs` realm.
   production Kafka transport.
 - **Auth is built but off by default** — gateway JWT validation + per-endpoint RBAC across all
   six REST services + inter-service identity propagation, all toggled by
-  `openwcs.security.enabled`. Needs a Keycloak realm to exercise end-to-end (the `openwcs`
-  realm is now imported by compose). `RoleCatalog` reflects the shipped seed roles only —
-  custom IAM roles would need a runtime IAM lookup. No mTLS yet (inter-service trust rides on
-  forwarded headers behind the edge).
+  `openwcs.security.enabled`. The `openwcs` realm is imported by compose, and the edge-auth
+  path is now exercised end-to-end in CI (`GatewayAuthEndToEndTest`, live Keycloak container).
+  `RoleCatalog` reflects the shipped seed roles only — custom IAM roles would need a runtime
+  IAM lookup. No mTLS yet (inter-service trust rides on forwarded headers behind the edge).
 - `actor` is authenticated (from the gateway-forwarded identity) when security is on, and
   caller-asserted when off (the default).
 - Cubing is volume+weight (not 3D bin-packing); shipper selection is default/first.

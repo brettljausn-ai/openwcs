@@ -74,7 +74,10 @@ public class IdentityPropagationFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        // After Spring Security's WebFilter has populated the context.
-        return Ordered.LOWEST_PRECEDENCE;
+        // The security context is populated by Spring Security's WebFilter chain, which runs
+        // before any gateway GlobalFilter — so we only need to ensure we run *before* the
+        // routing filter (NettyRoutingFilter, LOWEST_PRECEDENCE), which forwards the request
+        // downstream. Run one step ahead of it so the identity headers are in place first.
+        return Ordered.LOWEST_PRECEDENCE - 1;
     }
 }

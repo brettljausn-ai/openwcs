@@ -17,4 +17,8 @@ dependencies {
     // JWT validation at the edge (build.md §4.8, §12). Reactive resource server; toggled on
     // via openwcs.security.enabled once a Keycloak realm exists.
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+
+    // End-to-end edge-auth test: validates real Keycloak-issued JWTs against the imported realm.
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.testcontainers:junit-jupiter:1.20.1'
 }

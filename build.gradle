@@ -17,5 +17,13 @@ subprojects {
         toolchain { languageVersion = JavaLanguageVersion.of(21) }
     }
 
-    tasks.withType(Test).configureEach { useJUnitPlatform() }
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+        // Surface full failure detail (incl. AssertJ .as(...) descriptions) in CI logs.
+        testLogging {
+            events 'failed'
+            exceptionFormat 'full'
+            showStandardStreams true
+        }
+    }
 }
