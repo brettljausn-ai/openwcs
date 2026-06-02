@@ -112,6 +112,11 @@ public class OrderLineTransaction {
         return eventId;
     }
 
+    /** Set by the outbox relay once the event has been appended to the transaction log. */
+    public void setEventId(UUID eventId) {
+        this.eventId = eventId;
+    }
+
     public String getActor() {
         return actor;
     }

@@ -123,9 +123,9 @@ end-to-end slice runs through three services:
 3. The **inventory projection** consumes it and moves `stock.qty`.
 
 ```bash
-# 1. record a goods-in (qty in the SKU base UoM)
+# 1. record a goods-in (qty in the SKU base UoM; actor = who/what caused it, required for audit)
 curl -X POST localhost:8086/api/txlog/events -H 'Content-Type: application/json' -d '{
-  "streamId":"HU-1","eventType":"GoodsReceived",
+  "streamId":"HU-1","eventType":"GoodsReceived","actor":"receiving-station-3",
   "payload":{"warehouseId":"<wh-uuid>","skuId":"<sku-uuid>","locationId":"<loc-uuid>","qty":12,"uomCode":"EACH"}}'
 
 # 2. (relay publishes automatically) then read the projected stock / availability

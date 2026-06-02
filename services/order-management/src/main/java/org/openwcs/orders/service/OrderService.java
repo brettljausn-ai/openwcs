@@ -12,13 +12,14 @@ import org.openwcs.orders.api.OrderView;
 import org.openwcs.orders.api.PageResponse;
 import org.openwcs.orders.api.PostTransactionRequest;
 import org.openwcs.orders.client.AllocationClient;
-import org.openwcs.orders.client.TxLogClient;
 import org.openwcs.orders.domain.OrderLine;
 import org.openwcs.orders.domain.OrderLineTransaction;
+import org.openwcs.orders.domain.OrderOutboxMessage;
 import org.openwcs.orders.domain.OrderStatus;
 import org.openwcs.orders.domain.OrderType;
 import org.openwcs.orders.domain.OutboundOrder;
 import org.openwcs.orders.domain.TransactionType;
+import org.openwcs.orders.repo.OrderOutboxRepository;
 import org.openwcs.orders.repo.OutboundOrderRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,12 +37,12 @@ public class OrderService {
 
     private final OutboundOrderRepository orders;
     private final AllocationClient allocation;
-    private final TxLogClient txlog;
+    private final OrderOutboxRepository outbox;
 
-    public OrderService(OutboundOrderRepository orders, AllocationClient allocation, TxLogClient txlog) {
+    public OrderService(OutboundOrderRepository orders, AllocationClient allocation, OrderOutboxRepository outbox) {
         this.orders = orders;
         this.allocation = allocation;
-        this.txlog = txlog;
+        this.outbox = outbox;
     }
 
     @Transactional
@@ -150,15 +151,17 @@ public class OrderService {
                         "No line " + lineNo + " on order " + order.getOrderRef()));
 
         TransactionType txnType = transactionTypeFor(order.getOrderType());
-        UUID eventId = txlog.append(
-                line.getId().toString(),
-                eventTypeFor(txnType),
-                order.getId(),
-                request.actor(),
-                buildPayload(order, line, txnType, request));
+        Map<String, Object> payload = buildPayload(order, line, txnType, request);
 
-        line.addTransaction(new OrderLineTransaction(line, txnType, request.qty(),
-                request.locationId(), request.huId(), request.batchId(), eventId, request.actor()));
+        // Record the transaction (event id filled in later by the relay) and the outbox row
+        // in ONE local transaction, so the audit record can never be lost.
+        OrderLineTransaction txn = new OrderLineTransaction(line, txnType, request.qty(),
+                request.locationId(), request.huId(), request.batchId(), null, request.actor());
+        line.addTransaction(txn);
+        orders.flush(); // assign the transaction id for the outbox foreign key
+        outbox.save(new OrderOutboxMessage(
+                txn.getId(), line.getId().toString(), eventTypeFor(txnType),
+                order.getId(), request.actor(), payload));
         return OrderView.from(order);
     }
 

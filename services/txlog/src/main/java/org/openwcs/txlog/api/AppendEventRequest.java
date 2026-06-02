@@ -11,7 +11,7 @@ public record AppendEventRequest(
         @NotBlank String streamId,
         @NotBlank String eventType,
         Instant occurredAt,
-        String actor,
+        @NotBlank String actor,
         UUID correlationId,
         Map<String, Object> payload,
         Integer payloadVersion,

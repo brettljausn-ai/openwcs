@@ -45,7 +45,7 @@ public class Event {
     @Column(name = "recorded_at", updatable = false, nullable = false)
     private Instant recordedAt;
 
-    @Column(name = "actor", updatable = false)
+    @Column(name = "actor", updatable = false, nullable = false)
     private String actor;
 
     @Column(name = "correlation_id", updatable = false)

@@ -29,6 +29,10 @@ openwcs:
     allocation-base-url: ${OPENWCS_ALLOCATION_BASE_URL:http://localhost:8091}
     # Transaction log: stock transactions posted beneath order lines are appended here.
     txlog-base-url: ${OPENWCS_TXLOG_BASE_URL:http://localhost:8086}
+    relay:
+      enabled: true
+      interval-ms: 1000
+      batch-size: 100
 
 management:
   endpoints:

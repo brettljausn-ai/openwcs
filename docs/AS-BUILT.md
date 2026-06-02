@@ -46,7 +46,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 | `master_data` | master-data | warehouse, attribute_schema, sku, sku_profile, dangerous_goods, unit_of_measure, barcode_type, barcode, handling_unit_type, equipment, location, **shipper**, **warehouse_fulfillment_config** |
 | `transaction_log` | txlog | events (append-only; UPDATE/DELETE blocked by trigger), outbox |
 | `inventory` | inventory | batch, serial_unit, stock, reservation, projection_offset, processed_event |
-| `orders` | order-management | outbound_order (all order types), order_line, order_line_transaction |
+| `orders` | order-management | outbound_order (all order types), order_line, order_line_transaction, order_outbox |
 | `allocation` | allocation | order_allocation, allocation_line, pick_batch |
 
 ---
@@ -89,10 +89,14 @@ position.
   **Release management**: `GET /release-queue?warehouseId=` (priority desc, then dispatch
   time) and `POST /release-due?warehouseId=&withinMinutes=`.
 - **Line stock transactions** (every type): `POST /orders/{id}/lines/{lineNo}/transactions`
-  records a receipt / pick / count / adjustment (type derived from `orderType`), **appends
+  records a receipt / pick / count / adjustment (type derived from `orderType`) and, in the
+  **same local transaction**, writes an `order_outbox` row. A scheduled relay then **appends
   the matching event** (`GoodsReceived` / `Picked` / `StockAdjusted`) to the transaction log
-  (correlation = order, stream = line), stores the `event_id` on the line transaction, and
-  rolls up `postedQty`. The physical stock change is then applied by the inventory projection.
+  (correlation = order, stream = line) and records the `event_id` back on the line
+  transaction. So the audit record + publish-intent commit atomically; the physical stock
+  change is applied by the inventory projection. `postedQty` rolls up the signed quantities.
+- **Audit:** `actor` (who) is **required** on every line transaction and on every logged
+  event (`events.actor` is NOT NULL); until IAM/JWT is wired it is caller-asserted.
 - The `outbound_order` table now holds all order types (legacy name retained; a rename is a
   documented follow-up).
 
@@ -138,9 +142,10 @@ required). Present: master-data (`MasterDataPersistenceTest`, `MasterDataApiTest
 `StockProjectionServiceTest`, `InventoryServiceTest`), allocation (`AllocationEngineTest`
 — pure pick-breakdown / cubing / batch-merge logic; `AllocationServiceTest` — Testcontainers
 + mocked clients covering allocate → cancel-releases-reservations), order-management
-(`OrderTransactionTest` — Testcontainers + mocked clients: posting a line transaction
-appends the event + records it). No JVM/Gradle in the authoring environment, so nothing has
-been compiled; treat the test suite as the gate.
+(`OrderTransactionTest` — Testcontainers: posting a line transaction records it + stages the
+outbox atomically; `OrderTransactionRelayTest` — Mockito: relay appends to txlog + stamps the
+event id). No JVM/Gradle in the authoring environment, so nothing has been compiled; treat the
+test suite as the gate.
 
 ## 10. Not built / known gaps
 
@@ -151,11 +156,10 @@ been compiled; treat the test suite as the gate.
 - Pick-type breakdown assumes stock is base-UoM and reads case size from the "CASE" UoM.
 - No CI; no contract tests; events only on `txlog.stream` (no Avro/Schema-Registry, no
   master-data catalog events, no DLQs).
-- Posting a line transaction (txlog append) and recording it locally are **not one atomic
-  transaction** — the append happens, then the local row is saved; a crash between them
-  could drop the local record (the stock effect still lands via the log). A local outbox in
-  order-management would close this; documented follow-up.
 - Order status is not auto-advanced by postings (no auto-complete when `postedQty` meets
   `qty`); lifecycle orchestration is a follow-up.
+- `actor` is recorded everywhere but is **caller-asserted** until IAM/JWT is wired (then the
+  gateway/IAM supplies the authenticated principal and services read it from the security
+  context rather than the request body).
 - OpenAPI: `allocation.yaml` + `order-management.yaml` present; master-data
   shipper/fulfillment-config paths not yet added to `master-data.yaml`.
