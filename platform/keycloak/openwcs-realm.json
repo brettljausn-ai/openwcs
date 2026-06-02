@@ -42,18 +42,30 @@
     {
       "username": "supervisor",
       "enabled": true,
+      "firstName": "Sam",
+      "lastName": "Supervisor",
+      "email": "supervisor@example.com",
+      "emailVerified": true,
       "credentials": [{ "type": "password", "value": "supervisor", "temporary": false }],
       "realmRoles": ["SUPERVISOR"]
     },
     {
       "username": "operator",
       "enabled": true,
+      "firstName": "Olive",
+      "lastName": "Operator",
+      "email": "operator@example.com",
+      "emailVerified": true,
       "credentials": [{ "type": "password", "value": "operator", "temporary": false }],
       "realmRoles": ["OPERATOR"]
     },
     {
       "username": "viewer",
       "enabled": true,
+      "firstName": "Vera",
+      "lastName": "Viewer",
+      "email": "viewer@example.com",
+      "emailVerified": true,
       "credentials": [{ "type": "password", "value": "viewer", "temporary": false }],
       "realmRoles": ["VIEWER"]
     }
