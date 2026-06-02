@@ -7,9 +7,11 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 
 **Legend:** ✅ functional · 🟡 partial · 🟦 scaffold (health/info only) · ⬜ not started
 
-> ⚠️ Nothing in this changeset has been compiled or run in the authoring environment
-> (no JVM/Gradle). The Testcontainers/Mockito tests are the intended verification gate —
-> run `./gradlew build` with Docker available.
+> ⚠️ Code is authored without a local JVM/Gradle, so it is not compiled here. **GitHub
+> Actions CI** (`.github/workflows/ci.yml`) is now the verification gate: it runs
+> `./gradlew build` (Testcontainers tests on Docker), builds the Go adapters + UI, and
+> validates the OpenAPI specs. Watch the first run for compile errors that couldn't be
+> caught locally.
 
 ---
 
@@ -35,8 +37,9 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 **Contracts:** OpenAPI ✅ master-data, inventory, txlog, allocation, order-management, iam;
 ⬜ master-data shipper/fulfillment-config paths, other services. Avro/Schema-Registry ⬜.
 
-**Platform:** docker-compose ✅ (incl. allocation). CI ⬜. Helm/k8s ⬜. Gradle wrapper jar
-not committed (`gradle wrapper` once).
+**Platform:** docker-compose ✅ (incl. allocation; Keycloak imports the `openwcs` realm).
+**CI ✅** (GitHub Actions: Java build+test with Testcontainers, Go adapters, UI build, OpenAPI
+validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 
 ---
 
@@ -44,7 +47,7 @@ not committed (`gradle wrapper` once).
 
 | Phase | Status | Detail |
 |---|---|---|
-| **0 — Foundations** | 🟡 | Repo + compose + shared schemas + txlog/outbox/relay + Kafka ✅; **IAM authorization model ✅, gateway JWT validation + identity propagation ✅ (toggleable)**. Gaps: Keycloak realm + per-endpoint RBAC enforcement in services, CI ⬜. |
+| **0 — Foundations** | 🟡 | Repo + compose + shared schemas + txlog/outbox/relay + Kafka ✅; IAM model ✅, gateway JWT + identity propagation ✅; **CI ✅, Keycloak `openwcs` realm ✅, gradle wrapper ✅**. Gaps: per-endpoint RBAC enforcement beyond order-management (in flight, separate PR), mTLS. |
 | **1 — Master data + inventory MVP** | ✅ | Master Data ✅, Inventory projection ✅, log→projection loop proven ✅. |
 | **2 — Process engine + one equipment family** | ⬜ | process-engine, flow-orchestrator, first adapter, goods-in-via-BPMN ⬜. |
 | **3 — Outbound + more equipment** | 🟡 | **order-management ✅, allocation + cubing + batch picking + release management ✅, inventory reservation/ATP ✅.** Gaps: host-integration gateways ⬜; the *BPMN* outbound process ⬜; more adapters ⬜. |
@@ -80,7 +83,8 @@ not committed (`gradle wrapper` once).
 - **Audit `actor`** is required on stock transactions + every logged event, but is
   caller-asserted until IAM/JWT supplies an authenticated principal.
 - Order status is not auto-advanced by postings (no auto-complete on `postedQty` ≥ `qty`).
-- Events only on `txlog.stream`; no contract tests; no CI.
+- Events only on `txlog.stream`; no consumer-driven contract tests (CI does validate the
+  OpenAPI specs structurally). First CI run may surface compile errors not catchable locally.
 
 ---
 

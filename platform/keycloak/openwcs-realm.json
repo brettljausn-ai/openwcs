@@ -1,0 +1,61 @@
+{
+  "realm": "openwcs",
+  "enabled": true,
+  "displayName": "openWCS",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "accessTokenLifespan": 3600,
+  "roles": {
+    "realm": [
+      { "name": "ADMIN", "description": "Full access, including user/role administration" },
+      { "name": "SUPERVISOR", "description": "Operations management" },
+      { "name": "OPERATOR", "description": "Floor operations" },
+      { "name": "VIEWER", "description": "Read-only access" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "openwcs-web",
+      "name": "openWCS SPA / API client",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"],
+      "attributes": {
+        "post.logout.redirect.uris": "+"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "firstName": "Ada",
+      "lastName": "Admin",
+      "email": "admin@example.com",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "admin", "temporary": false }],
+      "realmRoles": ["ADMIN"]
+    },
+    {
+      "username": "supervisor",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "supervisor", "temporary": false }],
+      "realmRoles": ["SUPERVISOR"]
+    },
+    {
+      "username": "operator",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "operator", "temporary": false }],
+      "realmRoles": ["OPERATOR"]
+    },
+    {
+      "username": "viewer",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "viewer", "temporary": false }],
+      "realmRoles": ["VIEWER"]
+    }
+  ]
+}
