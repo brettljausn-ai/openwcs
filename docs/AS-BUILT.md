@@ -47,7 +47,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 
 | Schema | Owner | Tables |
 |---|---|---|
-| `master_data` | master-data | warehouse, attribute_schema, sku, sku_profile, dangerous_goods, unit_of_measure, barcode_type, barcode, handling_unit_type, equipment, location, **shipper**, **warehouse_fulfillment_config**, **shipping_service**, **route** |
+| `master_data` | master-data | warehouse, attribute_schema, sku, sku_profile, dangerous_goods, unit_of_measure, barcode_type, barcode, handling_unit_type, equipment, location, **shipper**, **warehouse_fulfillment_config**, **shipping_service**, **route**, **label_template** |
 | `transaction_log` | txlog | events (append-only; UPDATE/DELETE blocked by trigger), outbox |
 | `inventory` | inventory | batch, serial_unit, stock, reservation, projection_offset, processed_event |
 | `orders` | order-management | outbound_order (all order types), order_line, order_line_transaction, order_outbox |
@@ -75,6 +75,10 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
   regions/depots, with `hostRef`; routes are fed from a host system). Both are global,
   unique by `code`, soft-archived on delete, and looked up by code (`?code=`) by other
   services (e.g. order validation).
+- **Label templates** (`/label-templates`): admin-designed dispatch labels — a sized canvas
+  (mm, dpi) + an ordered list of elements (TEXT/ADDRESS/BARCODE/IMAGE, positioned in mm, with
+  static `value` or a data-binding `key`). `POST /{id}/render` renders a template + field
+  values to a print payload (**ZPL** by default, or a minimal **PDF**), returned base64.
 
 ## 4. inventory (stock)
 

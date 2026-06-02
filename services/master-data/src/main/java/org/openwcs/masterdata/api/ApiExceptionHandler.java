@@ -26,4 +26,13 @@ public class ApiExceptionHandler {
         problem.setDetail("The request conflicts with existing data (e.g. a duplicate code or a stale version).");
         return problem;
     }
+
+    /** A malformed request value (e.g. an unsupported label render format). */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ProblemDetail onBadRequest(IllegalArgumentException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Bad request");
+        problem.setDetail(ex.getMessage());
+        return problem;
+    }
 }

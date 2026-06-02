@@ -20,7 +20,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | Component | Lang | Port | Status | Notes |
 |---|---|---|---|---|
 | gateway | Java | 8080 | ✅ | Routes `/api/<service>/**`; JWT validation (toggleable) + forwards/strips X-Auth-* identity. |
-| master-data | Java | 8081 | ✅ | Catalog CRUD + outbound config: shippers, fulfillment config (pick types, cubing mode, batch config); dispatch reference data: shipping-service + route catalogs. |
+| master-data | Java | 8081 | ✅ | Catalog CRUD + outbound config: shippers, fulfillment config (pick types, cubing mode, batch config); dispatch reference data: shipping-service + route catalogs, label templates (+ ZPL/PDF render). |
 | inventory | Java | 8082 | ✅ | Stock projection + SKU- and location-scoped availability/reservations. |
 | order-management | Java | 8084 | ✅ | Orders of all types (INBOUND/OUTBOUND/COUNT/ADJUSTMENT), lifecycle, release mgmt, dispatch service/route codes (validated against master-data), line stock transactions via a local outbox → txlog (audit: actor required); delegates allocation. |
 | allocation | Java | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing (APP multi-size largest-first / 1:1) with per-line carton traceability, batch picking. |
@@ -62,7 +62,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 
 | Service | Tests | Kind |
 |---|---|---|
-| master-data | `MasterDataPersistenceTest`, `MasterDataApiTest`, `MasterDataRbacTest`, `DispatchCatalogApiTest` | Testcontainers + MockMvc (incl. RBAC: read=VIEW, write=EDIT; shipping-service + route catalogs) |
+| master-data | `MasterDataPersistenceTest`, `MasterDataApiTest`, `MasterDataRbacTest`, `DispatchCatalogApiTest`, `LabelTemplateApiTest` | Testcontainers + MockMvc (incl. RBAC: read=VIEW, write=EDIT; shipping-service + route catalogs; label-template CRUD + ZPL/PDF render) |
 | txlog | `TransactionLogServiceTest`, `OutboxRelayTest` | Testcontainers + Mockito |
 | inventory | `InventoryPersistenceTest`, `StockProjectionServiceTest`, `InventoryServiceTest` | Testcontainers |
 | allocation | `AllocationEngineTest`, `AllocationServiceTest` | Pure logic (incl. multi-size cubing: largest-first + line split across cartons with `lineNo`/`shipperUnitId` links) + Testcontainers (allocate → cancel releases reservations; oversized SKU → `CUBING_FAILED` + reservation released) |
