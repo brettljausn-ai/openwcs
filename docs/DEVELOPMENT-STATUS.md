@@ -49,7 +49,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 
 | Phase | Status | Detail |
 |---|---|---|
-| **0 — Foundations** | ✅ | Repo + compose + shared schemas + txlog/outbox/relay + Kafka ✅; IAM model + gateway JWT + per-endpoint RBAC (all services) + inter-service identity propagation ✅ (toggleable); **CI ✅ (green), Keycloak `openwcs` realm ✅, gradle wrapper ✅**. Remaining hardening: mTLS; exercise the JWT path against a live realm. |
+| **0 — Foundations** | ✅ | Repo + compose + shared schemas + txlog/outbox/relay + Kafka ✅; IAM model + gateway JWT + per-endpoint RBAC (all services) + inter-service identity propagation ✅ (toggleable); **CI ✅ (green), Keycloak `openwcs` realm ✅, gradle wrapper ✅**; **JWT edge-auth path exercised end-to-end against a live Keycloak realm (Testcontainers) ✅**. Remaining hardening: mTLS between services. |
 | **1 — Master data + inventory MVP** | ✅ | Master Data ✅, Inventory projection ✅, log→projection loop proven ✅. |
 | **2 — Process engine + one equipment family** | 🟡 | **flow-orchestrator device-task lifecycle + uniform device contract ✅, conveyor adapter `POST /tasks` simulator ✅, DEVICE_VIEW/DEVICE_OPERATE RBAC ✅.** Gaps: process-engine (Flowable BPMN) ⬜, goods-in-via-BPMN ⬜. |
 | **3 — Outbound + more equipment** | 🟡 | **order-management ✅, allocation + cubing + batch picking + release management ✅, inventory reservation/ATP ✅.** Gaps: host-integration gateways ⬜; the *BPMN* outbound process ⬜; more adapters ⬜. |
@@ -70,6 +70,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | iam | `IamServiceTest` | Testcontainers (seeded roles, effective permissions, catalog validation) |
 | flow-orchestrator | `DeviceTaskServiceTest` | Testcontainers + Mockito (`@MockBean DeviceClient`: COMPLETED on success, FAILED on adapter error without losing the task, query by id/correlation) |
 | adapters/conveyor | `main_test.go` | Go httptest (`POST /tasks`: COMPLETED, FAILED on unknown command, 405 on GET) |
+| gateway | `GatewayAuthEndToEndTest` | Testcontainers (live Keycloak + imported `openwcs` realm): no token → 401, realm JWT → 200 + identity propagated, client-supplied `X-Auth-*` stripped (anti-spoof) |
 
 ---
 
