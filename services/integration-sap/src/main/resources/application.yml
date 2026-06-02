@@ -1,0 +1,14 @@
+server:
+  port: 8089
+spring:
+  application:
+    name: integration-sap
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

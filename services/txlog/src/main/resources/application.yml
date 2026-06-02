@@ -1,0 +1,14 @@
+server:
+  port: 8086
+spring:
+  application:
+    name: txlog
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

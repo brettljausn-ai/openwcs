@@ -1,0 +1,14 @@
+server:
+  port: 8081
+spring:
+  application:
+    name: master-data
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

@@ -1,0 +1,14 @@
+server:
+  port: 8084
+spring:
+  application:
+    name: order-management
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

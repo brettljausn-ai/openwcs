@@ -1,0 +1,14 @@
+server:
+  port: 8090
+spring:
+  application:
+    name: integration-manhattan
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

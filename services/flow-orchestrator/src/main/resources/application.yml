@@ -1,0 +1,14 @@
+server:
+  port: 8085
+spring:
+  application:
+    name: flow-orchestrator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

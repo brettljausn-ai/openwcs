@@ -1,0 +1,41 @@
+/* Design tokens — source of truth is ../../../styling.md §1.
+   Implemented here as the React theme. See build.md §11. */
+:root {
+  --brand-forest: #1F4D3A;
+  --forest-deep: #0E2820;
+  --forest-abyss: #061812;
+  --herbal-lime: #8DC63F;
+  --herbal-glow: rgba(141, 198, 63, .55);
+  --alpine-white: #F7F9F8;
+
+  --glass-bg: rgba(255, 255, 255, .04);
+  --glass-bg-strong: rgba(255, 255, 255, .07);
+  --glass-border: rgba(255, 255, 255, .09);
+  --glass-border-bright: rgba(141, 198, 63, .35);
+
+  --text: rgba(247, 249, 248, .92);
+  --text-dim: rgba(247, 249, 248, .62);
+  --text-faint: rgba(247, 249, 248, .42);
+
+  --primary: var(--herbal-lime);
+  --bg: var(--forest-abyss);
+  --success: var(--herbal-lime);
+  --danger: #ff6b5e;
+  --warning: #f4b860;
+
+  --font-heading: 'Cormorant Garamond', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --radius: 10px;
+}
+
+body { background: var(--bg); color: var(--text); margin: 0; }
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: .75rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--herbal-lime);
+}

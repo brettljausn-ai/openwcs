@@ -1,0 +1,14 @@
+server:
+  port: 8082
+spring:
+  application:
+    name: inventory
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

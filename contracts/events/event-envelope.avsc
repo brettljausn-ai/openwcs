@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "name": "EventEnvelope",
+  "namespace": "org.openwcs.events",
+  "doc": "Shared envelope for every domain event (build.md §5.2, §9).",
+  "fields": [
+    { "name": "eventId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "streamId", "type": "string" },
+    { "name": "seq", "type": "long" },
+    { "name": "eventType", "type": "string" },
+    { "name": "occurredAt", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "recordedAt", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "actor", "type": ["null", "string"], "default": null },
+    { "name": "correlationId", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "payloadVersion", "type": "int", "default": 1 },
+    { "name": "payload", "type": "bytes" }
+  ]
+}

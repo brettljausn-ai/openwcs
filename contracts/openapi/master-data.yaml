@@ -1,0 +1,12 @@
+openapi: 3.0.3
+info:
+  title: openwcs Master Data API
+  version: 0.1.0
+  description: Skeleton spec. Flesh out per build.md §4.1 / §6.
+paths:
+  /api/master-data/skus:
+    get:
+      summary: List SKUs
+      responses:
+        "200":
+          description: OK

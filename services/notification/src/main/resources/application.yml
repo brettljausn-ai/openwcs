@@ -1,0 +1,14 @@
+server:
+  port: 8088
+spring:
+  application:
+    name: notification
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

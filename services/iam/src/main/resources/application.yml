@@ -1,0 +1,14 @@
+server:
+  port: 8087
+spring:
+  application:
+    name: iam
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

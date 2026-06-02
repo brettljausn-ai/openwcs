@@ -1,0 +1,14 @@
+server:
+  port: 8083
+spring:
+  application:
+    name: process-engine
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
