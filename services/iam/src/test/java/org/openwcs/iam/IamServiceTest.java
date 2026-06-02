@@ -40,7 +40,7 @@ class IamServiceTest {
     @Test
     void seededRolesCarryPermissions() {
         assertThat(iam.getRole("VIEWER").permissions()).containsExactlyInAnyOrder(
-                "MASTER_DATA_VIEW", "INVENTORY_VIEW", "ORDER_VIEW", "TXLOG_VIEW");
+                "MASTER_DATA_VIEW", "INVENTORY_VIEW", "ORDER_VIEW", "TXLOG_VIEW", "DEVICE_VIEW");
         assertThat(iam.getRole("ADMIN").permissions()).contains("IAM_ADMIN");
     }
 
