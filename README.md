@@ -71,13 +71,13 @@ openwcs/
 | `services/process-engine` | Java | 8083 | Admin-designed BPMN process definitions + execution (Flowable) |
 | `services/order-management` | Java | 8084 | Outbound orders + fulfilment lifecycle + release management (priority/dispatch-time); delegates allocation |
 | `services/allocation` | Java | 8091 | Outbound prep: pick-location allocation (UoM breakdown), cubing (shippers / 1:1), batch picking |
-| `services/flow-orchestrator` | Java | 8085 | Turns process steps into device tasks; routing, contention |
+| `services/flow-orchestrator` | Java | 8085 | Dispatches device tasks to adapters by equipment family over the uniform device contract (REQUESTED→DISPATCHED→COMPLETED/FAILED) |
 | `services/txlog` | Java | 8086 | Append-only transaction log (shared Postgres) |
 | `services/iam` | Java | 8087 | Authorization model: users → roles → coded permissions (Keycloak does auth) |
 | `services/notification` | Java | 8088 | Operator alerts, exceptions, andon |
 | `services/integration-sap` | Java | 8089 | Host gateway: SAP S/4HANA / HANA (OData/BAPI/RFC/IDoc) |
 | `services/integration-manhattan` | Java | 8090 | Host gateway: Manhattan Active (REST) |
-| `services/adapters/conveyor` | Go | 9091 | PLC conveyor adapter (raw TCP / OPC-UA) |
+| `services/adapters/conveyor` | Go | 9091 | PLC conveyor adapter (raw TCP / OPC-UA); `POST /tasks` device-task simulator |
 | `services/adapters/asrs` | Go | 9092 | Shuttle/crane adapter (telegram) |
 | `services/adapters/amr-geekplus` | Go | 9093 | Geek+ RCS adapter (REST + WebSocket) |
 | `services/adapters/autostore` | Go | 9094 | AutoStore grid adapter (REST) |

@@ -15,12 +15,12 @@ public final class RoleCatalog {
 
     private static final Set<Permission> VIEWER = EnumSet.of(
             Permission.MASTER_DATA_VIEW, Permission.INVENTORY_VIEW,
-            Permission.ORDER_VIEW, Permission.TXLOG_VIEW);
+            Permission.ORDER_VIEW, Permission.TXLOG_VIEW, Permission.DEVICE_VIEW);
 
     private static final Set<Permission> OPERATOR = EnumSet.of(
             Permission.MASTER_DATA_VIEW, Permission.INVENTORY_VIEW,
-            Permission.ORDER_VIEW, Permission.TXLOG_VIEW,
-            Permission.ORDER_POST_TRANSACTION, Permission.STOCK_ADJUST);
+            Permission.ORDER_VIEW, Permission.TXLOG_VIEW, Permission.DEVICE_VIEW,
+            Permission.ORDER_POST_TRANSACTION, Permission.STOCK_ADJUST, Permission.DEVICE_OPERATE);
 
     private static final Set<Permission> SUPERVISOR = EnumSet.complementOf(
             EnumSet.of(Permission.IAM_ADMIN));

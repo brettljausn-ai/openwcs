@@ -1,6 +1,6 @@
 # openWCS — Development Status
 
-_Last updated: 2026-06-02_
+_Last updated: 2026-06-02 (Phase 2 increment 1)_
 
 Live status of the build against the roadmap in [`build.md` §15](../build.md). For what
 the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
@@ -26,16 +26,18 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | allocation | Java | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing (APP/1:1), batch picking. |
 | txlog | Java | 8086 | ✅ | Append-only events + outbox + relay. |
 | process-engine | Java | 8083 | 🟦 | Needs Flowable BPMN + designer. |
-| flow-orchestrator | Java | 8085 | 🟦 | Needs device-task contract + routing. |
+| flow-orchestrator | Java | 8085 | 🟡 | Device-task lifecycle (REQUESTED→DISPATCHED→COMPLETED/FAILED) over the uniform device contract; routes to adapters by family. BPMN-driven routing still pending. |
 | iam | Java | 8087 | ✅ | Authorization model: users → roles → coded permissions; seeded roles; effective-permission resolution. (Keycloak does auth.) |
 | notification | Java | 8088 | 🟦 | — |
 | integration-sap / integration-manhattan | Java | 8089/8090 | 🟦 | Host gateways. |
-| adapters/{conveyor,asrs,amr-geekplus,autostore} | Go | 9091–9094 | 🟦 | Health + stub loop. |
+| adapters/conveyor | Go | 9091 | 🟡 | Health + stub loop + `POST /tasks` device-task simulator (CONVEY/DIVERT/MERGE/SCAN). |
+| adapters/{asrs,amr-geekplus,autostore} | Go | 9092–9094 | 🟦 | Health + stub loop. |
 | ui | React/TS | 5173 | 🟦 | Vite skeleton. |
 | libs/common | Java | — | ✅ | `EventEnvelope`. |
 
-**Contracts:** OpenAPI ✅ master-data, inventory, txlog, allocation, order-management, iam;
-⬜ master-data shipper/fulfillment-config paths, other services. Avro/Schema-Registry ⬜.
+**Contracts:** OpenAPI ✅ master-data, inventory, txlog, allocation, order-management, iam,
+flow-orchestrator; ⬜ master-data shipper/fulfillment-config paths, other services.
+Avro/Schema-Registry ⬜.
 
 **Platform:** docker-compose ✅ (incl. allocation; Keycloak imports the `openwcs` realm).
 **CI ✅** (GitHub Actions: Java build+test with Testcontainers, Go adapters, UI build, OpenAPI
@@ -49,7 +51,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 |---|---|---|
 | **0 — Foundations** | ✅ | Repo + compose + shared schemas + txlog/outbox/relay + Kafka ✅; IAM model + gateway JWT + per-endpoint RBAC (all services) + inter-service identity propagation ✅ (toggleable); **CI ✅ (green), Keycloak `openwcs` realm ✅, gradle wrapper ✅**. Remaining hardening: mTLS; exercise the JWT path against a live realm. |
 | **1 — Master data + inventory MVP** | ✅ | Master Data ✅, Inventory projection ✅, log→projection loop proven ✅. |
-| **2 — Process engine + one equipment family** | ⬜ | process-engine, flow-orchestrator, first adapter, goods-in-via-BPMN ⬜. |
+| **2 — Process engine + one equipment family** | 🟡 | **flow-orchestrator device-task lifecycle + uniform device contract ✅, conveyor adapter `POST /tasks` simulator ✅, DEVICE_VIEW/DEVICE_OPERATE RBAC ✅.** Gaps: process-engine (Flowable BPMN) ⬜, goods-in-via-BPMN ⬜. |
 | **3 — Outbound + more equipment** | 🟡 | **order-management ✅, allocation + cubing + batch picking + release management ✅, inventory reservation/ATP ✅.** Gaps: host-integration gateways ⬜; the *BPMN* outbound process ⬜; more adapters ⬜. |
 | **4 — Counting & operations** | 🟡 | `StockAdjusted` projection ✅; cycle-count process ⬜; dashboards/alerting ⬜. |
 | **5 — Hardening & scale** | ⬜ | DLQs, circuit breakers, replay tooling, perf, security review. |
@@ -66,6 +68,8 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | allocation | `AllocationEngineTest`, `AllocationServiceTest` | Pure logic + Testcontainers (allocate → cancel releases reservations) |
 | order-management | `OrderTransactionTest`, `OrderTransactionRelayTest`, `OrderAuthorizationTest` | Testcontainers + Mockito (outbox, relay, and per-endpoint RBAC: VIEWER 403 / SUPERVISOR 201) |
 | iam | `IamServiceTest` | Testcontainers (seeded roles, effective permissions, catalog validation) |
+| flow-orchestrator | `DeviceTaskServiceTest` | Testcontainers + Mockito (`@MockBean DeviceClient`: COMPLETED on success, FAILED on adapter error without losing the task, query by id/correlation) |
+| adapters/conveyor | `main_test.go` | Go httptest (`POST /tasks`: COMPLETED, FAILED on unknown command, 405 on GET) |
 
 ---
 
@@ -97,9 +101,13 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
    and the inbound/count/adjust posting + relay flow.
 3. **master-data catalog events** + shipper/fulfillment-config paths in `master-data.yaml`.
 4. **Order auto-complete** when a line is fully posted (`postedQty` ≥ `qty`).
-5. **process-engine + flow-orchestrator + first adapter** (Phase 2): goods-in/outbound via BPMN.
+5. **process-engine (Flowable BPMN)** + goods-in/outbound processes that drive the
+   flow-orchestrator device tasks (Phase 2 increment 2).
 
-> Done since last revision: **per-endpoint RBAC extended to all services** (master-data /
-> inventory / allocation / txlog via an `RbacFilter`; order-management via `AccessGuard`) plus
-> **inter-service identity propagation** (allocation, order-management forward `X-Auth-*` on
-> outbound calls). `MasterDataRbacTest` added.
+> Done since last revision: **Phase 2 increment 1** — flow-orchestrator now owns the device-task
+> lifecycle over the uniform device contract (build.md §8): `POST/GET /api/flow/device-tasks`,
+> the `flow.device_task` store, family→adapter routing via `HttpDeviceClient`, and DEVICE_VIEW /
+> DEVICE_OPERATE RBAC. The **conveyor adapter** gained a `POST /tasks` simulator. `DeviceTaskServiceTest`
+> (Testcontainers) and `main_test.go` (Go) added; `flow-orchestrator.yaml` OpenAPI spec added.
+> The device contract is synchronous HTTP for now; async Kafka (`device.tasks`/`device.results`)
+> is the production target.

@@ -1,0 +1,134 @@
+openapi: 3.0.3
+info:
+  title: openWCS Flow Orchestrator API
+  version: 0.1.0
+  description: >
+    Dispatches device tasks to equipment adapters over the uniform internal device contract
+    (build.md §8). A task is recorded REQUESTED → DISPATCHED → COMPLETED/FAILED. The first
+    transport is synchronous HTTP to the adapter (simulator-friendly); the production contract
+    is asynchronous over Kafka (`device.tasks` / `device.results`). Tasks carry a correlation
+    id so a higher-level process (BPMN) can group the moves it triggered.
+servers:
+  - url: /api/flow
+    description: Via the API gateway
+
+tags:
+  - name: DeviceTasks
+
+paths:
+  /device-tasks:
+    post:
+      tags: [DeviceTasks]
+      summary: Dispatch a device task
+      description: >
+        Records the task, dispatches it to the adapter resolved by equipment family, and
+        returns the task with its terminal status. Requires DEVICE_OPERATE.
+      operationId: requestDeviceTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequestDeviceTask' }
+      responses:
+        "201":
+          description: Task recorded (COMPLETED or FAILED)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceTask' }
+        "400":
+          description: Invalid request
+        "403":
+          description: Missing DEVICE_OPERATE
+        "422":
+          description: No adapter configured for the equipment family
+        "502":
+          description: Adapter unreachable
+    get:
+      tags: [DeviceTasks]
+      summary: List device tasks by correlation id
+      description: Returns the tasks for a correlation id, oldest first. Requires DEVICE_VIEW.
+      operationId: listDeviceTasksByCorrelation
+      parameters:
+        - name: correlationId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Device tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DeviceTask' }
+        "403":
+          description: Missing DEVICE_VIEW
+  /device-tasks/{id}:
+    get:
+      tags: [DeviceTasks]
+      summary: Get a device task
+      operationId: getDeviceTask
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Device task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceTask' }
+        "403":
+          description: Missing DEVICE_VIEW
+        "404":
+          description: Not found
+
+components:
+  schemas:
+    RequestDeviceTask:
+      type: object
+      required: [warehouseId, family, command]
+      properties:
+        warehouseId: { type: string, format: uuid }
+        family:
+          type: string
+          description: Equipment family that selects the adapter, e.g. CONVEYOR.
+          example: CONVEYOR
+        equipmentId:
+          type: string
+          format: uuid
+          nullable: true
+        command:
+          type: string
+          description: Adapter command, e.g. CONVEY | DIVERT | MERGE | SCAN.
+          example: CONVEY
+        payload:
+          type: object
+          additionalProperties: true
+        correlationId:
+          type: string
+          format: uuid
+          nullable: true
+    DeviceTask:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        warehouseId: { type: string, format: uuid }
+        family: { type: string }
+        equipmentId: { type: string, format: uuid, nullable: true }
+        command: { type: string }
+        payload:
+          type: object
+          additionalProperties: true
+        correlationId: { type: string, format: uuid, nullable: true }
+        status:
+          type: string
+          enum: [REQUESTED, DISPATCHED, COMPLETED, FAILED]
+        detail: { type: string, nullable: true }
+        result:
+          type: object
+          additionalProperties: true
+          nullable: true
+        actor: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }

@@ -132,7 +132,13 @@ services:
     profiles: ["apps"]
     build: ../services/flow-orchestrator
     ports: ["8085:8085"]
-    depends_on: [postgres, kafka]
+    depends_on: [postgres, kafka, conveyor-adapter]
+    environment:
+      # Owns the `flow` schema; dispatches device tasks to adapters over the uniform contract (build.md §8).
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
+      SPRING_DATASOURCE_USERNAME: openwcs
+      SPRING_DATASOURCE_PASSWORD: openwcs
+      OPENWCS_ADAPTER_CONVEYOR: http://conveyor-adapter:9091
 
   txlog:
     profiles: ["apps"]
