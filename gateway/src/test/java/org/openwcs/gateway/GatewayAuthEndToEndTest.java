@@ -154,6 +154,7 @@ class GatewayAuthEndToEndTest {
                 .POST(BodyPublishers.ofString(form))
                 .build();
         HttpResponse<String> response = HttpClient.newHttpClient().send(request, BodyHandlers.ofString());
+        System.out.println("[token] status=" + response.statusCode() + " body=" + response.body());
         assertThat(response.statusCode()).as("token endpoint response: %s", response.body()).isEqualTo(200);
         JsonNode json = new ObjectMapper().readTree(response.body());
         return json.get("access_token").asText();
