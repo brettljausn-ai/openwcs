@@ -45,6 +45,9 @@ class OrderTransactionTest {
     @MockBean
     AllocationClient allocation;
 
+    @MockBean
+    org.openwcs.orders.client.MasterDataClient masterData;
+
     @Autowired
     OrderService service;
 
@@ -58,7 +61,7 @@ class OrderTransactionTest {
         UUID location = UUID.randomUUID();
 
         OrderView created = service.create(new CreateOrderRequest(
-                "ASN-1", warehouse, "INBOUND", null, null, null,
+                "ASN-1", warehouse, "INBOUND", null, null, null, null, null,
                 List.of(new CreateOrderRequest.Line(sku, new BigDecimal("10")))));
 
         OrderView view = service.postTransaction(created.id(), 1,
@@ -89,12 +92,39 @@ class OrderTransactionTest {
                 .thenReturn(new AllocationClient.AllocationResult("CUBING_FAILED", reason));
 
         OrderView created = service.create(new CreateOrderRequest(
-                "ORD-BIG", warehouse, "OUTBOUND", null, null, null,
+                "ORD-BIG", warehouse, "OUTBOUND", null, null, null, null, null,
                 List.of(new CreateOrderRequest.Line(sku, new BigDecimal("1")))));
 
         OrderView released = service.release(created.id());
 
         assertThat(released.status()).isEqualTo("CUBING_FAILED");
         assertThat(released.statusDetail()).isEqualTo(reason);
+    }
+
+    @Test
+    void createValidatesServiceAndRouteAgainstMasterData() {
+        UUID warehouse = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        org.mockito.Mockito.when(masterData.shippingServiceExists("EXPRESS")).thenReturn(true);
+        org.mockito.Mockito.when(masterData.routeExists("CENTRAL_LONDON")).thenReturn(true);
+
+        OrderView created = service.create(new CreateOrderRequest(
+                "ORD-SVC", warehouse, "OUTBOUND", null, null, null, "EXPRESS", "CENTRAL_LONDON",
+                List.of(new CreateOrderRequest.Line(sku, BigDecimal.ONE))));
+
+        assertThat(created.serviceCode()).isEqualTo("EXPRESS");
+        assertThat(created.routeCode()).isEqualTo("CENTRAL_LONDON");
+    }
+
+    @Test
+    void createRejectsUnknownRoute() {
+        UUID warehouse = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        org.mockito.Mockito.when(masterData.routeExists("NOPE")).thenReturn(false);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.create(new CreateOrderRequest(
+                        "ORD-BAD", warehouse, "OUTBOUND", null, null, null, null, "NOPE",
+                        List.of(new CreateOrderRequest.Line(sku, BigDecimal.ONE)))))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

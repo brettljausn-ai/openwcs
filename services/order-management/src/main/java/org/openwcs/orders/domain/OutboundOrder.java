@@ -53,6 +53,14 @@ public class OutboundOrder extends Auditable {
     @Column(name = "dispatch_by")
     private Instant dispatchBy;
 
+    /** Dispatch service level (master-data shipping-service code), e.g. EXPRESS. */
+    @Column(name = "service_code")
+    private String serviceCode;
+
+    /** Dispatch route (master-data route code, host-fed), e.g. CENTRAL_LONDON. */
+    @Column(name = "route_code")
+    private String routeCode;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderLine> lines = new ArrayList<>();
 
@@ -115,6 +123,22 @@ public class OutboundOrder extends Auditable {
 
     public void setStatusDetail(String statusDetail) {
         this.statusDetail = statusDetail;
+    }
+
+    public String getServiceCode() {
+        return serviceCode;
+    }
+
+    public void setServiceCode(String serviceCode) {
+        this.serviceCode = serviceCode;
+    }
+
+    public String getRouteCode() {
+        return routeCode;
+    }
+
+    public void setRouteCode(String routeCode) {
+        this.routeCode = routeCode;
     }
 
     public int getPriority() {

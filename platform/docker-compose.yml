@@ -114,6 +114,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: openwcs
       OPENWCS_ALLOCATION_BASE_URL: http://allocation:8091
       OPENWCS_TXLOG_BASE_URL: http://txlog:8086
+      OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
 
   allocation:
     profiles: ["apps"]

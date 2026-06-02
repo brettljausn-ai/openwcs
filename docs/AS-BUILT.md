@@ -93,7 +93,10 @@ position.
 ## 6. order-management (orders, release, line transactions)
 
 `/api/orders` (see `contracts/openapi/order-management.yaml`). Orders carry an
-**`orderType`** — INBOUND | OUTBOUND | COUNT | ADJUSTMENT — with lines.
+**`orderType`** — INBOUND | OUTBOUND | COUNT | ADJUSTMENT — with lines. Outbound orders may
+also carry a **`serviceCode`** (dispatch service level) and **`routeCode`** (dispatch route,
+host-fed), each validated at create time against the master-data catalogs (unknown code → 400);
+order-management resolves them via a `MasterDataClient` (identity-forwarded, like allocation).
 
 - **Lifecycle / release** (OUTBOUND): create → **release** (delegates to allocation →
   `ALLOCATED` / `NOT_FULFILLABLE` / `CUBING_FAILED`) → ship; cancel releases held reservations
