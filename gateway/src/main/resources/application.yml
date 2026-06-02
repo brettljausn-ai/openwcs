@@ -6,35 +6,37 @@ spring:
   cloud:
     gateway:
       routes:
+        # Service URIs default to localhost (host-run dev); override per env (e.g. compose
+        # sets http://master-data:8081). See platform/docker-compose.yml.
         - id: master-data
-          uri: http://localhost:8081
+          uri: ${OPENWCS_URI_MASTER_DATA:http://localhost:8081}
           predicates: [ "Path=/api/master-data/**" ]
         - id: inventory
-          uri: http://localhost:8082
+          uri: ${OPENWCS_URI_INVENTORY:http://localhost:8082}
           predicates: [ "Path=/api/inventory/**" ]
         - id: process-engine
-          uri: http://localhost:8083
+          uri: ${OPENWCS_URI_PROCESS_ENGINE:http://localhost:8083}
           predicates: [ "Path=/api/process/**" ]
         - id: order-management
-          uri: http://localhost:8084
+          uri: ${OPENWCS_URI_ORDER_MANAGEMENT:http://localhost:8084}
           predicates: [ "Path=/api/orders/**" ]
         - id: flow-orchestrator
-          uri: http://localhost:8085
+          uri: ${OPENWCS_URI_FLOW_ORCHESTRATOR:http://localhost:8085}
           predicates: [ "Path=/api/flow/**" ]
         - id: txlog
-          uri: http://localhost:8086
+          uri: ${OPENWCS_URI_TXLOG:http://localhost:8086}
           predicates: [ "Path=/api/txlog/**" ]
         - id: iam
-          uri: http://localhost:8087
+          uri: ${OPENWCS_URI_IAM:http://localhost:8087}
           predicates: [ "Path=/api/iam/**" ]
         - id: notification
-          uri: http://localhost:8088
+          uri: ${OPENWCS_URI_NOTIFICATION:http://localhost:8088}
           predicates: [ "Path=/api/notification/**" ]
         - id: integration-sap
-          uri: http://localhost:8089
+          uri: ${OPENWCS_URI_INTEGRATION_SAP:http://localhost:8089}
           predicates: [ "Path=/api/integration/sap/**" ]
         - id: integration-manhattan
-          uri: http://localhost:8090
+          uri: ${OPENWCS_URI_INTEGRATION_MANHATTAN:http://localhost:8090}
           predicates: [ "Path=/api/integration/manhattan/**" ]
 management:
   endpoints:

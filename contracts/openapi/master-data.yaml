@@ -782,9 +782,9 @@ components:
             ownerClient:
               type: string
               description: Owning client / 3PL tenant.
-            isBatchTracked: { type: boolean, default: false }
-            isSerialTracked: { type: boolean, default: false }
-            isDateTracked: { type: boolean, default: false }
+            batchTracked: { type: boolean, default: false }
+            serialTracked: { type: boolean, default: false }
+            dateTracked: { type: boolean, default: false }
     SkuPage:
       allOf:
         - $ref: '#/components/schemas/Page'
@@ -888,7 +888,7 @@ components:
             widthMm: { type: number, format: double, nullable: true }
             heightMm: { type: number, format: double, nullable: true }
             weightG: { type: number, format: double, nullable: true }
-            isBaseUnit: { type: boolean, default: false }
+            baseUnit: { type: boolean, default: false }
 
     # -------------------------------------------------------------------- Barcode
     Barcode:
@@ -963,7 +963,7 @@ components:
               type: object
               additionalProperties: true
               nullable: true
-            isMixedAllowed: { type: boolean, default: true }
+            mixedAllowed: { type: boolean, default: true }
             replenishmentClass: { type: string, nullable: true }
     LocationPage:
       allOf:

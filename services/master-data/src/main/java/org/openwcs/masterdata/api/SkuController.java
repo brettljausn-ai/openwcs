@@ -1,0 +1,215 @@
+package org.openwcs.masterdata.api;
+
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.openwcs.masterdata.domain.Barcode;
+import org.openwcs.masterdata.domain.DangerousGoods;
+import org.openwcs.masterdata.domain.Sku;
+import org.openwcs.masterdata.domain.SkuProfile;
+import org.openwcs.masterdata.domain.UnitOfMeasure;
+import org.openwcs.masterdata.repo.BarcodeRepository;
+import org.openwcs.masterdata.repo.DangerousGoodsRepository;
+import org.openwcs.masterdata.repo.SkuProfileRepository;
+import org.openwcs.masterdata.repo.SkuRepository;
+import org.openwcs.masterdata.repo.UnitOfMeasureRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+/** SKU catalog + per-SKU sub-resources (build.md §4.1, §6). */
+@RestController
+@RequestMapping("/api/master-data/skus")
+public class SkuController {
+
+    private final SkuRepository skus;
+    private final SkuProfileRepository profiles;
+    private final UnitOfMeasureRepository uoms;
+    private final BarcodeRepository barcodes;
+    private final DangerousGoodsRepository dangerousGoods;
+
+    public SkuController(SkuRepository skus, SkuProfileRepository profiles, UnitOfMeasureRepository uoms,
+                         BarcodeRepository barcodes, DangerousGoodsRepository dangerousGoods) {
+        this.skus = skus;
+        this.profiles = profiles;
+        this.uoms = uoms;
+        this.barcodes = barcodes;
+        this.dangerousGoods = dangerousGoods;
+    }
+
+    // ---------------------------------------------------------------- SKU core
+    @GetMapping
+    public PageResponse<Sku> list(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String ownerClient) {
+        PageRequest pageable = PageRequest.of(page, size, Sort.by("code"));
+        if (code != null) {
+            List<Sku> match = skus.findByCode(code).map(List::of).orElseGet(List::of);
+            return new PageResponse<>(match, 0, size, match.size(), match.isEmpty() ? 0 : 1);
+        }
+        Page<Sku> result;
+        if (q != null) {
+            result = skus.search(q, pageable);
+        } else if (ownerClient != null) {
+            result = skus.findByOwnerClientIgnoreCase(ownerClient, pageable);
+        } else {
+            result = skus.findAll(pageable);
+        }
+        return PageResponse.of(result);
+    }
+
+    @PostMapping
+    public ResponseEntity<Sku> create(@RequestBody Sku body) {
+        body.setId(null);
+        Sku saved = skus.save(body);
+        return ResponseEntity.created(URI.create("/api/master-data/skus/" + saved.getId())).body(saved);
+    }
+
+    @GetMapping("/{skuId}")
+    public Sku get(@PathVariable UUID skuId) {
+        return requireSku(skuId);
+    }
+
+    @PutMapping("/{skuId}")
+    public Sku update(@PathVariable UUID skuId, @RequestBody Sku body) {
+        Sku existing = requireSku(skuId);
+        body.setId(skuId);
+        body.setVersion(existing.getVersion());
+        return skus.save(body);
+    }
+
+    @DeleteMapping("/{skuId}")
+    public ResponseEntity<Void> archive(@PathVariable UUID skuId) {
+        Sku existing = requireSku(skuId);
+        existing.setStatus("ARCHIVED");
+        skus.save(existing);
+        return ResponseEntity.noContent().build();
+    }
+
+    // --------------------------------------------------------------- Bulk load
+    @PostMapping("/import")
+    public BulkImportReport importSkus(@RequestBody List<Sku> incoming) {
+        int created = 0;
+        int updated = 0;
+        List<BulkImportReport.ImportError> errors = new ArrayList<>();
+        for (int row = 0; row < incoming.size(); row++) {
+            Sku sku = incoming.get(row);
+            try {
+                Optional<Sku> existing = sku.getCode() == null ? Optional.empty() : skus.findByCode(sku.getCode());
+                if (existing.isPresent()) {
+                    sku.setId(existing.get().getId());
+                    sku.setVersion(existing.get().getVersion());
+                    skus.save(sku);
+                    updated++;
+                } else {
+                    sku.setId(null);
+                    skus.save(sku);
+                    created++;
+                }
+            } catch (RuntimeException e) {
+                errors.add(new BulkImportReport.ImportError(row, sku.getCode(), e.getMessage()));
+            }
+        }
+        return new BulkImportReport(incoming.size(), created, updated, errors.size(), errors);
+    }
+
+    // --------------------------------------------------------- SkuProfile (per warehouse)
+    @GetMapping("/{skuId}/profiles")
+    public List<SkuProfile> listProfiles(@PathVariable UUID skuId) {
+        requireSku(skuId);
+        return profiles.findBySkuId(skuId);
+    }
+
+    @PutMapping("/{skuId}/profiles")
+    public SkuProfile upsertProfile(@PathVariable UUID skuId, @RequestBody SkuProfile body) {
+        requireSku(skuId);
+        Optional<SkuProfile> existing = profiles.findBySkuIdAndWarehouseId(skuId, body.getWarehouseId());
+        body.setSkuId(skuId);
+        if (existing.isPresent()) {
+            body.setId(existing.get().getId());
+            body.setVersion(existing.get().getVersion());
+        } else {
+            body.setId(null);
+        }
+        return profiles.save(body);
+    }
+
+    // ------------------------------------------------------------- UnitsOfMeasure
+    @GetMapping("/{skuId}/uoms")
+    public List<UnitOfMeasure> listUoms(@PathVariable UUID skuId) {
+        requireSku(skuId);
+        return uoms.findBySkuId(skuId);
+    }
+
+    @PostMapping("/{skuId}/uoms")
+    public ResponseEntity<UnitOfMeasure> createUom(@PathVariable UUID skuId, @RequestBody UnitOfMeasure body) {
+        requireSku(skuId);
+        body.setId(null);
+        body.setSkuId(skuId);
+        return ResponseEntity.status(201).body(uoms.save(body));
+    }
+
+    // -------------------------------------------------------------------- Barcodes
+    @GetMapping("/{skuId}/barcodes")
+    public List<Barcode> listBarcodes(@PathVariable UUID skuId) {
+        requireSku(skuId);
+        return barcodes.findBySkuId(skuId);
+    }
+
+    @PostMapping("/{skuId}/barcodes")
+    public ResponseEntity<Barcode> createBarcode(@PathVariable UUID skuId, @RequestBody Barcode body) {
+        requireSku(skuId);
+        body.setId(null);
+        body.setSkuId(skuId);
+        return ResponseEntity.status(201).body(barcodes.save(body));
+    }
+
+    // -------------------------------------------------------------- DangerousGoods
+    @GetMapping("/{skuId}/dangerous-goods")
+    public DangerousGoods getDangerousGoods(@PathVariable UUID skuId) {
+        requireSku(skuId);
+        return dangerousGoods.findBySkuId(skuId)
+                .orElseThrow(() -> new NotFoundException("DangerousGoods for SKU", skuId));
+    }
+
+    @PutMapping("/{skuId}/dangerous-goods")
+    public DangerousGoods putDangerousGoods(@PathVariable UUID skuId, @RequestBody DangerousGoods body) {
+        requireSku(skuId);
+        Optional<DangerousGoods> existing = dangerousGoods.findBySkuId(skuId);
+        body.setSkuId(skuId);
+        if (existing.isPresent()) {
+            body.setId(existing.get().getId());
+            body.setVersion(existing.get().getVersion());
+        } else {
+            body.setId(null);
+        }
+        return dangerousGoods.save(body);
+    }
+
+    @DeleteMapping("/{skuId}/dangerous-goods")
+    public ResponseEntity<Void> deleteDangerousGoods(@PathVariable UUID skuId) {
+        DangerousGoods existing = dangerousGoods.findBySkuId(skuId)
+                .orElseThrow(() -> new NotFoundException("DangerousGoods for SKU", skuId));
+        dangerousGoods.delete(existing);
+        return ResponseEntity.noContent().build();
+    }
+
+    private Sku requireSku(UUID skuId) {
+        return skus.findById(skuId).orElseThrow(() -> new NotFoundException("SKU", skuId));
+    }
+}

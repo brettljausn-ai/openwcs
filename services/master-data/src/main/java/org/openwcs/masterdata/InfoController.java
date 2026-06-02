@@ -11,7 +11,7 @@ public class InfoController {
     public Map<String, String> info() {
         return Map.of(
             "service", "master-data",
-            "description", "Authoritative catalog: SKUs, UoM/bundles, barcodes & types, locations, equipment, warehouses, per-warehouse SkuProfiles, attribute schemas. Schema + entities implemented; REST per contracts/openapi/master-data.yaml pending.",
-            "status", "in-progress");
+            "description", "Authoritative catalog: SKUs, UoM/bundles, barcodes & types, locations, equipment, warehouses, per-warehouse SkuProfiles, attribute schemas. REST per contracts/openapi/master-data.yaml.",
+            "status", "active");
     }
 }

@@ -53,6 +53,18 @@ services:
     build: ../gateway
     ports: ["8080:8080"]
     depends_on: [postgres, kafka]
+    environment:
+      # Route to services by their compose hostnames (overrides the localhost defaults).
+      OPENWCS_URI_MASTER_DATA: http://master-data:8081
+      OPENWCS_URI_INVENTORY: http://inventory:8082
+      OPENWCS_URI_PROCESS_ENGINE: http://process-engine:8083
+      OPENWCS_URI_ORDER_MANAGEMENT: http://order-management:8084
+      OPENWCS_URI_FLOW_ORCHESTRATOR: http://flow-orchestrator:8085
+      OPENWCS_URI_TXLOG: http://txlog:8086
+      OPENWCS_URI_IAM: http://iam:8087
+      OPENWCS_URI_NOTIFICATION: http://notification:8088
+      OPENWCS_URI_INTEGRATION_SAP: http://integration-sap:8089
+      OPENWCS_URI_INTEGRATION_MANHATTAN: http://integration-manhattan:8090
 
   master-data:
     profiles: ["apps"]

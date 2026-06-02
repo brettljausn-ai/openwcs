@@ -1,0 +1,107 @@
+package org.openwcs.masterdata.api;
+
+import java.net.URI;
+import java.util.List;
+import java.util.UUID;
+import org.openwcs.masterdata.domain.AttributeSchema;
+import org.openwcs.masterdata.domain.Barcode;
+import org.openwcs.masterdata.domain.BarcodeType;
+import org.openwcs.masterdata.domain.HandlingUnitType;
+import org.openwcs.masterdata.repo.AttributeSchemaRepository;
+import org.openwcs.masterdata.repo.BarcodeRepository;
+import org.openwcs.masterdata.repo.BarcodeTypeRepository;
+import org.openwcs.masterdata.repo.HandlingUnitTypeRepository;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * Reference catalogs and barcode resolution (build.md §6): attribute schemas,
+ * barcode types, handling-unit types, and barcode lookup.
+ */
+@RestController
+@RequestMapping("/api/master-data")
+public class ReferenceDataController {
+
+    private final AttributeSchemaRepository attributeSchemas;
+    private final BarcodeTypeRepository barcodeTypes;
+    private final HandlingUnitTypeRepository handlingUnitTypes;
+    private final BarcodeRepository barcodes;
+
+    public ReferenceDataController(AttributeSchemaRepository attributeSchemas, BarcodeTypeRepository barcodeTypes,
+                                   HandlingUnitTypeRepository handlingUnitTypes, BarcodeRepository barcodes) {
+        this.attributeSchemas = attributeSchemas;
+        this.barcodeTypes = barcodeTypes;
+        this.handlingUnitTypes = handlingUnitTypes;
+        this.barcodes = barcodes;
+    }
+
+    // --------------------------------------------------------- AttributeSchemas
+    @GetMapping("/attribute-schemas")
+    public List<AttributeSchema> listAttributeSchemas(
+            @RequestParam(required = false) UUID warehouseId,
+            @RequestParam(required = false) String appliesTo) {
+        if (warehouseId != null && appliesTo != null) {
+            return attributeSchemas.findByWarehouseIdAndAppliesTo(warehouseId, appliesTo);
+        }
+        if (warehouseId != null) {
+            return attributeSchemas.findByWarehouseId(warehouseId);
+        }
+        return attributeSchemas.findAll();
+    }
+
+    @PostMapping("/attribute-schemas")
+    public ResponseEntity<AttributeSchema> createAttributeSchema(@RequestBody AttributeSchema body) {
+        body.setId(null);
+        AttributeSchema saved = attributeSchemas.save(body);
+        return ResponseEntity.created(URI.create("/api/master-data/attribute-schemas/" + saved.getId())).body(saved);
+    }
+
+    @GetMapping("/attribute-schemas/{id}")
+    public AttributeSchema getAttributeSchema(@PathVariable UUID id) {
+        return attributeSchemas.findById(id).orElseThrow(() -> new NotFoundException("AttributeSchema", id));
+    }
+
+    // -------------------------------------------------------------- BarcodeTypes
+    @GetMapping("/barcode-types")
+    public List<BarcodeType> listBarcodeTypes() {
+        return barcodeTypes.findAll();
+    }
+
+    @PostMapping("/barcode-types")
+    public ResponseEntity<BarcodeType> createBarcodeType(@RequestBody BarcodeType body) {
+        body.setId(null);
+        return ResponseEntity.status(201).body(barcodeTypes.save(body));
+    }
+
+    // --------------------------------------------------------- HandlingUnitTypes
+    @GetMapping("/handling-unit-types")
+    public List<HandlingUnitType> listHandlingUnitTypes() {
+        return handlingUnitTypes.findAll();
+    }
+
+    @PostMapping("/handling-unit-types")
+    public ResponseEntity<HandlingUnitType> createHandlingUnitType(@RequestBody HandlingUnitType body) {
+        body.setId(null);
+        return ResponseEntity.status(201).body(handlingUnitTypes.save(body));
+    }
+
+    // ----------------------------------------------------------- Barcode lookup
+    @GetMapping("/barcodes")
+    public List<Barcode> findBarcodes(@RequestParam String value) {
+        return barcodes.findByValue(value);
+    }
+
+    @DeleteMapping("/barcodes/{barcodeId}")
+    public ResponseEntity<Void> deleteBarcode(@PathVariable UUID barcodeId) {
+        Barcode existing = barcodes.findById(barcodeId).orElseThrow(() -> new NotFoundException("Barcode", barcodeId));
+        barcodes.delete(existing);
+        return ResponseEntity.noContent().build();
+    }
+}

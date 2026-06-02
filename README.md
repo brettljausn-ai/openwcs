@@ -108,8 +108,11 @@ can be rebuilt from the log.
 ## REST contracts & the goods-in → stock loop
 
 API contracts live in [`contracts/openapi/`](./contracts/openapi/) (`txlog.yaml`,
-`inventory.yaml`, `master-data.yaml`). The first end-to-end slice runs through three
-services:
+`inventory.yaml`, `master-data.yaml`). All three are implemented (master-data exposes
+full catalog CRUD; inventory exposes stock/availability/reservations; txlog exposes
+append/query/replay) and are reachable directly on their service ports or through the
+**gateway** at `:8080` (which routes `/api/<service>/**` — see `gateway/`). The first
+end-to-end slice runs through three services:
 
 1. **Append** a movement event to the log — `POST /api/txlog/events` (txlog writes the
    immutable event + an outbox row in one transaction).

@@ -6,5 +6,7 @@ import org.openwcs.masterdata.domain.AttributeSchema;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AttributeSchemaRepository extends JpaRepository<AttributeSchema, UUID> {
+    List<AttributeSchema> findByWarehouseId(UUID warehouseId);
+
     List<AttributeSchema> findByWarehouseIdAndAppliesTo(UUID warehouseId, String appliesTo);
 }
