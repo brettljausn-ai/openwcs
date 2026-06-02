@@ -35,7 +35,10 @@ public class HttpAllocationClient implements AllocationClient {
                 .body(body)
                 .retrieve()
                 .body(AllocationResponse.class);
-        return new AllocationResult(response == null ? "NOT_FULFILLABLE" : response.status());
+        if (response == null) {
+            return new AllocationResult("NOT_FULFILLABLE", null);
+        }
+        return new AllocationResult(response.status(), response.statusDetail());
     }
 
     @Override
@@ -50,6 +53,6 @@ public class HttpAllocationClient implements AllocationClient {
         }
     }
 
-    private record AllocationResponse(String status) {
+    private record AllocationResponse(String status, String statusDetail) {
     }
 }

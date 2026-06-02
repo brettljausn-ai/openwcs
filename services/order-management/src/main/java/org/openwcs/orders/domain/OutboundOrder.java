@@ -42,6 +42,10 @@ public class OutboundOrder extends Auditable {
     @Column(name = "status", nullable = false)
     private OrderStatus status = OrderStatus.CREATED;
 
+    /** Why the order is in its current status (e.g. the SKU/line that could not be cubed). */
+    @Column(name = "status_detail")
+    private String statusDetail;
+
     @Column(name = "priority", nullable = false)
     private int priority;
 
@@ -103,6 +107,14 @@ public class OutboundOrder extends Auditable {
 
     public void setStatus(OrderStatus status) {
         this.status = status;
+    }
+
+    public String getStatusDetail() {
+        return statusDetail;
+    }
+
+    public void setStatusDetail(String statusDetail) {
+        this.statusDetail = statusDetail;
     }
 
     public int getPriority() {

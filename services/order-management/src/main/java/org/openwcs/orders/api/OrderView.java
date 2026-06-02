@@ -15,6 +15,7 @@ public record OrderView(
         UUID warehouseId,
         String customerRef,
         String status,
+        String statusDetail,
         int priority,
         Instant dispatchBy,
         Instant createdAt,
@@ -47,7 +48,7 @@ public record OrderView(
                 .map(LineView::from)
                 .toList();
         return new OrderView(o.getId(), o.getOrderRef(), o.getOrderType().name(), o.getWarehouseId(),
-                o.getCustomerRef(), o.getStatus().name(), o.getPriority(), o.getDispatchBy(),
-                o.getCreatedAt(), lines);
+                o.getCustomerRef(), o.getStatus().name(), o.getStatusDetail(), o.getPriority(),
+                o.getDispatchBy(), o.getCreatedAt(), lines);
     }
 }

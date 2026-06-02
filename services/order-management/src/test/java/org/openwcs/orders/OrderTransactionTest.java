@@ -77,4 +77,24 @@ class OrderTransactionTest {
         assertThat(staged.get(0).getActor()).isEqualTo("operator-1");
         assertThat(staged.get(0).getPublishedAt()).isNull();
     }
+
+    @Test
+    void releaseSurfacesCubingFailureOnTheOrder() {
+        UUID warehouse = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        String reason = "SKU " + sku + " (line 1) does not fit the largest shipper CARTON-L";
+        org.mockito.Mockito.when(allocation.allocate(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new AllocationClient.AllocationResult("CUBING_FAILED", reason));
+
+        OrderView created = service.create(new CreateOrderRequest(
+                "ORD-BIG", warehouse, "OUTBOUND", null, null, null,
+                List.of(new CreateOrderRequest.Line(sku, new BigDecimal("1")))));
+
+        OrderView released = service.release(created.id());
+
+        assertThat(released.status()).isEqualTo("CUBING_FAILED");
+        assertThat(released.statusDetail()).isEqualTo(reason);
+    }
 }

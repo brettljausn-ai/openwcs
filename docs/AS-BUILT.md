@@ -91,7 +91,10 @@ position.
 **`orderType`** — INBOUND | OUTBOUND | COUNT | ADJUSTMENT — with lines.
 
 - **Lifecycle / release** (OUTBOUND): create → **release** (delegates to allocation →
-  `ALLOCATED` / `NOT_FULFILLABLE`) → ship; cancel releases held reservations via allocation.
+  `ALLOCATED` / `NOT_FULFILLABLE` / `CUBING_FAILED`) → ship; cancel releases held reservations
+  via allocation. **`CUBING_FAILED`** (a SKU is larger than the biggest carton) carries a
+  `statusDetail` reason for the UI and can be re-released after the carton/SKU master data is
+  fixed.
   **Release management**: `GET /release-queue?warehouseId=` (priority desc, then dispatch
   time) and `POST /release-due?warehouseId=&withinMinutes=`.
 - **Line stock transactions** (every type): `POST /orders/{id}/lines/{lineNo}/transactions`
@@ -120,7 +123,10 @@ position.
   cartons on `order_allocation.shippers` (JSONB); each carton has a stable **`shipperUnitId`**
   (its identity within the order — the carton→order link is the owning `order_ref`) and its
   **contents carry the order `lineNo`**, so a line split across several cartons (and a carton
-  holding several lines) is fully traceable.
+  holding several lines) is fully traceable. If a SKU is larger than the **biggest** available
+  carton the order cannot be cubed: no shippers are produced, any held reservations are
+  released, and the plan is parked in **`CUBING_FAILED`** with a `statusDetail` reason (the
+  offending line/SKU) for an operator to resolve in the UI.
 - `POST /orders/{orderRef}/cancel` — release every held reservation for the order and
   mark the plan CANCELLED (kept for audit). order-management's cancel calls this.
 - `POST /batches` — **batch (cluster) picking**: group eligible small orders

@@ -162,7 +162,11 @@ components:
         id: { type: string, format: uuid }
         orderRef: { type: string }
         warehouseId: { type: string, format: uuid }
-        status: { type: string, enum: [FULFILLABLE, NOT_FULFILLABLE] }
+        status: { type: string, enum: [FULFILLABLE, NOT_FULFILLABLE, CANCELLED, CUBING_FAILED] }
+        statusDetail:
+          type: string
+          nullable: true
+          description: Reason for the current status — e.g. the SKU/line that did not fit any carton when CUBING_FAILED.
         cubingMode: { type: string, enum: [APP, ONE_TO_ONE] }
         lines:
           type: array

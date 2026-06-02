@@ -69,7 +69,7 @@ public final class CubingEngine {
         double remainingWeight = 0;
         for (Item item : items) {
             if (!largest.fits(item.unitVolumeMm3(), item.unitWeightG())) {
-                throw new CannotCubeException(
+                throw new ItemDoesNotFitException(item.lineNo(), item.skuId(), largest.shipper().code(),
                         "SKU " + item.skuId() + " (line " + item.lineNo() + ") does not fit the largest shipper "
                                 + largest.shipper().code());
             }
@@ -167,6 +167,36 @@ public final class CubingEngine {
     public static class CannotCubeException extends RuntimeException {
         public CannotCubeException(String message) {
             super(message);
+        }
+    }
+
+    /**
+     * A specific {@link CannotCubeException}: a single SKU is larger than the biggest available
+     * carton, so the order cannot be cubed at all. Carries the offending line/SKU so the order
+     * can be parked in CUBING_FAILED with an actionable reason.
+     */
+    public static class ItemDoesNotFitException extends CannotCubeException {
+        private final int lineNo;
+        private final UUID skuId;
+        private final String largestShipperCode;
+
+        public ItemDoesNotFitException(int lineNo, UUID skuId, String largestShipperCode, String message) {
+            super(message);
+            this.lineNo = lineNo;
+            this.skuId = skuId;
+            this.largestShipperCode = largestShipperCode;
+        }
+
+        public int lineNo() {
+            return lineNo;
+        }
+
+        public UUID skuId() {
+            return skuId;
+        }
+
+        public String largestShipperCode() {
+            return largestShipperCode;
         }
     }
 }

@@ -8,6 +8,8 @@ public enum OrderStatus {
     ALLOCATED,
     /** Released but stock could not be fully allocated; waits for instructions (retry/cancel). */
     NOT_FULFILLABLE,
+    /** Released but a SKU is larger than the biggest carton, so the order can't be cubed; see statusDetail. */
+    CUBING_FAILED,
     SHIPPED,
     CANCELLED
 }

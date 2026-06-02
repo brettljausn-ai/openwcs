@@ -65,7 +65,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | master-data | `MasterDataPersistenceTest`, `MasterDataApiTest`, `MasterDataRbacTest` | Testcontainers + MockMvc (incl. RBAC: read=VIEW, write=EDIT) |
 | txlog | `TransactionLogServiceTest`, `OutboxRelayTest` | Testcontainers + Mockito |
 | inventory | `InventoryPersistenceTest`, `StockProjectionServiceTest`, `InventoryServiceTest` | Testcontainers |
-| allocation | `AllocationEngineTest`, `AllocationServiceTest` | Pure logic (incl. multi-size cubing: largest-first + line split across cartons with `lineNo`/`shipperUnitId` links) + Testcontainers (allocate → cancel releases reservations) |
+| allocation | `AllocationEngineTest`, `AllocationServiceTest` | Pure logic (incl. multi-size cubing: largest-first + line split across cartons with `lineNo`/`shipperUnitId` links) + Testcontainers (allocate → cancel releases reservations; oversized SKU → `CUBING_FAILED` + reservation released) |
 | order-management | `OrderTransactionTest`, `OrderTransactionRelayTest`, `OrderAuthorizationTest` | Testcontainers + Mockito (outbox, relay, and per-endpoint RBAC: VIEWER 403 / SUPERVISOR 201) |
 | iam | `IamServiceTest` | Testcontainers (seeded roles, effective permissions, catalog validation) |
 | flow-orchestrator | `DeviceTaskServiceTest` | Testcontainers + Mockito (`@MockBean DeviceClient`: COMPLETED on success, FAILED on adapter error without losing the task, query by id/correlation) |

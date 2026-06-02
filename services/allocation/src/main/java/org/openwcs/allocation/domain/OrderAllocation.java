@@ -30,9 +30,13 @@ public class OrderAllocation extends Auditable {
     @Column(name = "warehouse_id", nullable = false)
     private UUID warehouseId;
 
-    /** FULFILLABLE | NOT_FULFILLABLE. */
+    /** FULFILLABLE | NOT_FULFILLABLE | CANCELLED | CUBING_FAILED. */
     @Column(name = "status", nullable = false)
     private String status;
+
+    /** Why the order is in its current status (e.g. the SKU/line that could not be cubed). */
+    @Column(name = "status_detail")
+    private String statusDetail;
 
     /** APP | ONE_TO_ONE. */
     @Column(name = "cubing_mode", nullable = false)
@@ -80,6 +84,14 @@ public class OrderAllocation extends Auditable {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getStatusDetail() {
+        return statusDetail;
+    }
+
+    public void setStatusDetail(String statusDetail) {
+        this.statusDetail = statusDetail;
     }
 
     public String getCubingMode() {

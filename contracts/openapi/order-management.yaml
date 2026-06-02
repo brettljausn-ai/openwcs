@@ -163,7 +163,7 @@ components:
       enum: [INBOUND, OUTBOUND, COUNT, ADJUSTMENT]
     OrderStatus:
       type: string
-      enum: [CREATED, RELEASED, ALLOCATED, PARTIALLY_ALLOCATED, NOT_FULFILLABLE, SHIPPED, CANCELLED]
+      enum: [CREATED, RELEASED, ALLOCATED, PARTIALLY_ALLOCATED, NOT_FULFILLABLE, CUBING_FAILED, SHIPPED, CANCELLED]
     CreateOrderRequest:
       type: object
       required: [orderRef, warehouseId, lines]
@@ -202,6 +202,10 @@ components:
         warehouseId: { type: string, format: uuid }
         customerRef: { type: string, nullable: true }
         status: { $ref: '#/components/schemas/OrderStatus' }
+        statusDetail:
+          type: string
+          nullable: true
+          description: Reason for the current status — e.g. why cubing failed when CUBING_FAILED.
         priority: { type: integer }
         dispatchBy: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }

@@ -80,4 +80,39 @@ class AllocationServiceTest {
         assertThat(cancelled.lines().get(0).picks().get(0).reservationId()).isNull();
         verify(inventory).release(reservation);
     }
+
+    @Test
+    void oversizedSkuParksOrderInCubingFailedAndReleasesStock() {
+        UUID warehouse = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID location = UUID.randomUUID();
+        UUID reservation = UUID.randomUUID();
+
+        when(masterData.fulfillmentConfig(any())).thenReturn(
+                new MasterDataClient.FulfillmentConfig(List.of("EACH"), "APP", null, false, 1, 12, null));
+        when(masterData.pickLocationIds(any())).thenReturn(List.of(location));
+        // Base UoM is 100×100×100 mm = 1,000,000 mm³ per unit.
+        when(masterData.skuUoms(any())).thenReturn(List.of(new MasterDataClient.UomDef(
+                UUID.randomUUID(), "EACH", null, null,
+                BigDecimal.valueOf(100), BigDecimal.valueOf(100), BigDecimal.valueOf(100), null, true)));
+        // Only a tiny 10×10×10 mm = 1,000 mm³ carton exists — the SKU cannot fit.
+        when(masterData.shippers(any())).thenReturn(List.of(new MasterDataClient.ShipperDef(
+                UUID.randomUUID(), "SMALL", BigDecimal.TEN, BigDecimal.TEN, BigDecimal.TEN,
+                BigDecimal.ZERO, BigDecimal.ONE, null, "ACTIVE")));
+        when(inventory.availableAtLocation(any(), any(), any())).thenReturn(new BigDecimal("10"));
+        when(inventory.reserve(any(), any(), any(), any(), any())).thenReturn(reservation);
+
+        AllocateOrderRequest request = new AllocateOrderRequest(
+                "ORD-BIG", warehouse, null,
+                List.of(new AllocateOrderRequest.Line(1, sku, BigDecimal.ONE)), null);
+
+        AllocationView view = service.allocate(request);
+
+        assertThat(view.status()).isEqualTo("CUBING_FAILED");
+        assertThat(view.statusDetail()).contains(sku.toString()).contains("does not fit");
+        assertThat(view.shippers()).isEmpty();
+        // Nothing is held for an order that can't ship; the reservation is released.
+        assertThat(view.lines().get(0).picks().get(0).reservationId()).isNull();
+        verify(inventory).release(reservation);
+    }
 }

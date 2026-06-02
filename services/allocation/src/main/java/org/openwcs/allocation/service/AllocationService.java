@@ -144,8 +144,26 @@ public class AllocationService {
         }
 
         if (fulfillable) {
+            List<ShipperAssignment> shippers;
+            try {
+                shippers = cube(request, cubingMode, uomsBySku);
+            } catch (CubingEngine.ItemDoesNotFitException e) {
+                // A SKU is larger than the biggest carton: the order can't be cubed. Hold nothing
+                // and park it in CUBING_FAILED with the reason so an operator can resolve it.
+                reservationsMade.forEach(this::safeRelease);
+                allocation.getLines().forEach(l -> l.setPicks(dropReservations(l.getPicks())));
+                allocation.setStatus("CUBING_FAILED");
+                allocation.setStatusDetail(e.getMessage());
+                allocation.setShippers(List.of());
+                log.warn("Order {} cubing failed: {}", request.orderRef(), e.getMessage());
+                return AllocationView.from(allocations.save(allocation));
+            } catch (RuntimeException e) {
+                // Any other cubing failure (e.g. bad host instruction) must not leak reservations.
+                reservationsMade.forEach(this::safeRelease);
+                throw e;
+            }
             allocation.setStatus("FULFILLABLE");
-            allocation.setShippers(cube(request, cubingMode, uomsBySku));
+            allocation.setShippers(shippers);
         } else {
             // Hold nothing for a non-fulfillable order; keep per-line diagnostics but drop the
             // (now released) reservation ids from the picks.

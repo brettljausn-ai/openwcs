@@ -14,6 +14,7 @@ public record AllocationView(
         String orderRef,
         UUID warehouseId,
         String status,
+        String statusDetail,
         String cubingMode,
         List<LineView> lines,
         List<ShipperAssignment> shippers) {
@@ -38,6 +39,6 @@ public record AllocationView(
                 .map(LineView::from)
                 .toList();
         return new AllocationView(a.getId(), a.getOrderRef(), a.getWarehouseId(),
-                a.getStatus(), a.getCubingMode(), lines, a.getShippers());
+                a.getStatus(), a.getStatusDetail(), a.getCubingMode(), lines, a.getShippers());
     }
 }

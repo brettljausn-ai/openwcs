@@ -208,16 +208,28 @@ public class OrderService {
         if (order.getOrderType() != OrderType.OUTBOUND) {
             throw new IllegalOrderStateException("Only OUTBOUND orders are released/allocated");
         }
-        if (order.getStatus() != OrderStatus.CREATED && order.getStatus() != OrderStatus.NOT_FULFILLABLE) {
+        if (order.getStatus() != OrderStatus.CREATED && order.getStatus() != OrderStatus.NOT_FULFILLABLE
+                && order.getStatus() != OrderStatus.CUBING_FAILED) {
             throw new IllegalOrderStateException(
-                    "Only CREATED or NOT_FULFILLABLE orders can be released (was " + order.getStatus() + ")");
+                    "Only CREATED, NOT_FULFILLABLE or CUBING_FAILED orders can be released (was "
+                            + order.getStatus() + ")");
         }
         List<AllocationClient.Line> lines = order.getLines().stream()
                 .map(l -> new AllocationClient.Line(l.getLineNo(), l.getSkuId(), l.getQty()))
                 .toList();
         AllocationClient.AllocationResult result =
                 allocation.allocate(order.getOrderRef(), order.getWarehouseId(), lines);
-        order.setStatus(result.fulfillable() ? OrderStatus.ALLOCATED : OrderStatus.NOT_FULFILLABLE);
+        if (result.fulfillable()) {
+            order.setStatus(OrderStatus.ALLOCATED);
+            order.setStatusDetail(null);
+        } else if (result.cubingFailed()) {
+            // A SKU is larger than the biggest carton; surface the reason for the UI.
+            order.setStatus(OrderStatus.CUBING_FAILED);
+            order.setStatusDetail(result.detail());
+        } else {
+            order.setStatus(OrderStatus.NOT_FULFILLABLE);
+            order.setStatusDetail(result.detail());
+        }
         return order;
     }
 
