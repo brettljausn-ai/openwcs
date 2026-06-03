@@ -87,7 +87,7 @@ openwcs/
 | `services/adapters/amr-geekplus` | Go | 9093 | Geek+ RCS adapter (REST + WebSocket) |
 | `services/adapters/autostore` | Go | 9094 | AutoStore grid adapter (REST) |
 | `services/adapters/conveyor-sniffer` | Go | 9095 | Captures scan telegrams from defined IPs → posts observations to the WCS for conveyor topology learning |
-| `ui` | React/TS | 5173 dev / 80 prod | Operator + management SPA; admin screens so far: conveyor topology editor (React Flow) + BPMN process designer (bpmn-js). In compose served by nginx on host `:80`. |
+| `ui` | React/TS | 5173 dev / 443 prod | Operator + management SPA: Keycloak login, dashboard, and role/user-gated screens — orders (inbound/outbound), counting, GTP operator + config, transport, stock transactions, topology, processes, slotting, master data, settings, users, access control. In compose served by nginx on host `:443` (HTTPS forced). |
 
 ---
 
@@ -206,9 +206,12 @@ cd services/adapters/conveyor && go run .    # http://localhost:9091/healthz
 ```bash
 cd ui && npm install && npm run dev          # http://localhost:5173 (proxies /api -> gateway)
 ```
-The `--profile apps` compose stack also builds and serves the UI with nginx on
-**http://localhost/** (port 80), proxying `/api` to the gateway and `/realms`+`/admin`
-to Keycloak — no dev server needed when running the full stack.
+The `--profile apps` compose stack also builds and serves the UI with nginx over
+**HTTPS on `https://localhost/`** (port 443; HTTP/80 301-redirects to 443), proxying
+`/api` to the gateway and `/realms`+`/admin` to Keycloak — no dev server needed when
+running the full stack. With no real cert mounted, nginx self-signs one on startup
+(expect a one-time browser warning on a raw IP); mount `tls.crt`/`tls.key` for a real
+domain (see [`deploy/README.md`](./deploy/README.md)).
 
 **Sign in** with `admin` / `admIn1!` (seeded in the `openwcs` realm). The compose
 stack enables **edge security**: the gateway requires a Keycloak JWT on every
