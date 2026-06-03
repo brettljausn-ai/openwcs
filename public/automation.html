@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Automation &amp; equipment — openWCS</title>
+  <title data-i18n="auto.title">Automation &amp; equipment — openWCS</title>
   <meta name="description" content="The openWCS automation hub: vendor-neutral control of conveyors, ASRS storage and goods-to-person stations over a uniform device contract — with AMR and AutoStore adapters on the roadmap. Each family tagged Built or Roadmap." />
   <meta name="theme-color" content="#061812" />
   <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/automation.html" />
@@ -16,32 +16,46 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <script defer src="i18n.js"></script>
 </head>
 <body id="top">
   <header class="nav">
     <div class="nav-inner">
       <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
       <nav class="nav-links">
-        <a href="index.html">← Overview</a>
-        <a href="functions.html">Functions</a>
-        <a href="automation.html">Automation</a>
+        <a href="index.html" data-i18n="auto.nav1">← Overview</a>
+        <a href="functions.html" data-i18n="auto.nav2">Functions</a>
+        <a href="automation.html" data-i18n="auto.nav3">Automation</a>
       </nav>
       <div class="nav-right">
-        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+        <div class="lang" id="lang">
+          <button class="lang-toggle" id="lang-toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Select language">
+            <svg class="globe" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg>
+            <span class="lang-code" id="lang-code">EN</span>
+            <svg class="chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <ul class="lang-menu" id="lang-menu" role="listbox" aria-label="Language">
+            <li role="option" data-lang="en"><span>English</span></li>
+            <li role="option" data-lang="de"><span>Deutsch</span></li>
+            <li role="option" data-lang="fr"><span>Français</span></li>
+            <li role="option" data-lang="es"><span>Español</span></li>
+          </ul>
+        </div>
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
       </div>
     </div>
   </header>
 
   <section class="hero">
     <div class="wrap">
-      <p class="eyebrow">Automation &amp; equipment</p>
-      <h1>One control plane for <span class="lime">every machine.</span></h1>
-      <p class="lead">
+      <p class="eyebrow" data-i18n="auto.eyebrow1">Automation &amp; equipment</p>
+      <h1 data-i18n="auto.h1">One control plane for <span class="lime">every machine.</span></h1>
+      <p class="lead" data-i18n="auto.lead1">
         openWCS drives material-handling equipment through a single, vendor-neutral device contract:
         conveyors, automated storage and goods-to-person stations all speak the same uniform task
         protocol, with each vendor's quirks confined to a thin adapter. Each family below says plainly
-        whether it is <span class="pill pill-built">Built</span> today or on the
-        <span class="pill pill-roadmap">Roadmap</span>.
+        whether it is <span class="pill pill-built" data-i18n="auto.pill1">Built</span> today or on the
+        <span class="pill pill-roadmap" data-i18n="auto.pill5">Roadmap</span>.
       </p>
     </div>
   </section>
@@ -49,28 +63,28 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">Built today</p>
-        <h2>The equipment families openWCS already controls.</h2>
-        <p>
+        <p class="eyebrow" data-i18n="auto.eyebrow2">Built today</p>
+        <h2 data-i18n="auto.h2">The equipment families openWCS already controls.</h2>
+        <p data-i18n="auto.p1">
           These run against the engine today — real routing, storage logic and station execution.
           Follow a card for the deep dive on how each one works.
         </p>
       </div>
       <div class="grid grid-3">
         <a class="card" href="conveyors.html">
-          <div class="card-head"><div class="tag">Conveyors</div><span class="pill pill-built">Built</span></div>
-          <h3>Routing &amp; self-learning</h3>
-          <p>A vendor-neutral topology graph the WCS owns: per-scan next-hop pathfinding to sequenced targets, loop-capacity limits, a visual editor, and topology discovery learned from live scan traffic.</p>
+          <div class="card-head"><div class="tag" data-i18n="auto.tag1">Conveyors</div><span class="pill pill-built" data-i18n="auto.pill2">Built</span></div>
+          <h3 data-i18n="auto.h6">Routing &amp; self-learning</h3>
+          <p data-i18n="auto.p2">A vendor-neutral topology graph the WCS owns: per-scan next-hop pathfinding to sequenced targets, loop-capacity limits, a visual editor, and topology discovery learned from live scan traffic.</p>
         </a>
         <a class="card" href="asrs.html">
-          <div class="card-head"><div class="tag">ASRS</div><span class="pill pill-built">Built</span></div>
-          <h3>Automated storage logic</h3>
-          <p>Block-level put-away, re-slotting and empty-HU management for shuttle / crane ASRS — multi-deep lanes, velocity-to-exit, aisle redundancy and fill balancing across the whole pool.</p>
+          <div class="card-head"><div class="tag" data-i18n="auto.tag2">ASRS</div><span class="pill pill-built" data-i18n="auto.pill3">Built</span></div>
+          <h3 data-i18n="auto.h7">Automated storage logic</h3>
+          <p data-i18n="auto.p3">Block-level put-away, re-slotting and empty-HU management for shuttle / crane ASRS — multi-deep lanes, velocity-to-exit, aisle redundancy and fill balancing across the whole pool.</p>
         </a>
         <a class="card" href="gtp.html">
-          <div class="card-head"><div class="tag">Goods-to-person</div><span class="pill pill-built">Built</span></div>
-          <h3>Pick-and-put stations</h3>
-          <p>Station execution: present one stock HU and put-to-light fills many order destinations most-needed-first — the goods-to-person batch. ORDER_LOCATION and PUT_WALL modes share one engine.</p>
+          <div class="card-head"><div class="tag" data-i18n="auto.tag3">Goods-to-person</div><span class="pill pill-built" data-i18n="auto.pill4">Built</span></div>
+          <h3 data-i18n="auto.h8">Pick-and-put stations</h3>
+          <p data-i18n="auto.p4">Station execution: present one stock HU and put-to-light fills many order destinations most-needed-first — the goods-to-person batch. ORDER_LOCATION and PUT_WALL modes share one engine.</p>
         </a>
       </div>
     </div>
@@ -79,9 +93,9 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">Under the hood</p>
-        <h2>One uniform device contract, many adapters.</h2>
-        <p>
+        <p class="eyebrow" data-i18n="auto.eyebrow3">Under the hood</p>
+        <h2 data-i18n="auto.h3">One uniform device contract, many adapters.</h2>
+        <p data-i18n="auto.p5">
           The flow-orchestrator dispatches device tasks by <strong>family</strong>; each family routes
           to its adapter, and the adapter is the only place a vendor's native protocol lives. Adding a
           machine means writing an adapter — not re-architecting the WCS.
@@ -102,9 +116,9 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">On the roadmap</p>
-        <h2>Device adapters designed, not yet shipped.</h2>
-        <p>
+        <p class="eyebrow" data-i18n="auto.eyebrow4">On the roadmap</p>
+        <h2 data-i18n="auto.h4">Device adapters designed, not yet shipped.</h2>
+        <p data-i18n="auto.p6">
           The uniform device contract is built to carry these families, and the slotting / GTP logic
           already treats them as storage blocks — but the real device adapters that talk to the
           physical fleets are scaffolds today. Framed honestly so you know where the line is.
@@ -112,19 +126,19 @@
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="card-head"><div class="tag">AMR</div><span class="pill pill-roadmap">Roadmap</span></div>
-          <h3>Mobile robot fleets</h3>
-          <p>Planned: a real AMR device adapter for goods-to-person and goods-to-rack fleets. The slotting and GTP engines already model AMR blocks; the fleet-facing adapter is a scaffold, not yet implemented.</p>
+          <div class="card-head"><div class="tag" data-i18n="auto.tag4">AMR</div><span class="pill pill-roadmap" data-i18n="auto.pill6">Roadmap</span></div>
+          <h3 data-i18n="auto.h9">Mobile robot fleets</h3>
+          <p data-i18n="auto.p7">Planned: a real AMR device adapter for goods-to-person and goods-to-rack fleets. The slotting and GTP engines already model AMR blocks; the fleet-facing adapter is a scaffold, not yet implemented.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag">AutoStore</div><span class="pill pill-roadmap">Roadmap</span></div>
-          <h3>Cube storage grids</h3>
-          <p>Planned: a real AutoStore adapter for grid bins and ports. Slotting treats AutoStore as an automated block today; the adapter that drives the grid and its ports is designed for, not yet built.</p>
+          <div class="card-head"><div class="tag" data-i18n="auto.tag5">AutoStore</div><span class="pill pill-roadmap" data-i18n="auto.pill7">Roadmap</span></div>
+          <h3 data-i18n="auto.h10">Cube storage grids</h3>
+          <p data-i18n="auto.p8">Planned: a real AutoStore adapter for grid bins and ports. Slotting treats AutoStore as an automated block today; the adapter that drives the grid and its ports is designed for, not yet built.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag">Live status</div><span class="pill pill-roadmap">Roadmap</span></div>
-          <h3>Equipment visualisation</h3>
-          <p>Planned: live status across the whole estate — running, faulted, idle — beyond today's conveyor topology editor. See the <a href="hardware-visualisation.html">hardware visualisation</a> page for the full picture.</p>
+          <div class="card-head"><div class="tag" data-i18n="auto.tag6">Live status</div><span class="pill pill-roadmap" data-i18n="auto.pill8">Roadmap</span></div>
+          <h3 data-i18n="auto.h11">Equipment visualisation</h3>
+          <p data-i18n="auto.p9">Planned: live status across the whole estate — running, faulted, idle — beyond today's conveyor topology editor. See the <a href="hardware-visualisation.html">hardware visualisation</a> page for the full picture.</p>
         </div>
       </div>
     </div>
@@ -133,12 +147,12 @@
   <section>
     <div class="wrap">
       <div class="cta-band">
-        <p class="eyebrow">Open &amp; vendor-neutral</p>
-        <h2>Control any machine, your way.</h2>
-        <p>Every adapter and the device contract are open source. Adding a vendor is an adapter, not a rewrite — and the routing, storage and station logic stay yours to read and change.</p>
+        <p class="eyebrow" data-i18n="auto.eyebrow5">Open &amp; vendor-neutral</p>
+        <h2 data-i18n="auto.h5">Control any machine, your way.</h2>
+        <p data-i18n="auto.p10">Every adapter and the device contract are open source. Adding a vendor is an adapter, not a rewrite — and the routing, storage and station logic stay yours to read and change.</p>
         <div class="hero-cta" style="justify-content:center">
-          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
-          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki/Equipment-Integration">Read the docs</a>
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki/Equipment-Integration" data-i18n="auto.btn1">Read the docs</a>
         </div>
       </div>
     </div>
@@ -146,7 +160,7 @@
 
   <footer>
     <div class="wrap">
-      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span data-i18n="auto.foot5">openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
       <span><a href="index.html">Overview</a> · <a href="functions.html">Functions</a> · <a href="conveyors.html">Conveyors</a> · <a href="asrs.html">ASRS</a> · <a href="gtp.html">Goods-to-person</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
     </div>
   </footer>

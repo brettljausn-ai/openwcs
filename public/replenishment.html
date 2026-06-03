@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Replenishment — openWCS</title>
+  <title data-i18n="repl.title">Replenishment — openWCS</title>
   <meta name="description" content="The openWCS replenishment engine: min/max refills with emergency vs scheduled urgency, opportunistic off-peak top-off to max, and direct-to-pick cross-docking when a forward face has headroom." />
   <meta name="theme-color" content="#061812" />
   <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/replenishment.html" />
@@ -16,27 +16,41 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <script defer src="i18n.js"></script>
 </head>
 <body id="top">
   <header class="nav">
     <div class="nav-inner">
       <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
       <nav class="nav-links">
-        <a href="index.html">← Overview</a>
-        <a href="functions.html">Functions</a>
-        <a href="automation.html">Automation</a>
+        <a href="index.html" data-i18n="repl.nav1">← Overview</a>
+        <a href="functions.html" data-i18n="repl.nav2">Functions</a>
+        <a href="automation.html" data-i18n="repl.nav3">Automation</a>
       </nav>
       <div class="nav-right">
-        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+        <div class="lang" id="lang">
+          <button class="lang-toggle" id="lang-toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Select language">
+            <svg class="globe" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg>
+            <span class="lang-code" id="lang-code">EN</span>
+            <svg class="chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <ul class="lang-menu" id="lang-menu" role="listbox" aria-label="Language">
+            <li role="option" data-lang="en"><span>English</span></li>
+            <li role="option" data-lang="de"><span>Deutsch</span></li>
+            <li role="option" data-lang="fr"><span>Français</span></li>
+            <li role="option" data-lang="es"><span>Español</span></li>
+          </ul>
+        </div>
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
       </div>
     </div>
   </header>
 
   <section class="hero">
     <div class="wrap">
-      <p class="eyebrow">Function · Replenishment <span class="pill pill-built">Built</span></p>
-      <h1>Faces full <span class="lime">before the rush.</span></h1>
-      <p class="lead">
+      <p class="eyebrow" data-i18n="repl.eyebrow1">Function · Replenishment <span class="pill pill-built" data-i18n="repl.pill1">Built</span></p>
+      <h1 data-i18n="repl.h1">Faces full <span class="lime">before the rush.</span></h1>
+      <p class="lead" data-i18n="repl.lead1">
         Replenishment keeps forward pick faces stocked from reserve. openWCS works min/max with the right
         urgency, tops faces off opportunistically in off-peak windows, and skips reserve entirely with
         direct-to-pick when inbound can go straight to the face.
@@ -47,43 +61,43 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">How it works</p>
-        <h2>Three modes, one goal: no empty face at peak.</h2>
-        <p>
+        <p class="eyebrow" data-i18n="repl.eyebrow2">How it works</p>
+        <h2 data-i18n="repl.h2">Three modes, one goal: no empty face at peak.</h2>
+        <p data-i18n="repl.p1">
           Fixed pick faces carry a SKU+UoM with a minimum and a maximum. openWCS watches the level and
           chooses how — and how urgently — to refill.
         </p>
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="tag">Min/max</div>
-          <h3>Refill on threshold</h3>
-          <p>Drop below min and a refill is raised — emergency if the face is empty and blocking picks, scheduled otherwise so routine refills don't jump the queue.</p>
+          <div class="tag" data-i18n="repl.tag1">Min/max</div>
+          <h3 data-i18n="repl.h6">Refill on threshold</h3>
+          <p data-i18n="repl.p2">Drop below min and a refill is raised — emergency if the face is empty and blocking picks, scheduled otherwise so routine refills don't jump the queue.</p>
         </div>
         <div class="card">
-          <div class="tag">Off-peak top-off</div>
-          <h3>Opportunistic to max</h3>
-          <p>In quiet windows every face is topped up to max, so disruptive hot replenishments during peak are avoided and the floor starts each rush full.</p>
+          <div class="tag" data-i18n="repl.tag2">Off-peak top-off</div>
+          <h3 data-i18n="repl.h7">Opportunistic to max</h3>
+          <p data-i18n="repl.p3">In quiet windows every face is topped up to max, so disruptive hot replenishments during peak are avoided and the floor starts each rush full.</p>
         </div>
         <div class="card">
-          <div class="tag">Direct-to-pick</div>
-          <h3>Cross-dock when it fits</h3>
-          <p>If a forward face has headroom below its max, inbound is routed straight there — skipping a reserve put-away and a later replenishment trip entirely.</p>
+          <div class="tag" data-i18n="repl.tag3">Direct-to-pick</div>
+          <h3 data-i18n="repl.h8">Cross-dock when it fits</h3>
+          <p data-i18n="repl.p4">If a forward face has headroom below its max, inbound is routed straight there — skipping a reserve put-away and a later replenishment trip entirely.</p>
         </div>
         <div class="card">
-          <div class="tag">Urgency</div>
-          <h3>Emergency vs scheduled</h3>
-          <p>Refills carry a priority so an empty, picking-blocked face is served ahead of a face that is merely below min — work is sequenced by what actually hurts throughput.</p>
+          <div class="tag" data-i18n="repl.tag4">Urgency</div>
+          <h3 data-i18n="repl.h9">Emergency vs scheduled</h3>
+          <p data-i18n="repl.p5">Refills carry a priority so an empty, picking-blocked face is served ahead of a face that is merely below min — work is sequenced by what actually hurts throughput.</p>
         </div>
         <div class="card">
-          <div class="tag">Source</div>
-          <h3>Pull from reserve</h3>
-          <p>Replenishment draws from reserve and automated blocks, reusing the same movement layer as put-away — one mover network, not a separate pipeline.</p>
+          <div class="tag" data-i18n="repl.tag5">Source</div>
+          <h3 data-i18n="repl.h10">Pull from reserve</h3>
+          <p data-i18n="repl.p6">Replenishment draws from reserve and automated blocks, reusing the same movement layer as put-away — one mover network, not a separate pipeline.</p>
         </div>
         <div class="card">
-          <div class="tag">Configurable</div>
-          <h3>Your thresholds</h3>
-          <p>Min, max and the off-peak window are configuration per face, so you set the trade-off between carrying buffer and trip count yourself.</p>
+          <div class="tag" data-i18n="repl.tag6">Configurable</div>
+          <h3 data-i18n="repl.h11">Your thresholds</h3>
+          <p data-i18n="repl.p7">Min, max and the off-peak window are configuration per face, so you set the trade-off between carrying buffer and trip count yourself.</p>
         </div>
       </div>
     </div>
@@ -92,8 +106,8 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">Step by step</p>
-        <h2>How a face stays full.</h2>
+        <p class="eyebrow" data-i18n="repl.eyebrow3">Step by step</p>
+        <h2 data-i18n="repl.h3">How a face stays full.</h2>
         <ol class="steps">
           <li><strong>Watch the level.</strong> Each fixed pick face carries a SKU+UoM with a min and a max; openWCS tracks its current quantity against both.</li>
           <li><strong>Catch inbound first.</strong> When stock arrives, check whether the forward face has headroom — if so, route it direct-to-pick and skip a reserve put-away entirely.</li>
@@ -108,8 +122,8 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">At a glance</p>
-        <h2>Level drops → refill, or never empties.</h2>
+        <p class="eyebrow" data-i18n="repl.eyebrow4">At a glance</p>
+        <h2 data-i18n="repl.h4">Level drops → refill, or never empties.</h2>
       </div>
       <div class="arch">
 <pre>  inbound (SKU, HU) ─►  forward face has headroom?  ── yes ─►  <b>direct-to-pick</b> (cross-dock)
@@ -126,12 +140,12 @@
   <section>
     <div class="wrap">
       <div class="cta-band">
-        <p class="eyebrow">Configurable &amp; open</p>
-        <h2>Keep the faces full, your way.</h2>
-        <p>Replenishment shares the slotting engine's location model and the conveyor/ASRS movers. Read the slotting deep dive for how those faces are chosen in the first place.</p>
+        <p class="eyebrow" data-i18n="repl.eyebrow5">Configurable &amp; open</p>
+        <h2 data-i18n="repl.h5">Keep the faces full, your way.</h2>
+        <p data-i18n="repl.p8">Replenishment shares the slotting engine's location model and the conveyor/ASRS movers. Read the slotting deep dive for how those faces are chosen in the first place.</p>
         <div class="hero-cta" style="justify-content:center">
           <a class="btn btn-primary" href="slotting.html">Slotting deep dive</a>
-          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki/Slotting-and-Replenishment">Read the docs</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki/Slotting-and-Replenishment" data-i18n="repl.btn1">Read the docs</a>
         </div>
       </div>
     </div>
@@ -139,7 +153,7 @@
 
   <footer>
     <div class="wrap">
-      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span data-i18n="repl.foot5">openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
       <span><a href="functions.html">Functions</a> · <a href="slotting.html">Slotting</a> · <a href="asrs.html">ASRS &amp; slotting</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
     </div>
   </footer>
