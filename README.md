@@ -207,6 +207,15 @@ cd services/adapters/conveyor && go run .    # http://localhost:9091/healthz
 cd ui && npm install && npm run dev          # http://localhost:5173 (proxies /api -> gateway)
 ```
 
+### 5. Stand up a demo server (Ubuntu)
+One command on a fresh Ubuntu 22.04/24.04 box installs Docker + JDK 21, clones,
+builds the jars, and starts the whole stack:
+```bash
+curl -fsSL https://raw.githubusercontent.com/brettljausn-ai/openwcs/main/scripts/setup-demo.sh | sudo bash
+```
+To keep the server automatically up to date with `main` (poll-based timer or a
+CI-gated GitHub Actions runner), see [`deploy/README.md`](./deploy/README.md).
+
 ---
 
 ## Contributing
