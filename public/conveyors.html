@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Conveyor routing — openWCS</title>
+  <title data-i18n="conv.title">Conveyor routing — openWCS</title>
   <meta name="description" content="How openWCS routes handling units across conveyors: a vendor-neutral topology graph, WCS pathfinding to sequenced targets, per-loop capacity limits, a visual schematic editor, and topology learning from live scan traffic." />
   <meta name="theme-color" content="#061812" />
   <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/conveyors.html" />
@@ -16,28 +16,42 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <script defer src="i18n.js"></script>
 </head>
 <body id="top">
   <header class="nav">
     <div class="nav-inner">
       <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
       <nav class="nav-links">
-        <a href="index.html">← Overview</a>
-        <a href="automation.html">Automation</a>
-        <a href="functions.html">Functions</a>
-        <a href="asrs.html">ASRS</a>
+        <a href="index.html" data-i18n="conv.nav1">← Overview</a>
+        <a href="automation.html" data-i18n="conv.nav2">Automation</a>
+        <a href="functions.html" data-i18n="conv.nav3">Functions</a>
+        <a href="asrs.html" data-i18n="conv.nav4">ASRS</a>
       </nav>
       <div class="nav-right">
-        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+        <div class="lang" id="lang">
+          <button class="lang-toggle" id="lang-toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Select language">
+            <svg class="globe" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg>
+            <span class="lang-code" id="lang-code">EN</span>
+            <svg class="chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <ul class="lang-menu" id="lang-menu" role="listbox" aria-label="Language">
+            <li role="option" data-lang="en"><span>English</span></li>
+            <li role="option" data-lang="de"><span>Deutsch</span></li>
+            <li role="option" data-lang="fr"><span>Français</span></li>
+            <li role="option" data-lang="es"><span>Español</span></li>
+          </ul>
+        </div>
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
       </div>
     </div>
   </header>
 
   <section class="hero">
     <div class="wrap">
-      <p class="eyebrow">Deep dive · Conveyors</p>
-      <h1>Conveyor routing you can <span class="lime">see and change.</span></h1>
-      <p class="lead">
+      <p class="eyebrow" data-i18n="conv.eyebrow1">Deep dive · Conveyors</p>
+      <h1 data-i18n="conv.h1">Conveyor routing you can <span class="lime">see and change.</span></h1>
+      <p class="lead" data-i18n="conv.lead1">
         Conveyors from different vendors behave differently, and many have decision nodes where the
         hardware scans a handling unit and asks the control system <em>where next?</em>. openWCS answers
         that from a vendor-neutral topology graph it owns — not a black box buried in the PLC.
@@ -48,9 +62,9 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">How it works</p>
-        <h2>A graph the WCS owns, routed in real time.</h2>
-        <p>
+        <p class="eyebrow" data-i18n="conv.eyebrow2">How it works</p>
+        <h2 data-i18n="conv.h2">A graph the WCS owns, routed in real time.</h2>
+        <p data-i18n="conv.p1">
           The conveyor network is modelled as a graph of <strong>nodes</strong> (scanners, diverts,
           merges, segments) and directed <strong>edges</strong>. Each node carries its own hardware
           address, so the WCS knows exactly which device it is talking to.
@@ -58,34 +72,34 @@
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="tag">Topology graph</div>
-          <h3>Nodes, edges &amp; addresses</h3>
-          <p>Every decision point is a node with a hardware address; edges define where a unit can travel and at what cost. The whole layout is data, not firmware.</p>
+          <div class="tag" data-i18n="conv.tag1">Topology graph</div>
+          <h3 data-i18n="conv.h6">Nodes, edges &amp; addresses</h3>
+          <p data-i18n="conv.p2">Every decision point is a node with a hardware address; edges define where a unit can travel and at what cost. The whole layout is data, not firmware.</p>
         </div>
         <div class="card">
-          <div class="tag">Pathfinding</div>
-          <h3>Next-hop on every scan</h3>
-          <p>When a node scans a handling unit and reports its barcode + location, the WCS computes the shortest path to the unit's required target and replies with the next hop — live, per scan.</p>
+          <div class="tag" data-i18n="conv.tag2">Pathfinding</div>
+          <h3 data-i18n="conv.h7">Next-hop on every scan</h3>
+          <p data-i18n="conv.p3">When a node scans a handling unit and reports its barcode + location, the WCS computes the shortest path to the unit's required target and replies with the next hop — live, per scan.</p>
         </div>
         <div class="card">
-          <div class="tag">Sequenced targets</div>
-          <h3>Multiple targets, in order</h3>
-          <p>A unit can have several required targets in a particular sequence (e.g. scale → label → induct). The route plan walks them in order, recomputing after each.</p>
+          <div class="tag" data-i18n="conv.tag3">Sequenced targets</div>
+          <h3 data-i18n="conv.h8">Multiple targets, in order</h3>
+          <p data-i18n="conv.p4">A unit can have several required targets in a particular sequence (e.g. scale → label → induct). The route plan walks them in order, recomputing after each.</p>
         </div>
         <div class="card">
-          <div class="tag">Loop control</div>
-          <h3>Loop capacity limits</h3>
-          <p>Looping configurations have a maximum number of handling units allowed in the loop. Per-loop limits trigger <strong>HOLD</strong> or divert to an <strong>OVERFLOW</strong> target so the loop never jams.</p>
+          <div class="tag" data-i18n="conv.tag4">Loop control</div>
+          <h3 data-i18n="conv.h9">Loop capacity limits</h3>
+          <p data-i18n="conv.p5">Looping configurations have a maximum number of handling units allowed in the loop. Per-loop limits trigger <strong>HOLD</strong> or divert to an <strong>OVERFLOW</strong> target so the loop never jams.</p>
         </div>
         <div class="card">
-          <div class="tag">Admin UI</div>
-          <h3>Draw the schematic</h3>
-          <p>Admins draw the flow between nodes in a visual editor (React Flow) and set each node's hardware address — no code, no integrator change request.</p>
+          <div class="tag" data-i18n="conv.tag5">Admin UI</div>
+          <h3 data-i18n="conv.h10">Draw the schematic</h3>
+          <p data-i18n="conv.p6">Admins draw the flow between nodes in a visual editor (React Flow) and set each node's hardware address — no code, no integrator change request.</p>
         </div>
         <div class="card">
-          <div class="tag">Learning</div>
-          <h3>Discover from traffic</h3>
-          <p>Point the sniffer at defined source IPs and openWCS listens to scan telegrams, inferring nodes, edges and targets from real traffic to bootstrap or verify the topology.</p>
+          <div class="tag" data-i18n="conv.tag6">Learning</div>
+          <h3 data-i18n="conv.h11">Discover from traffic</h3>
+          <p data-i18n="conv.p7">Point the sniffer at defined source IPs and openWCS listens to scan telegrams, inferring nodes, edges and targets from real traffic to bootstrap or verify the topology.</p>
         </div>
       </div>
     </div>
@@ -94,8 +108,8 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">At a glance</p>
-        <h2>Scan in, next-hop out.</h2>
+        <p class="eyebrow" data-i18n="conv.eyebrow3">At a glance</p>
+        <h2 data-i18n="conv.h3">Scan in, next-hop out.</h2>
       </div>
       <div class="arch">
 <pre>  conveyor node ──(scan: barcode @ node)──►  <b>openWCS flow-orchestrator</b>
@@ -112,9 +126,9 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">Self-learning</p>
-        <h2>Discover the layout from <span class="lime">live traffic.</span></h2>
-        <p>
+        <p class="eyebrow" data-i18n="conv.eyebrow4">Self-learning</p>
+        <h2 data-i18n="conv.h4">Discover the layout from <span class="lime">live traffic.</span></h2>
+        <p data-i18n="conv.p8">
           Most conveyor topologies are documented once, then drift as lanes are re-routed and devices
           are swapped. Instead of trusting a stale drawing, openWCS can <strong>learn the graph from the
           telegrams the hardware is already emitting</strong> — turning every scan into evidence about how
@@ -123,34 +137,34 @@
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="tag">Sniffer</div>
-          <h3>Listen on allowed IPs</h3>
-          <p>The discovery sniffer is pointed at a defined allow-list of source IPs — the PLCs and scan controllers you trust. It only ingests telegrams from those endpoints, so it never picks up unrelated network chatter.</p>
+          <div class="tag" data-i18n="conv.tag7">Sniffer</div>
+          <h3 data-i18n="conv.h12">Listen on allowed IPs</h3>
+          <p data-i18n="conv.p9">The discovery sniffer is pointed at a defined allow-list of source IPs — the PLCs and scan controllers you trust. It only ingests telegrams from those endpoints, so it never picks up unrelated network chatter.</p>
         </div>
         <div class="card">
-          <div class="tag">Controller per endpoint</div>
-          <h3>Seed a node from each device</h3>
-          <p>Every PLC / scan controller on the allow-list is seeded as an endpoint in the graph. The address it reports from becomes a node's hardware address, so the learned topology already knows which physical device each node is.</p>
+          <div class="tag" data-i18n="conv.tag8">Controller per endpoint</div>
+          <h3 data-i18n="conv.h13">Seed a node from each device</h3>
+          <p data-i18n="conv.p10">Every PLC / scan controller on the allow-list is seeded as an endpoint in the graph. The address it reports from becomes a node's hardware address, so the learned topology already knows which physical device each node is.</p>
         </div>
         <div class="card">
-          <div class="tag">Infer nodes</div>
-          <h3>Where units get scanned</h3>
-          <p>Each distinct scan location that appears in the traffic becomes a candidate node. Repeated sightings confirm it; one-off noise stays low-confidence until it is seen again.</p>
+          <div class="tag" data-i18n="conv.tag9">Infer nodes</div>
+          <h3 data-i18n="conv.h14">Where units get scanned</h3>
+          <p data-i18n="conv.p11">Each distinct scan location that appears in the traffic becomes a candidate node. Repeated sightings confirm it; one-off noise stays low-confidence until it is seen again.</p>
         </div>
         <div class="card">
-          <div class="tag">Infer edges</div>
-          <h3>Follow a unit hop-to-hop</h3>
-          <p>By tracking the same handling unit across consecutive scans, openWCS infers a directed edge between the two nodes — the physical path the unit just travelled — and builds up the graph from observed transitions.</p>
+          <div class="tag" data-i18n="conv.tag10">Infer edges</div>
+          <h3 data-i18n="conv.h15">Follow a unit hop-to-hop</h3>
+          <p data-i18n="conv.p12">By tracking the same handling unit across consecutive scans, openWCS infers a directed edge between the two nodes — the physical path the unit just travelled — and builds up the graph from observed transitions.</p>
         </div>
         <div class="card">
-          <div class="tag">Infer targets</div>
-          <h3>Where flows terminate</h3>
-          <p>Nodes where units consistently leave the network — induct points, drop lanes, ship doors — surface as candidate targets, so the destinations the routing layer needs are discovered too, not hand-listed.</p>
+          <div class="tag" data-i18n="conv.tag11">Infer targets</div>
+          <h3 data-i18n="conv.h16">Where flows terminate</h3>
+          <p data-i18n="conv.p13">Nodes where units consistently leave the network — induct points, drop lanes, ship doors — surface as candidate targets, so the destinations the routing layer needs are discovered too, not hand-listed.</p>
         </div>
         <div class="card">
-          <div class="tag">Bootstrap or verify</div>
-          <h3>Propose, then promote</h3>
-          <p>The learned graph is a proposal an admin reviews in the same visual editor — accept it to bootstrap a greenfield site, or diff it against the live topology to catch drift on an existing one.</p>
+          <div class="tag" data-i18n="conv.tag12">Bootstrap or verify</div>
+          <h3 data-i18n="conv.h17">Propose, then promote</h3>
+          <p data-i18n="conv.p14">The learned graph is a proposal an admin reviews in the same visual editor — accept it to bootstrap a greenfield site, or diff it against the live topology to catch drift on an existing one.</p>
         </div>
       </div>
     </div>
@@ -159,12 +173,12 @@
   <section>
     <div class="wrap">
       <div class="cta-band">
-        <p class="eyebrow">Open &amp; vendor-neutral</p>
-        <h2>Route any conveyor, your way.</h2>
-        <p>The routing logic is open source and runs behind a uniform device contract, so adding a vendor means an adapter — not a rewrite.</p>
+        <p class="eyebrow" data-i18n="conv.eyebrow5">Open &amp; vendor-neutral</p>
+        <h2 data-i18n="conv.h5">Route any conveyor, your way.</h2>
+        <p data-i18n="conv.p15">The routing logic is open source and runs behind a uniform device contract, so adding a vendor means an adapter — not a rewrite.</p>
         <div class="hero-cta" style="justify-content:center">
-          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
-          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki/Equipment-Integration">Read the docs</a>
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki/Equipment-Integration" data-i18n="conv.btn1">Read the docs</a>
         </div>
       </div>
     </div>
@@ -172,7 +186,7 @@
 
   <footer>
     <div class="wrap">
-      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span data-i18n="conv.foot5">openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
       <span><a href="index.html">Overview</a> · <a href="automation.html">Automation</a> · <a href="asrs.html">ASRS</a> · <a href="gtp.html">Goods-to-person</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
     </div>
   </footer>

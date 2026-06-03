@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Picking — openWCS</title>
+  <title data-i18n="pick.title">Picking — openWCS</title>
   <meta name="description" content="Picking in openWCS: the planning side — stock allocation, multi-size cubing and batch-pick planning — is built today. Operator pick confirmation, pick-by-light/voice/RF and goods-to-person station workflow are on the roadmap." />
   <meta name="theme-color" content="#061812" />
   <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/picking.html" />
@@ -16,30 +16,44 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <script defer src="i18n.js"></script>
 </head>
 <body id="top">
   <header class="nav">
     <div class="nav-inner">
       <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
       <nav class="nav-links">
-        <a href="index.html">← Overview</a>
-        <a href="functions.html">Functions</a>
-        <a href="automation.html">Automation</a>
+        <a href="index.html" data-i18n="pick.nav1">← Overview</a>
+        <a href="functions.html" data-i18n="pick.nav2">Functions</a>
+        <a href="automation.html" data-i18n="pick.nav3">Automation</a>
       </nav>
       <div class="nav-right">
-        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+        <div class="lang" id="lang">
+          <button class="lang-toggle" id="lang-toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Select language">
+            <svg class="globe" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg>
+            <span class="lang-code" id="lang-code">EN</span>
+            <svg class="chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <ul class="lang-menu" id="lang-menu" role="listbox" aria-label="Language">
+            <li role="option" data-lang="en"><span>English</span></li>
+            <li role="option" data-lang="de"><span>Deutsch</span></li>
+            <li role="option" data-lang="fr"><span>Français</span></li>
+            <li role="option" data-lang="es"><span>Español</span></li>
+          </ul>
+        </div>
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
       </div>
     </div>
   </header>
 
   <section class="hero">
     <div class="wrap">
-      <p class="eyebrow">Function · Picking</p>
-      <h1>The plan is built. <span class="lime">Execution is next.</span></h1>
-      <p class="lead">
+      <p class="eyebrow" data-i18n="pick.eyebrow1">Function · Picking</p>
+      <h1 data-i18n="pick.h1">The plan is built. <span class="lime">Execution is next.</span></h1>
+      <p class="lead" data-i18n="pick.lead1">
         openWCS already plans the pick — allocation, cubing and batch planning are
-        <span class="pill pill-built">Built</span>. The operator-facing execution layer is
-        <span class="pill pill-roadmap">Roadmap</span>: planned and designed, not yet implemented.
+        <span class="pill pill-built" data-i18n="pick.pill1">Built</span>. The operator-facing execution layer is
+        <span class="pill pill-roadmap" data-i18n="pick.pill5">Roadmap</span>: planned and designed, not yet implemented.
       </p>
       <p class="status-line">⚑ Pick execution is planned — not yet implemented. Pick planning below is live today.</p>
     </div>
@@ -48,28 +62,28 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">Built today</p>
-        <h2>Pick planning that's live.</h2>
-        <p>
+        <p class="eyebrow" data-i18n="pick.eyebrow2">Built today</p>
+        <h2 data-i18n="pick.h2">Pick planning that's live.</h2>
+        <p data-i18n="pick.p1">
           Before anyone touches a tote, the hard decisions are made: what stock to commit, how it fits a
           container, and how to group lines into efficient work.
         </p>
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="card-head"><div class="tag">Allocation</div><span class="pill pill-built">Built</span></div>
-          <h3>Commit the right stock</h3>
-          <p>Orders are allocated to specific stock, respecting availability and the location model — so each line points at a real, reachable unit before work is released.</p>
+          <div class="card-head"><div class="tag" data-i18n="pick.tag1">Allocation</div><span class="pill pill-built" data-i18n="pick.pill2">Built</span></div>
+          <h3 data-i18n="pick.h6">Commit the right stock</h3>
+          <p data-i18n="pick.p2">Orders are allocated to specific stock, respecting availability and the location model — so each line points at a real, reachable unit before work is released.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag">Cubing</div><span class="pill pill-built">Built</span></div>
-          <h3>Multi-size cubing</h3>
-          <p>Lines are fitted into containers across multiple carton/tote sizes, so the planner knows how many of which size a set of orders needs before it hits the floor.</p>
+          <div class="card-head"><div class="tag" data-i18n="pick.tag2">Cubing</div><span class="pill pill-built" data-i18n="pick.pill3">Built</span></div>
+          <h3 data-i18n="pick.h7">Multi-size cubing</h3>
+          <p data-i18n="pick.p3">Lines are fitted into containers across multiple carton/tote sizes, so the planner knows how many of which size a set of orders needs before it hits the floor.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag">Batch planning</div><span class="pill pill-built">Built</span></div>
-          <h3>Group lines into work</h3>
-          <p>Batch-pick planning groups order lines into efficient pick work, the basis for wave / batch picking — the planning that execution will later drive against.</p>
+          <div class="card-head"><div class="tag" data-i18n="pick.tag3">Batch planning</div><span class="pill pill-built" data-i18n="pick.pill4">Built</span></div>
+          <h3 data-i18n="pick.h8">Group lines into work</h3>
+          <p data-i18n="pick.p4">Batch-pick planning groups order lines into efficient pick work, the basis for wave / batch picking — the planning that execution will later drive against.</p>
         </div>
       </div>
     </div>
@@ -78,28 +92,28 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">On the roadmap</p>
-        <h2>Putting the plan into operators' hands.</h2>
-        <p>
+        <p class="eyebrow" data-i18n="pick.eyebrow3">On the roadmap</p>
+        <h2 data-i18n="pick.h3">Putting the plan into operators' hands.</h2>
+        <p data-i18n="pick.p5">
           The execution layer — confirming picks, guiding operators, running goods-to-person stations — is
           designed but not built. Framed honestly so you know exactly where the line is.
         </p>
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="card-head"><div class="tag">Confirmation</div><span class="pill pill-roadmap">Roadmap</span></div>
-          <h3>Confirm the pick</h3>
-          <p>Planned: operator and goods-to-person pick confirmation that closes out a planned line against what was physically taken. Not yet implemented.</p>
+          <div class="card-head"><div class="tag" data-i18n="pick.tag4">Confirmation</div><span class="pill pill-roadmap" data-i18n="pick.pill6">Roadmap</span></div>
+          <h3 data-i18n="pick.h9">Confirm the pick</h3>
+          <p data-i18n="pick.p6">Planned: operator and goods-to-person pick confirmation that closes out a planned line against what was physically taken. Not yet implemented.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag">Guidance</div><span class="pill pill-roadmap">Roadmap</span></div>
-          <h3>Light / voice / RF</h3>
-          <p>Planned: pick-by-light, pick-by-voice and RF-gun guidance so operators are directed line-by-line. Designed for, not yet built.</p>
+          <div class="card-head"><div class="tag" data-i18n="pick.tag5">Guidance</div><span class="pill pill-roadmap" data-i18n="pick.pill7">Roadmap</span></div>
+          <h3 data-i18n="pick.h10">Light / voice / RF</h3>
+          <p data-i18n="pick.p7">Planned: pick-by-light, pick-by-voice and RF-gun guidance so operators are directed line-by-line. Designed for, not yet built.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag">GTP workflow</div><span class="pill pill-roadmap">Roadmap</span></div>
-          <h3>Goods-to-person stations</h3>
-          <p>Planned: the full GTP-station workflow — presenting HUs, capturing the pick, releasing the carrier — on top of the ASRS retrieval that already brings units to the station.</p>
+          <div class="card-head"><div class="tag" data-i18n="pick.tag6">GTP workflow</div><span class="pill pill-roadmap" data-i18n="pick.pill8">Roadmap</span></div>
+          <h3 data-i18n="pick.h11">Goods-to-person stations</h3>
+          <p data-i18n="pick.p8">Planned: the full GTP-station workflow — presenting HUs, capturing the pick, releasing the carrier — on top of the ASRS retrieval that already brings units to the station.</p>
         </div>
       </div>
     </div>
@@ -108,8 +122,8 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">At a glance</p>
-        <h2>Plan today → execute on the roadmap.</h2>
+        <p class="eyebrow" data-i18n="pick.eyebrow4">At a glance</p>
+        <h2 data-i18n="pick.h4">Plan today → execute on the roadmap.</h2>
       </div>
       <div class="arch">
 <pre>  order ─►  <b>allocate</b> → <b>cube</b> → <b>batch-plan</b>     (built)
@@ -123,12 +137,12 @@
   <section>
     <div class="wrap">
       <div class="cta-band">
-        <p class="eyebrow">Open &amp; honest</p>
-        <h2>Follow execution as it lands.</h2>
-        <p>The planning that feeds picking is the same engine behind slotting and ASRS retrieval. Execution is tracked in the open.</p>
+        <p class="eyebrow" data-i18n="pick.eyebrow5">Open &amp; honest</p>
+        <h2 data-i18n="pick.h5">Follow execution as it lands.</h2>
+        <p data-i18n="pick.p9">The planning that feeds picking is the same engine behind slotting and ASRS retrieval. Execution is tracked in the open.</p>
         <div class="hero-cta" style="justify-content:center">
           <a class="btn btn-primary" href="asrs.html">ASRS &amp; GTP retrieval</a>
-          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs" data-i18n="pick.btn1">View on GitHub</a>
         </div>
       </div>
     </div>
@@ -136,7 +150,7 @@
 
   <footer>
     <div class="wrap">
-      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span data-i18n="pick.foot5">openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
       <span><a href="functions.html">Functions</a> · <a href="asrs.html">ASRS &amp; slotting</a> · <a href="slotting.html">Slotting</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
     </div>
   </footer>

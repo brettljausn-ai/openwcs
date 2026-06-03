@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cycle counting — openWCS</title>
+  <title data-i18n="cc.title">Cycle counting — openWCS</title>
   <meta name="description" content="Cycle / stock counting in openWCS: a COUNT order type, a StockAdjusted projection and a sample BPMN skeleton exist today; counting tasks, blind and variance counts, reconciliation and the count UI are on the roadmap." />
   <meta name="theme-color" content="#061812" />
   <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/cycle-counting.html" />
@@ -16,27 +16,41 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <script defer src="i18n.js"></script>
 </head>
 <body id="top">
   <header class="nav">
     <div class="nav-inner">
       <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
       <nav class="nav-links">
-        <a href="index.html">← Overview</a>
-        <a href="functions.html">Functions</a>
-        <a href="automation.html">Automation</a>
+        <a href="index.html" data-i18n="cc.nav1">← Overview</a>
+        <a href="functions.html" data-i18n="cc.nav2">Functions</a>
+        <a href="automation.html" data-i18n="cc.nav3">Automation</a>
       </nav>
       <div class="nav-right">
-        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+        <div class="lang" id="lang">
+          <button class="lang-toggle" id="lang-toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Select language">
+            <svg class="globe" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg>
+            <span class="lang-code" id="lang-code">EN</span>
+            <svg class="chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <ul class="lang-menu" id="lang-menu" role="listbox" aria-label="Language">
+            <li role="option" data-lang="en"><span>English</span></li>
+            <li role="option" data-lang="de"><span>Deutsch</span></li>
+            <li role="option" data-lang="fr"><span>Français</span></li>
+            <li role="option" data-lang="es"><span>Español</span></li>
+          </ul>
+        </div>
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
       </div>
     </div>
   </header>
 
   <section class="hero">
     <div class="wrap">
-      <p class="eyebrow">Function · Cycle counting <span class="pill pill-roadmap">Roadmap</span></p>
-      <h1>Counting, <span class="lime">scaffolded.</span></h1>
-      <p class="lead">
+      <p class="eyebrow" data-i18n="cc.eyebrow1">Function · Cycle counting <span class="pill pill-roadmap" data-i18n="cc.pill4">Roadmap</span></p>
+      <h1 data-i18n="cc.h1">Counting, <span class="lime">scaffolded.</span></h1>
+      <p class="lead" data-i18n="cc.lead1">
         Cycle and stock counting keep recorded inventory honest. The foundations exist in openWCS — but
         the working count cycle is designed, not yet implemented.
       </p>
@@ -47,28 +61,28 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">What exists today</p>
-        <h2>The foundations are in the codebase.</h2>
-        <p>
+        <p class="eyebrow" data-i18n="cc.eyebrow2">What exists today</p>
+        <h2 data-i18n="cc.h2">The foundations are in the codebase.</h2>
+        <p data-i18n="cc.p1">
           These pieces are present already — the order, the event projection and a process skeleton — so
           the roadmap builds on real groundwork rather than a blank page.
         </p>
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="card-head"><div class="tag">COUNT order</div><span class="pill pill-built">Built</span></div>
-          <h3>An order type to count</h3>
-          <p>A dedicated COUNT order type exists, giving counting work a first-class place in the order model rather than bolting it on later.</p>
+          <div class="card-head"><div class="tag" data-i18n="cc.tag1">COUNT order</div><span class="pill pill-built" data-i18n="cc.pill1">Built</span></div>
+          <h3 data-i18n="cc.h6">An order type to count</h3>
+          <p data-i18n="cc.p2">A dedicated COUNT order type exists, giving counting work a first-class place in the order model rather than bolting it on later.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag">Projection</div><span class="pill pill-built">Built</span></div>
-          <h3>StockAdjusted events</h3>
-          <p>A StockAdjusted projection is in place, so an adjustment arising from a count has a defined event and read model to land in.</p>
+          <div class="card-head"><div class="tag" data-i18n="cc.tag2">Projection</div><span class="pill pill-built" data-i18n="cc.pill2">Built</span></div>
+          <h3 data-i18n="cc.h7">StockAdjusted events</h3>
+          <p data-i18n="cc.p3">A StockAdjusted projection is in place, so an adjustment arising from a count has a defined event and read model to land in.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag">BPMN skeleton</div><span class="pill pill-built">Built</span></div>
-          <h3>A sample process</h3>
-          <p>A sample BPMN skeleton sketches the count flow, ready to grow into the real orchestration that drives tasks and reconciliation.</p>
+          <div class="card-head"><div class="tag" data-i18n="cc.tag3">BPMN skeleton</div><span class="pill pill-built" data-i18n="cc.pill3">Built</span></div>
+          <h3 data-i18n="cc.h8">A sample process</h3>
+          <p data-i18n="cc.p4">A sample BPMN skeleton sketches the count flow, ready to grow into the real orchestration that drives tasks and reconciliation.</p>
         </div>
       </div>
     </div>
@@ -77,33 +91,33 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">On the roadmap</p>
-        <h2>The working count cycle.</h2>
-        <p>
+        <p class="eyebrow" data-i18n="cc.eyebrow3">On the roadmap</p>
+        <h2 data-i18n="cc.h3">The working count cycle.</h2>
+        <p data-i18n="cc.p5">
           Turning the scaffold into an operable function: generating tasks, capturing counts without
           bias, resolving variances and giving operators a UI.
         </p>
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="card-head"><div class="tag">Tasks</div><span class="pill pill-roadmap">Roadmap</span></div>
-          <h3>Counting tasks</h3>
-          <p>Planned: generating and dispatching counting tasks — by location, by velocity class or on a cycle — from the COUNT order. Not yet implemented.</p>
+          <div class="card-head"><div class="tag" data-i18n="cc.tag4">Tasks</div><span class="pill pill-roadmap" data-i18n="cc.pill5">Roadmap</span></div>
+          <h3 data-i18n="cc.h9">Counting tasks</h3>
+          <p data-i18n="cc.p6">Planned: generating and dispatching counting tasks — by location, by velocity class or on a cycle — from the COUNT order. Not yet implemented.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag">Count modes</div><span class="pill pill-roadmap">Roadmap</span></div>
-          <h3>Blind &amp; variance counts</h3>
-          <p>Planned: blind counts that hide the expected quantity, plus variance counts that re-count only where the first pass disagreed. Designed for, not yet built.</p>
+          <div class="card-head"><div class="tag" data-i18n="cc.tag5">Count modes</div><span class="pill pill-roadmap" data-i18n="cc.pill6">Roadmap</span></div>
+          <h3 data-i18n="cc.h10">Blind &amp; variance counts</h3>
+          <p data-i18n="cc.p7">Planned: blind counts that hide the expected quantity, plus variance counts that re-count only where the first pass disagreed. Designed for, not yet built.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag">Reconciliation</div><span class="pill pill-roadmap">Roadmap</span></div>
-          <h3>Resolve &amp; adjust</h3>
-          <p>Planned: reconciliation that compares counted vs recorded, posts a StockAdjusted event within tolerance and escalates the rest. Not yet implemented.</p>
+          <div class="card-head"><div class="tag" data-i18n="cc.tag6">Reconciliation</div><span class="pill pill-roadmap" data-i18n="cc.pill7">Roadmap</span></div>
+          <h3 data-i18n="cc.h11">Resolve &amp; adjust</h3>
+          <p data-i18n="cc.p8">Planned: reconciliation that compares counted vs recorded, posts a StockAdjusted event within tolerance and escalates the rest. Not yet implemented.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag">UI</div><span class="pill pill-roadmap">Roadmap</span></div>
-          <h3>Operator &amp; review screens</h3>
-          <p>Planned: the count UI for operators to enter counts and for supervisors to review variances and approve adjustments. Designed, not yet built.</p>
+          <div class="card-head"><div class="tag" data-i18n="cc.tag7">UI</div><span class="pill pill-roadmap" data-i18n="cc.pill8">Roadmap</span></div>
+          <h3 data-i18n="cc.h12">Operator &amp; review screens</h3>
+          <p data-i18n="cc.p9">Planned: the count UI for operators to enter counts and for supervisors to review variances and approve adjustments. Designed, not yet built.</p>
         </div>
       </div>
     </div>
@@ -112,8 +126,8 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">At a glance</p>
-        <h2>Foundation today → cycle on the roadmap.</h2>
+        <p class="eyebrow" data-i18n="cc.eyebrow4">At a glance</p>
+        <h2 data-i18n="cc.h4">Foundation today → cycle on the roadmap.</h2>
       </div>
       <div class="arch">
 <pre>  <b>COUNT order</b> · <b>StockAdjusted projection</b> · <b>sample BPMN</b>     (built)
@@ -127,12 +141,12 @@
   <section>
     <div class="wrap">
       <div class="cta-band">
-        <p class="eyebrow">Open &amp; honest</p>
-        <h2>Follow counting as it's built.</h2>
-        <p>The COUNT order and StockAdjusted projection are in the repo today; the count cycle is tracked in the open.</p>
+        <p class="eyebrow" data-i18n="cc.eyebrow5">Open &amp; honest</p>
+        <h2 data-i18n="cc.h5">Follow counting as it's built.</h2>
+        <p data-i18n="cc.p10">The COUNT order and StockAdjusted projection are in the repo today; the count cycle is tracked in the open.</p>
         <div class="hero-cta" style="justify-content:center">
-          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
-          <a class="btn btn-ghost" href="functions.html">Back to functions</a>
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+          <a class="btn btn-ghost" href="functions.html" data-i18n="cc.btn1">Back to functions</a>
         </div>
       </div>
     </div>
@@ -140,7 +154,7 @@
 
   <footer>
     <div class="wrap">
-      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span data-i18n="cc.foot5">openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
       <span><a href="functions.html">Functions</a> · <a href="picking.html">Picking</a> · <a href="kpi-dashboards.html">KPI dashboards</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
     </div>
   </footer>
