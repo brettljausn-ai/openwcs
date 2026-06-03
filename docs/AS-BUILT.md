@@ -298,13 +298,18 @@ audit history).
 - `POST /process/instances` — start an instance (`processKey`, optional `businessKey` + variables);
   `GET /process/instances/{id}` — running or historic status.
 - **Service tasks originate WCS work** via Spring-bean delegates referenced as
-  `flowable:delegateExpression="${...}"`. The shipped `dispatchDeviceTask` delegate reads process
-  variables and calls flow-orchestrator to create a device task — so a BPMN process can drive
-  equipment. A sample `goods-in` process demonstrates this (start → dispatch device task → end).
+  `flowable:delegateExpression="${...}"`: `dispatchDeviceTask` (→ flow-orchestrator device task),
+  `assignRoute` (→ flow-orchestrator conveyor route plan), `releaseOrder` (→ order-management
+  release/allocate). So a BPMN process can drive equipment and orders.
+- **User/wait tasks**: `GET /process/tasks?processInstanceId=|assignee=` lists them;
+  `POST /process/tasks/{id}/complete` completes one (with optional variables).
+- **Sample processes** (auto-deployed): `goods-in` (start → dispatch device task → end);
+  `outbound` (release order → **user task** confirm pick → dispatch move → end); `cycle-count`
+  (operator **user task** to count a location).
 
 This closes the Phase 2 gap where device tasks/routes were driven only directly via the API:
-a process can now originate them. Richer processes (receiving/putaway, outbound, cycle count)
-and a process designer UI are follow-ups.
+a process now originates them, including operator wait-steps. A process **designer UI** is the
+remaining follow-up.
 
 ## 8. The two working vertical slices
 

@@ -19,4 +19,8 @@ public final class ProcessDtos {
 
     public record InstanceView(String id, String processDefinitionKey, String businessKey, boolean ended) {
     }
+
+    /** A user/wait task awaiting completion. */
+    public record TaskView(String id, String name, String assignee, String processInstanceId) {
+    }
 }
