@@ -39,7 +39,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop + `POST /tasks` device-task simulator. |
 | adapters/{asrs,amr-geekplus,autostore} | 9096, 9093, 9094 | 🟦 | Go; health/readiness + stub loop. (asrs on 9096 — 9092 is Kafka's.) |
 | adapters/conveyor-sniffer | 9095 | 🟡 | Go; ingests scan telegrams from defined source IPs (allowlist + pluggable decoder) and posts observations to the WCS for topology learning. |
-| ui | 5173 | 🟡 | React/Vite; **conveyor topology editor** (React Flow) + **BPMN process designer** (bpmn-js: model/deploy processes, start instances, complete user tasks), tab-switched. |
+| ui | 5173 dev / 80 prod | 🟡 | React/Vite; **conveyor topology editor** (React Flow) + **BPMN process designer** (bpmn-js: model/deploy processes, start instances, complete user tasks), tab-switched. In compose (`--profile apps`) it's built and served by nginx on host **:80**, proxying `/api` → gateway. |
 
 All Java services: Java 21 / Spring Boot 3.3.2, PostgreSQL 16 via Flyway + JPA/Hibernate 6
 (`ddl-auto: validate` — migrations own the schema), UUID keys, JSONB via `@JdbcTypeCode`.

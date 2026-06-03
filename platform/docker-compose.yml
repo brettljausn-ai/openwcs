@@ -299,5 +299,11 @@ services:
       WCS_OBSERVATIONS_URL: http://flow-orchestrator:8085/api/flow/conveyor/observations
       # WAREHOUSE_ID + ALLOWED_IPS are site-specific; set per deployment.
 
+  ui:
+    profiles: ["apps"]
+    build: ../ui
+    ports: ["80:80"]          # browse the demo at http://<host>/  (nginx proxies /api -> gateway)
+    depends_on: [gateway]
+
 volumes:
   pgdata:
