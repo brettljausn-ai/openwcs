@@ -71,6 +71,7 @@ services:
       OPENWCS_URI_INTEGRATION_SAP: http://integration-sap:8089
       OPENWCS_URI_INTEGRATION_MANHATTAN: http://integration-manhattan:8090
       OPENWCS_URI_INTEGRATION_HOST: http://integration-host:8092
+      OPENWCS_URI_SLOTTING: http://slotting:8093
 
   master-data:
     profiles: ["apps"]
@@ -139,6 +140,20 @@ services:
       OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
       # Per-shipper dispatch-label barcodes come from the host via integration-sap (ADR 0002).
       OPENWCS_ALLOCATION_HOST_LABEL_BASE_URL: http://integration-sap:8089
+
+  slotting:
+    profiles: ["apps"]
+    build: ../services/slotting
+    ports: ["8093:8093"]
+    depends_on: [postgres, master-data, inventory]
+    environment:
+      # Service-local `slotting` schema; calls master-data (blocks/locations) + inventory (on-hand).
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
+      SPRING_DATASOURCE_USERNAME: openwcs
+      SPRING_DATASOURCE_PASSWORD: openwcs
+      OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
+      OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
+      OPENWCS_TXLOG_BASE_URL: http://txlog:8086
 
   flow-orchestrator:
     profiles: ["apps"]

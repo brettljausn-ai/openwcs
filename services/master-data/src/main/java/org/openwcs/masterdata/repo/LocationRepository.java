@@ -15,18 +15,23 @@ public interface LocationRepository extends JpaRepository<Location, UUID> {
 
     List<Location> findByParentId(UUID parentId);
 
-    /** Paged search within a warehouse with optional purpose / type / parent filters. */
+    /** Storage locations in a block (the slotting candidate pool). */
+    List<Location> findByWarehouseIdAndBlockId(UUID warehouseId, UUID blockId);
+
+    /** Paged search within a warehouse with optional purpose / type / parent / block filters. */
     @Query("""
         select l from Location l
         where l.warehouseId = :warehouseId
           and (:purpose is null or l.purpose = :purpose)
           and (:locationType is null or l.locationType = :locationType)
           and (:parentId is null or l.parentId = :parentId)
+          and (:blockId is null or l.blockId = :blockId)
         """)
     Page<Location> search(
             @Param("warehouseId") UUID warehouseId,
             @Param("purpose") String purpose,
             @Param("locationType") String locationType,
             @Param("parentId") UUID parentId,
+            @Param("blockId") UUID blockId,
             Pageable pageable);
 }

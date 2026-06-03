@@ -17,6 +17,9 @@ spring:
         - id: allocation
           uri: ${OPENWCS_URI_ALLOCATION:http://localhost:8091}
           predicates: [ "Path=/api/allocation/**" ]
+        - id: slotting
+          uri: ${OPENWCS_URI_SLOTTING:http://localhost:8093}
+          predicates: [ "Path=/api/slotting/**" ]
         - id: process-engine
           uri: ${OPENWCS_URI_PROCESS_ENGINE:http://localhost:8083}
           predicates: [ "Path=/api/process/**" ]

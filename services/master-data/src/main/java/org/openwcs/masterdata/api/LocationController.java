@@ -35,9 +35,10 @@ public class LocationController {
             @RequestParam UUID warehouseId,
             @RequestParam(required = false) String purpose,
             @RequestParam(required = false) String locationType,
-            @RequestParam(required = false) UUID parentId) {
+            @RequestParam(required = false) UUID parentId,
+            @RequestParam(required = false) UUID blockId) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("code"));
-        return PageResponse.of(locations.search(warehouseId, purpose, locationType, parentId, pageable));
+        return PageResponse.of(locations.search(warehouseId, purpose, locationType, parentId, blockId, pageable));
     }
 
     @PostMapping

@@ -73,6 +73,26 @@ public class Location extends Auditable {
     @Column(name = "replenishment_class")
     private String replenishmentClass;
 
+    /** Storage block this location belongs to (the slotting pool); null for unslotted topology. */
+    @Column(name = "block_id")
+    private UUID blockId;
+
+    /** Aisle identifier within the block (for redundancy + workload balancing). */
+    @Column(name = "aisle")
+    private String aisle;
+
+    /** Rack tier / level. */
+    @Column(name = "rack_level")
+    private Integer rackLevel;
+
+    /** Multi-deep capacity in handling units (1 = single-deep, 3 = triple-deep). */
+    @Column(name = "lane_depth", nullable = false)
+    private int laneDepth = 1;
+
+    /** Travel-time / sequence to the aisle port / exit; lower = closer = faster-mover zone. */
+    @Column(name = "distance_to_exit")
+    private java.math.BigDecimal distanceToExit;
+
     public UUID getId() {
         return id;
     }
@@ -183,5 +203,45 @@ public class Location extends Auditable {
 
     public void setReplenishmentClass(String replenishmentClass) {
         this.replenishmentClass = replenishmentClass;
+    }
+
+    public UUID getBlockId() {
+        return blockId;
+    }
+
+    public void setBlockId(UUID blockId) {
+        this.blockId = blockId;
+    }
+
+    public String getAisle() {
+        return aisle;
+    }
+
+    public void setAisle(String aisle) {
+        this.aisle = aisle;
+    }
+
+    public Integer getRackLevel() {
+        return rackLevel;
+    }
+
+    public void setRackLevel(Integer rackLevel) {
+        this.rackLevel = rackLevel;
+    }
+
+    public int getLaneDepth() {
+        return laneDepth;
+    }
+
+    public void setLaneDepth(int laneDepth) {
+        this.laneDepth = laneDepth;
+    }
+
+    public java.math.BigDecimal getDistanceToExit() {
+        return distanceToExit;
+    }
+
+    public void setDistanceToExit(java.math.BigDecimal distanceToExit) {
+        this.distanceToExit = distanceToExit;
     }
 }
