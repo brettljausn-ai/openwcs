@@ -11,4 +11,7 @@ public interface MasterDataClient {
 
     /** True if an ACTIVE route with this code exists. */
     boolean routeExists(String code);
+
+    /** True if an ACTIVE label template with this code exists. */
+    boolean labelTemplateExists(String code);
 }

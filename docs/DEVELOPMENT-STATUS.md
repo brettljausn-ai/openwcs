@@ -22,7 +22,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | gateway | Java | 8080 | ✅ | Routes `/api/<service>/**`; JWT validation (toggleable) + forwards/strips X-Auth-* identity. |
 | master-data | Java | 8081 | ✅ | Catalog CRUD + outbound config: shippers, fulfillment config (pick types, cubing mode, batch config); dispatch reference data: shipping-service + route catalogs, label templates (+ ZPL/PDF render). |
 | inventory | Java | 8082 | ✅ | Stock projection + SKU- and location-scoped availability/reservations. |
-| order-management | Java | 8084 | ✅ | Orders of all types (INBOUND/OUTBOUND/COUNT/ADJUSTMENT), lifecycle, release mgmt, dispatch service/route codes (validated against master-data), line stock transactions via a local outbox → txlog (audit: actor required); delegates allocation. |
+| order-management | Java | 8084 | ✅ | Orders of all types (INBOUND/OUTBOUND/COUNT/ADJUSTMENT), lifecycle, release mgmt, dispatch service/route + ship-to + label-template (validated against master-data), line stock transactions via a local outbox → txlog (audit: actor required); delegates allocation. |
 | allocation | Java | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing (APP multi-size largest-first / 1:1) with per-line carton traceability, batch picking. |
 | txlog | Java | 8086 | ✅ | Append-only events + outbox + relay. |
 | process-engine | Java | 8083 | 🟦 | Needs Flowable BPMN + designer. |

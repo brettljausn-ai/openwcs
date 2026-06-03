@@ -164,6 +164,20 @@ components:
     OrderStatus:
       type: string
       enum: [CREATED, RELEASED, ALLOCATED, PARTIALLY_ALLOCATED, NOT_FULFILLABLE, CUBING_FAILED, SHIPPED, CANCELLED]
+    ShipToAddress:
+      type: object
+      nullable: true
+      description: Ship-to address; used to populate dispatch labels.
+      properties:
+        name: { type: string, nullable: true }
+        line1: { type: string, nullable: true }
+        line2: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        region: { type: string, nullable: true }
+        postcode: { type: string, nullable: true }
+        country: { type: string, nullable: true }
+        contact: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
     CreateOrderRequest:
       type: object
       required: [orderRef, warehouseId, lines]
@@ -176,6 +190,8 @@ components:
         dispatchBy: { type: string, format: date-time, nullable: true, description: Required ship / cut-off time. }
         serviceCode: { type: string, nullable: true, description: "Dispatch service level (master-data shipping-service code)." }
         routeCode: { type: string, nullable: true, description: "Dispatch route (master-data route code, host-fed)." }
+        shipTo: { $ref: '#/components/schemas/ShipToAddress' }
+        labelTemplateCode: { type: string, nullable: true, description: "Override dispatch-label template (master-data label-template code)." }
         lines:
           type: array
           items:
@@ -210,6 +226,8 @@ components:
           description: Reason for the current status — e.g. why cubing failed when CUBING_FAILED.
         serviceCode: { type: string, nullable: true }
         routeCode: { type: string, nullable: true }
+        shipTo: { $ref: '#/components/schemas/ShipToAddress' }
+        labelTemplateCode: { type: string, nullable: true }
         priority: { type: integer }
         dispatchBy: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }

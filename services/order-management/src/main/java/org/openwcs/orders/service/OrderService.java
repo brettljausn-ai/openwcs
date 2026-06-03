@@ -68,8 +68,13 @@ public class OrderService {
         if (request.routeCode() != null && !masterData.routeExists(request.routeCode())) {
             throw new IllegalArgumentException("Unknown route: " + request.routeCode());
         }
+        if (request.labelTemplateCode() != null && !masterData.labelTemplateExists(request.labelTemplateCode())) {
+            throw new IllegalArgumentException("Unknown label template: " + request.labelTemplateCode());
+        }
         order.setServiceCode(request.serviceCode());
         order.setRouteCode(request.routeCode());
+        order.setShipTo(request.shipTo());
+        order.setLabelTemplateCode(request.labelTemplateCode());
         order.setStatus(OrderStatus.CREATED);
 
         int lineNo = 1;

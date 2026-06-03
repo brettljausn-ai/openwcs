@@ -27,6 +27,11 @@ public class HttpMasterDataClient implements MasterDataClient {
         return activeExists("/api/master-data/routes", code);
     }
 
+    @Override
+    public boolean labelTemplateExists(String code) {
+        return activeExists("/api/master-data/label-templates", code);
+    }
+
     private boolean activeExists(String path, String code) {
         List<CatalogEntry> hits = http.get()
                 .uri(uri -> uri.path(path).queryParam("code", code).build())

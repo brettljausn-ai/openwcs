@@ -18,6 +18,8 @@ public record OrderView(
         String statusDetail,
         String serviceCode,
         String routeCode,
+        org.openwcs.orders.domain.ShipToAddress shipTo,
+        String labelTemplateCode,
         int priority,
         Instant dispatchBy,
         Instant createdAt,
@@ -51,7 +53,7 @@ public record OrderView(
                 .toList();
         return new OrderView(o.getId(), o.getOrderRef(), o.getOrderType().name(), o.getWarehouseId(),
                 o.getCustomerRef(), o.getStatus().name(), o.getStatusDetail(),
-                o.getServiceCode(), o.getRouteCode(), o.getPriority(),
-                o.getDispatchBy(), o.getCreatedAt(), lines);
+                o.getServiceCode(), o.getRouteCode(), o.getShipTo(), o.getLabelTemplateCode(),
+                o.getPriority(), o.getDispatchBy(), o.getCreatedAt(), lines);
     }
 }
