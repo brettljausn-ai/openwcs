@@ -12,19 +12,10 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.openwcs.integration.host.client.OrderManagementClient;
 import org.openwcs.integration.host.client.TxLogClient;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.test.web.servlet.MockMvc;
 
 /** Confirmations are served as a cursor feed over the transaction log. */
-@SpringBootTest
-@AutoConfigureMockMvc
-class ConfirmationControllerTest {
-
-    @Autowired
-    MockMvc mockMvc;
+class ConfirmationControllerTest extends AbstractHostIntegrationTest {
 
     @MockBean
     TxLogClient txLog;

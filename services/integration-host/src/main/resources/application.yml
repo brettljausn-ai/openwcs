@@ -3,6 +3,24 @@ server:
 spring:
   application:
     name: integration-host
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/openwcs}
+    username: ${SPRING_DATASOURCE_USERNAME:openwcs}
+    password: ${SPRING_DATASOURCE_PASSWORD:openwcs}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: host_integration
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    schemas: host_integration
+    default-schema: host_integration
+    create-schemas: true
 openwcs:
   host:
     # Canonical Host API translates to the domain services.

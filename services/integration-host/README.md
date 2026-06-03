@@ -12,5 +12,8 @@ API, so a host integrates once against a stable contract.
 
 Contract: [`contracts/openapi/host-api.yaml`](../../contracts/openapi/host-api.yaml). Port 8092.
 
-Roadmap: webhook (push) delivery of confirmations; master-data and inventory-adjustment
-intake; idempotency keys.
+Also: `POST /api/host/masterdata/skus` (SKU upsert) and `POST /api/host/inventory/adjustments`
+(→ StockAdjusted). Any POST accepts an `Idempotency-Key` header (repeat = replay, no
+re-processing). Small `host_integration` store for idempotency keys.
+
+Roadmap: webhook (push) delivery of confirmations.

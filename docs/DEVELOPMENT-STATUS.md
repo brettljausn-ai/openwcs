@@ -74,7 +74,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | adapters/conveyor | `main_test.go` | Go httptest (`POST /tasks`: COMPLETED, FAILED on unknown command, 405 on GET) |
 | gateway | `GatewayAuthEndToEndTest` | Testcontainers (live Keycloak + imported `openwcs` realm): no token → 401, realm JWT → 200 + identity propagated, client-supplied `X-Auth-*` stripped (anti-spoof) |
 | integration-sap | `LabelControllerTest`, `RouteFeedControllerTest` | MockMvc (per-shipper label-barcode allocation; route-feed upsert + created/updated summary) |
-| integration-host | `HostControllerTest`, `ConfirmationControllerTest`, `HostReferenceControllerTest`, `HostInventoryControllerTest` | MockMvc + mocked clients (order/ASN mapping; confirmations cursor feed; SKU upsert; adjustment → StockAdjusted append) |
+| integration-host | `HostControllerTest`, `ConfirmationControllerTest`, `HostReferenceControllerTest`, `HostInventoryControllerTest`, `IdempotencyFilterTest` | Testcontainers + MockMvc + mocked clients (order/ASN mapping; confirmations cursor feed; SKU upsert; adjustment → StockAdjusted append; `Idempotency-Key` replay) |
 
 ---
 
