@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASRS, GTP &amp; slotting — openWCS</title>
+  <meta name="description" content="How openWCS slots and replenishes automated rack and goods-to-person systems (shuttle/crane ASRS, AutoStore, AMR-GTP): block-level slotting, multi-deep lanes, velocity-to-exit, aisle redundancy and fill balancing, plus min/max replenishment and re-slotting." />
+  <meta name="theme-color" content="#061812" />
+  <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/asrs.html" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta property="og:title" content="ASRS, GTP &amp; slotting — openWCS" />
+  <meta property="og:description" content="Configurable slotting for automated rack / goods-to-person: block-level put-away, multi-deep lanes, velocity-to-exit, aisle redundancy, balancing, replenishment, re-slotting." />
+  <meta property="og:type" content="article" />
+  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body id="top">
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
+      <nav class="nav-links">
+        <a href="index.html">← Overview</a>
+        <a href="conveyors.html">Conveyors</a>
+      </nav>
+      <div class="nav-right">
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Deep dive · ASRS &amp; goods-to-person</p>
+      <h1>Slotting that <span class="lime">balances the floor.</span></h1>
+      <p class="lead">
+        In a shuttle or crane ASRS, AutoStore, or an AMR goods-to-person system, you don't pick from a
+        fixed shelf — the system brings handling units to a station. So openWCS slots a SKU to the
+        <strong>block as a whole</strong> (the pool across all aisles) and decides the actual location
+        per unit at put-away, balancing four objectives that genuinely pull against each other.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">The put-away decision</p>
+        <h2>One weighted score, four objectives.</h2>
+        <p>
+          Each candidate location is scored; hard constraints filter first (lane capacity, one SKU per
+          deep lane, and a cap on how much of a SKU may sit in one aisle). The weights are per-block, so
+          you tune the trade-off rather than living with a vendor's hidden rules.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">Velocity</div>
+          <h3>Fast movers near the exit</h3>
+          <p>Each location has a distance-to-exit. Class-A SKUs are pulled toward the aisle port for short cycles; slow movers settle deep. ABC class is taught in per SKU.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Multi-deep</div>
+          <h3>Same SKU per lane</h3>
+          <p>A triple-deep lane (X1,Y1,Z1–3) holds one SKU so units never block each other. Partial same-SKU lanes are filled first to avoid <em>honeycombing</em> — empty-but-unusable depth.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Redundancy</div>
+          <h3>Survive an aisle outage</h3>
+          <p>A SKU is deliberately spread across aisles (a min-aisle floor + a max-share-per-aisle cap) so a single shuttle/crane going offline can't strand it — and it can be picked in parallel.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Balance</div>
+          <h3>Even out the aisles</h3>
+          <p>Put-away prefers emptier aisles so fill levels — and therefore travel and throughput — stay balanced, instead of one aisle becoming the hot-spot bottleneck.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Direct-to-pick</div>
+          <h3>Cross-dock when it fits</h3>
+          <p>If a forward pick face for the SKU has headroom below its max, inbound is routed straight there — skipping reserve and a later replenishment trip.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Re-slotting</div>
+          <h3>Correct drift off-peak</h3>
+          <p>During idle windows the same scorer re-evaluates stored units and recommends moves as velocity drifts, lanes fragment, or aisles skew — keeping the layout optimal over time.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Two worlds, one engine</p>
+        <h2>Automated blocks <em>and</em> manual pick faces.</h2>
+        <p>
+          Automated blocks slot to the pool (random/dynamic storage); manual racking and pick-by-light
+          faces slot a SKU+UoM to a <strong>fixed location</strong> with min/max, so pickers rely on
+          stable, learnable positions.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">Pick faces</div>
+          <h3>Fixed slots, min/max</h3>
+          <p>Assign SKU+UoM to a location with a minimum and maximum. Below min raises a refill — emergency if the face is empty, scheduled otherwise.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Replenishment</div>
+          <h3>Opportunistic top-off</h3>
+          <p>In off-peak windows every face is topped up to max, so disruptive hot replenishments during peak are avoided.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Goods-to-person</div>
+          <h3>HUs to the station</h3>
+          <p>For GTP blocks, the WCS retrieves handling units to a pick station and returns them — the operator never travels into storage.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">At a glance</p>
+        <h2>Receipt → scored location.</h2>
+      </div>
+      <div class="arch">
+<pre>  receipt (SKU, HU) ─►  <b>openWCS slotting</b>
+                         │  direct-to-pick?  → forward face (cross-dock)
+                         │  else score block pool:
+                         │     velocity-to-exit · same-SKU lane · redundancy · balance
+                         │     ── hard: lane full · one SKU/lane · max %/aisle ──
+                         ▼
+                    chosen location ─►  put-away move  (→ GTP pick station on demand)
+  off-peak: replenish faces to max · re-slot stored HUs toward better locations</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow">Configurable &amp; open</p>
+        <h2>Slot it your way.</h2>
+        <p>Every weight, cap and min/max is configuration you can read and change — not a locked-in integrator rule set.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki/Slotting-and-Replenishment">Read the docs</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span><a href="index.html">Overview</a> · <a href="conveyors.html">Conveyors</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+    </div>
+  </footer>
+</body>
+</html>

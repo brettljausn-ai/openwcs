@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Conveyor routing — openWCS</title>
+  <meta name="description" content="How openWCS routes handling units across conveyors: a vendor-neutral topology graph, WCS pathfinding to sequenced targets, per-loop capacity limits, a visual schematic editor, and topology learning from live scan traffic." />
+  <meta name="theme-color" content="#061812" />
+  <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/conveyors.html" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta property="og:title" content="Conveyor routing — openWCS" />
+  <meta property="og:description" content="Vendor-neutral conveyor routing: topology graph, WCS pathfinding, loop limits, visual editor, and learning from traffic." />
+  <meta property="og:type" content="article" />
+  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body id="top">
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
+      <nav class="nav-links">
+        <a href="index.html">← Overview</a>
+        <a href="asrs.html">ASRS &amp; slotting</a>
+      </nav>
+      <div class="nav-right">
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Deep dive · Conveyors</p>
+      <h1>Conveyor routing you can <span class="lime">see and change.</span></h1>
+      <p class="lead">
+        Conveyors from different vendors behave differently, and many have decision nodes where the
+        hardware scans a handling unit and asks the control system <em>where next?</em>. openWCS answers
+        that from a vendor-neutral topology graph it owns — not a black box buried in the PLC.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">How it works</p>
+        <h2>A graph the WCS owns, routed in real time.</h2>
+        <p>
+          The conveyor network is modelled as a graph of <strong>nodes</strong> (scanners, diverts,
+          merges, segments) and directed <strong>edges</strong>. Each node carries its own hardware
+          address, so the WCS knows exactly which device it is talking to.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">Topology graph</div>
+          <h3>Nodes, edges &amp; addresses</h3>
+          <p>Every decision point is a node with a hardware address; edges define where a unit can travel and at what cost. The whole layout is data, not firmware.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Pathfinding</div>
+          <h3>Next-hop on every scan</h3>
+          <p>When a node scans a handling unit and reports its barcode + location, the WCS computes the shortest path to the unit's required target and replies with the next hop — live, per scan.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Sequenced targets</div>
+          <h3>Multiple targets, in order</h3>
+          <p>A unit can have several required targets in a particular sequence (e.g. scale → label → induct). The route plan walks them in order, recomputing after each.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Loop control</div>
+          <h3>Loop capacity limits</h3>
+          <p>Looping configurations have a maximum number of handling units allowed in the loop. Per-loop limits trigger <strong>HOLD</strong> or divert to an <strong>OVERFLOW</strong> target so the loop never jams.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Admin UI</div>
+          <h3>Draw the schematic</h3>
+          <p>Admins draw the flow between nodes in a visual editor (React Flow) and set each node's hardware address — no code, no integrator change request.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Learning</div>
+          <h3>Discover from traffic</h3>
+          <p>Point the sniffer at defined source IPs and openWCS listens to scan telegrams, inferring nodes, edges and targets from real traffic to bootstrap or verify the topology.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">At a glance</p>
+        <h2>Scan in, next-hop out.</h2>
+      </div>
+      <div class="arch">
+<pre>  conveyor node ──(scan: barcode @ node)──►  <b>openWCS flow-orchestrator</b>
+                                              │  route plan: targets in sequence
+                                              │  shortest-path next-hop
+                                              │  loop check ─► HOLD / OVERFLOW
+  conveyor node  ◄──────(next hop)───────────┘
+       │
+       └─ topology learned from sniffed scan traffic on allowed IPs</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow">Open &amp; vendor-neutral</p>
+        <h2>Route any conveyor, your way.</h2>
+        <p>The routing logic is open source and runs behind a uniform device contract, so adding a vendor means an adapter — not a rewrite.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki/Equipment-Integration">Read the docs</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span><a href="index.html">Overview</a> · <a href="asrs.html">ASRS &amp; slotting</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+    </div>
+  </footer>
+</body>
+</html>
