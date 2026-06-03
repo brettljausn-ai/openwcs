@@ -41,6 +41,9 @@ spring:
         - id: integration-manhattan
           uri: ${OPENWCS_URI_INTEGRATION_MANHATTAN:http://localhost:8090}
           predicates: [ "Path=/api/integration/manhattan/**" ]
+        - id: integration-host
+          uri: ${OPENWCS_URI_INTEGRATION_HOST:http://localhost:8092}
+          predicates: [ "Path=/api/host/**" ]
 
 # Edge security (build.md §4.8, §12). Off by default so the stack runs without a realm.
 # To enable JWT validation, set OPENWCS_SECURITY_ENABLED=true AND point the resource server

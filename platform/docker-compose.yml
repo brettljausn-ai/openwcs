@@ -70,6 +70,7 @@ services:
       OPENWCS_URI_NOTIFICATION: http://notification:8088
       OPENWCS_URI_INTEGRATION_SAP: http://integration-sap:8089
       OPENWCS_URI_INTEGRATION_MANHATTAN: http://integration-manhattan:8090
+      OPENWCS_URI_INTEGRATION_HOST: http://integration-host:8092
 
   master-data:
     profiles: ["apps"]
@@ -186,6 +187,16 @@ services:
     build: ../services/integration-manhattan
     ports: ["8090:8090"]
     depends_on: [postgres, kafka]
+
+  integration-host:
+    profiles: ["apps"]
+    build: ../services/integration-host
+    ports: ["8092:8092"]
+    depends_on: [order-management, txlog]
+    environment:
+      # Canonical Host API → domain services (orders in, confirmations from the txlog feed).
+      OPENWCS_ORDER_MANAGEMENT_BASE_URL: http://order-management:8084
+      OPENWCS_TXLOG_BASE_URL: http://txlog:8086
 
   conveyor-adapter:
     profiles: ["apps"]

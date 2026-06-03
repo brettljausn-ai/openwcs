@@ -77,6 +77,7 @@ openwcs/
 | `services/notification` | Java | 8088 | Operator alerts, exceptions, andon |
 | `services/integration-sap` | Java | 8089 | Host gateway: SAP S/4HANA / HANA (OData/BAPI/RFC/IDoc) |
 | `services/integration-manhattan` | Java | 8090 | Host gateway: Manhattan Active (REST) |
+| `services/integration-host` | Java | 8092 | Canonical vendor-neutral Host API (`/api/host/**`): orders + ASNs in, confirmations out; vendor adapters translate into it |
 | `services/adapters/conveyor` | Go | 9091 | PLC conveyor adapter (raw TCP / OPC-UA); `POST /tasks` device-task simulator |
 | `services/adapters/asrs` | Go | 9092 | Shuttle/crane adapter (telegram) |
 | `services/adapters/amr-geekplus` | Go | 9093 | Geek+ RCS adapter (REST + WebSocket) |

@@ -1,0 +1,144 @@
+openapi: 3.0.3
+info:
+  title: openWCS Host API
+  version: 0.1.0
+  description: >
+    The canonical, vendor-neutral integration API any host system (WMS/ERP) uses to drive
+    openWCS: push outbound orders and ASNs in, pull confirmations out. Vendor adapters
+    (integration-sap / integration-manhattan) translate their native protocols into this API,
+    so a host integrates against one stable contract. Confirmations are a cursor feed over the
+    transaction log now; webhook push is a planned follow-up.
+servers:
+  - url: /api/host
+    description: Via the API gateway
+
+tags:
+  - name: Orders
+  - name: Confirmations
+
+paths:
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Create an outbound order
+      operationId: createHostOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateHostOrder' }
+      responses:
+        "200":
+          description: Created order identifiers
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatedOrder' }
+        "400": { description: Invalid request }
+  /asns:
+    post:
+      tags: [Orders]
+      summary: Create an ASN (expected receipt → inbound order)
+      operationId: createHostAsn
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAsn' }
+      responses:
+        "200":
+          description: Created order identifiers
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatedOrder' }
+        "400": { description: Invalid request }
+  /confirmations:
+    get:
+      tags: [Confirmations]
+      summary: Pull confirmations since a cursor
+      description: Returns transaction-log events after the cursor (receipts, picks, shipments, stock changes) and the nextCursor to use next time.
+      operationId: getConfirmations
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: integer, format: int64, default: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
+      responses:
+        "200":
+          description: A page of confirmations
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfirmationPage' }
+
+components:
+  schemas:
+    CreateHostOrder:
+      type: object
+      required: [orderRef, warehouseId, lines]
+      properties:
+        orderRef: { type: string }
+        warehouseId: { type: string, format: uuid }
+        customerRef: { type: string, nullable: true }
+        priority: { type: integer, nullable: true }
+        dispatchBy: { type: string, format: date-time, nullable: true }
+        serviceCode: { type: string, nullable: true }
+        routeCode: { type: string, nullable: true }
+        labelTemplateCode: { type: string, nullable: true }
+        shipTo: { $ref: '#/components/schemas/ShipTo' }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/OrderLine' }
+    CreateAsn:
+      type: object
+      required: [asnRef, warehouseId, lines]
+      properties:
+        asnRef: { type: string }
+        warehouseId: { type: string, format: uuid }
+        supplierRef: { type: string, nullable: true }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/OrderLine' }
+    OrderLine:
+      type: object
+      required: [skuId, qty]
+      properties:
+        skuId: { type: string, format: uuid }
+        qty: { type: number }
+    ShipTo:
+      type: object
+      nullable: true
+      properties:
+        name: { type: string }
+        line1: { type: string }
+        line2: { type: string }
+        city: { type: string }
+        region: { type: string }
+        postcode: { type: string }
+        country: { type: string }
+        contact: { type: string }
+        phone: { type: string }
+    CreatedOrder:
+      type: object
+      properties:
+        id: { type: string }
+        orderRef: { type: string }
+        status: { type: string }
+    Confirmation:
+      type: object
+      properties:
+        cursor: { type: integer, format: int64, description: This event's global position. }
+        type: { type: string, example: Picked }
+        reference: { type: string, description: Aggregate id (order/HU). }
+        occurredAt: { type: string, format: date-time }
+        actor: { type: string, nullable: true }
+        payload:
+          type: object
+          additionalProperties: true
+    ConfirmationPage:
+      type: object
+      properties:
+        confirmations:
+          type: array
+          items: { $ref: '#/components/schemas/Confirmation' }
+        nextCursor: { type: integer, format: int64 }

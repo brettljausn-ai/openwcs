@@ -31,14 +31,15 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | notification | Java | 8088 | 🟦 | — |
 | integration-sap | Java | 8089 | 🟡 | Host gateway: per-shipper dispatch-label barcode (`POST /labels`, simulated host) + route feed (`POST /routes/sync` → master-data Route catalog). |
 | integration-manhattan | Java | 8090 | 🟦 | Host gateway. |
+| integration-host | Java | 8092 | 🟡 | Canonical vendor-neutral Host API (`/api/host/**`): orders + ASNs in, confirmations (cursor feed over txlog) out. |
 | adapters/conveyor | Go | 9091 | 🟡 | Health + stub loop + `POST /tasks` device-task simulator (CONVEY/DIVERT/MERGE/SCAN). |
 | adapters/{asrs,amr-geekplus,autostore} | Go | 9092–9094 | 🟦 | Health + stub loop. |
 | ui | React/TS | 5173 | 🟦 | Vite skeleton. |
 | libs/common | Java | — | ✅ | `EventEnvelope`. |
 
 **Contracts:** OpenAPI ✅ master-data, inventory, txlog, allocation, order-management, iam,
-flow-orchestrator, integration-sap; ⬜ master-data shipper/fulfillment-config paths, other
-services. Avro/Schema-Registry ⬜.
+flow-orchestrator, integration-sap, host-api; ⬜ master-data shipper/fulfillment-config paths,
+other services. Avro/Schema-Registry ⬜.
 
 **Platform:** docker-compose ✅ (incl. allocation; Keycloak imports the `openwcs` realm).
 **CI ✅** (GitHub Actions: Java build+test with Testcontainers, Go adapters, UI build, OpenAPI
@@ -73,6 +74,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | adapters/conveyor | `main_test.go` | Go httptest (`POST /tasks`: COMPLETED, FAILED on unknown command, 405 on GET) |
 | gateway | `GatewayAuthEndToEndTest` | Testcontainers (live Keycloak + imported `openwcs` realm): no token → 401, realm JWT → 200 + identity propagated, client-supplied `X-Auth-*` stripped (anti-spoof) |
 | integration-sap | `LabelControllerTest`, `RouteFeedControllerTest` | MockMvc (per-shipper label-barcode allocation; route-feed upsert + created/updated summary) |
+| integration-host | `HostControllerTest`, `ConfirmationControllerTest` | MockMvc + mocked clients (order/ASN → OUTBOUND/INBOUND mapping; confirmations cursor feed) |
 
 ---
 
