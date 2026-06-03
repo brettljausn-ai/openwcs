@@ -28,7 +28,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | txlog | 8086 | ✅ | Append-only event log + transactional outbox + relay to `txlog.stream`. |
 | iam | 8087 | ✅ | openWCS authorization model: users → roles → coded permissions (Keycloak does auth). |
 | flow-orchestrator | 8085 | 🟡 | Device-task lifecycle over the uniform device contract; routes to adapters by family (below). |
-| integration-sap | 8089 | 🟡 | Host gateway (skeleton) + `POST /api/integration/sap/labels`: per-shipper dispatch-label barcode allocation (simulated host). |
+| integration-sap | 8089 | 🟡 | Host gateway (skeleton): `POST /labels` (per-shipper dispatch-label barcode) + `POST /routes/sync` (upserts host routes into the master-data Route catalog). |
 | process-engine / notification / integration-manhattan | 8083/8088/8090 | 🟦 | Scaffold (health/info only). |
 | adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop + `POST /tasks` device-task simulator. |
 | adapters/{asrs,amr-geekplus,autostore} | 9092–9094 | 🟦 | Go; health/readiness + stub loop. |

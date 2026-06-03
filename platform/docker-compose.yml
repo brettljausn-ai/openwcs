@@ -176,7 +176,10 @@ services:
     profiles: ["apps"]
     build: ../services/integration-sap
     ports: ["8089:8089"]
-    depends_on: [postgres, kafka]
+    depends_on: [postgres, kafka, master-data]
+    environment:
+      # Host gateway: label-barcode allocation + route feed upserted into the master-data catalog.
+      OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
 
   integration-manhattan:
     profiles: ["apps"]

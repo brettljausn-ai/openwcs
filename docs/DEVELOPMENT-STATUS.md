@@ -29,7 +29,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | flow-orchestrator | Java | 8085 | 🟡 | Device-task lifecycle (REQUESTED→DISPATCHED→COMPLETED/FAILED) over the uniform device contract; routes to adapters by family. BPMN-driven routing still pending. |
 | iam | Java | 8087 | ✅ | Authorization model: users → roles → coded permissions; seeded roles; effective-permission resolution. (Keycloak does auth.) |
 | notification | Java | 8088 | 🟦 | — |
-| integration-sap | Java | 8089 | 🟡 | Host gateway: per-shipper dispatch-label barcode allocation (`POST /labels`, simulated host); allocation calls it when configured. |
+| integration-sap | Java | 8089 | 🟡 | Host gateway: per-shipper dispatch-label barcode (`POST /labels`, simulated host) + route feed (`POST /routes/sync` → master-data Route catalog). |
 | integration-manhattan | Java | 8090 | 🟦 | Host gateway. |
 | adapters/conveyor | Go | 9091 | 🟡 | Health + stub loop + `POST /tasks` device-task simulator (CONVEY/DIVERT/MERGE/SCAN). |
 | adapters/{asrs,amr-geekplus,autostore} | Go | 9092–9094 | 🟦 | Health + stub loop. |
@@ -53,7 +53,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | **0 — Foundations** | ✅ | Repo + compose + shared schemas + txlog/outbox/relay + Kafka ✅; IAM model + gateway JWT + per-endpoint RBAC (all services) + inter-service identity propagation ✅ (toggleable); **CI ✅ (green), Keycloak `openwcs` realm ✅, gradle wrapper ✅**; **JWT edge-auth path exercised end-to-end against a live Keycloak realm (Testcontainers) ✅**. Remaining hardening: mTLS between services. |
 | **1 — Master data + inventory MVP** | ✅ | Master Data ✅, Inventory projection ✅, log→projection loop proven ✅. |
 | **2 — Process engine + one equipment family** | 🟡 | **flow-orchestrator device-task lifecycle + uniform device contract ✅, conveyor adapter `POST /tasks` simulator ✅, DEVICE_VIEW/DEVICE_OPERATE RBAC ✅.** Gaps: process-engine (Flowable BPMN) ⬜, goods-in-via-BPMN ⬜. |
-| **3 — Outbound + more equipment** | 🟡 | **order-management ✅, allocation + cubing + batch picking + release management ✅, inventory reservation/ATP ✅.** Gaps: host-integration gateways ⬜; the *BPMN* outbound process ⬜; more adapters ⬜. |
+| **3 — Outbound + more equipment** | 🟡 | **order-management ✅, allocation + cubing + batch picking + release management ✅, inventory reservation/ATP ✅, dispatch labels/services/routes ✅ (incl. integration-sap label-barcode + route feed).** Gaps: host-integration gateways are skeletal (real SAP/Manhattan protocols ⬜, integration-manhattan ⬜); the *BPMN* outbound process ⬜; more adapters ⬜. |
 | **4 — Counting & operations** | 🟡 | `StockAdjusted` projection ✅; cycle-count process ⬜; dashboards/alerting ⬜. |
 | **5 — Hardening & scale** | ⬜ | DLQs, circuit breakers, replay tooling, perf, security review. |
 
@@ -72,7 +72,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | flow-orchestrator | `DeviceTaskServiceTest` | Testcontainers + Mockito (`@MockBean DeviceClient`: COMPLETED on success, FAILED on adapter error without losing the task, query by id/correlation) |
 | adapters/conveyor | `main_test.go` | Go httptest (`POST /tasks`: COMPLETED, FAILED on unknown command, 405 on GET) |
 | gateway | `GatewayAuthEndToEndTest` | Testcontainers (live Keycloak + imported `openwcs` realm): no token → 401, realm JWT → 200 + identity propagated, client-supplied `X-Auth-*` stripped (anti-spoof) |
-| integration-sap | `LabelControllerTest` | MockMvc (per-shipper label-barcode allocation) |
+| integration-sap | `LabelControllerTest`, `RouteFeedControllerTest` | MockMvc (per-shipper label-barcode allocation; route-feed upsert + created/updated summary) |
 
 ---
 
