@@ -10,4 +10,7 @@ public interface HuRouteRepository extends JpaRepository<HuRoute, UUID> {
 
     /** The most recent route for a barcode regardless of status (for reads / status display). */
     Optional<HuRoute> findFirstByWarehouseIdAndBarcodeOrderByCreatedAtDesc(UUID warehouseId, String barcode);
+
+    /** Loop occupancy: active HUs whose last-scanned node is in the given loop. */
+    int countByWarehouseIdAndCurrentLoopAndStatus(UUID warehouseId, String currentLoop, String status);
 }

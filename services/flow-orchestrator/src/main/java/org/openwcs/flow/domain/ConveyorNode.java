@@ -41,8 +41,20 @@ public class ConveyorNode extends Auditable {
     @Column(name = "pos_y")
     private Double posY;
 
+    /** The loop this node belongs to (its code), or null if not in a loop. */
+    @Column(name = "loop_code")
+    private String loopCode;
+
     public UUID getId() {
         return id;
+    }
+
+    public String getLoopCode() {
+        return loopCode;
+    }
+
+    public void setLoopCode(String loopCode) {
+        this.loopCode = loopCode;
     }
 
     public void setId(UUID id) {

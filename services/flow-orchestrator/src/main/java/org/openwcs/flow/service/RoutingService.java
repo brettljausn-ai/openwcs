@@ -8,9 +8,11 @@ import org.openwcs.flow.api.RoutingDtos.RouteView;
 import org.openwcs.flow.api.RoutingDtos.RoutingDecision;
 import org.openwcs.flow.api.RoutingDtos.ScanRequest;
 import org.openwcs.flow.domain.ConveyorEdge;
+import org.openwcs.flow.domain.ConveyorLoop;
 import org.openwcs.flow.domain.ConveyorNode;
 import org.openwcs.flow.domain.HuRoute;
 import org.openwcs.flow.repo.ConveyorEdgeRepository;
+import org.openwcs.flow.repo.ConveyorLoopRepository;
 import org.openwcs.flow.repo.ConveyorNodeRepository;
 import org.openwcs.flow.repo.HuRouteRepository;
 import org.slf4j.Logger;
@@ -30,11 +32,14 @@ public class RoutingService {
 
     private final ConveyorNodeRepository nodes;
     private final ConveyorEdgeRepository edges;
+    private final ConveyorLoopRepository loops;
     private final HuRouteRepository routes;
 
-    public RoutingService(ConveyorNodeRepository nodes, ConveyorEdgeRepository edges, HuRouteRepository routes) {
+    public RoutingService(ConveyorNodeRepository nodes, ConveyorEdgeRepository edges,
+                          ConveyorLoopRepository loops, HuRouteRepository routes) {
         this.nodes = nodes;
         this.edges = edges;
+        this.loops = loops;
         this.routes = routes;
     }
 
@@ -71,6 +76,8 @@ public class RoutingService {
         if (route == null) {
             return RoutingDecision.noRoute();
         }
+        // The HU is at `here` now; record its loop for occupancy counting.
+        route.setCurrentLoop(here.getLoopCode());
         List<String> targets = route.getTargets();
 
         String reached = null;
@@ -92,13 +99,51 @@ public class RoutingService {
             return fail(route, "Unknown target node in route plan: " + currentTarget);
         }
         List<ConveyorEdge> warehouseEdges = edges.findByWarehouseId(scan.warehouseId());
-        Optional<ConveyorEdge> hop = RoutingEngine.nextHop(warehouseEdges, here.getId(), target.getId());
-        if (hop.isEmpty()) {
+        Optional<ConveyorEdge> hopOpt = RoutingEngine.nextHop(warehouseEdges, here.getId(), target.getId());
+        if (hopOpt.isEmpty()) {
             return fail(route, "No path from " + scan.node() + " to target " + currentTarget);
         }
+        ConveyorEdge hop = hopOpt.get();
+        ConveyorNode toNode = nodes.findById(hop.getToNodeId()).orElse(null);
+        String toLoop = toNode == null ? null : toNode.getLoopCode();
+
+        // Loop capacity: if this hop would enter a loop the HU isn't already in, and that loop is
+        // at its limit, HOLD upstream or divert to the loop's overflow target.
+        if (toLoop != null && !toLoop.equals(here.getLoopCode())) {
+            ConveyorLoop loop = loops.findByWarehouseIdAndCode(scan.warehouseId(), toLoop).orElse(null);
+            if (loop != null
+                    && routes.countByWarehouseIdAndCurrentLoopAndStatus(scan.warehouseId(), toLoop, "ACTIVE")
+                            >= loop.getMaxHus()) {
+                routes.save(route);
+                if ("OVERFLOW".equals(loop.getWhenFull()) && loop.getOverflowTargetCode() != null) {
+                    RoutingDecision overflow = overflowToward(scan.warehouseId(), warehouseEdges, here,
+                            loop.getOverflowTargetCode(), currentTarget);
+                    if (overflow != null) {
+                        return overflow;
+                    }
+                }
+                return RoutingDecision.hold(currentTarget, "Loop " + toLoop + " is at capacity");
+            }
+        }
+
         routes.save(route);
-        String toCode = codeOf(scan.warehouseId(), hop.get().getToNodeId());
-        return RoutingDecision.route(hop.get().getExitCode(), toCode, currentTarget, reached);
+        String toCode = toNode == null ? null : toNode.getCode();
+        return RoutingDecision.route(hop.getExitCode(), toCode, currentTarget, reached);
+    }
+
+    private RoutingDecision overflowToward(UUID warehouseId, List<ConveyorEdge> warehouseEdges,
+                                           ConveyorNode here, String overflowCode, String currentTarget) {
+        ConveyorNode overflow = nodes.findByWarehouseIdAndCode(warehouseId, overflowCode).orElse(null);
+        if (overflow == null) {
+            return null;
+        }
+        Optional<ConveyorEdge> hop = RoutingEngine.nextHop(warehouseEdges, here.getId(), overflow.getId());
+        if (hop.isEmpty()) {
+            return null;
+        }
+        String toCode = codeOf(warehouseId, hop.get().getToNodeId());
+        return RoutingDecision.overflow(hop.get().getExitCode(), toCode, currentTarget,
+                "Loop full → diverting to overflow " + overflowCode);
     }
 
     private RoutingDecision fail(HuRoute route, String detail) {

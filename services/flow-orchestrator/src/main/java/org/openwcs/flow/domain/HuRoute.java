@@ -46,8 +46,20 @@ public class HuRoute extends Auditable {
     @Column(name = "detail")
     private String detail;
 
+    /** Loop of the node where the HU was last scanned (for loop-occupancy counting). */
+    @Column(name = "current_loop")
+    private String currentLoop;
+
     public UUID getId() {
         return id;
+    }
+
+    public String getCurrentLoop() {
+        return currentLoop;
+    }
+
+    public void setCurrentLoop(String currentLoop) {
+        this.currentLoop = currentLoop;
     }
 
     public UUID getWarehouseId() {

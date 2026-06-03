@@ -6,28 +6,34 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.openwcs.flow.api.RoutingDtos.EdgeDto;
+import org.openwcs.flow.api.RoutingDtos.LoopDto;
 import org.openwcs.flow.api.RoutingDtos.NodeDto;
 import org.openwcs.flow.api.RoutingDtos.Topology;
 import org.openwcs.flow.domain.ConveyorEdge;
+import org.openwcs.flow.domain.ConveyorLoop;
 import org.openwcs.flow.domain.ConveyorNode;
 import org.openwcs.flow.repo.ConveyorEdgeRepository;
+import org.openwcs.flow.repo.ConveyorLoopRepository;
 import org.openwcs.flow.repo.ConveyorNodeRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Reads and replaces a warehouse's conveyor topology (nodes + edges) — the load/save backing
- * for the admin schematic editor. Edges reference nodes by code in the API and by id internally.
+ * Reads and replaces a warehouse's conveyor topology (nodes + edges + loops) — the load/save
+ * backing for the admin schematic editor. Edges/loops reference nodes by code in the API and by
+ * id internally.
  */
 @Service
 public class TopologyService {
 
     private final ConveyorNodeRepository nodes;
     private final ConveyorEdgeRepository edges;
+    private final ConveyorLoopRepository loops;
 
-    public TopologyService(ConveyorNodeRepository nodes, ConveyorEdgeRepository edges) {
+    public TopologyService(ConveyorNodeRepository nodes, ConveyorEdgeRepository edges, ConveyorLoopRepository loops) {
         this.nodes = nodes;
         this.edges = edges;
+        this.loops = loops;
     }
 
     @Transactional(readOnly = true)
@@ -36,20 +42,26 @@ public class TopologyService {
         List<NodeDto> nodeDtos = new ArrayList<>();
         for (ConveyorNode n : nodes.findByWarehouseId(warehouseId)) {
             codeById.put(n.getId(), n.getCode());
-            nodeDtos.add(new NodeDto(n.getCode(), n.getName(), n.getHardwareAddress(), n.getPosX(), n.getPosY()));
+            nodeDtos.add(new NodeDto(n.getCode(), n.getName(), n.getHardwareAddress(),
+                    n.getPosX(), n.getPosY(), n.getLoopCode()));
         }
         List<EdgeDto> edgeDtos = new ArrayList<>();
         for (ConveyorEdge e : edges.findByWarehouseId(warehouseId)) {
             edgeDtos.add(new EdgeDto(codeById.get(e.getFromNodeId()), codeById.get(e.getToNodeId()),
                     e.getExitCode(), e.getCost()));
         }
-        return new Topology(nodeDtos, edgeDtos);
+        List<LoopDto> loopDtos = new ArrayList<>();
+        for (ConveyorLoop l : loops.findByWarehouseId(warehouseId)) {
+            loopDtos.add(new LoopDto(l.getCode(), l.getMaxHus(), l.getWhenFull(), l.getOverflowTargetCode()));
+        }
+        return new Topology(nodeDtos, edgeDtos, loopDtos);
     }
 
     /** Replace the whole topology for a warehouse (the editor saves the full graph). */
     @Transactional
     public Topology replace(UUID warehouseId, Topology topology) {
         edges.deleteByWarehouseId(warehouseId);
+        loops.deleteByWarehouseId(warehouseId);
         nodes.deleteAll(nodes.findByWarehouseId(warehouseId));
         nodes.flush();
 
@@ -62,6 +74,7 @@ public class TopologyService {
             node.setHardwareAddress(n.hardwareAddress());
             node.setPosX(n.posX());
             node.setPosY(n.posY());
+            node.setLoopCode(n.loopCode());
             idByCode.put(n.code(), nodes.save(node).getId());
         }
         if (topology.edges() != null) {
@@ -79,6 +92,17 @@ public class TopologyService {
                 edge.setExitCode(e.exitCode());
                 edge.setCost(e.cost() == null ? 1 : e.cost());
                 edges.save(edge);
+            }
+        }
+        if (topology.loops() != null) {
+            for (LoopDto l : topology.loops()) {
+                ConveyorLoop loop = new ConveyorLoop();
+                loop.setWarehouseId(warehouseId);
+                loop.setCode(l.code());
+                loop.setMaxHus(l.maxHus());
+                loop.setWhenFull(l.whenFull() == null ? "HOLD" : l.whenFull());
+                loop.setOverflowTargetCode(l.overflowTarget());
+                loops.save(loop);
             }
         }
         return get(warehouseId);

@@ -188,6 +188,9 @@ components:
         edges:
           type: array
           items: { $ref: '#/components/schemas/EdgeDto' }
+        loops:
+          type: array
+          items: { $ref: '#/components/schemas/LoopDto' }
     NodeDto:
       type: object
       required: [code]
@@ -197,6 +200,15 @@ components:
         hardwareAddress: { type: string, nullable: true, description: "How the equipment is reached (PLC/OPC-UA address, IP:port…)." }
         posX: { type: number, nullable: true, description: Layout X for the schematic editor. }
         posY: { type: number, nullable: true }
+        loopCode: { type: string, nullable: true, description: "The loop this node belongs to, if any." }
+    LoopDto:
+      type: object
+      required: [code, maxHus]
+      properties:
+        code: { type: string }
+        maxHus: { type: integer, description: Max handling units allowed in the loop at once. }
+        whenFull: { type: string, enum: [HOLD, OVERFLOW], default: HOLD }
+        overflowTarget: { type: string, nullable: true, description: Target node code when whenFull=OVERFLOW. }
     EdgeDto:
       type: object
       required: [fromCode, toCode, exitCode]
