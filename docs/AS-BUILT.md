@@ -56,6 +56,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 | `allocation` | allocation | order_allocation, allocation_line, pick_batch |
 | `iam` | iam | role, role_permission, app_user, user_role |
 | `flow` | flow-orchestrator | device_task |
+| `host_integration` | integration-host | idempotency_key (webhook delivery state to follow) |
 
 ---
 
@@ -243,9 +244,13 @@ into it.
 - `GET /api/host/confirmations?cursor=` — pull confirmations (receipts, picks, shipments, stock
   changes) as a **cursor feed over the transaction log** (`txlog` global replay): returns the
   events after the cursor plus `nextCursor`. No host endpoint required; the host controls the
-  pace. **Webhook (push) delivery and idempotency keys are planned follow-ups.**
+  pace. **Webhook (push) delivery is a planned follow-up.**
+- **Idempotency**: any host POST may send an `Idempotency-Key` header; a repeat of the same key
+  replays the stored 2xx response instead of re-processing (an `IdempotencyFilter` over a small
+  `host_integration` store), so a host's retry never double-creates an order/ASN/adjustment.
 
-Stateless (no store of its own) — it composes order-management + master-data + txlog.
+Mostly a translation layer over order-management + master-data + txlog; its only state is the
+small `host_integration` schema (idempotency keys; webhook delivery cursors to follow).
 
 ## 8. The two working vertical slices
 

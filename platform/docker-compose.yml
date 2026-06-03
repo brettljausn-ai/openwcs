@@ -192,8 +192,12 @@ services:
     profiles: ["apps"]
     build: ../services/integration-host
     ports: ["8092:8092"]
-    depends_on: [order-management, txlog, master-data]
+    depends_on: [postgres, order-management, txlog, master-data]
     environment:
+      # Service-local `host_integration` schema (idempotency keys + webhook state).
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
+      SPRING_DATASOURCE_USERNAME: openwcs
+      SPRING_DATASOURCE_PASSWORD: openwcs
       # Canonical Host API → domain services (orders in, confirmations from the txlog feed,
       # master-data SKU upserts, inventory adjustments appended to the txlog).
       OPENWCS_ORDER_MANAGEMENT_BASE_URL: http://order-management:8084

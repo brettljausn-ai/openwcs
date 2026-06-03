@@ -7,7 +7,9 @@ info:
     openWCS: push outbound orders and ASNs in, pull confirmations out. Vendor adapters
     (integration-sap / integration-manhattan) translate their native protocols into this API,
     so a host integrates against one stable contract. Confirmations are a cursor feed over the
-    transaction log now; webhook push is a planned follow-up.
+    transaction log now; webhook push is a planned follow-up. All POSTs accept an optional
+    `Idempotency-Key` header — repeating a key replays the original response instead of
+    re-processing (safe retries).
 servers:
   - url: /api/host
     description: Via the API gateway
