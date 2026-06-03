@@ -243,8 +243,13 @@ scan would route an HU into a loop that is at capacity, the WCS either `HOLD`s i
 re-evaluated next scan) or diverts it to the loop's `OVERFLOW` target — configurable per loop.
 Occupancy is the count of active routes whose last-scanned node is in that loop. An **admin
 schematic editor** (the `ui` app, React Flow) loads/saves the whole graph — drag nodes, draw
-edges, set per-node hardware address, and define loops. A traffic-sniffing **topology-discovery**
-seam is the remaining follow-up.
+edges, set per-node hardware address, and define loops. **Topology learning**: a sniffer posts
+observed scans (`POST /conveyor/observations {node, barcode, sourceIp}`); the WCS infers a
+candidate topology — nodes seen, segments (consecutive scans of the same HU), and likely targets
+(terminal nodes) — flagged against the configured graph (`GET /conveyor/discovery`), which the
+editor's **Discover** button pulls onto the canvas for an admin to confirm. The defined-IP packet
+capture itself lives in a sniffer adapter that normalizes telegrams into observations (a future
+capture front-end).
 
 ## 7c. Host API (integration-host)
 
