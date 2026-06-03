@@ -107,6 +107,36 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/RoutingDecision' }
+  /conveyor/observations:
+    post:
+      tags: [ConveyorRouting]
+      summary: Ingest a scan observation for topology learning
+      description: A sniffer (defined-IP capture) posts observed {node, barcode}; the WCS infers a candidate topology.
+      operationId: observe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ObservationRequest' }
+      responses:
+        "202": { description: Accepted }
+        "400": { description: Invalid observedAt }
+  /conveyor/discovery:
+    get:
+      tags: [ConveyorRouting]
+      summary: Inferred topology suggestions from observations
+      operationId: discover
+      parameters:
+        - name: warehouseId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Candidate nodes/edges/targets (known flags mark what already exists)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Discovery' }
 
   /device-tasks:
     post:
@@ -252,6 +282,44 @@ components:
         currentTarget: { type: string, nullable: true }
         targetReached: { type: string, nullable: true }
         detail: { type: string, nullable: true }
+    ObservationRequest:
+      type: object
+      required: [warehouseId, node, barcode]
+      properties:
+        warehouseId: { type: string, format: uuid }
+        node: { type: string }
+        barcode: { type: string }
+        sourceIp: { type: string, nullable: true, description: IP the scan was decoded from. }
+        observedAt: { type: string, format: date-time, nullable: true }
+    Discovery:
+      type: object
+      description: Inferred topology suggestions; known flags mark what already exists in the configured graph.
+      properties:
+        nodes:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string }
+              observedCount: { type: integer, format: int64 }
+              sourceIp: { type: string, nullable: true }
+              known: { type: boolean }
+        edges:
+          type: array
+          items:
+            type: object
+            properties:
+              fromCode: { type: string }
+              toCode: { type: string }
+              count: { type: integer, format: int64 }
+              known: { type: boolean }
+        targets:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string }
+              terminalCount: { type: integer, format: int64 }
     RequestDeviceTask:
       type: object
       required: [warehouseId, family, command]

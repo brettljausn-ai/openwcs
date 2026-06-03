@@ -45,3 +45,15 @@ export async function saveTopology(warehouseId: string, topology: Topology): Pro
   if (!res.ok) throw new Error(`Save failed: ${res.status}`)
   return (await res.json()) as Topology
 }
+
+export interface DiscoveredNode { code: string; observedCount: number; sourceIp?: string | null; known: boolean }
+export interface DiscoveredEdge { fromCode: string; toCode: string; count: number; known: boolean }
+export interface DiscoveredTarget { code: string; terminalCount: number }
+export interface Discovery { nodes: DiscoveredNode[]; edges: DiscoveredEdge[]; targets: DiscoveredTarget[] }
+
+export async function discoverTopology(warehouseId: string): Promise<Discovery> {
+  const res = await fetch(`/api/flow/conveyor/discovery?warehouseId=${encodeURIComponent(warehouseId)}`)
+  if (!res.ok) throw new Error(`Discovery failed: ${res.status}`)
+  const body = (await res.json()) as Partial<Discovery>
+  return { nodes: body.nodes ?? [], edges: body.edges ?? [], targets: body.targets ?? [] }
+}

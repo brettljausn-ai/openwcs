@@ -10,7 +10,7 @@ import ReactFlow, {
   type Node,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { loadTopology, saveTopology, type EdgeDto, type LoopDto, type NodeDto, type Topology } from './api'
+import { discoverTopology, loadTopology, saveTopology, type EdgeDto, type LoopDto, type NodeDto, type Topology } from './api'
 
 type NodeData = { name?: string; hardwareAddress?: string; loopCode?: string; label?: string }
 type EdgeData = { exitCode: string; cost: number }
@@ -89,6 +89,42 @@ export default function TopologyEditor() {
     }
   }, [warehouseId, nodes, edges, loops])
 
+  // Learning: pull discovered (observed-but-unconfigured) nodes/edges onto the canvas to review.
+  const runDiscovery = useCallback(async () => {
+    if (!warehouseId) {
+      setStatus('Enter a warehouse id first')
+      return
+    }
+    try {
+      const d = await discoverTopology(warehouseId)
+      const existing = new Set(nodes.map((n) => n.id))
+      const newNodes = d.nodes.filter((n) => !n.known && !existing.has(n.code))
+      let y = 40
+      const added: Node<NodeData>[] = newNodes.map((n) => {
+        y += 70
+        return { id: n.code, position: { x: 560, y }, data: { hardwareAddress: n.sourceIp ?? undefined }, type: 'default' }
+      })
+      setNodes((ns) => ns.concat(added))
+      const codes = new Set<string>([...existing, ...newNodes.map((n) => n.code)])
+      setEdges((es) => {
+        const have = new Set(es.map((e) => `${e.source} ${e.target}`))
+        const newEdges: Edge<EdgeData>[] = d.edges
+          .filter((e) => !e.known && codes.has(e.fromCode) && codes.has(e.toCode) && !have.has(`${e.fromCode} ${e.toCode}`))
+          .map((e, i) => ({
+            id: `disc-${e.fromCode}-${e.toCode}-${i}`,
+            source: e.fromCode,
+            target: e.toCode,
+            label: 'discovered',
+            data: { exitCode: 'discovered', cost: 1 },
+          }))
+        return es.concat(newEdges)
+      })
+      setStatus(`Discovered ${newNodes.length} new node(s); set exit codes and Save`)
+    } catch (err) {
+      setStatus(String(err))
+    }
+  }, [warehouseId, nodes, setNodes, setEdges])
+
   const onConnect = useCallback((c: Connection) => {
     const exitCode = window.prompt('Exit / decision code for this segment', 'straight')
     if (exitCode === null) return
@@ -137,6 +173,7 @@ export default function TopologyEditor() {
           <input placeholder="warehouse id" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} style={{ width: 320 }} />
           <button onClick={load}>Load</button>
           <button onClick={addNode}>Add node</button>
+          <button onClick={runDiscovery} title="Pull observed-but-unconfigured nodes/edges from learning">Discover</button>
           <button onClick={save}>Save</button>
           <span style={{ color: 'var(--text-dim, #666)' }}>{status}</span>
         </div>
