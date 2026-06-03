@@ -228,6 +228,22 @@ h2 { font-size: clamp(2.1rem, 4.4vw, 3.2rem); letter-spacing: -.01em; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
 .status-line { font-family: var(--font-mono); font-size: .85rem; color: var(--text-dim); margin: 1.1rem 0 0; }
 
+/* ---- Numbered step list ---- */
+.steps { list-style: none; counter-reset: step; margin: 0; padding: 0; max-width: 760px; }
+.steps li {
+  position: relative; counter-increment: step;
+  padding: 1rem 1.1rem 1rem 3.4rem; margin: 0 0 .7rem;
+  border: 1px solid var(--glass-border); border-radius: var(--radius);
+  background: var(--glass-bg); color: var(--text-dim);
+}
+.steps li::before {
+  content: counter(step); position: absolute; left: 1rem; top: 1rem;
+  width: 1.7rem; height: 1.7rem; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: .85rem; color: var(--herbal-lime);
+  border: 1px solid var(--glass-border-bright); border-radius: 50%; background: rgba(141,198,63,.08);
+}
+.steps li strong { color: var(--text); }
+
 .problem { border-left: 2px solid var(--danger); }
 .problem .tag { color: var(--danger); }
 .problem::before { background: linear-gradient(90deg, transparent, var(--danger), transparent); }

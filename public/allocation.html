@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Allocation, cubing &amp; batching — openWCS</title>
+  <meta name="description" content="The openWCS outbound allocation engine: pick-location allocation with UoM breakdown against location-scoped ATP, multi-size cubing into shippers (largest-first, line-traceable), per-shipper dispatch labels, and batch picking. Built today." />
+  <meta name="theme-color" content="#061812" />
+  <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/allocation.html" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta property="og:title" content="Allocation, cubing &amp; batching — openWCS" />
+  <meta property="og:description" content="Outbound allocation with UoM breakdown, multi-size cubing into shippers, per-shipper dispatch labels, and batch picking." />
+  <meta property="og:type" content="article" />
+  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body id="top">
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
+      <nav class="nav-links">
+        <a href="index.html">← Overview</a>
+        <a href="functions.html">Functions</a>
+        <a href="automation.html">Automation</a>
+      </nav>
+      <div class="nav-right">
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Function · Allocation <span class="pill pill-built">Built</span></p>
+      <h1>From order to a <span class="lime">cubed pick plan.</span></h1>
+      <p class="lead">
+        Before an operator touches a tote, openWCS turns an outbound order into committed stock and a
+        packing plan: it reserves the right units at reachable locations, breaks the demand down by
+        unit of measure, cubes the lines into shippers, and groups work into batches.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">How it works</p>
+        <h2>Reserve, break down, cube, batch.</h2>
+        <p>
+          Releasing an order runs allocation against location-scoped availability. It reserves stock
+          until demand is met, computes the pick-type UoM breakdown, and produces a pick plan plus a
+          cube plan — or fails cleanly if it can't.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">Pick-location</div>
+          <h3>Reserve reachable stock</h3>
+          <p>Allocation reserves against location-scoped ATP until demand is met, so each line points at a real, reachable unit — not just a SKU that exists somewhere in the building.</p>
+        </div>
+        <div class="card">
+          <div class="tag">UoM breakdown</div>
+          <h3>Cases, splits &amp; eaches</h3>
+          <p>Demand is broken into the pick-type unit of measure — case, split-case, each — so the plan reflects how stock is actually held and picked, not a flat quantity.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Cubing</div>
+          <h3>Multi-size, largest-first</h3>
+          <p>Lines are fitted into shippers across multiple carton/tote sizes, largest-first, using SKU dimensions and weight — so the plan knows how many of which size a set of orders needs.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Line-traceable</div>
+          <h3>Stable shipper IDs</h3>
+          <p>Each carton carries a stable shipper-unit ID and the lines it holds, so every shipper is traceable back to the order lines inside it — for labels, dispatch and audit.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Dispatch labels</div>
+          <h3>A barcode per shipper</h3>
+          <p>A dispatch-label barcode is requested per shipper — knowable only once cubing exists — from the host system, or a built-in simulator when no host label service is configured.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Batch picking</div>
+          <h3>Group lines into work</h3>
+          <p>Batch-pick planning groups order lines into efficient pick work — the basis for wave / batch picking, and the plan that pick execution will later drive against.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Honest outcomes</p>
+        <h2>Allocated, or a clear reason why not.</h2>
+        <p>
+          Release has explicit outcomes, so a release that can't be fulfilled fails loudly instead of
+          half-committing. Held reservations are always released on failure or cancel.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">ALLOCATED</div>
+          <h3>Plan is ready</h3>
+          <p>Demand was met: stock is reserved, the UoM breakdown computed, and a pick plan plus cube plan produced. The order is ready to release to the floor.</p>
+        </div>
+        <div class="card">
+          <div class="tag">NOT_FULFILLABLE</div>
+          <h3>Not enough stock</h3>
+          <p>Availability can't cover the order. Every reservation held during the attempt is released, so a failed allocation never strands stock as committed-but-unusable.</p>
+        </div>
+        <div class="card">
+          <div class="tag">CUBING_FAILED</div>
+          <h3>Bigger than the box</h3>
+          <p>A SKU is larger than the biggest carton, so no shippers can be produced. The attempt backs out cleanly — a distinct, actionable outcome rather than a silent partial.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">At a glance</p>
+        <h2>Release → reserve → cube → label.</h2>
+      </div>
+      <div class="arch">
+<pre>  order release ─►  <b>openWCS allocation</b>
+                       │  reserve vs location-scoped ATP  (until demand met)
+                       │  UoM breakdown: case · split-case · each
+                       │  cube into shippers (multi-size, largest-first, line-traceable)
+                       │  request dispatch-label barcode per shipper
+                       ▼
+            ALLOCATED (pick plan + cube plan) · batch picking
+            └─ NOT_FULFILLABLE / CUBING_FAILED → release held reservations</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow">Open &amp; configurable</p>
+        <h2>The plan behind every pick.</h2>
+        <p>Allocation commits against the event-sourced inventory and feeds goods-to-person demand. Pick execution on top of this plan is on the roadmap — see the picking page.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="inventory.html">Inventory deep dive</a>
+          <a class="btn btn-ghost" href="picking.html">Picking</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span><a href="functions.html">Functions</a> · <a href="inventory.html">Inventory</a> · <a href="picking.html">Picking</a> · <a href="gtp.html">Goods-to-person</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+    </div>
+  </footer>
+</body>
+</html>

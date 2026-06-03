@@ -23,8 +23,8 @@
       <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
       <nav class="nav-links">
         <a href="index.html">← Overview</a>
-        <a href="conveyors.html">Conveyors</a>
-        <a href="asrs.html">ASRS &amp; slotting</a>
+        <a href="automation.html">Automation</a>
+        <a href="functions.html">Functions</a>
       </nav>
       <div class="nav-right">
         <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
@@ -48,11 +48,56 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">Built today</p>
-        <h2>The functions that already run.</h2>
+        <p class="eyebrow">Foundations · Built today</p>
+        <h2>The core the rest is built on.</h2>
         <p>
-          These are implemented in the engine: storage and movement logic, allocation and planning, and
-          the conveyor control plane. Follow a card for the deep dive.
+          The platform functions every flow leans on: designed processes, event-sourced stock, outbound
+          allocation, the host integration surface, and access control. All implemented today.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <a class="card" href="process-designer.html">
+          <div class="card-head"><div class="tag">Process designer</div><span class="pill pill-built">Built</span></div>
+          <h3>Admin-designed BPMN</h3>
+          <p>Model goods-in, outbound and cycle-count flows on an embedded Flowable engine, deploy them, and have service tasks originate real WCS work — including the goods-in put-away delegate.</p>
+        </a>
+        <a class="card" href="inventory.html">
+          <div class="card-head"><div class="tag">Inventory</div><span class="pill pill-built">Built</span></div>
+          <h3>Event-sourced stock</h3>
+          <p>Real-time stock projected from an append-only transaction log: SKU- and location-scoped availability / ATP, reservations under a lock, idempotent and rebuildable.</p>
+        </a>
+        <a class="card" href="allocation.html">
+          <div class="card-head"><div class="tag">Allocation</div><span class="pill pill-built">Built</span></div>
+          <h3>Allocation, cubing &amp; batch</h3>
+          <p>Outbound pick-location allocation with UoM breakdown, multi-size cubing into shippers (largest-first, line-traceable), per-shipper dispatch labels, and batch picking.</p>
+        </a>
+        <a class="card" href="host-api.html">
+          <div class="card-head"><div class="tag">Host API</div><span class="pill pill-built">Built</span></div>
+          <h3>Canonical, vendor-neutral</h3>
+          <p>One Host API for orders, ASNs, SKUs and adjustments in; confirmations out via cursor feed or webhooks; idempotent. SAP and Manhattan adapters translate native messages in.</p>
+        </a>
+        <a class="card" href="security.html">
+          <div class="card-head"><div class="tag">Security</div><span class="pill pill-built">Built</span></div>
+          <h3>JWT · RBAC · Keycloak</h3>
+          <p>Gateway JWT validation, per-endpoint role-based access on every service from a shared role→permission catalog, and Keycloak — all toggleable, so you start simple and lock down for production.</p>
+        </a>
+        <a class="card" href="gtp.html">
+          <div class="card-head"><div class="tag">Goods-to-person</div><span class="pill pill-built">Built</span></div>
+          <h3>Pick-and-put stations</h3>
+          <p>Station execution: present one stock HU and put-to-light fills many order destinations most-needed-first — the GTP batch. ORDER_LOCATION and PUT_WALL modes share one engine.</p>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Storage &amp; movement · Built today</p>
+        <h2>The functions that move the goods.</h2>
+        <p>
+          Storage and movement logic and the conveyor control plane — implemented in the engine.
+          Follow a card for the deep dive.
         </p>
       </div>
       <div class="grid grid-3">
@@ -76,10 +121,10 @@
           <h3>Automated storage logic</h3>
           <p>Block-level put-away, re-slotting, in-aisle depth and dual-cycle behaviour, plus empty-HU management for shuttle / crane / AutoStore / AMR-GTP.</p>
         </a>
-        <a class="card" href="picking.html">
-          <div class="card-head"><div class="tag">Allocation</div><span class="pill pill-built">Built</span></div>
-          <h3>Allocation &amp; pick planning</h3>
-          <p>Stock allocation, multi-size cubing and batch-pick planning are built. Operator pick confirmation and GTP workflows are roadmap — see the page.</p>
+        <a class="card" href="gtp.html">
+          <div class="card-head"><div class="tag">Goods-to-person</div><span class="pill pill-built">Built</span></div>
+          <h3>Pick-and-put stations</h3>
+          <p>Present one stock HU and put-to-light fills many order destinations most-needed-first — the batch. ORDER_LOCATION and PUT_WALL modes share one engine.</p>
         </a>
         <a class="card" href="cycle-counting.html">
           <div class="card-head"><div class="tag">Cycle counting</div><span class="pill pill-roadmap">Roadmap</span></div>
@@ -142,7 +187,7 @@
   <footer>
     <div class="wrap">
       <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
-      <span><a href="index.html">Overview</a> · <a href="conveyors.html">Conveyors</a> · <a href="asrs.html">ASRS &amp; slotting</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+      <span><a href="index.html">Overview</a> · <a href="automation.html">Automation</a> · <a href="conveyors.html">Conveyors</a> · <a href="asrs.html">ASRS</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
     </div>
   </footer>
 </body>

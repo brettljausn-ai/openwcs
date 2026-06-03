@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Host API — openWCS</title>
+  <meta name="description" content="The openWCS Host API: one canonical, vendor-neutral integration surface for your WMS/ERP. Orders, ASNs, SKUs and stock adjustments in; confirmations out via a cursor feed or webhooks. Idempotent. SAP and Manhattan adapters translate native messages into it." />
+  <meta name="theme-color" content="#061812" />
+  <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/host-api.html" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta property="og:title" content="Host API — openWCS" />
+  <meta property="og:description" content="One canonical, vendor-neutral Host API: orders/ASNs/SKUs/adjustments in, confirmations out (cursor feed + webhooks), idempotent. SAP/Manhattan adapters translate in." />
+  <meta property="og:type" content="article" />
+  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body id="top">
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
+      <nav class="nav-links">
+        <a href="index.html">← Overview</a>
+        <a href="functions.html">Functions</a>
+        <a href="automation.html">Automation</a>
+      </nav>
+      <div class="nav-right">
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Function · Host API <span class="pill pill-built">Built</span></p>
+      <h1>Integrate your WMS <span class="lime">once.</span></h1>
+      <p class="lead">
+        Every WMS and ERP speaks its own dialect. openWCS exposes one canonical, vendor-neutral Host API
+        — orders, ASNs, SKUs and adjustments in; confirmations out — and keeps the vendor's protocol in
+        a thin adapter. Integrate against the contract, not the integrator.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">How it works</p>
+        <h2>One contract in, confirmations back out.</h2>
+        <p>
+          The Host API is mostly a translation layer over order-management, master-data and the
+          transaction log. A host posts work in; it pulls confirmations back as a feed over the same
+          event log that drives inventory.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">Orders &amp; ASNs in</div>
+          <h3>Work from the host</h3>
+          <p>Post an outbound order (ship-to, service, route, label template, lines) → an OUTBOUND order; post an ASN / expected receipt → an INBOUND order. The host drives both sides through one surface.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Reference data</div>
+          <h3>SKU sync</h3>
+          <p>Upsert a SKU into master-data by code, so the host stays the source of reference data and openWCS resolves materials to SKUs without a separate import job.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Adjustments</div>
+          <h3>Signed stock deltas</h3>
+          <p>A signed inventory adjustment is appended to the transaction log as a StockAdjusted event; the inventory projection applies the delta — so a host correction flows through the same event spine.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Confirmations (pull)</div>
+          <h3>Cursor feed</h3>
+          <p>Pull confirmations — receipts, picks, shipments, stock changes — as a cursor feed over the transaction log: the events after the cursor plus a next cursor. No host endpoint needed; the host sets the pace.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Confirmations (push)</div>
+          <h3>Webhooks</h3>
+          <p>Register a callback URL and a dispatcher streams confirmations to it, advancing the cursor only past successfully-delivered events — at-least-once, with a failing endpoint retried from its cursor.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Idempotency</div>
+          <h3>Retries are safe</h3>
+          <p>Any host POST may send an Idempotency-Key; a repeat of the same key replays the stored response instead of re-processing — so a host's retry never double-creates an order, ASN or adjustment.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Vendor adapters</p>
+        <h2>SAP &amp; Manhattan translate in.</h2>
+        <p>
+          A vendor doesn't integrate against openWCS internals — it integrates against the canonical Host
+          API. The SAP and Manhattan adapters reshape native messages, resolve items to SKUs, and call
+          the same endpoints any host would.
+        </p>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="tag">integration-sap</div>
+          <h3>SAP messages → canonical</h3>
+          <p>Translates SAP orders and ASNs into the Host API, syncs routes to the master-data route catalog, and requests per-shipper dispatch-label barcodes — SAP's protocol stays in the adapter.</p>
+        </div>
+        <div class="card">
+          <div class="tag">integration-manhattan</div>
+          <h3>Manhattan Active → canonical</h3>
+          <p>Translates Manhattan Active orders and ASNs into the same canonical Host API, resolving materials to SKUs — so a second WMS is another adapter, not a second integration surface.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">At a glance</p>
+        <h2>Host → canonical API → confirmations.</h2>
+      </div>
+      <div class="arch">
+<pre>  SAP / Manhattan adapter ─► (reshape · resolve SKUs) ─►  <b>canonical Host API</b>
+  WMS / ERP ───────────────────────────────────────────►  /api/host
+                       │  orders → OUTBOUND · ASNs → INBOUND
+                       │  SKU upsert → master-data · adjustment → StockAdjusted (txlog)
+                       │  Idempotency-Key → replay stored response
+                       ▼
+            confirmations  ── pull: cursor feed over txlog
+                           └─ push: webhook (at-least-once, cursor advances on 2xx)</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow">Open &amp; vendor-neutral</p>
+        <h2>Your integration, on your terms.</h2>
+        <p>The Host API contract is open source. Integrate any host against one surface; add a new WMS as an adapter — and read every confirmation off the event log you already own.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+          <a class="btn btn-ghost" href="inventory.html">Inventory deep dive</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span><a href="functions.html">Functions</a> · <a href="inventory.html">Inventory</a> · <a href="security.html">Security</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+    </div>
+  </footer>
+</body>
+</html>

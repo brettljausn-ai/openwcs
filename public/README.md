@@ -7,12 +7,22 @@ alternative to locked-in WCS apps from integrators.
   language follows the openWCS brand tokens (dark forest / herbal-lime / glass; see
   [`../styling.md`](../styling.md)).
 - **Feature pages** (same static template, reuse `styles.css`):
-  - **`functions.html`** — the Function overview hub: a card grid linking every function with a
-    one-line description and a **Built** / **Roadmap** status pill (`.pill .pill-built` /
-    `.pill .pill-roadmap` in `styles.css`).
-  - **`conveyors.html`**, **`asrs.html`** — deep dives on conveyor routing (incl. self-learning /
-    topology discovery) and ASRS slotting (incl. in-aisle behaviour and empty-HU management).
-  - Built functions: **`slotting.html`**, **`replenishment.html`**.
+  - **`automation.html`** — the Automation / equipment hub: a card grid linking the equipment
+    families with **Built** / **Roadmap** status pills. **`conveyors.html`**, **`asrs.html`** and
+    **`gtp.html`** are sub-pages of Automation (and link back to it); AMR and AutoStore are Roadmap
+    cards (device adapters not built yet).
+  - **`conveyors.html`** — deep dive on conveyor routing (incl. self-learning / topology discovery).
+  - **`asrs.html`** — deep dive on ASRS slotting (incl. in-aisle behaviour and empty-HU management).
+  - **`gtp.html`** — goods-to-person station execution: STOCK + ORDER/PUT_WALL nodes, present one
+    stock HU → put-to-light put-list across many order destinations (the batch), ORDER_LOCATION vs
+    PUT_WALL modes. **Built**.
+  - **`functions.html`** — the Function overview hub: a card grid linking every function (foundations
+    + storage/movement + roadmap) with a one-line description and a **Built** / **Roadmap** status
+    pill (`.pill .pill-built` / `.pill .pill-roadmap` in `styles.css`).
+  - Foundational/built functions: **`process-designer.html`** (admin-designed BPMN on Flowable),
+    **`inventory.html`** (event-sourced stock), **`allocation.html`** (allocation + cubing + batch),
+    **`host-api.html`** (canonical vendor-neutral Host API), **`security.html`** (gateway JWT + RBAC +
+    Keycloak), plus **`slotting.html`** and **`replenishment.html`**.
   - Roadmap functions (lead with a `Roadmap` pill + a "planned — not yet implemented" note):
     **`picking.html`** (planning is built; execution is roadmap), **`cycle-counting.html`**,
     **`kpi-dashboards.html`**, **`hardware-visualisation.html`**.

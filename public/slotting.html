@@ -24,7 +24,7 @@
       <nav class="nav-links">
         <a href="index.html">← Overview</a>
         <a href="functions.html">Functions</a>
-        <a href="asrs.html">ASRS &amp; slotting</a>
+        <a href="automation.html">Automation</a>
       </nav>
       <div class="nav-right">
         <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
@@ -85,6 +85,67 @@
           <h3>Correct drift off-peak</h3>
           <p>In idle windows the same scorer re-evaluates stored units and recommends moves as velocity drifts, lanes fragment or aisles skew — keeping the layout optimal over time.</p>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Inputs &amp; outputs</p>
+        <h2>What goes in, what comes out.</h2>
+        <p>
+          Slotting is a pure decision: given a unit to store and the current state of the block, it
+          returns the location to put it in. Everything that shapes the answer is data you own.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">In · the unit</div>
+          <h3>SKU + handling unit</h3>
+          <p>The receipt being stored: a SKU and the handling unit it's on, with its packaging level and quantity — the thing that needs a home.</p>
+        </div>
+        <div class="card">
+          <div class="tag">In · block state</div>
+          <h3>Locations &amp; occupancy</h3>
+          <p>The candidate locations in the block, their distance-to-exit, current occupancy per lane and per aisle, and the SKU already sitting in each deep lane.</p>
+        </div>
+        <div class="card">
+          <div class="tag">In · the rules</div>
+          <h3>Weights, caps &amp; ABC</h3>
+          <p>The per-block scoring weights, hard caps (lane capacity, max share per aisle, min aisle floor) and the SKU's self-taught ABC velocity class.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Out · location</div>
+          <h3>The chosen slot</h3>
+          <p>A single best location — aisle, side, X/Y/Z down to the cell — for the put-away move, or a direct-to-pick forward face when cross-docking fits.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Out · move</div>
+          <h3>A put-away task</h3>
+          <p>The decision becomes a put-away move on the shared movement layer — the same network conveyors, ASRS and replenishment use.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Out · re-slot</div>
+          <h3>Off-peak recommendations</h3>
+          <p>Run against stored units in idle windows, the same scorer emits move recommendations that correct drift as velocity, lanes and aisle balance change.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Step by step</p>
+        <h2>How a unit gets its slot.</h2>
+        <ol class="steps">
+          <li><strong>Resolve the block.</strong> The SKU's storage block and its candidate locations are gathered, with current lane and aisle occupancy.</li>
+          <li><strong>Try direct-to-pick.</strong> If a forward pick face for the SKU has headroom below its max, route inbound straight there and skip reserve.</li>
+          <li><strong>Hard-filter candidates.</strong> Drop any location that breaks a constraint — full lane, a deep lane already holding a different SKU, or the max-share-per-aisle cap.</li>
+          <li><strong>Score the survivors.</strong> Each remaining location is scored on velocity-to-exit, same-SKU lane affinity, aisle redundancy and fill balance, weighted per block.</li>
+          <li><strong>Pick the best, emit the move.</strong> The highest-scoring location wins and becomes a put-away move; off-peak, the same scorer re-evaluates stored units.</li>
+        </ol>
       </div>
     </div>
   </section>

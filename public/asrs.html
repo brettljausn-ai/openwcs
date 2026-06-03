@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ASRS, GTP &amp; slotting — openWCS</title>
-  <meta name="description" content="How openWCS slots and replenishes automated rack and goods-to-person systems (shuttle/crane ASRS, AutoStore, AMR-GTP): block-level slotting, multi-deep lanes, velocity-to-exit, aisle redundancy and fill balancing, plus min/max replenishment and re-slotting." />
+  <title>ASRS — automated storage &amp; retrieval — openWCS</title>
+  <meta name="description" content="How openWCS drives automated storage &amp; retrieval (shuttle/crane ASRS, AutoStore, AMR goods-to-person): aisle/side/cell addressing, store &amp; retrieve cycles, in-aisle depth behaviour, retrieval to goods-to-person stations, and empty-HU management. The slotting logic is a separate WCS function." />
   <meta name="theme-color" content="#061812" />
   <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/asrs.html" />
   <link rel="icon" type="image/png" href="favicon.png" />
-  <meta property="og:title" content="ASRS, GTP &amp; slotting — openWCS" />
-  <meta property="og:description" content="Configurable slotting for automated rack / goods-to-person: block-level put-away, multi-deep lanes, velocity-to-exit, aisle redundancy, balancing, replenishment, re-slotting." />
+  <meta property="og:title" content="ASRS — automated storage &amp; retrieval — openWCS" />
+  <meta property="og:description" content="Driving shuttle/crane ASRS, AutoStore and AMR goods-to-person: aisle/side/cell addressing, store &amp; retrieve cycles, in-aisle behaviour, GTP retrieval, empty-HU management." />
   <meta property="og:type" content="article" />
   <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -23,6 +23,7 @@
       <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
       <nav class="nav-links">
         <a href="index.html">← Overview</a>
+        <a href="automation.html">Automation</a>
         <a href="functions.html">Functions</a>
         <a href="conveyors.html">Conveyors</a>
       </nav>
@@ -34,13 +35,13 @@
 
   <section class="hero">
     <div class="wrap">
-      <p class="eyebrow">Deep dive · ASRS &amp; goods-to-person</p>
-      <h1>Slotting that <span class="lime">balances the floor.</span></h1>
+      <p class="eyebrow">Automation · Automated storage &amp; retrieval</p>
+      <h1>Storage that <span class="lime">comes to you.</span></h1>
       <p class="lead">
-        In a shuttle or crane ASRS, AutoStore, or an AMR goods-to-person system, you don't pick from a
-        fixed shelf — the system brings handling units to a station. So openWCS slots a SKU to the
-        <strong>block as a whole</strong> (the pool across all aisles) and decides the actual location
-        per unit at put-away, balancing four objectives that genuinely pull against each other.
+        Shuttle and crane ASRS, AutoStore, and AMR goods-to-person systems store handling units densely
+        and bring them to an operator on demand — no one walks the aisles. openWCS drives the moves and
+        knows exactly where every unit is. <em>What</em> goes where is the
+        <a href="slotting.html">Slotting</a> function; this page is about the automation itself.
       </p>
     </div>
   </section>
@@ -48,44 +49,29 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">The put-away decision</p>
-        <h2>One weighted score, four objectives.</h2>
+        <p class="eyebrow">How an ASRS is built</p>
+        <h2>Aisles, sides, cells — addressed exactly.</h2>
         <p>
-          Each candidate location is scored; hard constraints filter first (lane capacity, one SKU per
-          deep lane, and a cap on how much of a SKU may sit in one aisle). The weights are per-block, so
-          you tune the trade-off rather than living with a vendor's hidden rules.
+          An aisle has a rack on each side and a shuttle or crane working the gap between them, with lifts
+          at the end moving units (and sometimes the shuttles) between levels. openWCS models every storage
+          position as a cell, so a unit's location is always precisely known.
         </p>
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="tag">Velocity</div>
-          <h3>Fast movers near the exit</h3>
-          <p>Each location has a distance-to-exit. Class-A SKUs are pulled toward the aisle port for short cycles; slow movers settle deep. ABC class is taught in per SKU.</p>
+          <div class="tag">Address</div>
+          <h3>aisle · side · x · y · z</h3>
+          <p>Each cell is identified by its aisle, the side of the aisle, the horizontal position (x), the level (y) and the depth (z). A handling unit is booked to that exact cell — never just "somewhere in the block".</p>
         </div>
         <div class="card">
-          <div class="tag">Multi-deep</div>
-          <h3>Same SKU per lane</h3>
-          <p>A triple-deep lane (X1,Y1,Z1–3) should hold one SKU so units don't block each other, and partial same-SKU lanes are filled first to avoid <em>honeycombing</em>. It's a strong preference, not a hard rule — aisle balance can outweigh it when you configure it to.</p>
+          <div class="tag">Machines</div>
+          <h3>Shuttles, cranes, lifts</h3>
+          <p>Captive or roaming shuttles work a level; a crane works a whole aisle; lifts bridge levels and the pre-zone. openWCS dispatches store and retrieve commands over the uniform device contract, vendor-neutral behind an adapter.</p>
         </div>
         <div class="card">
-          <div class="tag">Redundancy</div>
-          <h3>Survive an aisle outage</h3>
-          <p>A SKU is deliberately spread across aisles (a min-aisle floor + a max-share-per-aisle cap) so a single shuttle/crane going offline can't strand it — and it can be picked in parallel.</p>
-        </div>
-        <div class="card">
-          <div class="tag">Balance</div>
-          <h3>Even out the aisles</h3>
-          <p>Put-away prefers emptier aisles so fill levels — and therefore travel and throughput — stay balanced, instead of one aisle becoming the hot-spot bottleneck.</p>
-        </div>
-        <div class="card">
-          <div class="tag">Direct-to-pick</div>
-          <h3>Cross-dock when it fits</h3>
-          <p>If a forward pick face for the SKU has headroom below its max, inbound is routed straight there — skipping reserve and a later replenishment trip.</p>
-        </div>
-        <div class="card">
-          <div class="tag">Re-slotting</div>
-          <h3>Correct drift off-peak</h3>
-          <p>During idle windows the same scorer re-evaluates stored units and recommends moves as velocity drifts, lanes fragment, or aisles skew — keeping the layout optimal over time.</p>
+          <div class="tag">Families</div>
+          <h3>Shuttle · crane · AutoStore · AMR</h3>
+          <p>Rack shuttle/crane ASRS, AutoStore's bin grid, and AMR rack-to-person all fit the same model: a pool of cells, machines that move units, and a port that presents them. See the <a href="automation.html">Automation overview</a>.</p>
         </div>
       </div>
     </div>
@@ -94,29 +80,29 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow">Two worlds, one engine</p>
-        <h2>Automated blocks <em>and</em> manual pick faces.</h2>
+        <p class="eyebrow">Store &amp; retrieve</p>
+        <h2>Goods to the person, then back.</h2>
         <p>
-          Automated blocks slot to the pool (random/dynamic storage); manual racking and pick-by-light
-          faces slot a SKU+UoM to a <strong>fixed location</strong> with min/max, so pickers rely on
-          stable, learnable positions.
+          The operator never travels into storage. The system retrieves the handling unit a task needs,
+          presents it at a goods-to-person station, and returns it — and openWCS sequences those moves to
+          keep the station fed and the machines busy.
         </p>
       </div>
       <div class="grid grid-3">
+        <a class="card" href="gtp.html">
+          <div class="card-head"><div class="tag">Goods-to-person</div><span class="pill pill-built">Built</span></div>
+          <h3>Presented at a station</h3>
+          <p>Units are retrieved to a workstation for picking, decanting, counting, QC or maintenance, then returned to storage. See the goods-to-person deep dive.</p>
+        </a>
+        <a class="card" href="slotting.html">
+          <div class="card-head"><div class="tag">Slotting</div><span class="pill pill-built">Built</span></div>
+          <h3>Where a unit is stored</h3>
+          <p>Choosing the cell at put-away — velocity-to-exit, same-SKU lanes, aisle redundancy and fill balance — is the <strong>Slotting</strong> function, shared across all automation. See the Slotting page.</p>
+        </a>
         <div class="card">
-          <div class="tag">Pick faces</div>
-          <h3>Fixed slots, min/max</h3>
-          <p>Assign SKU+UoM to a location with a minimum and maximum. Below min raises a refill — emergency if the face is empty, scheduled otherwise.</p>
-        </div>
-        <div class="card">
-          <div class="tag">Replenishment</div>
-          <h3>Opportunistic top-off</h3>
-          <p>In off-peak windows every face is topped up to max, so disruptive hot replenishments during peak are avoided.</p>
-        </div>
-        <div class="card">
-          <div class="tag">Goods-to-person</div>
-          <h3>HUs to the station</h3>
-          <p>For GTP blocks, the WCS retrieves handling units to a pick station and returns them — the operator never travels into storage.</p>
+          <div class="tag">Re-store anywhere</div>
+          <h3>No fixed home</h3>
+          <p>When a unit comes back from a station it's slotted again — it doesn't have to return to its old cell. Random/dynamic storage keeps density high and the fast positions free.</p>
         </div>
       </div>
     </div>
@@ -128,26 +114,25 @@
         <p class="eyebrow">In-aisle behaviour</p>
         <h2>Depth, not just <span class="lime">which aisle.</span></h2>
         <p>
-          Choosing the aisle is half the decision. Within a lane, <em>where</em> a unit sits — and which
-          unit a shuttle or crane reaches for — drives the cycle time the station actually feels. openWCS
-          scores depth and reachability, not only the aisle-level pool.
+          Inside a lane, <em>where</em> a unit sits — and which unit the machine reaches for — drives the
+          cycle time the station actually feels.
         </p>
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="tag">Velocity-to-exit</div>
+          <div class="tag">Depth</div>
           <h3>Shallow for fast movers</h3>
-          <p>Distance-to-exit is measured down the lane, not just to the aisle. A class-A SKU is steered to the shallowest free position so retrieval is a short reach; slow movers are pushed to the back where the long reach rarely costs anything.</p>
+          <p>Distance-to-exit is measured down the lane, not just to the aisle: fast movers sit in the shallowest cells for a short reach, slow movers go deep where the long reach rarely costs anything.</p>
         </div>
         <div class="card">
           <div class="tag">Multi-deep lanes</div>
           <h3>Fill front-to-back, pick LIFO</h3>
-          <p>A deep lane holds one SKU and fills from the back forward, so retrieval pulls the front unit first — last-in, first-out within the lane. Put-away avoids leaving a half-empty lane that a faster unit can't get past.</p>
+          <p>A deep lane (cells z1…zN) holds one SKU and fills from the back forward, so retrieval pulls the front unit first — last-in, first-out within the lane.</p>
         </div>
         <div class="card">
-          <div class="tag">Dual-cycle intuition</div>
+          <div class="tag">Dual-cycle</div>
           <h3>Drop-off near the next pick</h3>
-          <p>A crane that has just stored a unit is positioned to grab a retrieval on the way back. Slotting leans toward placements that make a combined store-then-retrieve trip likely, so the device travels loaded in both directions instead of deadheading.</p>
+          <p>A machine that has just stored a unit is positioned to grab a retrieval on the way back, so it travels loaded in both directions instead of deadheading.</p>
         </div>
       </div>
     </div>
@@ -160,25 +145,24 @@
         <h2>Empties out of the <span class="lime">hot zone.</span></h2>
         <p>
           Empty carriers, trays and totes are inventory too — and if they sit near the exit they steal the
-          fast positions from real stock. openWCS treats empties as a managed pool with their own placement
-          and priority rules.
+          fast positions from real stock. openWCS treats empties as a managed pool.
         </p>
       </div>
       <div class="grid grid-3">
         <div class="card">
           <div class="tag">Far from the exit</div>
           <h3>Park empties deep</h3>
-          <p>Empty HUs are slotted to the positions furthest from the aisle port — the slots a fast mover would never want — so the short-cycle real estate stays reserved for stock that actually ships.</p>
+          <p>Empty HUs are stored in the cells furthest from the aisle port — slots a fast mover would never want — so short-cycle real estate stays reserved for stock that ships.</p>
         </div>
         <div class="card">
           <div class="tag">Low priority</div>
           <h3>Move them when it's quiet</h3>
-          <p>Consolidating and relocating empties runs at a lower priority than order-driven moves, so it fills the idle gaps between picks and put-aways instead of competing with throughput at peak.</p>
+          <p>Consolidating and relocating empties runs at a lower transport priority than order-driven moves, filling idle gaps instead of competing with throughput at peak.</p>
         </div>
         <div class="card">
           <div class="tag">Decanting</div>
           <h3>Feed the next put-away</h3>
-          <p>When inbound needs a carrier, an empty is pulled from the pool for decanting — so a fresh HU is ready at the station without a separate trip to fetch one mid-receipt.</p>
+          <p>When inbound needs a carrier that's storable in the automation, an empty is pulled for decanting — so a fresh HU is ready at the station without a separate trip mid-receipt.</p>
         </div>
       </div>
     </div>
@@ -188,17 +172,13 @@
     <div class="wrap">
       <div class="section-head">
         <p class="eyebrow">At a glance</p>
-        <h2>Receipt → scored location.</h2>
+        <h2>Store, present, return.</h2>
       </div>
       <div class="arch">
-<pre>  receipt (SKU, HU) ─►  <b>openWCS slotting</b>
-                         │  direct-to-pick?  → forward face (cross-dock)
-                         │  else score block pool:
-                         │     velocity-to-exit · same-SKU lane (soft) · redundancy · balance
-                         │     ── hard: lane full · max %/aisle ──
-                         ▼
-                    chosen location ─►  put-away move  (→ GTP pick station on demand)
-  off-peak: replenish faces to max · re-slot stored HUs toward better locations</pre>
+<pre>  put-away ─►  <b>slotting</b> picks a cell (aisle·side·x·y·z)  ──►  shuttle/crane stores the HU
+  order ─────► retrieve HU ──► lift/conveyor ──► <b>goods-to-person station</b> (pick/decant/count/QC)
+                                                      │
+                                  HU returned ──► slotted again (anywhere) · empties parked deep</pre>
       </div>
     </div>
   </section>
@@ -206,12 +186,12 @@
   <section>
     <div class="wrap">
       <div class="cta-band">
-        <p class="eyebrow">Configurable &amp; open</p>
-        <h2>Slot it your way.</h2>
-        <p>Every weight, cap and min/max is configuration you can read and change — not a locked-in integrator rule set.</p>
+        <p class="eyebrow">Vendor-neutral &amp; open</p>
+        <h2>Drive any ASRS, your way.</h2>
+        <p>One uniform device contract behind adapters — add a vendor without re-architecting. The storage logic is open and configurable, not a locked-in integrator black box.</p>
         <div class="hero-cta" style="justify-content:center">
           <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
-          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki/Slotting-and-Replenishment">Read the docs</a>
+          <a class="btn btn-ghost" href="slotting.html">How slotting works →</a>
         </div>
       </div>
     </div>
@@ -220,7 +200,7 @@
   <footer>
     <div class="wrap">
       <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
-      <span><a href="index.html">Overview</a> · <a href="functions.html">Functions</a> · <a href="conveyors.html">Conveyors</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+      <span><a href="index.html">Overview</a> · <a href="automation.html">Automation</a> · <a href="conveyors.html">Conveyors</a> · <a href="gtp.html">Goods-to-person</a> · <a href="slotting.html">Slotting</a></span>
     </div>
   </footer>
 </body>

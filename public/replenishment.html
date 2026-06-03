@@ -24,7 +24,7 @@
       <nav class="nav-links">
         <a href="index.html">← Overview</a>
         <a href="functions.html">Functions</a>
-        <a href="asrs.html">ASRS &amp; slotting</a>
+        <a href="automation.html">Automation</a>
       </nav>
       <div class="nav-right">
         <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
@@ -85,6 +85,22 @@
           <h3>Your thresholds</h3>
           <p>Min, max and the off-peak window are configuration per face, so you set the trade-off between carrying buffer and trip count yourself.</p>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Step by step</p>
+        <h2>How a face stays full.</h2>
+        <ol class="steps">
+          <li><strong>Watch the level.</strong> Each fixed pick face carries a SKU+UoM with a min and a max; openWCS tracks its current quantity against both.</li>
+          <li><strong>Catch inbound first.</strong> When stock arrives, check whether the forward face has headroom — if so, route it direct-to-pick and skip a reserve put-away entirely.</li>
+          <li><strong>Trigger on threshold.</strong> When a face drops below min, raise a refill — marked EMERGENCY if the face is empty and blocking picks, SCHEDULED otherwise.</li>
+          <li><strong>Pull from reserve.</strong> The refill draws from reserve and automated blocks over the same movement layer as put-away — one mover network, sequenced by urgency.</li>
+          <li><strong>Top off off-peak.</strong> In quiet windows, fill every face up to max so each rush starts full and hot replenishments during peak are avoided.</li>
+        </ol>
       </div>
     </div>
   </section>
