@@ -85,7 +85,7 @@ class PutawayServiceTest {
                 .thenReturn(List.of(loc(far, "A1", 3, 10.0), loc(near, "A1", 3, 1.0)));
 
         PutawayDecision decision = service.assign(
-                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, null, null));
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, null, null, false));
 
         assertThat(decision.mode()).isEqualTo("RESERVE");
         assertThat(decision.blockId()).isEqualTo(block);
@@ -113,10 +113,31 @@ class PutawayServiceTest {
         when(inventory.onHandAtLocation(any(), any(), any())).thenReturn(new BigDecimal("10"));
 
         PutawayDecision decision = service.assign(
-                new PutawayRequest(wh, UUID.randomUUID(), sku, null, uom, BigDecimal.ONE, null, null));
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, uom, BigDecimal.ONE, null, null, false));
 
         assertThat(decision.mode()).isEqualTo("DIRECT_TO_PICK");
         assertThat(decision.locationId()).isEqualTo(faceLoc);
+    }
+
+    @Test
+    void emptyHuGoesFarthestFromExitAtLowPriority() {
+        UUID wh = UUID.randomUUID();
+        UUID block = UUID.randomUUID();
+        UUID near = UUID.randomUUID();
+        UUID far = UUID.randomUUID();
+
+        when(masterData.block(eq(block)))
+                .thenReturn(new MasterDataClient.Block(block, "SHUTTLE_ASRS", "BLOCK", true, null));
+        when(masterData.storageLocations(eq(wh), eq(block)))
+                .thenReturn(List.of(loc(near, "A1", 3, 1.0), loc(far, "A1", 3, 10.0)));
+
+        // Empty carrier: no SKU, explicit block.
+        PutawayDecision decision = service.assign(
+                new PutawayRequest(wh, UUID.randomUUID(), null, null, null, null, block, "TOTE", true));
+
+        assertThat(decision.locationId()).isEqualTo(far);          // farthest from exit
+        assertThat(decision.transportPriority()).isEqualTo("LOW");
+        assertThat(decision.assignmentId()).isNotNull();
     }
 
     @Test
@@ -136,7 +157,7 @@ class PutawayServiceTest {
                 .thenReturn(new MasterDataClient.Block(block, "SHUTTLE_ASRS", "BLOCK", true, List.of("TOTE")));
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.assign(
-                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, block, "PALLET")))
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, block, "PALLET", false)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }
