@@ -1,0 +1,258 @@
+/* Settings screen — local layout + the toggle-switch primitive (styling.md §7).
+   The toggle CSS is intentionally NOT in theme/app.css, so it lives here scoped to
+   this screen. Everything else reuses the shared .glass/.btn/.form-control classes. */
+
+.layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.nav {
+  position: sticky;
+  top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  padding: .75rem;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .6rem .85rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: .9375rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+
+.navItem:hover {
+  background: rgba(141, 198, 63, .08);
+  color: var(--text);
+}
+
+.navItem.active {
+  background: rgba(141, 198, 63, .12);
+  border-color: var(--glass-border-bright);
+  color: var(--herbal-lime);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.section {
+  padding: 1.5rem;
+}
+
+.sectionHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.sectionHead h2 {
+  font-size: 1.4rem;
+  margin: 0;
+}
+
+.sectionHead p {
+  color: var(--text-dim);
+  margin: .25rem 0 0;
+  font-size: .875rem;
+  max-width: 70ch;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+
+.field label {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.fieldHint {
+  font-size: .75rem;
+  color: var(--text-faint);
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-top: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.savedNote {
+  color: var(--herbal-lime);
+  font-size: .8125rem;
+}
+
+.statusGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.statusCard {
+  padding: 1rem 1.25rem;
+}
+
+.statusCard h3 {
+  margin: 0 0 .35rem;
+  font-size: 1.05rem;
+}
+
+.statusCard p {
+  margin: .15rem 0;
+  font-size: .8125rem;
+  color: var(--text-dim);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .15rem .6rem;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.pillOk {
+  background: rgba(141, 198, 63, .15);
+  color: var(--herbal-lime);
+  border: 1px solid rgba(141, 198, 63, .3);
+}
+
+.pillWarn {
+  background: rgba(244, 184, 96, .15);
+  color: #f4b860;
+  border: 1px solid rgba(244, 184, 96, .3);
+}
+
+.pillDown {
+  background: rgba(255, 107, 94, .15);
+  color: #ff8a80;
+  border: 1px solid rgba(255, 107, 94, .3);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .875rem;
+}
+
+.table th {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--herbal-lime);
+  text-align: left;
+  padding: .55rem .75rem;
+  border-bottom: 1px solid var(--glass-border-bright);
+}
+
+.table td {
+  padding: .55rem .75rem;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.muted {
+  color: var(--text-dim);
+}
+
+/* ---- toggle switch (styling.md §7), scoped to this screen ---- */
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+  flex: none;
+}
+
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  background: rgba(255, 255, 255, .12);
+  border: 1px solid var(--glass-border);
+  border-radius: 26px;
+  transition: .3s;
+}
+
+.slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: var(--alpine-white);
+  border-radius: 50%;
+  transition: .3s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+}
+
+.toggle input:checked + .slider {
+  background: var(--herbal-lime);
+  border-color: var(--herbal-lime);
+  box-shadow: 0 0 16px -2px var(--herbal-glow);
+}
+
+.toggle input:checked + .slider::before {
+  background: var(--forest-abyss);
+  transform: translateX(22px);
+}
+
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .nav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
