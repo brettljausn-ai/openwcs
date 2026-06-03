@@ -72,6 +72,7 @@ openwcs/
 | `services/process-engine` | Java | 8083 | Admin-designed BPMN process definitions + execution (Flowable) |
 | `services/order-management` | Java | 8084 | Outbound orders + fulfilment lifecycle + release management (priority/dispatch-time); delegates allocation |
 | `services/allocation` | Java | 8091 | Outbound prep: pick-location allocation (UoM breakdown), multi-size cubing into shippers (largest-first, per-line carton traceability) or host 1:1, batch picking |
+| `services/slotting` | Java | 8093 | Inbound slotting & replenishment (ADR 0003): put-away assignment for automated rack/GTP blocks (velocity-to-exit, multi-deep same-SKU lanes, aisle redundancy + balancing), manual pick-face slotting with min/max + opportunistic replenishment, off-peak re-slotting |
 | `services/flow-orchestrator` | Java | 8085 | Dispatches device tasks to adapters over the uniform device contract; vendor-neutral conveyor routing (topology graph + HU route plans + shortest-path next-hop on scan) |
 | `services/txlog` | Java | 8086 | Append-only transaction log (shared Postgres) |
 | `services/iam` | Java | 8087 | Authorization model: users → roles → coded permissions (Keycloak does auth) |

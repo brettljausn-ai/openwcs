@@ -1,6 +1,6 @@
 # openWCS — Development Status
 
-_Last updated: 2026-06-02 (Phase 2 increment 1)_
+_Last updated: 2026-06-03 (slotting & replenishment — ADR 0003)_
 
 Live status of the build against the roadmap in [`build.md` §15](../build.md). For what
 the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
@@ -24,6 +24,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | inventory | Java | 8082 | ✅ | Stock projection + SKU- and location-scoped availability/reservations. |
 | order-management | Java | 8084 | ✅ | Orders of all types (INBOUND/OUTBOUND/COUNT/ADJUSTMENT), lifecycle, release mgmt, dispatch service/route + ship-to + label-template (validated against master-data), line stock transactions via a local outbox → txlog (audit: actor required); delegates allocation. |
 | allocation | Java | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing (APP multi-size largest-first / 1:1) with per-line carton traceability + per-carton dispatch labels (host barcode per shipper), batch picking. |
+| slotting | Java | 8093 | ✅ | Put-away assignment for automated rack/GTP blocks (weighted scorer: velocity-to-exit · same-SKU lane consolidation · aisle redundancy cap/floor · fill balance; single-SKU-per-lane + max-aisle hard constraints; direct-to-pick), manual pick-face slotting + min/max replenishment (opportunistic off-peak top-off), off-peak re-slotting. Goods-in `assignPutaway` BPMN delegate. ADR 0003. Move dispatch + txlog events pending. |
 | txlog | Java | 8086 | ✅ | Append-only events + outbox + relay. |
 | process-engine | Java | 8083 | 🟡 | Embedded Flowable BPMN: deploy definitions, start/inspect instances; service-task delegates originate WCS work (sample goods-in dispatches a device task). Process designer UI pending. |
 | flow-orchestrator | Java | 8085 | 🟡 | Device-task lifecycle + **vendor-neutral conveyor routing** (topology graph w/ per-node hardware address, HU route plans, shortest-path next-hop, **loop capacity HOLD/OVERFLOW**, **topology learning** from observed scans). Schematic editor lives in `ui`. Sniffer capture front-end + BPMN origination pending. |
@@ -56,6 +57,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | **1 — Master data + inventory MVP** | ✅ | Master Data ✅, Inventory projection ✅, log→projection loop proven ✅. |
 | **2 — Process engine + one equipment family** | ✅ | flow-orchestrator device-task lifecycle + uniform device contract ✅, conveyor adapter ✅, DEVICE RBAC ✅, **process-engine (Flowable BPMN) ✅ with a sample goods-in process that originates a device task** ✅. Gap: a process designer UI + richer processes. |
 | **3 — Outbound + more equipment** | 🟡 | **order-management ✅, allocation + cubing + batch picking + release management ✅, inventory reservation/ATP ✅, dispatch labels/services/routes ✅ (incl. integration-sap label-barcode + route feed).** Gaps: host-integration gateways translate into the canonical Host API but the real SAP/Manhattan wire protocols (OData/BAPI/IDoc, Manhattan REST) are still skeletal ⬜; the *BPMN* outbound process ⬜; more adapters ⬜. |
+| **3b — Inbound slotting & replenishment** | 🟡 | **Put-away assignment engine (block-level slotting for ASRS/AutoStore/AMR-GTP; velocity-to-exit, multi-deep same-SKU lanes, aisle redundancy + balance) ✅, manual pick-face slotting + min/max + opportunistic replenishment ✅, off-peak re-slotting ✅, slotting UI ✅, goods-in put-away delegate ✅** (ADR 0003). Gaps: physical move dispatch ⬜, txlog audit events ⬜, inventory-truth occupancy + auto-ABC ⬜. |
 | **4 — Counting & operations** | 🟡 | `StockAdjusted` projection ✅; cycle-count process ⬜; dashboards/alerting ⬜. |
 | **5 — Hardening & scale** | ⬜ | DLQs, circuit breakers, replay tooling, perf, security review. |
 
