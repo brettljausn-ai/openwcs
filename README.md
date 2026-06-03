@@ -87,7 +87,7 @@ openwcs/
 | `services/adapters/amr-geekplus` | Go | 9093 | Geek+ RCS adapter (REST + WebSocket) |
 | `services/adapters/autostore` | Go | 9094 | AutoStore grid adapter (REST) |
 | `services/adapters/conveyor-sniffer` | Go | 9095 | Captures scan telegrams from defined IPs → posts observations to the WCS for conveyor topology learning |
-| `ui` | React/TS | 5173 | Operator + management SPA; admin screens so far: conveyor topology editor (React Flow) + BPMN process designer (bpmn-js) |
+| `ui` | React/TS | 5173 dev / 80 prod | Operator + management SPA; admin screens so far: conveyor topology editor (React Flow) + BPMN process designer (bpmn-js). In compose served by nginx on host `:80`. |
 
 ---
 
@@ -206,6 +206,9 @@ cd services/adapters/conveyor && go run .    # http://localhost:9091/healthz
 ```bash
 cd ui && npm install && npm run dev          # http://localhost:5173 (proxies /api -> gateway)
 ```
+The `--profile apps` compose stack also builds and serves the UI with nginx on
+**http://localhost/** (port 80), proxying `/api` to the gateway — no dev server
+needed when running the full stack.
 
 ### 5. Stand up a demo server (Ubuntu)
 One command on a fresh Ubuntu 22.04/24.04 box installs Docker + JDK 21, clones,

@@ -38,7 +38,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | adapters/conveyor | Go | 9091 | 🟡 | Health + stub loop + `POST /tasks` device-task simulator (CONVEY/DIVERT/MERGE/SCAN). |
 | adapters/{asrs,amr-geekplus,autostore} | Go | 9096, 9093, 9094 | 🟦 | Health + stub loop. (asrs on 9096 — 9092 is Kafka's.) |
 | adapters/conveyor-sniffer | Go | 9095 | 🟡 | Ingests scan telegrams from defined source IPs (allowlist + decoder) → posts observations to the WCS for topology learning. |
-| ui | React/TS | 5173 | 🟡 | React/Vite; React Flow conveyor topology editor + bpmn-js BPMN process designer (model/deploy, start instances, complete user tasks). |
+| ui | React/TS | 5173 dev / 80 prod | 🟡 | React/Vite; React Flow conveyor topology editor + bpmn-js BPMN process designer (model/deploy, start instances, complete user tasks). Dockerised (nginx) and served on host **:80** under compose `--profile apps`, proxying `/api` → gateway. |
 | libs/common | Java | — | ✅ | `EventEnvelope`. |
 
 **Contracts:** OpenAPI ✅ master-data, inventory, txlog, allocation, order-management, iam,

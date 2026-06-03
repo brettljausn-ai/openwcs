@@ -84,11 +84,11 @@ cat <<EOF
 
 ==================================================================
  openWCS demo is starting up.
-   Gateway / API : http://${ip:-localhost}:8080   (health: /actuator/health)
-   Keycloak      : http://${ip:-localhost}:8180   (admin / admin)
-   UI (dev)      : cd $OPENWCS_DIR/ui && npm ci && npm run dev -- --host 0.0.0.0
-                   -> http://${ip:-localhost}:5173
+   UI            : http://${ip:-localhost}/        (served by the stack; nginx proxies /api)
+   Gateway / API : http://${ip:-localhost}:8080    (health: /actuator/health)
+   Keycloak      : http://${ip:-localhost}:8180    (admin / admin)
 
+ Open ports 80 (UI) and 8080 (API) in your cloud/VM firewall to reach them.
  Security is OFF by default (demo mode) — the APIs need no token.
 
  Manage the stack:
