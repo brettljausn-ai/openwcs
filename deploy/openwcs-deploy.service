@@ -1,0 +1,12 @@
+[Unit]
+Description=openWCS auto-deploy (fast-forward main, rebuild jars, recompose)
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/openwcs
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/opt/openwcs/scripts/deploy.sh

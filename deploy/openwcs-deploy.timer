@@ -1,0 +1,10 @@
+[Unit]
+Description=Poll origin/main and redeploy openWCS when it changes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+Unit=openwcs-deploy.service
+
+[Install]
+WantedBy=timers.target

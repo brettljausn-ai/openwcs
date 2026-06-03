@@ -1,0 +1,33 @@
+name: Deploy demo
+
+# Event-driven redeploy of the demo server.
+#
+# Runs on a self-hosted runner installed ON the demo box, and only after the
+# CI workflow has completed *successfully* on main — so a red build never
+# reaches the demo. Also runnable on demand from the Actions tab.
+#
+# If no self-hosted runner is registered, this job simply queues and never
+# runs — harmless. See deploy/README.md for setup.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # workflow_run fires on both success and failure; gate on success.
+    # workflow_dispatch carries no workflow_run payload, so let it through.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: [self-hosted]
+    steps:
+      - name: Pull, rebuild and recompose
+        run: /opt/openwcs/scripts/deploy.sh
