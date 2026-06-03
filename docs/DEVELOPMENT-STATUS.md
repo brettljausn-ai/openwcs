@@ -29,15 +29,16 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | flow-orchestrator | Java | 8085 | 🟡 | Device-task lifecycle (REQUESTED→DISPATCHED→COMPLETED/FAILED) over the uniform device contract; routes to adapters by family. BPMN-driven routing still pending. |
 | iam | Java | 8087 | ✅ | Authorization model: users → roles → coded permissions; seeded roles; effective-permission resolution. (Keycloak does auth.) |
 | notification | Java | 8088 | 🟦 | — |
-| integration-sap / integration-manhattan | Java | 8089/8090 | 🟦 | Host gateways. |
+| integration-sap | Java | 8089 | 🟡 | Host gateway: per-shipper dispatch-label barcode allocation (`POST /labels`, simulated host); allocation calls it when configured. |
+| integration-manhattan | Java | 8090 | 🟦 | Host gateway. |
 | adapters/conveyor | Go | 9091 | 🟡 | Health + stub loop + `POST /tasks` device-task simulator (CONVEY/DIVERT/MERGE/SCAN). |
 | adapters/{asrs,amr-geekplus,autostore} | Go | 9092–9094 | 🟦 | Health + stub loop. |
 | ui | React/TS | 5173 | 🟦 | Vite skeleton. |
 | libs/common | Java | — | ✅ | `EventEnvelope`. |
 
 **Contracts:** OpenAPI ✅ master-data, inventory, txlog, allocation, order-management, iam,
-flow-orchestrator; ⬜ master-data shipper/fulfillment-config paths, other services.
-Avro/Schema-Registry ⬜.
+flow-orchestrator, integration-sap; ⬜ master-data shipper/fulfillment-config paths, other
+services. Avro/Schema-Registry ⬜.
 
 **Platform:** docker-compose ✅ (incl. allocation; Keycloak imports the `openwcs` realm).
 **CI ✅** (GitHub Actions: Java build+test with Testcontainers, Go adapters, UI build, OpenAPI
@@ -71,6 +72,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | flow-orchestrator | `DeviceTaskServiceTest` | Testcontainers + Mockito (`@MockBean DeviceClient`: COMPLETED on success, FAILED on adapter error without losing the task, query by id/correlation) |
 | adapters/conveyor | `main_test.go` | Go httptest (`POST /tasks`: COMPLETED, FAILED on unknown command, 405 on GET) |
 | gateway | `GatewayAuthEndToEndTest` | Testcontainers (live Keycloak + imported `openwcs` realm): no token → 401, realm JWT → 200 + identity propagated, client-supplied `X-Auth-*` stripped (anti-spoof) |
+| integration-sap | `LabelControllerTest` | MockMvc (per-shipper label-barcode allocation) |
 
 ---
 

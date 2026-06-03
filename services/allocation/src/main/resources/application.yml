@@ -30,6 +30,9 @@ openwcs:
   allocation:
     master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
     inventory-base-url: ${OPENWCS_INVENTORY_BASE_URL:http://localhost:8082}
+    # Host integration gateway for per-shipper label barcodes. Left UNSET by default so a
+    # simulator is used (dev/test). Set OPENWCS_ALLOCATION_HOST_LABEL_BASE_URL (e.g.
+    # http://integration-sap:8089) to enable the real host call (see HttpHostLabelClient).
 
 management:
   endpoints:
