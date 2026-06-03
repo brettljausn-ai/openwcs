@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KPI dashboards — openWCS</title>
+  <meta name="description" content="KPI dashboards in openWCS are on the roadmap: throughput, dwell, utilisation and SLA metrics with operational dashboards are planned. There is no metrics store or dashboard layer yet." />
+  <meta name="theme-color" content="#061812" />
+  <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/kpi-dashboards.html" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta property="og:title" content="KPI dashboards — openWCS" />
+  <meta property="og:description" content="Roadmap: throughput, dwell, utilisation and SLA dashboards. No metrics store or dashboards exist yet." />
+  <meta property="og:type" content="article" />
+  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body id="top">
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
+      <nav class="nav-links">
+        <a href="index.html">← Overview</a>
+        <a href="functions.html">Functions</a>
+        <a href="asrs.html">ASRS &amp; slotting</a>
+      </nav>
+      <div class="nav-right">
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Function · KPI dashboards <span class="pill pill-roadmap">Roadmap</span></p>
+      <h1>Metrics you can <span class="lime">act on.</span></h1>
+      <p class="lead">
+        Operational dashboards turn the event stream into decisions — what's flowing, what's stalling,
+        where the bottleneck is. This is a planned capability, not a shipped one.
+      </p>
+      <p class="status-line">⚑ Roadmap — planned, not yet implemented. There is no metrics store or dashboard layer in openWCS today.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">The intended capability</p>
+        <h2>From event stream to operational view.</h2>
+        <p>
+          openWCS already emits a rich event stream from orders, moves and adjustments. KPI dashboards are
+          the planned layer that aggregates those events into live, actionable metrics.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag">Throughput</div><span class="pill pill-roadmap">Roadmap</span></div>
+          <h3>Lines &amp; units over time</h3>
+          <p>Planned: picks, put-aways and moves per hour, trended against the day's plan, so the floor can see whether it's keeping pace.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag">Dwell</div><span class="pill pill-roadmap">Roadmap</span></div>
+          <h3>Where units wait</h3>
+          <p>Planned: dwell time per stage — induct, buffer, station — to surface where handling units pile up before it becomes a jam.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag">Utilisation</div><span class="pill pill-roadmap">Roadmap</span></div>
+          <h3>Equipment &amp; aisle load</h3>
+          <p>Planned: utilisation of aisles, cranes/shuttles and conveyor loops, so you can spot the hot-spot and the idle resource at a glance.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag">SLA</div><span class="pill pill-roadmap">Roadmap</span></div>
+          <h3>On-time against targets</h3>
+          <p>Planned: order and wave SLA attainment — what shipped on time vs at risk — so cut-offs are managed proactively, not after the fact.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag">Metrics store</div><span class="pill pill-roadmap">Roadmap</span></div>
+          <h3>Aggregate the events</h3>
+          <p>Planned: a metrics store that rolls the event stream into time-series the dashboards read — the foundation that does not exist yet.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag">Dashboards</div><span class="pill pill-roadmap">Roadmap</span></div>
+          <h3>Live &amp; configurable</h3>
+          <p>Planned: configurable dashboards for floor and management views, refreshed live from the metrics store. Designed for, not yet built.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">At a glance</p>
+        <h2>Events exist → dashboards on the roadmap.</h2>
+      </div>
+      <div class="arch">
+<pre>  <b>event stream</b> (orders · moves · StockAdjusted)        (built)
+        │
+        ▼
+  ┄┄┄ roadmap ┄┄┄  metrics store → throughput · dwell · utilisation · SLA → dashboards</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow">Open &amp; honest</p>
+        <h2>Follow dashboards as they land.</h2>
+        <p>The event stream the dashboards will read is live today; the metrics and dashboard layer is tracked in the open.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+          <a class="btn btn-ghost" href="functions.html">Back to functions</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span><a href="functions.html">Functions</a> · <a href="hardware-visualisation.html">Hardware visualisation</a> · <a href="cycle-counting.html">Cycle counting</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+    </div>
+  </footer>
+</body>
+</html>

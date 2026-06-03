@@ -215,6 +215,19 @@ h2 { font-size: clamp(2.1rem, 4.4vw, 3.2rem); letter-spacing: -.01em; }
 .card h3 { font-size: 1.55rem; margin: .55rem 0; }
 .card p { color: var(--text-dim); margin: 0; font-size: .97rem; }
 
+/* ---- Status pills (Built / Roadmap) ---- */
+.pill {
+  display: inline-flex; align-items: center; gap: .45rem;
+  font-family: var(--font-mono); font-size: .68rem; letter-spacing: .14em; text-transform: uppercase;
+  padding: .3rem .7rem; border-radius: 999px; border: 1px solid var(--glass-border);
+}
+.pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill-built { color: var(--herbal-lime); border-color: var(--glass-border-bright); background: rgba(141,198,63,.08); }
+.pill-roadmap { color: var(--text-dim); background: var(--glass-bg-strong); }
+.card .pill { margin-left: .5rem; vertical-align: middle; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.status-line { font-family: var(--font-mono); font-size: .85rem; color: var(--text-dim); margin: 1.1rem 0 0; }
+
 .problem { border-left: 2px solid var(--danger); }
 .problem .tag { color: var(--danger); }
 .problem::before { background: linear-gradient(90deg, transparent, var(--danger), transparent); }

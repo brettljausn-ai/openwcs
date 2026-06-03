@@ -23,6 +23,7 @@
       <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
       <nav class="nav-links">
         <a href="index.html">← Overview</a>
+        <a href="functions.html">Functions</a>
         <a href="asrs.html">ASRS &amp; slotting</a>
       </nav>
       <div class="nav-right">
@@ -109,6 +110,53 @@
 
   <section>
     <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Self-learning</p>
+        <h2>Discover the layout from <span class="lime">live traffic.</span></h2>
+        <p>
+          Most conveyor topologies are documented once, then drift as lanes are re-routed and devices
+          are swapped. Instead of trusting a stale drawing, openWCS can <strong>learn the graph from the
+          telegrams the hardware is already emitting</strong> — turning every scan into evidence about how
+          the network is actually wired.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">Sniffer</div>
+          <h3>Listen on allowed IPs</h3>
+          <p>The discovery sniffer is pointed at a defined allow-list of source IPs — the PLCs and scan controllers you trust. It only ingests telegrams from those endpoints, so it never picks up unrelated network chatter.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Controller per endpoint</div>
+          <h3>Seed a node from each device</h3>
+          <p>Every PLC / scan controller on the allow-list is seeded as an endpoint in the graph. The address it reports from becomes a node's hardware address, so the learned topology already knows which physical device each node is.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Infer nodes</div>
+          <h3>Where units get scanned</h3>
+          <p>Each distinct scan location that appears in the traffic becomes a candidate node. Repeated sightings confirm it; one-off noise stays low-confidence until it is seen again.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Infer edges</div>
+          <h3>Follow a unit hop-to-hop</h3>
+          <p>By tracking the same handling unit across consecutive scans, openWCS infers a directed edge between the two nodes — the physical path the unit just travelled — and builds up the graph from observed transitions.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Infer targets</div>
+          <h3>Where flows terminate</h3>
+          <p>Nodes where units consistently leave the network — induct points, drop lanes, ship doors — surface as candidate targets, so the destinations the routing layer needs are discovered too, not hand-listed.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Bootstrap or verify</div>
+          <h3>Propose, then promote</h3>
+          <p>The learned graph is a proposal an admin reviews in the same visual editor — accept it to bootstrap a greenfield site, or diff it against the live topology to catch drift on an existing one.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
       <div class="cta-band">
         <p class="eyebrow">Open &amp; vendor-neutral</p>
         <h2>Route any conveyor, your way.</h2>
@@ -124,7 +172,7 @@
   <footer>
     <div class="wrap">
       <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
-      <span><a href="index.html">Overview</a> · <a href="asrs.html">ASRS &amp; slotting</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+      <span><a href="index.html">Overview</a> · <a href="functions.html">Functions</a> · <a href="asrs.html">ASRS &amp; slotting</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
     </div>
   </footer>
 </body>
