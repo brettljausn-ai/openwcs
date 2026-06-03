@@ -17,8 +17,125 @@ servers:
 tags:
   - name: Stations
   - name: WorkCycle
+  - name: Workplaces
 
 paths:
+  /workplaces:
+    get:
+      tags: [Workplaces]
+      summary: List GTP workplaces (stations) to pick from in the operator console
+      description: "Lists the GTP stations in a warehouse as operator workplaces, flagging which currently have an active session (inUse)."
+      operationId: listWorkplaces
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Workplace' }
+  /workplaces/{stationId}:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Workplaces]
+      summary: Get a single workplace and its nodes (work context)
+      operationId: getWorkplace
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Workplace' }
+        "404":
+          description: "Workplace not found"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /workplaces/{stationId}/session:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Workplaces]
+      summary: Claim a workplace (open an operator session)
+      description: >
+        "Claim the workplace for an operator and return a sessionId plus the work context. Supersedes
+        any session already active on the workplace (single active session per workplace), so the
+        prior operator's console detects — via its heartbeat/stream — that it was taken over."
+      operationId: claimWorkplace
+      parameters:
+        - { name: operator, in: query, required: false, schema: { type: string }, description: "Operator id fallback when no X-Auth-User header is forwarded." }
+      responses:
+        "200":
+          description: Session claimed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkplaceSession' }
+        "404":
+          description: "Workplace not found"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /workplaces/{stationId}/session/{sessionId}/heartbeat:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: sessionId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Workplaces]
+      summary: Heartbeat (keep-alive) a workplace session
+      description: >
+        "Refresh the session's keep-alive and learn whether it still owns the workplace. Returns
+        {active:true} while live, or {active:false, reason:'superseded'} once it was taken over by a
+        newer claim (or 'released' after a clean release)."
+      operationId: heartbeatSession
+      responses:
+        "200":
+          description: Session status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionStatus' }
+        "404":
+          description: "Session not found for this workplace"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      tags: [Workplaces]
+      summary: Release a workplace session (clean close)
+      operationId: releaseSession
+      responses:
+        "200":
+          description: Session status after release
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionStatus' }
+        "404":
+          description: "Session not found for this workplace"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /workplaces/{stationId}/session/{sessionId}/stream:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: sessionId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Workplaces]
+      summary: Stream workplace session status (Server-Sent Events)
+      description: >
+        "A nicer alternative to polling the heartbeat: emits a 'status' event while active, then a
+        terminal 'superseded' (or 'released') event carrying a SessionStatus once the session is no
+        longer active, after which the stream completes."
+      operationId: streamSession
+      responses:
+        "200":
+          description: "An SSE stream of SessionStatus events."
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: "SSE frames whose data field is a SessionStatus JSON object."
   /stations:
     post:
       tags: [Stations]
@@ -480,6 +597,39 @@ components:
         qty: { type: number }
         confirmedQty: { type: number }
         status: { type: string, enum: [OPEN, CONFIRMED, SHORT, CANCELLED] }
+    Workplace:
+      type: object
+      description: "A GTP station presented as an operator workplace, with whether it is currently in use."
+      properties:
+        id: { type: string, format: uuid }
+        warehouseId: { type: string, format: uuid }
+        code: { type: string }
+        mode: { type: string, enum: [ORDER_LOCATION, PUT_WALL] }
+        supportedModes:
+          type: array
+          items: { $ref: '#/components/schemas/OperatingMode' }
+        status: { type: string }
+        inUse: { type: boolean, description: "True when the workplace currently has an active operator session." }
+        nodes:
+          type: array
+          items: { $ref: '#/components/schemas/Node' }
+    WorkplaceSession:
+      type: object
+      description: "A claimed operator session plus the work context (the workplace it owns)."
+      properties:
+        sessionId: { type: string, format: uuid }
+        stationId: { type: string, format: uuid }
+        operator: { type: string, nullable: true }
+        status: { type: string, enum: [ACTIVE, SUPERSEDED, RELEASED] }
+        claimedAt: { type: string, format: date-time }
+        lastHeartbeatAt: { type: string, format: date-time }
+        workplace: { $ref: '#/components/schemas/Workplace' }
+    SessionStatus:
+      type: object
+      description: "Whether a session still owns its workplace, and (if not) why it closed."
+      properties:
+        active: { type: boolean }
+        reason: { type: string, nullable: true, enum: [superseded, released] }
     Error:
       type: object
       properties:
