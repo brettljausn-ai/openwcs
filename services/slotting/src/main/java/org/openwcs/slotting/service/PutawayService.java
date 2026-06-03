@@ -60,8 +60,14 @@ public class PutawayService {
 
     @Transactional
     public PutawayDecision assign(PutawayRequest req) {
-        if (req.warehouseId() == null || req.skuId() == null) {
-            throw new IllegalArgumentException("warehouseId and skuId are required");
+        if (req.warehouseId() == null) {
+            throw new IllegalArgumentException("warehouseId is required");
+        }
+        if (req.empty()) {
+            return assignEmpty(req); // empty carrier: no SKU, stored far + moved at lower priority
+        }
+        if (req.skuId() == null) {
+            throw new IllegalArgumentException("skuId is required (or set empty=true)");
         }
 
         PutawayDecision direct = tryDirectToPick(req);
@@ -69,6 +75,48 @@ public class PutawayService {
             return direct;
         }
         return assignToBlock(req);
+    }
+
+    /**
+     * Place an empty handling unit: empties don't need fast access, so they go to the feasible
+     * location <b>farthest from the aisle exit</b> and are flagged for <b>LOW</b> transport priority.
+     * No SKU is involved (empties are a buffer for decanting). Requires an explicit block.
+     */
+    private PutawayDecision assignEmpty(PutawayRequest req) {
+        UUID blockId = req.blockId();
+        if (blockId == null) {
+            throw new IllegalArgumentException("empty-HU put-away requires a blockId");
+        }
+        MasterDataClient.Block block = masterData.block(blockId);
+        if (req.huType() != null && block != null && !huTypeAllowed(block.allowedHuTypes(), req.huType())) {
+            throw new IllegalArgumentException("HU type " + req.huType() + " is not storable in block " + blockId);
+        }
+
+        List<StorageLocation> locations = masterData.storageLocations(req.warehouseId(), blockId).stream()
+                .filter(l -> "STORAGE".equals(l.purpose()) && (l.status() == null || "ACTIVE".equals(l.status())))
+                .filter(l -> req.huType() == null || huTypeAllowed(l.allowedHuTypes(), req.huType()))
+                .toList();
+        if (locations.isEmpty()) {
+            throw new IllegalStateException("no storage locations in block " + blockId + " accept HU type " + req.huType());
+        }
+
+        Map<UUID, Integer> occupied = new HashMap<>();
+        for (PutawayAssignment a : assignments.findByWarehouseIdAndBlockIdAndStatusIn(req.warehouseId(), blockId, ACTIVE)) {
+            if (a.getChosenLocationId() != null) {
+                occupied.merge(a.getChosenLocationId(), 1, Integer::sum);
+            }
+        }
+        StorageLocation chosen = locations.stream()
+                .filter(l -> occupied.getOrDefault(l.id(), 0) < laneDepth(l))
+                .max(java.util.Comparator.comparingDouble(PutawayService::distanceToExit))
+                .orElseThrow(() -> new IllegalStateException("no feasible empty-HU location in block " + blockId));
+
+        Map<String, Object> factors = new HashMap<>();
+        factors.put("reason", "empty-far-from-exit");
+        factors.put("distanceToExit", distanceToExit(chosen));
+        factors.put("transportPriority", "LOW");
+        PutawayAssignment saved = persist(req, blockId, chosen.id(), "RESERVE", null, factors);
+        return new PutawayDecision(saved.getId(), chosen.id(), blockId, "RESERVE", null, factors, "LOW");
     }
 
     /** Cross-dock the receipt straight to a forward pick face when one has room below max. */
@@ -94,7 +142,7 @@ public class PutawayService {
         }
         Map<String, Object> factors = Map.of("reason", "direct-to-pick", "headroom", bestHeadroom);
         PutawayAssignment saved = persist(req, null, best.getLocationId(), "DIRECT_TO_PICK", null, factors);
-        return new PutawayDecision(saved.getId(), best.getLocationId(), null, "DIRECT_TO_PICK", null, factors);
+        return new PutawayDecision(saved.getId(), best.getLocationId(), null, "DIRECT_TO_PICK", null, factors, "NORMAL");
     }
 
     private PutawayDecision assignToBlock(PutawayRequest req) {
@@ -148,7 +196,7 @@ public class PutawayService {
         PutawayAssignment saved = persist(req, blockId, best.locationId(), "RESERVE",
                 BigDecimal.valueOf(best.score()), best.factors());
         return new PutawayDecision(saved.getId(), best.locationId(), blockId, "RESERVE",
-                BigDecimal.valueOf(best.score()), best.factors());
+                BigDecimal.valueOf(best.score()), best.factors(), "NORMAL");
     }
 
     private List<PutawayScorer.Candidate> buildCandidates(
@@ -234,6 +282,10 @@ public class PutawayService {
 
     private static String aisleOf(StorageLocation l) {
         return l.aisle() == null ? "" : l.aisle();
+    }
+
+    private static double distanceToExit(StorageLocation l) {
+        return l.distanceToExit() == null ? 0.0 : l.distanceToExit().doubleValue();
     }
 
     private static int laneDepth(StorageLocation l) {

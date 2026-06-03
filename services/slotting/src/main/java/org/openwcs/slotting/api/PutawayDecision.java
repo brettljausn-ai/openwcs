@@ -9,7 +9,8 @@ public record PutawayDecision(
         UUID assignmentId,
         UUID locationId,
         UUID blockId,
-        String mode,            // RESERVE | DIRECT_TO_PICK
+        String mode,                 // RESERVE | DIRECT_TO_PICK
         BigDecimal score,
-        Map<String, Object> factors) {
+        Map<String, Object> factors,
+        String transportPriority) {  // NORMAL | LOW (empty HUs move at lower priority)
 }
