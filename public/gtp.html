@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Goods-to-person stations — openWCS</title>
+  <meta name="description" content="How openWCS runs goods-to-person stations: STOCK and ORDER/PUT_WALL nodes, open demand fed in by allocation, present one stock HU and put-to-light fills many order destinations most-needed-first — the GTP batch. ORDER_LOCATION and PUT_WALL modes share one engine." />
+  <meta name="theme-color" content="#061812" />
+  <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/gtp.html" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta property="og:title" content="Goods-to-person stations — openWCS" />
+  <meta property="og:description" content="Pick-and-put GTP station execution with put-to-light: one stock HU serves many order destinations as a batch. ORDER_LOCATION and PUT_WALL modes, one engine." />
+  <meta property="og:type" content="article" />
+  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body id="top">
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
+      <nav class="nav-links">
+        <a href="index.html">← Overview</a>
+        <a href="functions.html">Functions</a>
+        <a href="automation.html">Automation</a>
+      </nav>
+      <div class="nav-right">
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Automation · Goods-to-person <span class="pill pill-built">Built</span></p>
+      <h1>One stock HU, <span class="lime">many orders.</span></h1>
+      <p class="lead">
+        At a goods-to-person station the operator never travels — handling units come to them. openWCS
+        presents a single stock HU and lights up <strong>every order destination that SKU is needed at</strong>,
+        so one unit fills many orders in a single pass. That batch pick-and-put is built today.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">The station model</p>
+        <h2>Stations, nodes &amp; open demand.</h2>
+        <p>
+          A station is a small graph: <strong>STOCK</strong> nodes where a stock HU is presented, and
+          <strong>ORDER</strong> destination nodes where puts land. Allocation feeds the station
+          <em>open demand</em> — for each destination, which SKU and how many to put there.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">STOCK node</div>
+          <h3>Where the unit lands</h3>
+          <p>A station has at least one STOCK node — the position where a retrieved stock HU is presented to the operator. From here its contents are distributed across the order destinations.</p>
+        </div>
+        <div class="card">
+          <div class="tag">ORDER node</div>
+          <h3>An order destination</h3>
+          <p>Each ORDER node is a put destination with an optional put-light and a currently bound order HU. It's where the operator places the units this order needs from the presented stock HU.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Open demand</div>
+          <h3>The work fed in</h3>
+          <p>Demand is posted against an ORDER node — an order line, a SKU and a quantity to put there. This is the REST seam where allocation and order-management feed real work into the station.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">How it works</p>
+        <h2>Present once, put-to-light many.</h2>
+        <p>
+          The pick-and-put work cycle is a tight loop: present a stock HU, get a put-list, confirm each
+          put. One presented HU serves as many destinations as need that SKU — that's the
+          goods-to-person batch.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">Present</div>
+          <h3>Match SKU to demand</h3>
+          <p>Presenting a stock HU (SKU + qty) matches it against open demand across the station's ORDER nodes and <strong>greedily fills most-needed-first</strong>, emitting a put-list of instructions.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Put-to-light</div>
+          <h3>One HU, many destinations</h3>
+          <p>Each put instruction names a destination node, the resolved order/HU, its put-light and the qty. The operator works the lit cubbies in turn — one stock HU serving the whole batch of orders.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Confirm</div>
+          <h3>Decrement &amp; close out</h3>
+          <p>Confirming a put decrements the cycle's remaining stock and the destination's demand. A fully-putted destination completes; a cycle with no open puts left completes too.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Short put</div>
+          <h3>Handle the shortfall</h3>
+          <p>Confirming a smaller qty is a short put — the instruction goes SHORT and the destination's remaining demand stays OPEN for a later cycle, so nothing is silently lost.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Roll-over</div>
+          <h3>Surplus demand waits</h3>
+          <p>If the presented qty can't cover all demand, the surplus simply stays OPEN for the next stock HU of that SKU — the batch continues across however many units it takes.</p>
+        </div>
+        <div class="card">
+          <div class="tag">RBAC</div>
+          <h3>Reads vs operate</h3>
+          <p>Per-endpoint role-based access (toggleable): viewing demand and cycles needs ORDER_VIEW, while present and confirm need DEVICE_OPERATE — the operator role on the floor.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Two physical worlds</p>
+        <h2>ORDER_LOCATION <em>and</em> PUT_WALL, one engine.</h2>
+        <p>
+          A station's <strong>mode</strong> documents how its ORDER destinations are physically realised —
+          but the execution engine is identical. The same present / put-to-light / confirm cycle drives
+          both, so you don't maintain two pickers.
+        </p>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-head"><div class="tag">ORDER_LOCATION</div><span class="pill pill-built">Built</span></div>
+          <h3>Order HUs in locations</h3>
+          <p>Order HUs sit in fixed or conveyor-fed locations at the station — the classic put-to-order layout. The operator puts into the order HU presented at each destination, conveyor delivering and clearing them.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag">PUT_WALL</div><span class="pill pill-built">Built</span></div>
+          <h3>Lit rack cubbies (typical AMR)</h3>
+          <p>ORDER destinations are cubbies in a lit rack — the typical goods-to-rack realisation for AMR fleets. Each cubby is an ORDER node with its own put-light; the same engine drives the puts.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">At a glance</p>
+        <h2>Present → put-list → confirm.</h2>
+      </div>
+      <div class="arch">
+<pre>  allocation ─► open demand (per ORDER node: order-line · SKU · qty)
+                       │
+  present stock HU ─►  <b>openWCS gtp</b>  ── match SKU, fill most-needed-first ─► put-list
+                       │                       (destination · order/HU · put-light · qty)
+  put-to-light ─► confirm put ─► decrement stock + demand
+                       │  short put  → instruction SHORT · demand stays OPEN
+                       │  destination fully putted → COMPLETED
+                       ▼
+                 cycle COMPLETED when no OPEN puts remain · surplus rolls to next HU</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow">Built &amp; open</p>
+        <h2>Run goods-to-person, your way.</h2>
+        <p>The station engine is open source and records the put-lights and HUs it drives. Physical light hardware and retrieving HUs to the station are adapter / flow-orchestrator follow-ups — the batch logic is live today.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="automation.html">Automation hub</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span><a href="automation.html">Automation</a> · <a href="asrs.html">ASRS</a> · <a href="allocation.html">Allocation</a> · <a href="functions.html">Functions</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+    </div>
+  </footer>
+</body>
+</html>

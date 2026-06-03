@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Process designer — openWCS</title>
+  <meta name="description" content="The openWCS process designer: admin-designed BPMN processes on an embedded Flowable engine. Model goods-in, outbound and cycle-count flows, deploy them, and have service tasks originate real WCS work — device tasks, conveyor routes, order release, and goods-in put-away." />
+  <meta name="theme-color" content="#061812" />
+  <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/process-designer.html" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta property="og:title" content="Process designer — openWCS" />
+  <meta property="og:description" content="Admin-designed BPMN processes on Flowable: model flows, deploy, and have service tasks originate real WCS work — device tasks, routes, order release, put-away." />
+  <meta property="og:type" content="article" />
+  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body id="top">
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
+      <nav class="nav-links">
+        <a href="index.html">← Overview</a>
+        <a href="functions.html">Functions</a>
+        <a href="automation.html">Automation</a>
+      </nav>
+      <div class="nav-right">
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Function · Process designer <span class="pill pill-built">Built</span></p>
+      <h1>Design your flows, <span class="lime">deploy them yourself.</span></h1>
+      <p class="lead">
+        The processes that run your warehouse — goods-in, outbound, cycle-count — are BPMN models, not
+        integrator code. openWCS runs them on an embedded Flowable engine, and their service tasks
+        originate <strong>real</strong> WCS work: device tasks, conveyor routes, order release and
+        goods-in put-away.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">How it works</p>
+        <h2>BPMN in, real warehouse work out.</h2>
+        <p>
+          A process is standard BPMN 2.0. Deploy a definition, start an instance, and as the flow
+          advances each service task calls a delegate that drives an openWCS service — so a diagram
+          becomes movement on the floor.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">Flowable engine</div>
+          <h3>Embedded BPMN runtime</h3>
+          <p>An embedded Flowable engine runs admin-designed processes, managing its own tables on the shared datasource. Definitions on the classpath auto-deploy at startup; new ones deploy on demand.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Deploy</div>
+          <h3>Model &amp; release</h3>
+          <p>List and deploy BPMN 2.0 definitions as raw XML, then start an instance with a process key, an optional business key and variables — no rebuild, no integrator change request.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Service tasks</div>
+          <h3>Originate WCS work</h3>
+          <p>Service tasks reference Spring-bean delegates: <code>dispatchDeviceTask</code> drives a flow-orchestrator device task, <code>assignRoute</code> a conveyor route plan, <code>releaseOrder</code> an order release/allocate.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Put-away delegate</div>
+          <h3>Goods-in to a slot</h3>
+          <p>The goods-in process includes a put-away delegate, so a received unit flows from the BPMN model straight into a slotting decision and a put-away move — the receipt-to-storage path as a diagram.</p>
+        </div>
+        <div class="card">
+          <div class="tag">User tasks</div>
+          <h3>Wait for an operator</h3>
+          <p>Processes can pause on user/wait tasks — list them by instance or assignee, then complete one with variables. So a flow can hold for a confirm-pick or count step before it continues.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Sample flows</div>
+          <h3>Goods-in · outbound · count</h3>
+          <p>Three processes ship and auto-deploy: <strong>goods-in</strong> (dispatch a device task), <strong>outbound</strong> (release → confirm-pick user task → dispatch move) and <strong>cycle-count</strong> (operator count task).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">At a glance</p>
+        <h2>A diagram that drives the floor.</h2>
+      </div>
+      <div class="arch">
+<pre>  admin ─► deploy <b>BPMN</b> definition ─► start instance
+                                              │
+   ┌─ service task ─► <b>dispatchDeviceTask</b> ─► flow-orchestrator ─► device adapter
+   ├─ service task ─► <b>assignRoute</b>        ─► conveyor route plan
+   ├─ service task ─► <b>releaseOrder</b>       ─► order-management release / allocate
+   ├─ service task ─► <b>put-away</b>           ─► slotting decision → put-away move
+   └─ user task    ─► wait for operator (confirm pick · count) ─► complete</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow">Configurable &amp; open</p>
+        <h2>Your processes, in your hands.</h2>
+        <p>The engine and the delegates are open source. Model a new flow in BPMN, point its service tasks at the work you need, and deploy it yourself — a designer UI is the remaining follow-up.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+          <a class="btn btn-ghost" href="functions.html">Back to functions</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span><a href="functions.html">Functions</a> · <a href="allocation.html">Allocation</a> · <a href="inventory.html">Inventory</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+    </div>
+  </footer>
+</body>
+</html>

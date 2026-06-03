@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventory — openWCS</title>
+  <meta name="description" content="The openWCS inventory engine: real-time, event-sourced stock projected from an append-only transaction log. SKU- and location-scoped availability / ATP, reservations under a pessimistic lock, idempotent and rebuildable read models." />
+  <meta name="theme-color" content="#061812" />
+  <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/inventory.html" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta property="og:title" content="Inventory — openWCS" />
+  <meta property="og:description" content="Real-time, event-sourced stock from an append-only transaction log: SKU/location ATP, reservations under lock, idempotent and rebuildable." />
+  <meta property="og:type" content="article" />
+  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body id="top">
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
+      <nav class="nav-links">
+        <a href="index.html">← Overview</a>
+        <a href="functions.html">Functions</a>
+        <a href="automation.html">Automation</a>
+      </nav>
+      <div class="nav-right">
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Function · Inventory <span class="pill pill-built">Built</span></p>
+      <h1>Stock that's <span class="lime">a replay away.</span></h1>
+      <p class="lead">
+        Inventory isn't a table someone edits — it's a projection. Every movement is an immutable event
+        on an append-only transaction log, and openWCS replays that log into real-time stock,
+        location-scoped availability and reservations you can trust, audit and rebuild from scratch.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">How it works</p>
+        <h2>Append-only log in, read models out.</h2>
+        <p>
+          The transaction log is the system of record — events are appended, never updated or deleted.
+          The inventory service consumes that stream and projects durable read models: current stock,
+          availability and reservations.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">Event-sourced</div>
+          <h3>The log is the truth</h3>
+          <p>Goods received, stock adjusted, picks and moves are events on an append-only log — UPDATE and DELETE are blocked at the database. State is derived, so history can never be quietly rewritten.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Projection</div>
+          <h3>Stock you can rebuild</h3>
+          <p>Inventory projects the event stream into a durable stock read model. Because the log is the source, the projection can be torn down and replayed — auditable and rebuildable, not a fragile counter.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Idempotent</div>
+          <h3>Each event once</h3>
+          <p>The projection tracks processed events and a cursor offset, so re-delivered events are ignored and a restart resumes exactly where it left off — no double-counting, no drift.</p>
+        </div>
+        <div class="card">
+          <div class="tag">ATP</div>
+          <h3>SKU- and location-scoped</h3>
+          <p>Availability-to-promise is queryable SKU-wide and scoped to a specific location, so allocation can ask "is there reachable stock <em>here</em>?" — not just "does the SKU exist somewhere?".</p>
+        </div>
+        <div class="card">
+          <div class="tag">Reservations</div>
+          <h3>Commit without over-promising</h3>
+          <p>Reservations are created, released and consumed against ATP under a pessimistic lock, so two concurrent allocations can't both commit the last unit — the floor and the order book stay consistent.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Yours to query</div>
+          <h3>Postgres you host</h3>
+          <p>Stock, batches, serial units and reservations live in a schema you own and can query directly. Operational state isn't trapped inside a vendor's system — it's your data, on your infrastructure.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">At a glance</p>
+        <h2>Event → projection → availability.</h2>
+      </div>
+      <div class="arch">
+<pre>  GoodsReceived · StockAdjusted · Pick · Move ─►  <b>append-only transaction log</b>
+                                                       │  (UPDATE / DELETE blocked)
+                                                       ▼  outbox → stream
+                              <b>inventory projection</b>  ── idempotent · cursor offset
+                                                       │
+                              stock · availability/ATP (SKU + location) · reservations
+                                                       │  reserve under pessimistic lock
+                                                       ▼
+                                          allocation commits the right unit</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow">Open &amp; auditable</p>
+        <h2>Inventory you can prove.</h2>
+        <p>The log, the projection and the schema are open source and self-hosted. See how allocation commits against this availability, and how the Host API feeds adjustments in.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="allocation.html">Allocation deep dive</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span><a href="functions.html">Functions</a> · <a href="allocation.html">Allocation</a> · <a href="host-api.html">Host API</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+    </div>
+  </footer>
+</body>
+</html>
