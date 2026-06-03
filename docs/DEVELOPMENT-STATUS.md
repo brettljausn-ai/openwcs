@@ -36,7 +36,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | integration-manhattan | Java | 8090 | 🟡 | Host gateway: Manhattan order/ASN intake (`POST /orders`,`/asns`) translated into the canonical Host API (items resolved to SKUs). |
 | integration-host | Java | 8092 | 🟡 | Canonical vendor-neutral Host API (`/api/host/**`): orders + ASNs + SKU upserts + inventory adjustments in; confirmations out via pull (cursor feed) **and** webhook push; idempotency keys. |
 | adapters/conveyor | Go | 9091 | 🟡 | Health + stub loop + `POST /tasks` device-task simulator (CONVEY/DIVERT/MERGE/SCAN). |
-| adapters/{asrs,amr-geekplus,autostore} | Go | 9092–9094 | 🟦 | Health + stub loop. |
+| adapters/{asrs,amr-geekplus,autostore} | Go | 9096, 9093, 9094 | 🟦 | Health + stub loop. (asrs on 9096 — 9092 is Kafka's.) |
 | adapters/conveyor-sniffer | Go | 9095 | 🟡 | Ingests scan telegrams from defined source IPs (allowlist + decoder) → posts observations to the WCS for topology learning. |
 | ui | React/TS | 5173 | 🟡 | React/Vite; React Flow conveyor topology editor + bpmn-js BPMN process designer (model/deploy, start instances, complete user tasks). |
 | libs/common | Java | — | ✅ | `EventEnvelope`. |

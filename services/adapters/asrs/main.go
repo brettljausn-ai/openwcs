@@ -25,7 +25,7 @@ const (
 	serviceName = "asrs-adapter"
 	family      = "ASRS"
 	transport   = "Raw TCP telegram (shuttle/crane)"
-	defaultPort = "9092"
+	defaultPort = "9096" // 9092 is Kafka's port; adapters avoid it
 )
 
 func main() {

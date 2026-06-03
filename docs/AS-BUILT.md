@@ -37,7 +37,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | process-engine | 8083 | 🟡 | Embedded **Flowable BPMN** engine: deploy process definitions, start/inspect instances; service-task delegates originate WCS work (dispatch device task, assign route, release order, **assign put-away**, **allocate order**). Sample processes: goods-in, goods-in-putaway, cycle-count, and a complete **outbound** process (release → allocate → gateway → pick/dispatch → route). |
 | notification | 8088 | 🟦 | Scaffold (health/info only). |
 | adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop + `POST /tasks` device-task simulator. |
-| adapters/{asrs,amr-geekplus,autostore} | 9092–9094 | 🟦 | Go; health/readiness + stub loop. |
+| adapters/{asrs,amr-geekplus,autostore} | 9096, 9093, 9094 | 🟦 | Go; health/readiness + stub loop. (asrs on 9096 — 9092 is Kafka's.) |
 | adapters/conveyor-sniffer | 9095 | 🟡 | Go; ingests scan telegrams from defined source IPs (allowlist + pluggable decoder) and posts observations to the WCS for topology learning. |
 | ui | 5173 | 🟡 | React/Vite; **conveyor topology editor** (React Flow) + **BPMN process designer** (bpmn-js: model/deploy processes, start instances, complete user tasks), tab-switched. |
 
