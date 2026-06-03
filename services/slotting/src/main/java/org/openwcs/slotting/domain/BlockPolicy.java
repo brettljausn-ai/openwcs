@@ -62,6 +62,18 @@ public class BlockPolicy extends Auditable {
     @Column(name = "offpeak_cron")
     private String offpeakCron;
 
+    /** EWMA half-life (days) for the recency-weighted velocity score; smaller = more reactive. */
+    @Column(name = "velocity_half_life_days", nullable = false)
+    private BigDecimal velocityHalfLifeDays = new BigDecimal("14");
+
+    /** Rank share assigned class A (top {@code abcAShare} of SKUs by decayed score). */
+    @Column(name = "abc_a_share", nullable = false)
+    private BigDecimal abcAShare = new BigDecimal("0.2");
+
+    /** Rank share assigned class B (next {@code abcBShare}); the remainder is class C. */
+    @Column(name = "abc_b_share", nullable = false)
+    private BigDecimal abcBShare = new BigDecimal("0.3");
+
     public UUID getId() {
         return id;
     }
@@ -172,5 +184,29 @@ public class BlockPolicy extends Auditable {
 
     public void setOffpeakCron(String offpeakCron) {
         this.offpeakCron = offpeakCron;
+    }
+
+    public BigDecimal getVelocityHalfLifeDays() {
+        return velocityHalfLifeDays;
+    }
+
+    public void setVelocityHalfLifeDays(BigDecimal velocityHalfLifeDays) {
+        this.velocityHalfLifeDays = velocityHalfLifeDays;
+    }
+
+    public BigDecimal getAbcAShare() {
+        return abcAShare;
+    }
+
+    public void setAbcAShare(BigDecimal abcAShare) {
+        this.abcAShare = abcAShare;
+    }
+
+    public BigDecimal getAbcBShare() {
+        return abcBShare;
+    }
+
+    public void setAbcBShare(BigDecimal abcBShare) {
+        this.abcBShare = abcBShare;
     }
 }

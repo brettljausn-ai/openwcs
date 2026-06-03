@@ -32,9 +32,16 @@ public class StorageProfile extends Auditable {
     @Column(name = "block_id", nullable = false)
     private UUID blockId;
 
-    /** A | B | C velocity class (teach-in). */
+    /** A | B | C velocity class (teach-in, or learned by the auto-ABC classifier). */
     @Column(name = "velocity_class", nullable = false)
     private String velocityClass = "B";
+
+    /**
+     * When true the auto-ABC classifier leaves {@link #velocityClass} alone — an operator has
+     * pinned the class. Default false so the recency-weighted learner applies everywhere.
+     */
+    @Column(name = "manual_override", nullable = false)
+    private boolean manualOverride = false;
 
     @Column(name = "consolidate", nullable = false)
     private boolean consolidate = true;
@@ -86,6 +93,14 @@ public class StorageProfile extends Auditable {
 
     public void setVelocityClass(String velocityClass) {
         this.velocityClass = velocityClass;
+    }
+
+    public boolean isManualOverride() {
+        return manualOverride;
+    }
+
+    public void setManualOverride(boolean manualOverride) {
+        this.manualOverride = manualOverride;
     }
 
     public boolean isConsolidate() {

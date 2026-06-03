@@ -22,6 +22,22 @@ spring:
     schemas: slotting
     default-schema: slotting
     create-schemas: true
+  # Consumes the streamed transaction log (build.md §9) to learn recency-weighted SKU velocity.
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: slotting-velocity-learner
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # Commit the offset only after a record is successfully counted (at-least-once;
+      # the velocity_processed_event inbox makes re-delivery idempotent).
+      ack-mode: record
+      # Off by default so the service (and its Testcontainers tests) boot without a broker;
+      # the deployment sets SPRING_KAFKA_LISTENER_AUTO_STARTUP=true to start consuming.
+      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:false}
 
 openwcs:
   # Per-endpoint RBAC (build.md §4.8); off by default so the stack runs before a Keycloak realm.
@@ -31,6 +47,8 @@ openwcs:
     master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
     inventory-base-url: ${OPENWCS_INVENTORY_BASE_URL:http://localhost:8082}
     txlog-base-url: ${OPENWCS_TXLOG_BASE_URL:http://localhost:8086}
+    # Topic carrying the streamed transaction log (build.md §9: `txlog.stream`).
+    txlog-topic: txlog.stream
     # Off-peak window for opportunistic top-off + re-slotting (PR3/PR4); quoted cron.
     offpeak-cron: ${OPENWCS_SLOTTING_OFFPEAK_CRON:0 0 2 * * *}
 
