@@ -25,7 +25,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | order-management | Java | 8084 | ✅ | Orders of all types (INBOUND/OUTBOUND/COUNT/ADJUSTMENT), lifecycle, release mgmt, dispatch service/route + ship-to + label-template (validated against master-data), line stock transactions via a local outbox → txlog (audit: actor required); delegates allocation. |
 | allocation | Java | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing (APP multi-size largest-first / 1:1) with per-line carton traceability + per-carton dispatch labels (host barcode per shipper), batch picking. |
 | txlog | Java | 8086 | ✅ | Append-only events + outbox + relay. |
-| process-engine | Java | 8083 | 🟦 | Needs Flowable BPMN + designer. |
+| process-engine | Java | 8083 | 🟡 | Embedded Flowable BPMN: deploy definitions, start/inspect instances; service-task delegates originate WCS work (sample goods-in dispatches a device task). Process designer UI pending. |
 | flow-orchestrator | Java | 8085 | 🟡 | Device-task lifecycle + **vendor-neutral conveyor routing** (topology graph w/ per-node hardware address, HU route plans, shortest-path next-hop, **loop capacity HOLD/OVERFLOW**, **topology learning** from observed scans). Schematic editor lives in `ui`. Sniffer capture front-end + BPMN origination pending. |
 | iam | Java | 8087 | ✅ | Authorization model: users → roles → coded permissions; seeded roles; effective-permission resolution. (Keycloak does auth.) |
 | notification | Java | 8088 | 🟦 | — |
@@ -39,7 +39,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | libs/common | Java | — | ✅ | `EventEnvelope`. |
 
 **Contracts:** OpenAPI ✅ master-data, inventory, txlog, allocation, order-management, iam,
-flow-orchestrator, integration-sap, integration-manhattan, host-api; ⬜ master-data
+flow-orchestrator, integration-sap, integration-manhattan, host-api, process-engine; ⬜ master-data
 shipper/fulfillment-config paths, other services. Avro/Schema-Registry ⬜.
 
 **Platform:** docker-compose ✅ (incl. allocation; Keycloak imports the `openwcs` realm).
@@ -54,7 +54,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 |---|---|---|
 | **0 — Foundations** | ✅ | Repo + compose + shared schemas + txlog/outbox/relay + Kafka ✅; IAM model + gateway JWT + per-endpoint RBAC (all services) + inter-service identity propagation ✅ (toggleable); **CI ✅ (green), Keycloak `openwcs` realm ✅, gradle wrapper ✅**; **JWT edge-auth path exercised end-to-end against a live Keycloak realm (Testcontainers) ✅**. Remaining hardening: mTLS between services. |
 | **1 — Master data + inventory MVP** | ✅ | Master Data ✅, Inventory projection ✅, log→projection loop proven ✅. |
-| **2 — Process engine + one equipment family** | 🟡 | **flow-orchestrator device-task lifecycle + uniform device contract ✅, conveyor adapter `POST /tasks` simulator ✅, DEVICE_VIEW/DEVICE_OPERATE RBAC ✅.** Gaps: process-engine (Flowable BPMN) ⬜, goods-in-via-BPMN ⬜. |
+| **2 — Process engine + one equipment family** | ✅ | flow-orchestrator device-task lifecycle + uniform device contract ✅, conveyor adapter ✅, DEVICE RBAC ✅, **process-engine (Flowable BPMN) ✅ with a sample goods-in process that originates a device task** ✅. Gap: a process designer UI + richer processes. |
 | **3 — Outbound + more equipment** | 🟡 | **order-management ✅, allocation + cubing + batch picking + release management ✅, inventory reservation/ATP ✅, dispatch labels/services/routes ✅ (incl. integration-sap label-barcode + route feed).** Gaps: host-integration gateways translate into the canonical Host API but the real SAP/Manhattan wire protocols (OData/BAPI/IDoc, Manhattan REST) are still skeletal ⬜; the *BPMN* outbound process ⬜; more adapters ⬜. |
 | **4 — Counting & operations** | 🟡 | `StockAdjusted` projection ✅; cycle-count process ⬜; dashboards/alerting ⬜. |
 | **5 — Hardening & scale** | ⬜ | DLQs, circuit breakers, replay tooling, perf, security review. |
@@ -78,6 +78,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | integration-sap | `LabelControllerTest`, `RouteFeedControllerTest`, `SapOrderControllerTest` | MockMvc (label-barcode; route-feed upsert; SAP order → Host API translation with material→SKU + unknown-material 422) |
 | integration-manhattan | `ManhattanOrderControllerTest` | MockMvc (Manhattan order → Host API translation with item→SKU + unknown-item 422) |
 | integration-host | `HostControllerTest`, `ConfirmationControllerTest`, `HostReferenceControllerTest`, `HostInventoryControllerTest`, `IdempotencyFilterTest`, `WebhookDispatcherTest` | Testcontainers + MockMvc + mocked clients (order/ASN mapping; confirmations cursor feed; SKU upsert; adjustment → StockAdjusted append; `Idempotency-Key` replay; webhook push advances cursor) |
+| process-engine | `ProcessEngineTest` | Testcontainers + Flowable (sample goods-in auto-deploys; starting it runs the service task → mocked device-task dispatch → completes) |
 
 ---
 

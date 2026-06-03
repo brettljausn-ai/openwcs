@@ -1,0 +1,112 @@
+openapi: 3.0.3
+info:
+  title: openWCS Process Engine API
+  version: 0.1.0
+  description: >
+    Admin-designed BPMN processes (goods-in, outbound, cycle count) executed by an embedded
+    Flowable engine (build.md §7). Deploy process definitions, start instances, and inspect them.
+    Service tasks in a process originate WCS work via delegates (e.g. dispatchDeviceTask →
+    flow-orchestrator).
+servers:
+  - url: /api/process
+    description: Via the API gateway
+
+tags:
+  - name: Definitions
+  - name: Instances
+
+paths:
+  /definitions:
+    get:
+      tags: [Definitions]
+      summary: List the latest deployed process definitions
+      operationId: listDefinitions
+      responses:
+        "200":
+          description: Definitions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProcessDefinition' }
+    post:
+      tags: [Definitions]
+      summary: Deploy a BPMN 2.0 definition (raw XML)
+      operationId: deployDefinition
+      parameters:
+        - name: name
+          in: query
+          schema: { type: string, default: process }
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema: { type: string }
+      responses:
+        "200":
+          description: Definitions in the new deployment
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProcessDefinition' }
+  /instances:
+    post:
+      tags: [Instances]
+      summary: Start a process instance
+      operationId: startInstance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartInstanceRequest' }
+      responses:
+        "200":
+          description: The started instance
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Instance' }
+  /instances/{id}:
+    get:
+      tags: [Instances]
+      summary: Get a process instance (running or historic)
+      operationId: getInstance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Instance
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Instance' }
+        "404": { description: Not found }
+
+components:
+  schemas:
+    ProcessDefinition:
+      type: object
+      properties:
+        id: { type: string }
+        key: { type: string }
+        name: { type: string, nullable: true }
+        version: { type: integer }
+    StartInstanceRequest:
+      type: object
+      required: [processKey]
+      properties:
+        processKey: { type: string, example: goods-in }
+        businessKey: { type: string, nullable: true }
+        variables:
+          type: object
+          additionalProperties: true
+          description: "Process variables (e.g. warehouseId, family, command for dispatchDeviceTask)."
+    Instance:
+      type: object
+      properties:
+        id: { type: string }
+        processDefinitionKey: { type: string }
+        businessKey: { type: string, nullable: true }
+        ended: { type: boolean }

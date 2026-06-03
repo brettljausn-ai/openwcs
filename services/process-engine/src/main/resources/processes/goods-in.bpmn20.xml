@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://openwcs.org/processes">
+  <!--
+    Sample goods-in process: on start it originates a conveyor device task in flow-orchestrator
+    via the dispatchDeviceTask delegate (build.md §7). A real process would add receiving, putaway
+    and exception steps; this demonstrates a BPMN process originating WCS work.
+  -->
+  <process id="goods-in" name="Goods-in" isExecutable="true">
+    <startEvent id="start"/>
+    <sequenceFlow id="f1" sourceRef="start" targetRef="dispatch"/>
+    <serviceTask id="dispatch" name="Dispatch conveyor device task"
+                 flowable:delegateExpression="${dispatchDeviceTask}"/>
+    <sequenceFlow id="f2" sourceRef="dispatch" targetRef="end"/>
+    <endEvent id="end"/>
+  </process>
+</definitions>

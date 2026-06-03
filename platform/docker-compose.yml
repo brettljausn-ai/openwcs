@@ -101,6 +101,13 @@ services:
     build: ../services/process-engine
     ports: ["8083:8083"]
     depends_on: [postgres, kafka]
+    environment:
+      # Flowable BPMN engine manages its own ACT_* tables in the shared DB; service tasks
+      # originate WCS work via flow-orchestrator.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
+      SPRING_DATASOURCE_USERNAME: openwcs
+      SPRING_DATASOURCE_PASSWORD: openwcs
+      OPENWCS_FLOW_ORCHESTRATOR_BASE_URL: http://flow-orchestrator:8085
 
   order-management:
     profiles: ["apps"]
