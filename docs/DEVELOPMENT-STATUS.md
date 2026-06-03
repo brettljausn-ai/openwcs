@@ -26,7 +26,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | allocation | Java | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing (APP multi-size largest-first / 1:1) with per-line carton traceability + per-carton dispatch labels (host barcode per shipper), batch picking. |
 | txlog | Java | 8086 | ✅ | Append-only events + outbox + relay. |
 | process-engine | Java | 8083 | 🟦 | Needs Flowable BPMN + designer. |
-| flow-orchestrator | Java | 8085 | 🟡 | Device-task lifecycle (REQUESTED→DISPATCHED→COMPLETED/FAILED) over the uniform device contract; routes to adapters by family. BPMN-driven routing still pending. |
+| flow-orchestrator | Java | 8085 | 🟡 | Device-task lifecycle over the uniform device contract + **vendor-neutral conveyor routing** (topology graph w/ per-node hardware address, HU route plans, shortest-path next-hop on scan). Loop capacity + UI editor + traffic-discovery pending; BPMN origination pending. |
 | iam | Java | 8087 | ✅ | Authorization model: users → roles → coded permissions; seeded roles; effective-permission resolution. (Keycloak does auth.) |
 | notification | Java | 8088 | 🟦 | — |
 | integration-sap | Java | 8089 | 🟡 | Host gateway: per-shipper dispatch-label barcode (`POST /labels`) + route feed (`POST /routes/sync`) + SAP order/ASN intake (`POST /orders`,`/asns`) translated into the canonical Host API (materials resolved to SKUs). |
@@ -70,7 +70,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | allocation | `AllocationEngineTest`, `AllocationServiceTest` | Pure logic (incl. multi-size cubing: largest-first + line split across cartons with `lineNo`/`shipperUnitId` links) + Testcontainers (allocate → cancel releases reservations; oversized SKU → `CUBING_FAILED` + reservation released; per-carton dispatch labels with a host barcode per shipper) |
 | order-management | `OrderTransactionTest`, `OrderTransactionRelayTest`, `OrderAuthorizationTest` | Testcontainers + Mockito (outbox, relay, and per-endpoint RBAC: VIEWER 403 / SUPERVISOR 201) |
 | iam | `IamServiceTest` | Testcontainers (seeded roles, effective permissions, catalog validation) |
-| flow-orchestrator | `DeviceTaskServiceTest` | Testcontainers + Mockito (`@MockBean DeviceClient`: COMPLETED on success, FAILED on adapter error without losing the task, query by id/correlation) |
+| flow-orchestrator | `DeviceTaskServiceTest`, `RoutingEngineTest`, `RoutingServiceTest` | Testcontainers + Mockito (device tasks; pure shortest-path next-hop; conveyor routing walks a HU through its targets in sequence, advancing/completing) |
 | adapters/conveyor | `main_test.go` | Go httptest (`POST /tasks`: COMPLETED, FAILED on unknown command, 405 on GET) |
 | gateway | `GatewayAuthEndToEndTest` | Testcontainers (live Keycloak + imported `openwcs` realm): no token → 401, realm JWT → 200 + identity propagated, client-supplied `X-Auth-*` stripped (anti-spoof) |
 | integration-sap | `LabelControllerTest`, `RouteFeedControllerTest`, `SapOrderControllerTest` | MockMvc (label-barcode; route-feed upsert; SAP order → Host API translation with material→SKU + unknown-material 422) |

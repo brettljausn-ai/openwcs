@@ -36,4 +36,13 @@ public class ApiExceptionHandler {
         problem.setDetail("The equipment adapter could not be reached; the task was recorded as FAILED.");
         return problem;
     }
+
+    /** A malformed request (e.g. a topology edge referencing an unknown node code). */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ProblemDetail onBadRequest(IllegalArgumentException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Bad request");
+        problem.setDetail(ex.getMessage());
+        return problem;
+    }
 }

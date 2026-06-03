@@ -228,6 +228,19 @@ actor).
 Not yet wired: a BPMN process (process-engine) that *originates* these tasks — today they are
 driven directly via the API.
 
+**Conveyor routing** (vendor-neutral; `/api/flow/conveyor`): the topology is a directed graph —
+**nodes** (scan/decision points, each with a `hardwareAddress` and layout `posX/posY` for the
+admin schematic editor) and **edges** (segments labelled with the `exitCode` the hardware applies
+to traverse them, plus a routing `cost`). A handling unit carries a **route plan** — an ordered
+list of target node codes (`POST /conveyor/routes`). On a scan (`POST /conveyor/routing-requests
+{node, barcode}`), the WCS finds the HU's current target, computes the **next hop** toward it by
+shortest path (`RoutingEngine`, Dijkstra — recomputed per scan, so topology changes reroute
+automatically), and replies `{action: ROUTE, exitCode, toNode}`; as each target is reached the
+plan advances, ending in `COMPLETE`. Unknown node / unreachable target → `EXCEPTION`; unknown
+barcode → `NO_ROUTE`. The whole graph is loaded/saved via `GET`/`PUT /conveyor/topology` for the
+admin editor. **Loop capacity limits** (HOLD/OVERFLOW) and the **schematic UI editor** are
+follow-up increments; a traffic-sniffing **topology-discovery** seam is planned.
+
 ## 7c. Host API (integration-host)
 
 The canonical, **vendor-neutral** integration surface (`/api/host`, see
