@@ -15,6 +15,7 @@ tags:
   - name: Permissions
   - name: Roles
   - name: Users
+  - name: Screen access
 
 paths:
   /api/iam/permissions:
@@ -130,6 +131,54 @@ paths:
             application/json: { schema: { type: array, items: { type: string } } }
         "404": { $ref: '#/components/responses/Problem' }
 
+  /api/iam/screen-access:
+    get:
+      tags: [Screen access]
+      summary: Per-screen access overrides
+      description: >
+        The override map, keyed by the UI-owned screen key. Only overridden screens have an
+        entry; screens without one fall back to the UI's default roles. Matches the shape the
+        UI's AuthContext merges (ui/src/auth/screens.ts AccessOverrides).
+      operationId: getScreenAccess
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ScreenAccessMap' } }
+    put:
+      tags: [Screen access]
+      summary: Replace the whole screen-access override map
+      description: >
+        Full replacement. Screens absent from the body lose their override; entries with neither
+        roles nor users are dropped (back to UI defaults). Screen keys are persisted verbatim.
+      operationId: setScreenAccess
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/ScreenAccessMap' } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ScreenAccessMap' } }
+  /api/iam/screen-access/me:
+    get:
+      tags: [Screen access]
+      summary: Screen keys the current user can access by override
+      description: >
+        Resolves the forwarded identity (X-Auth-User / X-Auth-Roles) against the stored
+        overrides. Only overridden screens are reported; non-overridden screens use the UI
+        defaults and are resolved client-side. ADMIN sees every overridden screen.
+      operationId: getMyScreenAccess
+      parameters:
+        - { name: X-Auth-User, in: header, required: false, schema: { type: string } }
+        - { name: X-Auth-Roles, in: header, required: false, schema: { type: string }, description: Comma-separated role names. }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json: { schema: { type: array, items: { type: string } } }
+
 components:
   responses:
     Problem:
@@ -177,6 +226,16 @@ components:
       type: object
       properties:
         permissions: { type: array, items: { type: string } }
+    ScreenAccessMap:
+      type: object
+      description: Map of screen key → override. Only overridden screens are present.
+      additionalProperties: { $ref: '#/components/schemas/ScreenAccess' }
+    ScreenAccess:
+      type: object
+      description: Per-screen override; when present it replaces the screen's default roles.
+      properties:
+        roles: { type: array, items: { type: string }, description: Roles allowed onto the screen. }
+        users: { type: array, items: { type: string }, description: Individual usernames allowed onto the screen. }
     Problem:
       type: object
       properties:
