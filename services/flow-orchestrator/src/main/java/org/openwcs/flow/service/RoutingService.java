@@ -54,7 +54,8 @@ public class RoutingService {
 
     @Transactional(readOnly = true)
     public Optional<RouteView> getRoute(UUID warehouseId, String barcode) {
-        return routes.findFirstByWarehouseIdAndBarcodeAndStatus(warehouseId, barcode, "ACTIVE").map(RoutingService::view);
+        return routes.findFirstByWarehouseIdAndBarcodeOrderByCreatedAtDesc(warehouseId, barcode)
+                .map(RoutingService::view);
     }
 
     /** Decide where a scanned handling unit goes next. */
