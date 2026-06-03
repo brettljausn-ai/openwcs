@@ -1,0 +1,49 @@
+server:
+  port: 8095
+spring:
+  application:
+    name: counting
+  # Service-local store: an isolated `counting` schema in dev.
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/openwcs}
+    username: ${SPRING_DATASOURCE_USERNAME:openwcs}
+    password: ${SPRING_DATASOURCE_PASSWORD:openwcs}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: counting
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    schemas: counting
+    default-schema: counting
+    create-schemas: true
+
+openwcs:
+  # Per-endpoint RBAC (build.md §4.8); off by default so the stack runs before a Keycloak realm.
+  security:
+    enabled: ${OPENWCS_SECURITY_ENABLED:false}
+  counting:
+    # Expected-qty snapshot comes from inventory's availability projection; adjustments are
+    # appended to the transaction log as StockAdjusted (the inventory projection applies them).
+    inventory-base-url: ${OPENWCS_INVENTORY_BASE_URL:http://localhost:8082}
+    txlog-base-url: ${OPENWCS_TXLOG_BASE_URL:http://localhost:8086}
+    # Default count tolerance (absolute base-UoM units); within this a variance auto-approves.
+    default-tolerance: ${OPENWCS_COUNTING_DEFAULT_TOLERANCE:0}
+    # ABC cadence sweep: emits due CountTasks from active schedules. Quoted cron; off-peak so it
+    # never fires during tests with the default schedule.
+    schedule-cron: ${OPENWCS_COUNTING_SCHEDULE_CRON:0 0 1 * * *}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

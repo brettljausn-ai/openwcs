@@ -1,0 +1,388 @@
+openapi: 3.0.3
+info:
+  title: openWCS Counting API
+  version: 0.1.0
+  description: >
+    Cycle / stock counting: scheduled (ABC-cadence) and ad-hoc count tasks over a scope
+    (location, SKU, zone, or block), blind vs variance capture, and reconciliation against the
+    inventory-expected snapshot. Within tolerance a variance auto-approves and posts a
+    StockAdjusted adjustment via the transaction log (the inventory adjustment path);
+    out-of-tolerance variances spawn a recount task. A task can be executed at a GTP station in
+    STOCK_COUNT mode and/or orchestrated by the cycle-count BPMN (referenced by id only).
+servers:
+  - url: /api/counting
+    description: Via the API gateway
+
+tags:
+  - name: Tasks
+  - name: Schedules
+
+paths:
+  /tasks:
+    post:
+      tags: [Tasks]
+      summary: Create an ad-hoc count task
+      description: >
+        Creates a count task over a scope and snapshots each cell's expected on-hand from inventory
+        into a count line. The task opens in OPEN.
+      operationId: createCountTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCountTaskRequest' }
+      responses:
+        "201":
+          description: Created count task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CountTask' }
+        "400":
+          description: Invalid request
+          content:
+            application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+    get:
+      tags: [Tasks]
+      summary: List count tasks for a warehouse
+      operationId: listCountTasks
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Count tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CountTask' }
+  /tasks/{taskId}:
+    parameters:
+      - { name: taskId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Tasks]
+      summary: Get a count task
+      operationId: getCountTask
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CountTask' }
+        "404":
+          description: Not found
+          content:
+            application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+  /tasks/{taskId}/lines:
+    parameters:
+      - { name: taskId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Tasks]
+      summary: Lines an operator sees while counting
+      description: >
+        For a BLIND count the expected qty and variance are withheld (null) until reconciled;
+        a VARIANCE count shows them.
+      operationId: getCountLines
+      responses:
+        "200":
+          description: Count lines
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CountLine' }
+  /tasks/{taskId}/claim:
+    parameters:
+      - { name: taskId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: operator, in: query, required: false, schema: { type: string } }
+    post:
+      tags: [Tasks]
+      summary: Claim an open task for an operator
+      operationId: claimCountTask
+      responses:
+        "200":
+          description: Claimed task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CountTask' }
+  /tasks/{taskId}/counts:
+    parameters:
+      - { name: taskId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: operator, in: query, required: false, schema: { type: string } }
+    post:
+      tags: [Tasks]
+      summary: Submit counted quantities
+      description: >
+        Records the operator's counted quantities and computes each line's variance
+        (counted minus expected). Moves the task to COUNTED.
+      operationId: submitCounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SubmitCountsRequest' }
+      responses:
+        "200":
+          description: Counted task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CountTask' }
+  /tasks/{taskId}/reconcile:
+    parameters:
+      - { name: taskId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: actor, in: query, required: false, schema: { type: string } }
+    post:
+      tags: [Tasks]
+      summary: Reconcile a counted task
+      description: >
+        Within tolerance a line auto-approves and (when there is a non-zero variance) posts a
+        StockAdjusted adjustment; out-of-tolerance lines are flagged for recount and a follow-up
+        task is spawned for just those cells.
+      operationId: reconcileCountTask
+      responses:
+        "200":
+          description: Reconciliation result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReconciliationResult' }
+        "409":
+          description: Task is not in a reconcilable state
+          content:
+            application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+  /tasks/{taskId}/results:
+    parameters:
+      - { name: taskId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Tasks]
+      summary: Reconciled results for a task
+      operationId: getCountResults
+      responses:
+        "200":
+          description: Result lines
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CountLine' }
+  /schedules:
+    post:
+      tags: [Schedules]
+      summary: Create an ABC-cadence schedule
+      operationId: createSchedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateScheduleRequest' }
+      responses:
+        "201":
+          description: Created schedule
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CountSchedule' }
+    get:
+      tags: [Schedules]
+      summary: List schedules for a warehouse
+      operationId: listSchedules
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Schedules
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CountSchedule' }
+  /schedules/{scheduleId}:
+    parameters:
+      - { name: scheduleId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Schedules]
+      summary: Get a schedule
+      operationId: getSchedule
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CountSchedule' }
+        "404":
+          description: Not found
+          content:
+            application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+  /schedules/generate:
+    post:
+      tags: [Schedules]
+      summary: Manually run the ABC-cadence sweep
+      description: >
+        Emits a count task for every active schedule that has come due (optionally for one
+        warehouse) and advances each schedule's next-due time by its cadence.
+      operationId: generateDueTasks
+      parameters:
+        - { name: warehouseId, in: query, required: false, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Emitted tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CountTask' }
+
+components:
+  schemas:
+    CreateCountTaskRequest:
+      type: object
+      required: [warehouseId, cells]
+      properties:
+        warehouseId: { type: string, format: uuid }
+        scopeType:
+          type: string
+          enum: [LOCATION, SKU, ZONE, BLOCK]
+        scopeRef: { type: string, format: uuid }
+        countType:
+          type: string
+          enum: [BLIND, VARIANCE]
+        tolerance: { type: number }
+        gtpStationId:
+          type: string
+          format: uuid
+          description: Seam, the GTP station that executes this task in STOCK_COUNT mode.
+        cells:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/Cell' }
+    Cell:
+      type: object
+      required: [locationId, skuId]
+      properties:
+        locationId: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        uomCode: { type: string }
+    SubmitCountsRequest:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/CountEntry' }
+    CountEntry:
+      type: object
+      required: [countLineId, countedQty]
+      properties:
+        countLineId: { type: string, format: uuid }
+        countedQty: { type: number }
+    CreateScheduleRequest:
+      type: object
+      required: [warehouseId, name, scopeType, cadenceDays]
+      properties:
+        warehouseId: { type: string, format: uuid }
+        name: { type: string }
+        scopeType:
+          type: string
+          enum: [LOCATION, SKU, ZONE, BLOCK, ABC_CLASS]
+        scopeRef: { type: string, format: uuid }
+        abcClass:
+          type: string
+          enum: [A, B, C]
+        countType:
+          type: string
+          enum: [BLIND, VARIANCE]
+        cadenceDays: { type: integer, minimum: 1 }
+        tolerance: { type: number }
+        nextDueAt: { type: string, format: date-time }
+    CountTask:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        warehouseId: { type: string, format: uuid }
+        scopeType: { type: string }
+        scopeRef: { type: string, format: uuid }
+        countType:
+          type: string
+          enum: [BLIND, VARIANCE]
+        origin:
+          type: string
+          enum: [AD_HOC, SCHEDULED, RECOUNT]
+        scheduleId: { type: string, format: uuid }
+        parentTaskId: { type: string, format: uuid }
+        tolerance: { type: number }
+        gtpStationId: { type: string, format: uuid }
+        processInstanceId: { type: string }
+        status:
+          type: string
+          enum: [OPEN, COUNTED, RECONCILED, RECOUNT]
+        assignedTo: { type: string }
+        countedBy: { type: string }
+        countedAt: { type: string, format: date-time }
+        reconciledBy: { type: string }
+        reconciledAt: { type: string, format: date-time }
+    CountLine:
+      type: object
+      properties:
+        countLineId: { type: string, format: uuid }
+        locationId: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        uomCode: { type: string }
+        expectedQty:
+          type: number
+          nullable: true
+          description: Withheld (null) for a blind count until reconciled.
+        countedQty: { type: number, nullable: true }
+        variance:
+          type: number
+          nullable: true
+          description: Counted minus expected, withheld for a blind count until reconciled.
+        status:
+          type: string
+          enum: [PENDING, COUNTED, APPROVED, RECOUNT, ADJUSTED]
+        adjustmentEventId:
+          type: string
+          format: uuid
+          description: Seam, the StockAdjusted txlog event id posted on approval.
+    CountSchedule:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        warehouseId: { type: string, format: uuid }
+        name: { type: string }
+        scopeType: { type: string }
+        scopeRef: { type: string, format: uuid }
+        abcClass:
+          type: string
+          enum: [A, B, C]
+        countType:
+          type: string
+          enum: [BLIND, VARIANCE]
+        cadenceDays: { type: integer }
+        tolerance: { type: number }
+        lastRunAt: { type: string, format: date-time }
+        nextDueAt: { type: string, format: date-time }
+        status:
+          type: string
+          enum: [ACTIVE, PAUSED]
+    ReconciliationResult:
+      type: object
+      properties:
+        taskId: { type: string, format: uuid }
+        status: { type: string }
+        approvedLines: { type: integer }
+        adjustedLines: { type: integer }
+        recountLines: { type: integer }
+        recountTaskId:
+          type: string
+          format: uuid
+          description: The follow-up recount task spawned when any line is out of tolerance.
+    Problem:
+      type: object
+      description: RFC 9457 problem detail.
+      properties:
+        type: { type: string, format: uri, default: about:blank }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string, format: uri }

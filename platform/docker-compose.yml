@@ -73,6 +73,7 @@ services:
       OPENWCS_URI_INTEGRATION_HOST: http://integration-host:8092
       OPENWCS_URI_SLOTTING: http://slotting:8093
       OPENWCS_URI_GTP: http://gtp:8094
+      OPENWCS_URI_COUNTING: http://counting:8095
 
   master-data:
     profiles: ["apps"]
@@ -169,6 +170,20 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
       SPRING_DATASOURCE_USERNAME: openwcs
       SPRING_DATASOURCE_PASSWORD: openwcs
+
+  counting:
+    profiles: ["apps"]
+    build: ../services/counting
+    ports: ["8095:8095"]
+    depends_on: [postgres, inventory, txlog]
+    environment:
+      # Service-local `counting` schema; reads the inventory expected-qty snapshot and posts
+      # approved variances to the transaction log as StockAdjusted (the inventory adjustment path).
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
+      SPRING_DATASOURCE_USERNAME: openwcs
+      SPRING_DATASOURCE_PASSWORD: openwcs
+      OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
+      OPENWCS_TXLOG_BASE_URL: http://txlog:8086
 
   flow-orchestrator:
     profiles: ["apps"]
