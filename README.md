@@ -207,8 +207,22 @@ cd services/adapters/conveyor && go run .    # http://localhost:9091/healthz
 cd ui && npm install && npm run dev          # http://localhost:5173 (proxies /api -> gateway)
 ```
 The `--profile apps` compose stack also builds and serves the UI with nginx on
-**http://localhost/** (port 80), proxying `/api` to the gateway — no dev server
-needed when running the full stack.
+**http://localhost/** (port 80), proxying `/api` to the gateway and `/realms`+`/admin`
+to Keycloak — no dev server needed when running the full stack.
+
+**Sign in** with `admin` / `admIn1!` (seeded in the `openwcs` realm). The compose
+stack enables **edge security**: the gateway requires a Keycloak JWT on every
+`/api/**` call. The UI logs in via the `openwcs-web` client and attaches the token
+automatically. For direct API calls, fetch a token first:
+```bash
+TOKEN=$(curl -s -d grant_type=password -d client_id=openwcs-web \
+  -d username=admin -d 'password=admIn1!' \
+  http://localhost:8180/realms/openwcs/protocol/openid-connect/token | jq -r .access_token)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/master-data/warehouses
+```
+Every screen is registered in a **permission catalog** (`ui/src/auth/screens.ts`) and
+gated by role (ADMIN/SUPERVISOR/OPERATOR/VIEWER), overridable per role/user via the
+Access control screen.
 
 ### 5. Stand up a demo server (Ubuntu)
 One command on a fresh Ubuntu 22.04/24.04 box installs Docker + JDK 21, clones,

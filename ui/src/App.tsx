@@ -1,27 +1,92 @@
-import { useState } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { AuthProvider, useAuth } from './auth/AuthContext'
+import { SCREENS, ScreenDef } from './auth/screens'
+import Login from './auth/Login'
+import AppShell from './shell/AppShell'
+import ComingSoon from './shell/ComingSoon'
+import Dashboard from './Dashboard'
+
+// Existing feature screens (re-homed into the shell).
 import TopologyEditor from './topology/TopologyEditor'
 import ProcessDesigner from './process/ProcessDesigner'
 import SlottingScreen from './slotting/SlottingScreen'
 
-// Admin screens (build.md §8, §11; ADR 0003): the conveyor topology editor, the BPMN process
-// designer, and slotting (pick-face + block). More screens get added to the nav as they're built.
-type View = 'topology' | 'processes' | 'slotting'
+// Reserved screens — built by follow-up agents (each owns its own file).
+import InboundScreen from './inbound/InboundScreen'
+import OutboundScreen from './outbound/OutboundScreen'
+import CountingScreen from './counting/CountingScreen'
+import GtpOpsScreen from './gtpops/GtpOpsScreen'
+import TransportScreen from './transport/TransportScreen'
+import StockTxnScreen from './stocktxn/StockTxnScreen'
+import MasterDataScreen from './masterdata/MasterDataScreen'
+import GtpConfigScreen from './gtpconfig/GtpConfigScreen'
+import SettingsScreen from './settings/SettingsScreen'
+import UsersScreen from './users/UsersScreen'
+import AccessControlScreen from './access/AccessControlScreen'
+
+const COMPONENTS: Record<string, JSX.Element> = {
+  dashboard: <Dashboard />,
+  topology: <TopologyEditor />,
+  processes: <ProcessDesigner />,
+  slotting: <SlottingScreen />,
+  inbound: <InboundScreen />,
+  outbound: <OutboundScreen />,
+  counting: <CountingScreen />,
+  'gtp-ops': <GtpOpsScreen />,
+  transport: <TransportScreen />,
+  'stock-transactions': <StockTxnScreen />,
+  'master-data': <MasterDataScreen />,
+  'gtp-config': <GtpConfigScreen />,
+  settings: <SettingsScreen />,
+  users: <UsersScreen />,
+  'access-control': <AccessControlScreen />,
+}
+
+function RequireAuth({ children }: { children: JSX.Element }) {
+  const { session } = useAuth()
+  const location = useLocation()
+  if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  return children
+}
+
+/** Route element that also enforces screen-level access (catalog + role/user overrides). */
+function Guarded({ screen }: { screen: ScreenDef }) {
+  const { can } = useAuth()
+  if (!can(screen)) {
+    return (
+      <ComingSoon
+        title="Not authorised"
+        note="You don't have access to this screen. Ask an administrator to grant it under Access control."
+      />
+    )
+  }
+  return COMPONENTS[screen.key] ?? <ComingSoon title={screen.label} />
+}
 
 export default function App() {
-  const [view, setView] = useState<View>('topology')
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <nav style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', padding: '0.5rem', borderBottom: '1px solid #ccc' }}>
-        <strong style={{ marginRight: '1rem' }}>openWCS</strong>
-        <button onClick={() => setView('topology')} disabled={view === 'topology'}>Conveyor topology</button>
-        <button onClick={() => setView('processes')} disabled={view === 'processes'}>Processes</button>
-        <button onClick={() => setView('slotting')} disabled={view === 'slotting'}>Slotting</button>
-      </nav>
-      <div style={{ flex: 1, minHeight: 0 }}>
-        {view === 'topology' && <TopologyEditor />}
-        {view === 'processes' && <ProcessDesigner />}
-        {view === 'slotting' && <SlottingScreen />}
-      </div>
-    </div>
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            element={
+              <RequireAuth>
+                <AppShell />
+              </RequireAuth>
+            }
+          >
+            {SCREENS.map((s) =>
+              s.path === '/' ? (
+                <Route key={s.key} index element={<Guarded screen={s} />} />
+              ) : (
+                <Route key={s.key} path={s.path} element={<Guarded screen={s} />} />
+              ),
+            )}
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   )
 }

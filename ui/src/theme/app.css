@@ -1,0 +1,421 @@
+/* openWCS app styles — implements styling.md (Dark / Glassy / Futuristic).
+   Tokens live in tokens.css; this file holds the background system, glass
+   primitives, buttons, forms, tables, sidebar shell, modal/dialog, and the
+   login + dashboard layouts. Keep visual changes in sync with styling.md. */
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-weight: 300;
+  background: var(--forest-abyss);
+  color: var(--text);
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* --- Background system (styling.md §3): aurora gradient + fine noise --- */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(141, 198, 63, .14), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 85% 30%, rgba(47, 107, 79, .3), transparent 60%),
+    radial-gradient(ellipse 70% 60% at 10% 70%, rgba(31, 77, 58, .4), transparent 60%),
+    linear-gradient(180deg, var(--forest-abyss) 0%, #081e16 50%, var(--forest-abyss) 100%);
+}
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .35;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .55 0 0 0 0 .78 0 0 0 0 .25 0 0 0 .35 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 400; margin: 0 0 .5rem; }
+a { color: var(--herbal-lime); text-decoration: none; }
+
+/* --- Glass primitive (§4) --- */
+.glass {
+  position: relative;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  transition: all .35s ease;
+}
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .18), transparent 40%, transparent 60%, rgba(141, 198, 63, .12));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* --- Buttons (§5) --- */
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  padding: .6rem 1.25rem;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: .9375rem;
+  font-weight: 400;
+  line-height: 1;
+  text-decoration: none;
+  transition: all .25s ease;
+  border: 1px solid transparent;
+  cursor: pointer;
+  isolation: isolate;
+}
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-sm { padding: .4rem .8rem; font-size: .8125rem; }
+.btn-lg { padding: .9rem 1.8rem; font-size: 1rem; }
+.btn-block { width: 100%; }
+
+.btn-primary {
+  background: var(--herbal-lime);
+  color: var(--forest-abyss);
+  font-weight: 500;
+  box-shadow: 0 0 0 1px rgba(141, 198, 63, .3), 0 8px 32px -8px var(--herbal-glow);
+}
+.btn-primary:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px rgba(141, 198, 63, .5), 0 12px 40px -8px var(--herbal-glow), 0 0 24px var(--herbal-glow);
+}
+.btn-ghost {
+  background: var(--glass-bg);
+  color: var(--text);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(8px);
+}
+.btn-ghost:not(:disabled):hover { background: var(--glass-bg-strong); border-color: var(--glass-border-bright); }
+.btn-outline {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid rgba(141, 198, 63, .4);
+}
+.btn-outline:not(:disabled):hover { border-color: var(--herbal-lime); box-shadow: 0 0 24px -4px var(--herbal-glow); }
+.btn-danger {
+  background: rgba(255, 107, 94, .15);
+  color: #ff8a80;
+  border: 1px solid rgba(255, 107, 94, .3);
+}
+.btn-danger:not(:disabled):hover { background: rgba(255, 107, 94, .25); border-color: rgba(255, 107, 94, .55); }
+
+/* --- Form controls (§6) --- */
+label { display: block; font-size: .8125rem; color: var(--text-dim); margin-bottom: .3rem; }
+.form-control {
+  width: 100%;
+  padding: .55rem .8rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-size: .9375rem;
+  font-weight: 300;
+  color: var(--text);
+  background: rgba(8, 30, 22, .35);
+  backdrop-filter: blur(8px);
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.form-control::placeholder { color: var(--text-faint); }
+.form-control:focus {
+  outline: none;
+  border-color: var(--herbal-lime);
+  background: rgba(8, 30, 22, .55);
+  box-shadow: 0 0 0 3px rgba(141, 198, 63, .18), 0 0 16px -4px var(--herbal-glow);
+}
+select.form-control {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238DC63F' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .75rem center;
+  padding-right: 2rem;
+}
+select.form-control option { background: var(--forest-deep); color: var(--text); }
+
+/* --- Tables (§8) --- */
+table { border-collapse: collapse; width: 100%; }
+th {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: var(--herbal-lime);
+  background: var(--glass-bg-strong);
+  border-bottom: 1px solid var(--glass-border-bright);
+}
+th, td {
+  padding: .6rem .85rem;
+  text-align: left;
+  border-bottom: 1px solid var(--glass-border);
+  font-size: .875rem;
+}
+tbody tr:hover { background: rgba(141, 198, 63, .04); }
+
+/* --- Eyebrow + mono tag (§12) --- */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: .75rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--herbal-lime);
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+}
+.eyebrow::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--herbal-lime);
+  box-shadow: 0 0 10px var(--herbal-glow);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(.85); } }
+
+/* --- Status badges (§1 status tints) --- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .15rem .6rem;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: .65rem;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.badge-success { background: rgba(141, 198, 63, .15); color: #8DC63F; border: 1px solid rgba(141, 198, 63, .3); }
+.badge-warning { background: rgba(244, 184, 96, .15); color: #f4b860; border: 1px solid rgba(244, 184, 96, .3); }
+.badge-danger  { background: rgba(255, 107, 94, .15); color: #ff8a80; border: 1px solid rgba(255, 107, 94, .3); }
+.badge-info    { background: rgba(141, 198, 63, .12); color: #8DC63F; border: 1px solid rgba(141, 198, 63, .25); }
+
+/* --- Alerts --- */
+.alert { padding: .65rem .9rem; border-radius: var(--radius); font-size: .875rem; margin: .5rem 0; }
+.alert-danger { background: rgba(255, 107, 94, .12); color: #ff8a80; border: 1px solid rgba(255, 107, 94, .3); }
+
+/* ============================ App shell (§10) ============================ */
+.app-shell { display: flex; height: 100vh; overflow: hidden; }
+
+.sidebar {
+  width: 248px;
+  flex: 0 0 248px;
+  padding: 1.25rem 1rem;
+  background: rgba(8, 30, 22, .55);
+  backdrop-filter: blur(20px) saturate(140%);
+  border-right: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .25rem .5rem 1rem;
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  letter-spacing: .01em;
+  color: var(--alpine-white);
+}
+.sidebar-brand img { height: 26px; width: auto; }
+.sidebar-section {
+  font-family: var(--font-mono);
+  font-size: .62rem;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 1rem .75rem .35rem;
+}
+.sidebar-nav a {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .6rem .75rem;
+  color: var(--text-dim);
+  border-radius: 8px;
+  font-size: .9rem;
+  transition: all .15s;
+}
+.sidebar-nav a .nav-ico { width: 18px; text-align: center; opacity: .8; }
+.sidebar-nav a:hover { background: rgba(141, 198, 63, .08); color: var(--text); }
+.sidebar-nav a.active { background: rgba(141, 198, 63, .12); color: var(--herbal-lime); }
+.sidebar-spacer { flex: 1; }
+.sidebar-user {
+  border-top: 1px solid var(--glass-border);
+  padding-top: .85rem;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+}
+.sidebar-user .avatar {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(141, 198, 63, .18);
+  border: 1px solid var(--glass-border-bright);
+  color: var(--herbal-lime);
+  font-family: var(--font-mono);
+  font-size: .8rem;
+}
+.sidebar-user .who { flex: 1; min-width: 0; }
+.sidebar-user .who .name { font-size: .85rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-user .who .role { font-family: var(--font-mono); font-size: .6rem; letter-spacing: .1em; color: var(--text-faint); text-transform: uppercase; }
+
+.app-main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.app-topbar {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--herbal-lime), transparent);
+  opacity: .35;
+}
+/* The routed screen fills the remaining height; padded screens scroll, canvas
+   screens (topology/processes) use their own height:100% layout. */
+.app-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.app-body > * { flex: 1; min-height: 0; }
+.app-content { overflow: auto; padding: 1.75rem 2rem; }
+.page-head { margin-bottom: 1.5rem; }
+.page-head h1 { font-size: 2rem; }
+.page-head p { color: var(--text-dim); margin: 0; max-width: 70ch; }
+
+/* Full-bleed content (topology/process designers need the whole area) */
+.app-content.bleed { padding: 0; }
+
+/* ============================ Dashboard ============================ */
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.25rem;
+}
+.dash-card {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  padding: 1.5rem;
+  cursor: pointer;
+  overflow: hidden;
+}
+.dash-card:hover { background: var(--glass-bg-strong); border-color: var(--glass-border-bright); transform: translateY(-2px); }
+.dash-card .feature-tag {
+  font-family: var(--font-mono);
+  font-size: .62rem;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--herbal-lime);
+  opacity: .85;
+}
+.dash-card h3 { font-size: 1.3rem; margin: 0; }
+.dash-card p { color: var(--text-dim); font-size: .875rem; margin: 0; line-height: 1.5; }
+.dash-card .dash-ico { font-size: 1.5rem; }
+
+/* ============================ Login (§3 hero + glass) ============================ */
+.login-wrap {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+.login-orb {
+  position: fixed;
+  width: 600px; height: 600px;
+  border-radius: 50%;
+  top: -180px; left: 50%;
+  transform: translateX(-50%);
+  background: radial-gradient(circle, rgba(141, 198, 63, .12) 0%, transparent 70%);
+  filter: blur(40px);
+  z-index: -1;
+  animation: orbPulse 8s ease-in-out infinite;
+}
+@keyframes orbPulse {
+  0%, 100% { transform: translateX(-50%) scale(1); opacity: .6; }
+  50% { transform: translateX(-50%) scale(1.15); opacity: .9; }
+}
+.login-card { width: 100%; max-width: 400px; padding: 2.5rem; }
+.login-brand {
+  display: flex; align-items: center; gap: .7rem;
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  margin-bottom: .25rem;
+  color: var(--alpine-white);
+}
+.login-brand img { height: 34px; }
+.login-sub { color: var(--text-dim); font-size: .9rem; margin-bottom: 1.75rem; }
+.login-field { margin-bottom: 1rem; }
+.login-card .btn-primary { margin-top: .5rem; }
+.login-hint {
+  margin-top: 1.25rem;
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  color: var(--text-faint);
+  text-align: center;
+  letter-spacing: .04em;
+}
+
+/* ============================ Modal / dialog (§9) ============================ */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(6, 24, 18, .65);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem; z-index: 1000;
+}
+.dialog {
+  position: relative;
+  width: 100%;
+  max-width: 540px;
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  background: var(--forest-deep);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .6), 0 0 40px -10px var(--herbal-glow);
+  padding: 1.75rem;
+}
+.dialog::before {
+  content: '';
+  position: absolute; top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 50%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--herbal-lime), transparent);
+  box-shadow: 0 0 12px var(--herbal-glow);
+}
+.dialog h2 { margin-bottom: 1rem; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1.5rem; }
+
+/* ============================ Utility ============================ */
+.toolbar { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin-bottom: 1.25rem; }
+.toolbar .spacer { flex: 1; }
+.card-pad { padding: 1.25rem; }
+.muted { color: var(--text-dim); }
+.spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--glass-border); border-top-color: var(--herbal-lime); animation: spin .7s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .login-orb, .eyebrow::before, .spin { animation: none; }
+  .dash-card:hover, .btn-primary:hover { transform: none; }
+}

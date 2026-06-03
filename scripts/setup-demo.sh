@@ -84,12 +84,17 @@ cat <<EOF
 
 ==================================================================
  openWCS demo is starting up.
-   UI            : http://${ip:-localhost}/        (served by the stack; nginx proxies /api)
+   UI            : http://${ip:-localhost}/        (sign in: admin / admIn1!)
    Gateway / API : http://${ip:-localhost}:8080    (health: /actuator/health)
-   Keycloak      : http://${ip:-localhost}:8180    (admin / admin)
+   Keycloak      : http://${ip:-localhost}:8180    (admin console: admin / admin)
 
  Open ports 80 (UI) and 8080 (API) in your cloud/VM firewall to reach them.
- Security is OFF by default (demo mode) — the APIs need no token.
+ Edge security is ON: the UI requires login and the gateway requires a Keycloak JWT.
+ For API calls, get a token first:
+   TOKEN=\$(curl -s -d grant_type=password -d client_id=openwcs-web \\
+     -d username=admin -d 'password=admIn1!' \\
+     http://localhost:8180/realms/openwcs/protocol/openid-connect/token | jq -r .access_token)
+   curl -H "Authorization: Bearer \$TOKEN" http://localhost:8080/api/master-data/warehouses
 
  Manage the stack:
    docker compose -f $OPENWCS_DIR/platform/docker-compose.yml --profile apps ps
