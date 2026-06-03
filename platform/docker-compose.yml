@@ -311,16 +311,15 @@ services:
     build: ../ui
     # HTTPS is forced: 443 serves the SPA + proxies; 80 301-redirects to 443.
     # Browse the demo at https://<host>/  (nginx proxies /api -> gateway, /realms+/admin -> keycloak).
-    # With no real cert mounted, the container self-signs one on start -> expect a
-    # one-time browser warning when using a raw IP. See deploy/README.md.
     ports: ["80:80", "443:443"]
     depends_on: [gateway, keycloak]
-    # To use a real cert instead of the self-signed one, mount a dir containing
-    # tls.crt + tls.key over the cert path (overridable via TLS_CERT_DIR):
-    # volumes:
-    #   - /etc/openwcs/tls:/etc/nginx/tls:ro
-    # environment:
-    #   TLS_SAN: "DNS:wcs.example.com"   # extra SANs for the auto self-signed cert
+    volumes:
+      # TLS cert dir (host-persisted). Empty on first run -> the entrypoint self-signs
+      # (one-time browser warning on a raw IP). Run scripts/issue-cert.sh <domain> <email>
+      # to drop a real Let's Encrypt cert here (tls.crt/tls.key) and reload nginx.
+      - ${OPENWCS_TLS_DIR:-/etc/openwcs/tls}:/etc/nginx/tls
+      # ACME HTTP-01 webroot, shared with the certbot one-shot (scripts/issue-cert.sh).
+      - ${OPENWCS_ACME_DIR:-/etc/openwcs/acme}:/var/www/certbot
 
 volumes:
   pgdata:
