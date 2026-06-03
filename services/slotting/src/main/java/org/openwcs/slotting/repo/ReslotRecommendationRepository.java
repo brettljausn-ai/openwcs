@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ReslotRecommendationRepository extends JpaRepository<ReslotRecommendation, UUID> {
     List<ReslotRecommendation> findByWarehouseIdAndStatus(UUID warehouseId, String status);
+
+    List<ReslotRecommendation> findByWarehouseIdAndHuIdAndStatus(UUID warehouseId, UUID huId, String status);
 }
