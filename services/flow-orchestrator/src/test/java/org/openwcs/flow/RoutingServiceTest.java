@@ -47,11 +47,11 @@ class RoutingServiceTest {
     RoutingService routing;
 
     private static NodeDto node(String code) {
-        return new NodeDto(code, code, null, 0d, 0d, null);
+        return new NodeDto(code, code, null, 0d, 0d, null, null, null);
     }
 
     private static NodeDto loopNode(String code, String loop) {
-        return new NodeDto(code, code, null, 0d, 0d, loop);
+        return new NodeDto(code, code, null, 0d, 0d, loop, null, null);
     }
 
     @Test
@@ -64,7 +64,7 @@ class RoutingServiceTest {
                         new EdgeDto("DIVERT", "PACK", "divert", 1),
                         new EdgeDto("DIVERT", "SHIP", "bypass", 1),
                         new EdgeDto("PACK", "SHIP", "straight", 1)),
-                List.of()));
+                List.of(), List.of()));
 
         routing.assignRoute(new RouteRequest(wh, "HU1", List.of("PACK", "SHIP")));
 
@@ -94,7 +94,7 @@ class RoutingServiceTest {
     @Test
     void unknownBarcodeHasNoRoute() {
         UUID wh = UUID.randomUUID();
-        topology.replace(wh, new Topology(List.of(node("N1")), List.of(), List.of()));
+        topology.replace(wh, new Topology(List.of(node("N1")), List.of(), List.of(), List.of()));
         RoutingDecision d = routing.decide(new ScanRequest(wh, "N1", "GHOST"));
         assertThat(d.action()).isEqualTo("NO_ROUTE");
     }
@@ -110,7 +110,7 @@ class RoutingServiceTest {
                         new EdgeDto("L2", "EXIT", "out", 1),
                         new EdgeDto("L2", "L1", "recirc", 1),
                         new EdgeDto("ENTRY", "BUFFER", "to_buffer", 1)),
-                List.of(new LoopDto("LOOP1", 1, whenFull, overflowTarget))));
+                List.of(new LoopDto("LOOP1", 1, whenFull, overflowTarget)), List.of()));
     }
 
     @Test

@@ -35,14 +35,15 @@ func TestIPAllowlist(t *testing.T) {
 }
 
 type record struct {
-	ev ScanEvent
-	ip string
+	ev   ScanEvent
+	ip   string
+	port string
 }
 
 type chanForwarder struct{ ch chan record }
 
-func (f chanForwarder) Forward(ev ScanEvent, sourceIP string) error {
-	f.ch <- record{ev, sourceIP}
+func (f chanForwarder) Forward(ev ScanEvent, sourceIP, sourcePort string) error {
+	f.ch <- record{ev, sourceIP, sourcePort}
 	return nil
 }
 
@@ -82,6 +83,9 @@ func TestSnifferDecodesAndForwards(t *testing.T) {
 	if got[0].ip != "127.0.0.1" {
 		t.Fatalf("sourceIP not captured: %q", got[0].ip)
 	}
+	if got[0].port == "" {
+		t.Fatalf("sourcePort not captured: %q", got[0].port)
+	}
 }
 
 func TestHTTPForwarderPostsObservation(t *testing.T) {
@@ -90,6 +94,7 @@ func TestHTTPForwarderPostsObservation(t *testing.T) {
 		Node        string `json:"node"`
 		Barcode     string `json:"barcode"`
 		SourceIP    string `json:"sourceIp"`
+		SourcePort  int    `json:"sourcePort"`
 	}
 	received := make(chan obs, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -102,13 +107,16 @@ func TestHTTPForwarderPostsObservation(t *testing.T) {
 	defer server.Close()
 
 	f := newHTTPForwarder(server.URL, "wh-1")
-	if err := f.Forward(ScanEvent{Node: "N9", Barcode: "HU9"}, "10.0.0.5"); err != nil {
+	if err := f.Forward(ScanEvent{Node: "N9", Barcode: "HU9"}, "10.0.0.5", "9200"); err != nil {
 		t.Fatal(err)
 	}
 	select {
 	case o := <-received:
 		if o.WarehouseID != "wh-1" || o.Node != "N9" || o.Barcode != "HU9" || o.SourceIP != "10.0.0.5" {
 			t.Fatalf("unexpected observation: %+v", o)
+		}
+		if o.SourcePort != 9200 {
+			t.Fatalf("sourcePort not forwarded: %+v", o)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("WCS did not receive the observation")

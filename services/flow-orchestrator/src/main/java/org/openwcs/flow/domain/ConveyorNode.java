@@ -35,6 +35,14 @@ public class ConveyorNode extends Auditable {
     @Column(name = "hardware_address")
     private String hardwareAddress;
 
+    /** The controller (PLC) hosting this node, by its code, or null. */
+    @Column(name = "controller_code")
+    private String controllerCode;
+
+    /** The node-local address on its controller (e.g. slot/index), or null. */
+    @Column(name = "node_address")
+    private String nodeAddress;
+
     @Column(name = "pos_x")
     private Double posX;
 
@@ -91,6 +99,22 @@ public class ConveyorNode extends Auditable {
 
     public void setHardwareAddress(String hardwareAddress) {
         this.hardwareAddress = hardwareAddress;
+    }
+
+    public String getControllerCode() {
+        return controllerCode;
+    }
+
+    public void setControllerCode(String controllerCode) {
+        this.controllerCode = controllerCode;
+    }
+
+    public String getNodeAddress() {
+        return nodeAddress;
+    }
+
+    public void setNodeAddress(String nodeAddress) {
+        this.nodeAddress = nodeAddress;
     }
 
     public Double getPosX() {

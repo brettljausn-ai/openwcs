@@ -43,14 +43,15 @@ class DiscoveryServiceTest {
     TopologyService topology;
 
     private void observe(UUID wh, String node, String barcode) {
-        discovery.ingest(new ObservationRequest(wh, node, barcode, "10.0.0.5", null));
+        discovery.ingest(new ObservationRequest(wh, node, barcode, "10.0.0.5", null, null));
     }
 
     @Test
     void infersNodesEdgesAndTargetsFromObservations() {
         UUID wh = UUID.randomUUID();
         // A is already configured; B/C/SHIP are new (to be discovered).
-        topology.replace(wh, new Topology(List.of(new NodeDto("A", "A", null, 0d, 0d, null)), List.of(), List.of()));
+        topology.replace(wh, new Topology(
+                List.of(new NodeDto("A", "A", null, 0d, 0d, null, null, null)), List.of(), List.of(), List.of()));
 
         // HU1: A → B → SHIP ; HU2: A → C → SHIP
         observe(wh, "A", "HU1");

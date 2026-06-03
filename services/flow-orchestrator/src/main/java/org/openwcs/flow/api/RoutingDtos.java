@@ -66,11 +66,19 @@ public final class RoutingDtos {
     }
 
     /** The whole conveyor graph for a warehouse — the load/save shape for the admin editor. */
-    public record Topology(List<NodeDto> nodes, List<EdgeDto> edges, List<LoopDto> loops) {
+    public record Topology(List<NodeDto> nodes, List<EdgeDto> edges, List<LoopDto> loops,
+                           List<ControllerDto> controllers) {
+    }
+
+    /**
+     * A conveyor controller (PLC) reached at {@code ipAddress}:{@code port}, hosting many nodes
+     * that reference it by {@code code}.
+     */
+    public record ControllerDto(String code, String name, String ipAddress, Integer port) {
     }
 
     public record NodeDto(String code, String name, String hardwareAddress, Double posX, Double posY,
-                          String loopCode) {
+                          String loopCode, String controllerCode, String nodeAddress) {
     }
 
     public record EdgeDto(String fromCode, String toCode, String exitCode, Integer cost) {
