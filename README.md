@@ -16,6 +16,7 @@ cycle count) that run the building.
 > 🎨 **UI design system & tokens:** [`styling.md`](./styling.md)
 > 🏗️ **As-built (what's actually implemented):** [`docs/AS-BUILT.md`](./docs/AS-BUILT.md)
 > 📊 **Development status:** [`docs/DEVELOPMENT-STATUS.md`](./docs/DEVELOPMENT-STATUS.md)
+> 🌐 **Public product site:** [`public/`](./public) (static; deployable to GitHub Pages)
 
 ---
 
