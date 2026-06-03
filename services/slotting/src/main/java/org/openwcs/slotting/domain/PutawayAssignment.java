@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -28,8 +29,14 @@ public class PutawayAssignment extends Auditable {
     @Column(name = "hu_id")
     private UUID huId;
 
-    @Column(name = "sku_id", nullable = false)
+    /** Dominant compartment SKU (or the single SKU); null for an empty HU. */
+    @Column(name = "sku_id")
     private UUID skuId;
+
+    /** Full compartment SKU set (lane-affinity key); single = [skuId], empty HU = []. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "sku_ids")
+    private List<UUID> skuIds;
 
     @Column(name = "block_id")
     private UUID blockId;
@@ -81,6 +88,14 @@ public class PutawayAssignment extends Auditable {
 
     public void setSkuId(UUID skuId) {
         this.skuId = skuId;
+    }
+
+    public List<UUID> getSkuIds() {
+        return skuIds;
+    }
+
+    public void setSkuIds(List<UUID> skuIds) {
+        this.skuIds = skuIds;
     }
 
     public UUID getBlockId() {

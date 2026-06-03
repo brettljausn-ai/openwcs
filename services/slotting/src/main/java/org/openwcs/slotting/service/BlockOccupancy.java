@@ -2,8 +2,10 @@ package org.openwcs.slotting.service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.openwcs.slotting.client.MasterDataClient.StorageLocation;
 import org.openwcs.slotting.domain.PutawayAssignment;
@@ -18,8 +20,12 @@ public final class BlockOccupancy {
     private BlockOccupancy() {
     }
 
+    /**
+     * @param dominantSku the incoming HU's dominant compartment SKU — drives the per-aisle count
+     *                    used for redundancy + the max-%-per-aisle cap.
+     */
     public static List<PutawayScorer.Candidate> candidates(
-            UUID skuId, List<StorageLocation> locations, List<PutawayAssignment> active) {
+            UUID dominantSku, List<StorageLocation> locations, List<PutawayAssignment> active) {
 
         Map<UUID, String> aisleByLocation = new HashMap<>();
         Map<UUID, StorageLocation> byId = new HashMap<>();
@@ -29,7 +35,7 @@ public final class BlockOccupancy {
         }
 
         Map<UUID, Integer> occupiedByLocation = new HashMap<>();
-        Map<UUID, UUID> occupantByLocation = new HashMap<>();
+        Map<UUID, Set<UUID>> occupantSkusByLocation = new HashMap<>();
         Map<String, Long> usedByAisle = new HashMap<>();
         Map<String, Long> skuByAisle = new HashMap<>();
         for (PutawayAssignment a : active) {
@@ -37,11 +43,12 @@ public final class BlockOccupancy {
             if (loc == null || !byId.containsKey(loc)) {
                 continue;
             }
+            Set<UUID> skus = skuSet(a);
             occupiedByLocation.merge(loc, 1, Integer::sum);
-            occupantByLocation.putIfAbsent(loc, a.getSkuId());
+            occupantSkusByLocation.computeIfAbsent(loc, k -> new HashSet<>()).addAll(skus);
             String aisle = aisleByLocation.get(loc);
             usedByAisle.merge(aisle, 1L, Long::sum);
-            if (skuId.equals(a.getSkuId())) {
+            if (dominantSku != null && skus.contains(dominantSku)) {
                 skuByAisle.merge(aisle, 1L, Long::sum);
             }
         }
@@ -60,12 +67,20 @@ public final class BlockOccupancy {
                     laneDepth(l),
                     l.distanceToExit() == null ? 0.0 : l.distanceToExit().doubleValue(),
                     occupiedByLocation.getOrDefault(l.id(), 0),
-                    occupantByLocation.get(l.id()),
+                    occupantSkusByLocation.getOrDefault(l.id(), Set.of()),
                     skuByAisle.getOrDefault(aisle, 0L),
                     usedByAisle.getOrDefault(aisle, 0L),
                     capacityByAisle.getOrDefault(aisle, 0L)));
         }
         return candidates;
+    }
+
+    /** The SKU set an assignment occupies: its compartment set, falling back to its single SKU. */
+    static Set<UUID> skuSet(PutawayAssignment a) {
+        if (a.getSkuIds() != null && !a.getSkuIds().isEmpty()) {
+            return new HashSet<>(a.getSkuIds());
+        }
+        return a.getSkuId() == null ? Set.of() : Set.of(a.getSkuId());
     }
 
     static String aisleOf(StorageLocation l) {

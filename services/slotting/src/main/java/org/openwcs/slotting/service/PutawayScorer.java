@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -39,20 +40,26 @@ public final class PutawayScorer {
             int laneDepth,
             double distanceToExit,
             int occupiedHu,
-            UUID occupantSkuId,   // SKU currently in this lane, or null if empty
-            long aisleSkuHu,      // HUs of the incoming SKU already in this aisle
-            long aisleUsedHu,     // HUs of all SKUs in this aisle
-            long aisleCapacityHu  // total HU capacity of this aisle
+            Set<UUID> occupantSkuIds, // union of the SKU sets of HUs in this lane; empty if the lane is empty
+            long aisleSkuHu,          // HUs containing the incoming dominant SKU already in this aisle
+            long aisleUsedHu,         // HUs of all SKUs in this aisle
+            long aisleCapacityHu      // total HU capacity of this aisle
     ) {
     }
 
-    /** The incoming put-away + the SKU's current spread, plus the resolved policy. */
+    /**
+     * The incoming put-away + the SKU's current spread, plus the resolved policy.
+     * {@code skuId} is the dominant compartment SKU (drives velocity, redundancy and the aisle cap);
+     * {@code skuIds} is the full compartment SKU set (drives lane affinity — single-SKU HUs have a
+     * one-element set).
+     */
     public record Input(
             UUID skuId,
+            Set<UUID> skuIds,
             String velocityClass, // A | B | C
             boolean consolidate,
-            double maxAislePct,   // hard cap: share of the SKU's stock allowed in one aisle
-            long skuTotalHu       // HUs of this SKU across the whole block (for the cap)
+            double maxAislePct,   // hard cap: share of the dominant SKU's stock allowed in one aisle
+            long skuTotalHu       // HUs of the dominant SKU across the whole block (for the cap)
     ) {
     }
 
@@ -138,15 +145,17 @@ public final class PutawayScorer {
     }
 
     /**
-     * Lane affinity (soft single-SKU-per-lane): rewards filling a partial same-SKU lane and
-     * penalises mixing a different SKU into a lane. Returns +1 same-SKU, 0 empty, −1 different-SKU.
-     * Weighted by {@code wConsolidation}; gated by the SKU's {@code consolidate} flag.
+     * Lane affinity (soft single-SKU-per-lane, generalised to the compartment SKU set): rewards a
+     * lane whose existing SKU set exactly matches the incoming HU's set and penalises mixing a
+     * different set. Returns +1 same-set, 0 empty, −1 different-set. A single-SKU HU is just a
+     * one-element set, so this reduces to the original single-SKU-per-lane behaviour. Weighted by
+     * {@code wConsolidation}; gated by {@code consolidate}.
      */
     private static double laneAffinity(Input in, Candidate c) {
-        if (!in.consolidate() || c.occupantSkuId() == null) {
-            return 0.0; // empty lane, or affinity disabled for this SKU
+        if (!in.consolidate() || c.occupantSkuIds() == null || c.occupantSkuIds().isEmpty()) {
+            return 0.0; // empty lane, or affinity disabled
         }
-        return in.skuId().equals(c.occupantSkuId()) ? 1.0 : -1.0;
+        return c.occupantSkuIds().equals(in.skuIds()) ? 1.0 : -1.0;
     }
 
     /** A movers want norm≈0 (near exit), C movers want norm≈1 (deep), B is indifferent. */
