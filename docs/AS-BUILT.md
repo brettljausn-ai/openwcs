@@ -236,13 +236,16 @@ into it.
 - `POST /api/host/orders` — outbound order (ship-to, service, route, label template, lines) →
   translated to an order-management OUTBOUND order.
 - `POST /api/host/asns` — ASN / expected receipt → order-management INBOUND order.
+- `POST /api/host/masterdata/skus` — upsert a SKU into master-data by code (host-driven
+  reference-data sync).
+- `POST /api/host/inventory/adjustments` — a signed stock adjustment → appended to the txlog as
+  a **StockAdjusted** event (the inventory projection applies the delta).
 - `GET /api/host/confirmations?cursor=` — pull confirmations (receipts, picks, shipments, stock
   changes) as a **cursor feed over the transaction log** (`txlog` global replay): returns the
   events after the cursor plus `nextCursor`. No host endpoint required; the host controls the
-  pace. **Webhook (push) delivery is a planned follow-up**, as are master-data and
-  inventory-adjustment intake and idempotency keys.
+  pace. **Webhook (push) delivery and idempotency keys are planned follow-ups.**
 
-Stateless (no store of its own) — it composes order-management + txlog.
+Stateless (no store of its own) — it composes order-management + master-data + txlog.
 
 ## 8. The two working vertical slices
 
