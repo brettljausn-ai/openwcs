@@ -1,31 +1,32 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
+  Barcode,
   Equipment,
   LabelTemplate,
   Location,
   Sku,
   StorageBlock,
+  UnitOfMeasure,
   Warehouse,
   createEquipment,
   createLabelTemplate,
   createLocation,
-  createSku,
   createStorageBlock,
   createWarehouse,
   deleteLabelTemplate,
   deleteLocation,
-  deleteSku,
   deleteWarehouse,
   listEquipment,
   listLabelTemplates,
   listLocations,
+  listSkuBarcodes,
+  listSkuUoms,
   listSkus,
   listStorageBlocks,
   listWarehouses,
   updateEquipment,
   updateLabelTemplate,
   updateLocation,
-  updateSku,
   updateStorageBlock,
   updateWarehouse,
 } from './api'
@@ -77,8 +78,9 @@ export default function MasterDataScreen() {
         <span className="eyebrow">Master data</span>
         <h1>Master data</h1>
         <p>
-          Manage warehouses, SKUs, storage blocks, locations, equipment and label templates. Blocks, locations
-          and equipment are scoped to the selected warehouse.
+          Manage warehouses, storage blocks, locations, equipment and label templates. Blocks, locations
+          and equipment are scoped to the selected warehouse. SKUs (with their units of measure and barcodes)
+          are owned by the host system and shown read-only.
         </p>
       </div>
 
@@ -441,16 +443,29 @@ function WarehouseDialog({
 }
 
 // =========================================================================
-// SKUs
+// SKUs (host-owned: read-only)
+//
+// SKUs, their units of measure and their barcodes are master data owned by the
+// host/ERP and pushed into the WCS via host sync (build.md §6, §16). The WCS is a
+// slave to them: list + search + a read-only detail only — no create/edit/delete.
 // =========================================================================
+
+function HostManagedNote() {
+  return (
+    <div className="alert md-host-note">
+      <span className="badge badge-warning">Host-managed</span>
+      Managed by the host system — read-only in the WCS. SKUs, units of measure and barcodes are kept in sync from the
+      host and cannot be created, edited or deleted here.
+    </div>
+  )
+}
 
 function SkusTab() {
   const [rows, setRows] = useState<Sku[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [editing, setEditing] = useState<Sku | null>(null)
-  const [deleting, setDeleting] = useState<Sku | null>(null)
+  const [viewing, setViewing] = useState<Sku | null>(null)
 
   const load = useCallback(async (q?: string) => {
     setLoading(true)
@@ -467,19 +482,10 @@ function SkusTab() {
     load()
   }, [load])
 
-  const blank: Sku = {
-    code: '',
-    description: '',
-    status: 'ACTIVE',
-    ownerClient: '',
-    batchTracked: false,
-    serialTracked: false,
-    dateTracked: false,
-  }
-
   return (
     <div className="glass card-pad md-panel">
-      <Toolbar label="SKU" onAdd={() => setEditing(blank)}>
+      <HostManagedNote />
+      <div className="toolbar">
         <input
           className="form-control"
           style={{ maxWidth: 240 }}
@@ -491,7 +497,8 @@ function SkusTab() {
         <button className="btn btn-ghost btn-sm" onClick={() => load(search)}>
           Search
         </button>
-      </Toolbar>
+        <div className="spacer" />
+      </div>
       {error && <div className="alert alert-danger">{error}</div>}
       <table>
         <thead>
@@ -528,11 +535,8 @@ function SkusTab() {
                   <StatusBadge status={s.status} />
                 </td>
                 <td className="md-row-actions">
-                  <button className="btn btn-ghost btn-sm" onClick={() => setEditing(s)}>
-                    Edit
-                  </button>
-                  <button className="btn btn-danger btn-sm" onClick={() => setDeleting(s)}>
-                    Delete
+                  <button className="btn btn-ghost btn-sm" onClick={() => setViewing(s)}>
+                    View
                   </button>
                 </td>
               </tr>
@@ -541,83 +545,128 @@ function SkusTab() {
         </tbody>
       </table>
 
-      {editing && <SkuDialog initial={editing} onClose={() => setEditing(null)} onSaved={() => load(search)} />}
-      {deleting && (
-        <ConfirmDelete
-          name={deleting.code}
-          onClose={() => setDeleting(null)}
-          onConfirm={async () => {
-            await deleteSku(deleting.id!)
-            await load(search)
-          }}
-        />
-      )}
+      {viewing && <SkuDetailDialog sku={viewing} onClose={() => setViewing(null)} />}
     </div>
   )
 }
 
-function SkuDialog({ initial, onClose, onSaved }: { initial: Sku; onClose: () => void; onSaved: () => void }) {
-  const [d, setD] = useState<Sku>(initial)
-  const valid = d.code.trim() !== ''
+/** Read-only SKU detail, including its host-owned units of measure and barcodes. */
+function SkuDetailDialog({ sku, onClose }: { sku: Sku; onClose: () => void }) {
+  const [uoms, setUoms] = useState<UnitOfMeasure[] | null>(null)
+  const [barcodes, setBarcodes] = useState<Barcode[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    async function load() {
+      try {
+        setError(null)
+        const [u, b] = await Promise.all([listSkuUoms(sku.id!), listSkuBarcodes(sku.id!)])
+        if (active) {
+          setUoms(u)
+          setBarcodes(b)
+        }
+      } catch (e) {
+        if (active) setError(errMsg(e))
+      }
+    }
+    load()
+    return () => {
+      active = false
+    }
+  }, [sku.id])
+
+  const tracking =
+    [sku.batchTracked && 'Batch', sku.serialTracked && 'Serial', sku.dateTracked && 'Date']
+      .filter(Boolean)
+      .join(', ') || 'None'
+
   return (
-    <EditDialog
-      title={initial.id ? 'Edit SKU' : 'New SKU'}
-      draft={d}
-      canSave={valid}
-      onClose={onClose}
-      onSave={async (s) => {
-        if (s.id) await updateSku(s.id, s)
-        else await createSku(s)
-        onSaved()
-      }}
-    >
-      <Field label="Code" required>
-        <input className="form-control" value={d.code} onChange={(e) => setD({ ...d, code: e.target.value })} />
-      </Field>
-      <Field label="Description">
-        <input
-          className="form-control"
-          value={d.description ?? ''}
-          onChange={(e) => setD({ ...d, description: e.target.value })}
-        />
-      </Field>
-      <Field label="Owner client">
-        <input
-          className="form-control"
-          value={d.ownerClient ?? ''}
-          onChange={(e) => setD({ ...d, ownerClient: e.target.value })}
-        />
-      </Field>
-      <div className="md-checks">
-        <label className="md-check">
-          <input
-            type="checkbox"
-            checked={d.batchTracked}
-            onChange={(e) => setD({ ...d, batchTracked: e.target.checked })}
-          />
-          Batch tracked
-        </label>
-        <label className="md-check">
-          <input
-            type="checkbox"
-            checked={d.serialTracked}
-            onChange={(e) => setD({ ...d, serialTracked: e.target.checked })}
-          />
-          Serial tracked
-        </label>
-        <label className="md-check">
-          <input
-            type="checkbox"
-            checked={d.dateTracked}
-            onChange={(e) => setD({ ...d, dateTracked: e.target.checked })}
-          />
-          Date tracked
-        </label>
+    <Dialog title={`SKU ${sku.code}`} onClose={onClose}>
+      <HostManagedNote />
+      {error && <div className="alert alert-danger">{error}</div>}
+      <div className="md-detail">
+        <ReadField label="Code" value={sku.code} />
+        <ReadField label="Description" value={sku.description || '—'} />
+        <ReadField label="Owner client" value={sku.ownerClient || '—'} />
+        <ReadField label="Tracking" value={tracking} />
+        <ReadField label="Status" value={<StatusBadge status={sku.status} />} />
       </div>
-      <Field label="Status">
-        <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
-      </Field>
-    </EditDialog>
+
+      <h3 className="md-subhead">Units of measure</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Base</th>
+            <th>Qty in parent</th>
+            <th>L×W×H (mm)</th>
+            <th>Weight (g)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {uoms === null ? (
+            <Empty text="Loading…" />
+          ) : uoms.length === 0 ? (
+            <Empty text="No units of measure." />
+          ) : (
+            uoms.map((u) => (
+              <tr key={u.id}>
+                <td>{u.code}</td>
+                <td>{u.baseUnit ? 'Yes' : 'No'}</td>
+                <td>{u.qtyInParent ?? '—'}</td>
+                <td>{[u.lengthMm, u.widthMm, u.heightMm].map((v) => v ?? '·').join(' × ')}</td>
+                <td>{u.weightG ?? '—'}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+
+      <h3 className="md-subhead">Barcodes</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Value</th>
+            <th>UoM</th>
+          </tr>
+        </thead>
+        <tbody>
+          {barcodes === null ? (
+            <Empty text="Loading…" />
+          ) : barcodes.length === 0 ? (
+            <Empty text="No barcodes." />
+          ) : (
+            barcodes.map((b) => {
+              const uomCode = uoms?.find((u) => u.id === b.uomId)?.code
+              return (
+                <tr key={b.id}>
+                  <td>
+                    <code>{b.value}</code>
+                  </td>
+                  <td>{uomCode ?? '—'}</td>
+                </tr>
+              )
+            })
+          )}
+        </tbody>
+      </table>
+
+      <div className="dialog-actions">
+        <button className="btn btn-ghost btn-sm" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </Dialog>
+  )
+}
+
+function ReadField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="md-field">
+      <label>{label}</label>
+      <div className="md-read-value">{value}</div>
+    </div>
   )
 }
 
@@ -1461,6 +1510,10 @@ function Styles() {
       .md-checks { display: flex; flex-wrap: wrap; gap: 1rem; }
       .md-check { display: inline-flex; align-items: center; gap: .45rem; color: var(--text); font-size: .875rem; margin: 0; }
       .md-check input { width: auto; }
+      .md-host-note { display: flex; align-items: center; gap: .6rem; margin-bottom: 1rem; }
+      .md-detail { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; margin-bottom: 1rem; }
+      .md-read-value { padding: .4rem 0; color: var(--text); font-size: .9rem; }
+      .md-subhead { font-size: .9rem; margin: 1.1rem 0 .5rem; }
     `}</style>
   )
 }

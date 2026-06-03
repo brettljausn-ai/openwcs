@@ -1,5 +1,6 @@
 package org.openwcs.masterdata.api;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +30,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** SKU catalog + per-SKU sub-resources (build.md §4.1, §6). */
+/**
+ * SKU catalog + per-SKU sub-resources (build.md §4.1, §6).
+ *
+ * <p>SKU core, units-of-measure and barcodes are <em>host-owned</em> master data: the WCS is a
+ * slave to them (build.md §6, §16). They are readable/searchable here, but interactive create/edit/
+ * delete is rejected via {@link HostManagedGuard}; only the host-sync ingestion path (a direct
+ * internal call with no gateway identity header) may upsert them. SKU profiles and dangerous-goods
+ * are WCS-owned overlays and stay editable.
+ */
 @RestController
 @RequestMapping("/api/master-data/skus")
 public class SkuController {
@@ -74,7 +83,8 @@ public class SkuController {
     }
 
     @PostMapping
-    public ResponseEntity<Sku> create(@RequestBody Sku body) {
+    public ResponseEntity<Sku> create(@RequestBody Sku body, HttpServletRequest request) {
+        HostManagedGuard.rejectInteractiveWrite(request, "SKU");
         body.setId(null);
         Sku saved = skus.save(body);
         return ResponseEntity.created(URI.create("/api/master-data/skus/" + saved.getId())).body(saved);
@@ -86,7 +96,8 @@ public class SkuController {
     }
 
     @PutMapping("/{skuId}")
-    public Sku update(@PathVariable UUID skuId, @RequestBody Sku body) {
+    public Sku update(@PathVariable UUID skuId, @RequestBody Sku body, HttpServletRequest request) {
+        HostManagedGuard.rejectInteractiveWrite(request, "SKU");
         Sku existing = requireSku(skuId);
         body.setId(skuId);
         body.setVersion(existing.getVersion());
@@ -94,7 +105,8 @@ public class SkuController {
     }
 
     @DeleteMapping("/{skuId}")
-    public ResponseEntity<Void> archive(@PathVariable UUID skuId) {
+    public ResponseEntity<Void> archive(@PathVariable UUID skuId, HttpServletRequest request) {
+        HostManagedGuard.rejectInteractiveWrite(request, "SKU");
         Sku existing = requireSku(skuId);
         existing.setStatus("ARCHIVED");
         skus.save(existing);
@@ -103,7 +115,8 @@ public class SkuController {
 
     // --------------------------------------------------------------- Bulk load
     @PostMapping("/import")
-    public BulkImportReport importSkus(@RequestBody List<Sku> incoming) {
+    public BulkImportReport importSkus(@RequestBody List<Sku> incoming, HttpServletRequest request) {
+        HostManagedGuard.rejectInteractiveWrite(request, "SKU");
         int created = 0;
         int updated = 0;
         List<BulkImportReport.ImportError> errors = new ArrayList<>();
@@ -157,7 +170,9 @@ public class SkuController {
     }
 
     @PostMapping("/{skuId}/uoms")
-    public ResponseEntity<UnitOfMeasure> createUom(@PathVariable UUID skuId, @RequestBody UnitOfMeasure body) {
+    public ResponseEntity<UnitOfMeasure> createUom(@PathVariable UUID skuId, @RequestBody UnitOfMeasure body,
+                                                   HttpServletRequest request) {
+        HostManagedGuard.rejectInteractiveWrite(request, "Unit of measure");
         requireSku(skuId);
         body.setId(null);
         body.setSkuId(skuId);
@@ -172,7 +187,9 @@ public class SkuController {
     }
 
     @PostMapping("/{skuId}/barcodes")
-    public ResponseEntity<Barcode> createBarcode(@PathVariable UUID skuId, @RequestBody Barcode body) {
+    public ResponseEntity<Barcode> createBarcode(@PathVariable UUID skuId, @RequestBody Barcode body,
+                                                 HttpServletRequest request) {
+        HostManagedGuard.rejectInteractiveWrite(request, "Barcode");
         requireSku(skuId);
         body.setId(null);
         body.setSkuId(skuId);

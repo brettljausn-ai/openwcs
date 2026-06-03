@@ -1,5 +1,6 @@
 package org.openwcs.masterdata.api;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
@@ -99,7 +100,9 @@ public class ReferenceDataController {
     }
 
     @DeleteMapping("/barcodes/{barcodeId}")
-    public ResponseEntity<Void> deleteBarcode(@PathVariable UUID barcodeId) {
+    public ResponseEntity<Void> deleteBarcode(@PathVariable UUID barcodeId, HttpServletRequest request) {
+        // Barcodes are host-owned master data: interactive delete is rejected; host sync may remove them.
+        HostManagedGuard.rejectInteractiveWrite(request, "Barcode");
         Barcode existing = barcodes.findById(barcodeId).orElseThrow(() -> new NotFoundException("Barcode", barcodeId));
         barcodes.delete(existing);
         return ResponseEntity.noContent().build();
