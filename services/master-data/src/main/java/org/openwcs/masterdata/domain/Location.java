@@ -93,6 +93,22 @@ public class Location extends Auditable {
     @Column(name = "distance_to_exit")
     private java.math.BigDecimal distanceToExit;
 
+    /** Rack side of the aisle (e.g. LEFT | RIGHT). Part of the exact cell coordinate. */
+    @Column(name = "side")
+    private String side;
+
+    /** Horizontal position along the aisle (cell X). */
+    @Column(name = "pos_x")
+    private Integer posX;
+
+    /** Vertical level (cell Y); supersedes {@code rackLevel}. */
+    @Column(name = "pos_y")
+    private Integer posY;
+
+    /** Depth position (cell Z): 1 = aisle face … N = deepest. */
+    @Column(name = "pos_z")
+    private Integer posZ;
+
     public UUID getId() {
         return id;
     }
@@ -243,5 +259,37 @@ public class Location extends Auditable {
 
     public void setDistanceToExit(java.math.BigDecimal distanceToExit) {
         this.distanceToExit = distanceToExit;
+    }
+
+    public String getSide() {
+        return side;
+    }
+
+    public void setSide(String side) {
+        this.side = side;
+    }
+
+    public Integer getPosX() {
+        return posX;
+    }
+
+    public void setPosX(Integer posX) {
+        this.posX = posX;
+    }
+
+    public Integer getPosY() {
+        return posY;
+    }
+
+    public void setPosY(Integer posY) {
+        this.posY = posY;
+    }
+
+    public Integer getPosZ() {
+        return posZ;
+    }
+
+    public void setPosZ(Integer posZ) {
+        this.posZ = posZ;
     }
 }

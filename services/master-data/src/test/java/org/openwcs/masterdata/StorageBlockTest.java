@@ -77,6 +77,11 @@ class StorageBlockTest {
         lane.setRackLevel(1);
         lane.setLaneDepth(3); // triple-deep
         lane.setDistanceToExit(new BigDecimal("12.5"));
+        // Exact cell coordinate: aisle A01, LEFT side, x=1, y=1, deepest cell z=3.
+        lane.setSide("LEFT");
+        lane.setPosX(1);
+        lane.setPosY(1);
+        lane.setPosZ(3);
         locations.save(lane);
 
         List<Location> pool = locations.findByWarehouseIdAndBlockId(wh.getId(), block.getId());
@@ -85,5 +90,9 @@ class StorageBlockTest {
         assertThat(got.getLaneDepth()).isEqualTo(3);
         assertThat(got.getAisle()).isEqualTo("A01");
         assertThat(got.getDistanceToExit()).isEqualByComparingTo("12.5");
+        assertThat(got.getSide()).isEqualTo("LEFT");
+        assertThat(got.getPosX()).isEqualTo(1);
+        assertThat(got.getPosY()).isEqualTo(1);
+        assertThat(got.getPosZ()).isEqualTo(3);
     }
 }
