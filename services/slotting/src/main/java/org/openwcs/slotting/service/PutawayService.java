@@ -240,7 +240,7 @@ public class PutawayService {
             return profiles.findByWarehouseIdAndSkuIdAndBlockId(warehouseId, skuId, blockId)
                     .orElse(null);
         }
-        return profiles.findByWarehouseIdAndSkuId(req.warehouseId(), req.skuId()).stream()
+        return profiles.findByWarehouseIdAndSkuId(warehouseId, skuId).stream()
                 .filter(p -> "ACTIVE".equals(p.getStatus()))
                 .findFirst()
                 .orElse(null);
