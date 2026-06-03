@@ -236,5 +236,15 @@ services:
     ports: ["9094:9094"]
     depends_on: [postgres, kafka]
 
+  conveyor-sniffer:
+    profiles: ["apps"]
+    build: ../services/adapters/conveyor-sniffer
+    ports: ["9095:9095", "9200:9200"]   # health/info, telegram ingest
+    depends_on: [flow-orchestrator]
+    environment:
+      # Decode conveyor scan telegrams and post them to the WCS for topology learning.
+      WCS_OBSERVATIONS_URL: http://flow-orchestrator:8085/api/flow/conveyor/observations
+      # WAREHOUSE_ID + ALLOWED_IPS are site-specific; set per deployment.
+
 volumes:
   pgdata:

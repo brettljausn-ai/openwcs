@@ -34,6 +34,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | process-engine / notification | 8083/8088 | 🟦 | Scaffold (health/info only). |
 | adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop + `POST /tasks` device-task simulator. |
 | adapters/{asrs,amr-geekplus,autostore} | 9092–9094 | 🟦 | Go; health/readiness + stub loop. |
+| adapters/conveyor-sniffer | 9095 | 🟡 | Go; ingests scan telegrams from defined source IPs (allowlist + pluggable decoder) and posts observations to the WCS for topology learning. |
 | ui | 5173 | 🟡 | React/Vite; **conveyor topology editor** (React Flow: drag nodes, draw edges, set hardware address + loops) over the topology API. |
 
 All Java services: Java 21 / Spring Boot 3.3.2, PostgreSQL 16 via Flyway + JPA/Hibernate 6
@@ -247,9 +248,10 @@ edges, set per-node hardware address, and define loops. **Topology learning**: a
 observed scans (`POST /conveyor/observations {node, barcode, sourceIp}`); the WCS infers a
 candidate topology — nodes seen, segments (consecutive scans of the same HU), and likely targets
 (terminal nodes) — flagged against the configured graph (`GET /conveyor/discovery`), which the
-editor's **Discover** button pulls onto the canvas for an admin to confirm. The defined-IP packet
-capture itself lives in a sniffer adapter that normalizes telegrams into observations (a future
-capture front-end).
+editor's **Discover** button pulls onto the canvas for an admin to confirm. The capture front-end
+is the **conveyor-sniffer** adapter (Go): it ingests scan telegrams from the defined source IPs
+(allowlist + a pluggable per-vendor decoder) and posts them as observations. Today it ingests a
+controller telegram stream over TCP; a passive libpcap mirror-port tap is a drop-in source later.
 
 ## 7c. Host API (integration-host)
 

@@ -34,6 +34,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | integration-host | Java | 8092 | 🟡 | Canonical vendor-neutral Host API (`/api/host/**`): orders + ASNs + SKU upserts + inventory adjustments in; confirmations out via pull (cursor feed) **and** webhook push; idempotency keys. |
 | adapters/conveyor | Go | 9091 | 🟡 | Health + stub loop + `POST /tasks` device-task simulator (CONVEY/DIVERT/MERGE/SCAN). |
 | adapters/{asrs,amr-geekplus,autostore} | Go | 9092–9094 | 🟦 | Health + stub loop. |
+| adapters/conveyor-sniffer | Go | 9095 | 🟡 | Ingests scan telegrams from defined source IPs (allowlist + decoder) → posts observations to the WCS for topology learning. |
 | ui | React/TS | 5173 | 🟡 | React/Vite + React Flow conveyor topology editor (drag nodes, draw edges, hardware address, loops) over the topology API. |
 | libs/common | Java | — | ✅ | `EventEnvelope`. |
 
@@ -72,6 +73,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | iam | `IamServiceTest` | Testcontainers (seeded roles, effective permissions, catalog validation) |
 | flow-orchestrator | `DeviceTaskServiceTest`, `RoutingEngineTest`, `RoutingServiceTest`, `DiscoveryServiceTest` | Testcontainers + Mockito (device tasks; pure next-hop; routing through targets; loop HOLD/OVERFLOW; topology learning infers nodes/edges/targets from observations) |
 | adapters/conveyor | `main_test.go` | Go httptest (`POST /tasks`: COMPLETED, FAILED on unknown command, 405 on GET) |
+| adapters/conveyor-sniffer | `sniffer_test.go` | Go (decoder; IP allowlist; ingest→decode→forward end-to-end; HTTP observation post) |
 | gateway | `GatewayAuthEndToEndTest` | Testcontainers (live Keycloak + imported `openwcs` realm): no token → 401, realm JWT → 200 + identity propagated, client-supplied `X-Auth-*` stripped (anti-spoof) |
 | integration-sap | `LabelControllerTest`, `RouteFeedControllerTest`, `SapOrderControllerTest` | MockMvc (label-barcode; route-feed upsert; SAP order → Host API translation with material→SKU + unknown-material 422) |
 | integration-manhattan | `ManhattanOrderControllerTest` | MockMvc (Manhattan order → Host API translation with item→SKU + unknown-item 422) |
