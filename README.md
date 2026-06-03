@@ -83,7 +83,7 @@ openwcs/
 | `services/integration-manhattan` | Java | 8090 | Host gateway: Manhattan Active (REST) |
 | `services/integration-host` | Java | 8092 | Canonical vendor-neutral Host API (`/api/host/**`): orders + ASNs in, confirmations out; vendor adapters translate into it |
 | `services/adapters/conveyor` | Go | 9091 | PLC conveyor adapter (raw TCP / OPC-UA); `POST /tasks` device-task simulator |
-| `services/adapters/asrs` | Go | 9092 | Shuttle/crane adapter (telegram) |
+| `services/adapters/asrs` | Go | 9096 | Shuttle/crane adapter (telegram) |
 | `services/adapters/amr-geekplus` | Go | 9093 | Geek+ RCS adapter (REST + WebSocket) |
 | `services/adapters/autostore` | Go | 9094 | AutoStore grid adapter (REST) |
 | `services/adapters/conveyor-sniffer` | Go | 9095 | Captures scan telegrams from defined IPs → posts observations to the WCS for conveyor topology learning |

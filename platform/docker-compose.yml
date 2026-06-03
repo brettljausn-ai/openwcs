@@ -274,7 +274,7 @@ services:
   asrs-adapter:
     profiles: ["apps"]
     build: ../services/adapters/asrs
-    ports: ["9092:9092"]
+    ports: ["9096:9096"]   # 9096, not 9092 — Kafka owns host port 9092
     depends_on: [postgres, kafka]
 
   amr-geekplus-adapter:
