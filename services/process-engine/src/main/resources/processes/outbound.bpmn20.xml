@@ -1,23 +1,49 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
              xmlns:flowable="http://flowable.org/bpmn"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
              targetNamespace="http://openwcs.org/processes">
   <!--
-    Sample outbound process (build.md §7): release the order for fulfilment, wait for an operator
-    to confirm the pick/pack (a user task), then dispatch the conveyor move. Demonstrates service
-    tasks (releaseOrder, dispatchDeviceTask) and a user/wait task in one flow.
+    Outbound fulfilment process (build.md §7). End-to-end happy path:
+      start
+        -> releaseOrder        (${releaseOrder})    release the order in order-management
+        -> allocateOrder       (${allocateOrder})   allocate + cube via the allocation service
+        -> exclusive gateway   on ${allocationStatus}
+             FULFILLABLE     -> confirm (operator pick & pack) -> dispatch -> assignRoute -> end
+             NOT_FULFILLABLE -> notFulfillable end event (host/exception handling owns the rest)
+    The allocateOrder delegate writes allocationStatus / shipperCount back as process variables.
+    A production process adds wave management, short-pick and exception sub-processes.
   -->
   <process id="outbound" name="Outbound" isExecutable="true">
     <startEvent id="start"/>
     <sequenceFlow id="f1" sourceRef="start" targetRef="release"/>
-    <serviceTask id="release" name="Release order for allocation"
+
+    <serviceTask id="release" name="Release order for fulfilment"
                  flowable:delegateExpression="${releaseOrder}"/>
-    <sequenceFlow id="f2" sourceRef="release" targetRef="confirm"/>
+    <sequenceFlow id="f2" sourceRef="release" targetRef="allocate"/>
+
+    <serviceTask id="allocate" name="Allocate and cube order"
+                 flowable:delegateExpression="${allocateOrder}"/>
+    <sequenceFlow id="f3" sourceRef="allocate" targetRef="gateway"/>
+
+    <exclusiveGateway id="gateway" name="Allocation fulfillable?" default="flowNotFulfillable"/>
+    <sequenceFlow id="flowFulfillable" sourceRef="gateway" targetRef="confirm">
+      <conditionExpression xsi:type="tFormalExpression">${allocationStatus == 'FULFILLABLE'}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flowNotFulfillable" sourceRef="gateway" targetRef="notFulfillable"/>
+
     <userTask id="confirm" name="Confirm pick complete"/>
-    <sequenceFlow id="f3" sourceRef="confirm" targetRef="dispatch"/>
+    <sequenceFlow id="f4" sourceRef="confirm" targetRef="dispatch"/>
+
     <serviceTask id="dispatch" name="Dispatch conveyor move"
                  flowable:delegateExpression="${dispatchDeviceTask}"/>
-    <sequenceFlow id="f4" sourceRef="dispatch" targetRef="end"/>
+    <sequenceFlow id="f5" sourceRef="dispatch" targetRef="route"/>
+
+    <serviceTask id="route" name="Assign conveyor route"
+                 flowable:delegateExpression="${assignRoute}"/>
+    <sequenceFlow id="f6" sourceRef="route" targetRef="end"/>
+
     <endEvent id="end"/>
+    <endEvent id="notFulfillable" name="Not fulfillable"/>
   </process>
 </definitions>
