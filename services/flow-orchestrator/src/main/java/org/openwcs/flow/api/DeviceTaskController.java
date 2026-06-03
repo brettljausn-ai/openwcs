@@ -42,8 +42,23 @@ public class DeviceTaskController {
         return service.get(id);
     }
 
+    /**
+     * Lists device tasks for the transport overview. With {@code correlationId} it returns that
+     * group oldest-first (the original behaviour); otherwise it returns recent tasks newest-first,
+     * with optional {@code warehouseId}/{@code status}/{@code family}/{@code equipmentId} filters
+     * and a {@code limit} (default 100, capped at 500).
+     */
     @GetMapping
-    public List<DeviceTaskView> byCorrelation(@RequestParam("correlationId") UUID correlationId) {
-        return service.byCorrelation(correlationId);
+    public List<DeviceTaskView> list(
+            @RequestParam(value = "correlationId", required = false) UUID correlationId,
+            @RequestParam(value = "warehouseId", required = false) UUID warehouseId,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "family", required = false) String family,
+            @RequestParam(value = "equipmentId", required = false) UUID equipmentId,
+            @RequestParam(value = "limit", defaultValue = "100") int limit) {
+        if (correlationId != null) {
+            return service.byCorrelation(correlationId);
+        }
+        return service.search(warehouseId, status, family, equipmentId, limit);
     }
 }

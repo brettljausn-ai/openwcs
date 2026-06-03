@@ -84,6 +84,36 @@ class DeviceTaskServiceTest {
     }
 
     @Test
+    void searchReturnsRecentTasksFilteredAndNewestFirst() {
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("COMPLETED", "ok", Map.of()));
+
+        UUID warehouse = UUID.randomUUID();
+        UUID otherWarehouse = UUID.randomUUID();
+        DeviceTaskView first = service.request(
+                new RequestDeviceTask(warehouse, "CONVEYOR", null, "CONVEY", Map.of(), null), "tester");
+        DeviceTaskView second = service.request(
+                new RequestDeviceTask(warehouse, "ASRS", null, "STORE", Map.of(), null), "tester");
+        service.request(
+                new RequestDeviceTask(otherWarehouse, "CONVEYOR", null, "CONVEY", Map.of(), null), "tester");
+
+        // Filter by warehouse: the two warehouse tasks, newest first.
+        List<DeviceTaskView> byWarehouse = service.search(warehouse, null, null, null, 100);
+        assertThat(byWarehouse).extracting(DeviceTaskView::id)
+                .containsExactly(second.id(), first.id());
+
+        // Filter by family within the warehouse: only the CONVEYOR one.
+        List<DeviceTaskView> byFamily = service.search(warehouse, null, "CONVEYOR", null, 100);
+        assertThat(byFamily).extracting(DeviceTaskView::id).containsExactly(first.id());
+
+        // Filter by status: all three are COMPLETED.
+        assertThat(service.search(null, "COMPLETED", null, null, 100)).hasSize(3);
+
+        // Limit is honoured.
+        assertThat(service.search(null, null, null, null, 1)).hasSize(1);
+    }
+
+    @Test
     void unknownTaskIdThrows() {
         org.junit.jupiter.api.Assertions.assertThrows(
                 DeviceTaskNotFoundException.class, () -> service.get(UUID.randomUUID()));
