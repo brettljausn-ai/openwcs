@@ -98,6 +98,6 @@ class WorkplaceSessionTest {
 
     private GtpStation newStation() {
         return stationService.createStation(new CreateStationRequest(
-                UUID.randomUUID(), "GTP-" + UUID.randomUUID(), "PUT_WALL", null, List.of()));
+                UUID.randomUUID(), "GTP-" + UUID.randomUUID(), null, "PUT_WALL", null, List.of()));
     }
 }

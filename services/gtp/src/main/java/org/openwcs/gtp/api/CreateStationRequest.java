@@ -14,6 +14,7 @@ import java.util.UUID;
 public record CreateStationRequest(
         @NotNull UUID warehouseId,
         @NotBlank String code,
+        String name,
         @NotBlank String mode,
         List<String> supportedModes,
         List<NodeSpec> nodes) {

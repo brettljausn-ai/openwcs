@@ -6,9 +6,12 @@ import java.util.UUID;
 import org.openwcs.gtp.domain.GtpStation;
 import org.openwcs.gtp.domain.StationNode;
 import org.openwcs.gtp.service.GtpStationService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -44,11 +47,41 @@ public class StationController {
         return StationView.from(station, service.nodesOf(stationId));
     }
 
+    /** Update a station's editable configuration (code, name, mode, status, supported modes). */
+    @PutMapping("/{stationId}")
+    public StationView update(@PathVariable UUID stationId,
+                             @Valid @RequestBody UpdateStationRequest request) {
+        GtpStation station = service.updateStation(stationId, request);
+        return StationView.from(station, service.nodesOf(stationId));
+    }
+
+    /** Delete a station and (cascading) its nodes, demand and cycles. */
+    @DeleteMapping("/{stationId}")
+    public ResponseEntity<Void> delete(@PathVariable UUID stationId) {
+        service.deleteStation(stationId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{stationId}/nodes")
     public StationView.NodeView addNode(@PathVariable UUID stationId,
                                         @Valid @RequestBody AddNodeRequest request) {
         StationNode node = service.addNode(stationId, request);
         return StationView.NodeView.from(node);
+    }
+
+    /** Update a node's role, code, put-light/destination wiring, address, position and status. */
+    @PutMapping("/nodes/{nodeId}")
+    public StationView.NodeView updateNode(@PathVariable UUID nodeId,
+                                           @Valid @RequestBody UpdateNodeRequest request) {
+        StationNode node = service.updateNode(nodeId, request);
+        return StationView.NodeView.from(node);
+    }
+
+    /** Remove a node from a station. */
+    @DeleteMapping("/nodes/{nodeId}")
+    public ResponseEntity<Void> deleteNode(@PathVariable UUID nodeId) {
+        service.deleteNode(nodeId);
+        return ResponseEntity.noContent().build();
     }
 
     /** Configure the operating modes a station supports (PICKING is always retained). */

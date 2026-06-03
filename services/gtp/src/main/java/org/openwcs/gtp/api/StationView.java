@@ -11,13 +11,14 @@ public record StationView(
         UUID id,
         UUID warehouseId,
         String code,
+        String name,
         String mode,
         List<String> supportedModes,
         String status,
         List<NodeView> nodes) {
 
     public static StationView from(GtpStation s, List<StationNode> nodes) {
-        return new StationView(s.getId(), s.getWarehouseId(), s.getCode(), s.getMode(),
+        return new StationView(s.getId(), s.getWarehouseId(), s.getCode(), s.getName(), s.getMode(),
                 s.supportedModeSet().stream().map(OperatingMode::name).toList(), s.getStatus(),
                 nodes.stream().map(NodeView::from).toList());
     }
