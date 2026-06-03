@@ -16,7 +16,7 @@ public class SimulatedHostLabelClient {
 
     @Bean
     @ConditionalOnMissingBean(HostLabelClient.class)
-    public HostLabelClient simulatedHostLabelClient() {
+    public HostLabelClient hostLabelClient() {
         return (orderRef, warehouseId, serviceCode, routeCode, seqNo) -> {
             String service = serviceCode == null ? "STD" : serviceCode;
             // A plausible host-style label id; unique per (order, carton).
