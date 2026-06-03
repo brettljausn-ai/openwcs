@@ -1,0 +1,45 @@
+server:
+  port: 8093
+spring:
+  application:
+    name: slotting
+  # Service-local store: an isolated `slotting` schema in dev.
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/openwcs}
+    username: ${SPRING_DATASOURCE_USERNAME:openwcs}
+    password: ${SPRING_DATASOURCE_PASSWORD:openwcs}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: slotting
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    schemas: slotting
+    default-schema: slotting
+    create-schemas: true
+
+openwcs:
+  # Per-endpoint RBAC (build.md §4.8); off by default so the stack runs before a Keycloak realm.
+  security:
+    enabled: ${OPENWCS_SECURITY_ENABLED:false}
+  slotting:
+    master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
+    inventory-base-url: ${OPENWCS_INVENTORY_BASE_URL:http://localhost:8082}
+    txlog-base-url: ${OPENWCS_TXLOG_BASE_URL:http://localhost:8086}
+    # Off-peak window for opportunistic top-off + re-slotting (PR3/PR4); quoted cron.
+    offpeak-cron: ${OPENWCS_SLOTTING_OFFPEAK_CRON:0 0 2 * * *}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
