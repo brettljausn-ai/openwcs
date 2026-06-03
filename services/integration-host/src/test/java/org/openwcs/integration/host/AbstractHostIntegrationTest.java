@@ -8,21 +8,27 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Base for integration-host web tests: boots the context against PostgreSQL 16 (the service now
  * has a small store for idempotency keys + webhook state) with MockMvc. Subclasses add their
  * {@code @MockBean} clients and test methods.
+ *
+ * <p>Uses a <b>singleton</b> container (started once, never stopped) rather than the
+ * {@code @Testcontainers} per-class lifecycle: several test classes here share an identical
+ * {@code @MockBean} set, so Spring caches one context across them — a per-class container would
+ * be stopped after the first class, leaving the cached context's datasource pointing at a dead
+ * DB. The singleton stays up for the whole run; Ryuk reaps it at JVM exit.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Testcontainers
 abstract class AbstractHostIntegrationTest {
 
-    @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16");
+
+    static {
+        POSTGRES.start();
+    }
 
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
