@@ -14,6 +14,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /** Outbound fulfilment order — aggregate root over its {@link OrderLine}s (build.md §4.6). */
 @Entity
@@ -60,6 +62,15 @@ public class OutboundOrder extends Auditable {
     /** Dispatch route (master-data route code, host-fed), e.g. CENTRAL_LONDON. */
     @Column(name = "route_code")
     private String routeCode;
+
+    /** Ship-to address (JSONB); used to populate dispatch labels. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "ship_to")
+    private ShipToAddress shipTo;
+
+    /** Override dispatch-label template (master-data label-template code); else service/warehouse default. */
+    @Column(name = "label_template_code")
+    private String labelTemplateCode;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderLine> lines = new ArrayList<>();
@@ -139,6 +150,22 @@ public class OutboundOrder extends Auditable {
 
     public void setRouteCode(String routeCode) {
         this.routeCode = routeCode;
+    }
+
+    public ShipToAddress getShipTo() {
+        return shipTo;
+    }
+
+    public void setShipTo(ShipToAddress shipTo) {
+        this.shipTo = shipTo;
+    }
+
+    public String getLabelTemplateCode() {
+        return labelTemplateCode;
+    }
+
+    public void setLabelTemplateCode(String labelTemplateCode) {
+        this.labelTemplateCode = labelTemplateCode;
     }
 
     public int getPriority() {

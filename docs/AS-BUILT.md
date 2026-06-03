@@ -101,9 +101,13 @@ position.
 
 `/api/orders` (see `contracts/openapi/order-management.yaml`). Orders carry an
 **`orderType`** — INBOUND | OUTBOUND | COUNT | ADJUSTMENT — with lines. Outbound orders may
-also carry a **`serviceCode`** (dispatch service level) and **`routeCode`** (dispatch route,
-host-fed), each validated at create time against the master-data catalogs (unknown code → 400);
-order-management resolves them via a `MasterDataClient` (identity-forwarded, like allocation).
+also carry a **`serviceCode`** (dispatch service level), **`routeCode`** (dispatch route,
+host-fed), a **`shipTo`** address (JSONB), and an optional **`labelTemplateCode`** override —
+the service/route/template codes validated at create time against the master-data catalogs
+(unknown code → 400); order-management resolves them via a `MasterDataClient` (identity-forwarded,
+like allocation). These are the **shared** dispatch-label fields; the per-shipper barcode is
+**not** held on the order — shippers only exist after cubing, so each shipper's label barcode is
+requested from the host system per shipper at that point (see §7b, pending).
 
 - **Lifecycle / release** (OUTBOUND): create → **release** (delegates to allocation →
   `ALLOCATED` / `NOT_FULFILLABLE` / `CUBING_FAILED`) → ship; cancel releases held reservations

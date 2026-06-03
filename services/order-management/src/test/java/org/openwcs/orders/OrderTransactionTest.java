@@ -61,7 +61,7 @@ class OrderTransactionTest {
         UUID location = UUID.randomUUID();
 
         OrderView created = service.create(new CreateOrderRequest(
-                "ASN-1", warehouse, "INBOUND", null, null, null, null, null,
+                "ASN-1", warehouse, "INBOUND", null, null, null, null, null, null, null,
                 List.of(new CreateOrderRequest.Line(sku, new BigDecimal("10")))));
 
         OrderView view = service.postTransaction(created.id(), 1,
@@ -92,7 +92,7 @@ class OrderTransactionTest {
                 .thenReturn(new AllocationClient.AllocationResult("CUBING_FAILED", reason));
 
         OrderView created = service.create(new CreateOrderRequest(
-                "ORD-BIG", warehouse, "OUTBOUND", null, null, null, null, null,
+                "ORD-BIG", warehouse, "OUTBOUND", null, null, null, null, null, null, null,
                 List.of(new CreateOrderRequest.Line(sku, new BigDecimal("1")))));
 
         OrderView released = service.release(created.id());
@@ -109,11 +109,27 @@ class OrderTransactionTest {
         org.mockito.Mockito.when(masterData.routeExists("CENTRAL_LONDON")).thenReturn(true);
 
         OrderView created = service.create(new CreateOrderRequest(
-                "ORD-SVC", warehouse, "OUTBOUND", null, null, null, "EXPRESS", "CENTRAL_LONDON",
+                "ORD-SVC", warehouse, "OUTBOUND", null, null, null, "EXPRESS", "CENTRAL_LONDON", null, null,
                 List.of(new CreateOrderRequest.Line(sku, BigDecimal.ONE))));
 
         assertThat(created.serviceCode()).isEqualTo("EXPRESS");
         assertThat(created.routeCode()).isEqualTo("CENTRAL_LONDON");
+    }
+
+    @Test
+    void createStoresShipToAndValidatesLabelTemplate() {
+        UUID warehouse = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        org.mockito.Mockito.when(masterData.labelTemplateExists("SHIP-4X6")).thenReturn(true);
+        var shipTo = new org.openwcs.orders.domain.ShipToAddress(
+                "Acme Ltd", "1 High St", null, "London", null, "EC1A 1AA", "GB", "Jo", null);
+
+        OrderView created = service.create(new CreateOrderRequest(
+                "ORD-LBL", warehouse, "OUTBOUND", null, null, null, null, null, shipTo, "SHIP-4X6",
+                List.of(new CreateOrderRequest.Line(sku, BigDecimal.ONE))));
+
+        assertThat(created.shipTo().city()).isEqualTo("London");
+        assertThat(created.labelTemplateCode()).isEqualTo("SHIP-4X6");
     }
 
     @Test
@@ -123,7 +139,7 @@ class OrderTransactionTest {
         org.mockito.Mockito.when(masterData.routeExists("NOPE")).thenReturn(false);
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.create(new CreateOrderRequest(
-                        "ORD-BAD", warehouse, "OUTBOUND", null, null, null, null, "NOPE",
+                        "ORD-BAD", warehouse, "OUTBOUND", null, null, null, null, "NOPE", null, null,
                         List.of(new CreateOrderRequest.Line(sku, BigDecimal.ONE)))))
                 .isInstanceOf(IllegalArgumentException.class);
     }

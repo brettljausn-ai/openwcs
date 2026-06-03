@@ -22,6 +22,10 @@ public record CreateOrderRequest(
         String serviceCode,
         /** Dispatch route (master-data route code, host-fed), e.g. CENTRAL_LONDON. */
         String routeCode,
+        /** Ship-to address; used to populate dispatch labels. */
+        org.openwcs.orders.domain.ShipToAddress shipTo,
+        /** Override dispatch-label template (master-data label-template code). */
+        String labelTemplateCode,
         @NotEmpty List<Line> lines) {
 
     public record Line(
