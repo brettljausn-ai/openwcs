@@ -14,6 +14,7 @@ include 'services:slotting'
 include 'services:gtp'
 include 'services:process-engine'
 include 'services:order-management'
+include 'services:counting'
 include 'services:flow-orchestrator'
 
 // platform services

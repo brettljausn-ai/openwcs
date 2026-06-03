@@ -23,6 +23,9 @@ spring:
         - id: gtp
           uri: ${OPENWCS_URI_GTP:http://localhost:8094}
           predicates: [ "Path=/api/gtp/**" ]
+        - id: counting
+          uri: ${OPENWCS_URI_COUNTING:http://localhost:8095}
+          predicates: [ "Path=/api/counting/**" ]
         - id: process-engine
           uri: ${OPENWCS_URI_PROCESS_ENGINE:http://localhost:8083}
           predicates: [ "Path=/api/process/**" ]
