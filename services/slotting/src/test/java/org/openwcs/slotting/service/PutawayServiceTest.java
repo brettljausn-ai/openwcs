@@ -1,0 +1,117 @@
+package org.openwcs.slotting.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.openwcs.slotting.api.PutawayDecision;
+import org.openwcs.slotting.api.PutawayRequest;
+import org.openwcs.slotting.client.InventoryClient;
+import org.openwcs.slotting.client.MasterDataClient;
+import org.openwcs.slotting.client.MasterDataClient.StorageLocation;
+import org.openwcs.slotting.domain.PickSlot;
+import org.openwcs.slotting.domain.StorageProfile;
+import org.openwcs.slotting.repo.PickSlotRepository;
+import org.openwcs.slotting.repo.StorageProfileRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+/** End-to-end put-away over PostgreSQL with the master-data / inventory clients mocked. */
+@SpringBootTest
+@Testcontainers
+class PutawayServiceTest {
+
+    @Container
+    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16");
+
+    @DynamicPropertySource
+    static void datasource(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+    }
+
+    @Autowired
+    PutawayService service;
+
+    @Autowired
+    StorageProfileRepository profiles;
+
+    @Autowired
+    PickSlotRepository pickSlots;
+
+    @MockBean
+    MasterDataClient masterData;
+
+    @MockBean
+    InventoryClient inventory;
+
+    private static StorageLocation loc(UUID id, String aisle, int laneDepth, double dist) {
+        return new StorageLocation(id, "L-" + id.toString().substring(0, 4), "STORAGE", "ASRS_SLOT",
+                aisle, 1, laneDepth, BigDecimal.valueOf(dist), null, "ACTIVE");
+    }
+
+    @Test
+    void reservePlacementPicksTheBestScoredLocationAndPersists() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID block = UUID.randomUUID();
+        UUID near = UUID.randomUUID();
+        UUID far = UUID.randomUUID();
+
+        StorageProfile profile = new StorageProfile();
+        profile.setWarehouseId(wh);
+        profile.setSkuId(sku);
+        profile.setBlockId(block);
+        profile.setVelocityClass("A"); // fast mover → nearest exit
+        profiles.save(profile);
+
+        when(masterData.storageLocations(eq(wh), eq(block)))
+                .thenReturn(List.of(loc(far, "A1", 3, 10.0), loc(near, "A1", 3, 1.0)));
+
+        PutawayDecision decision = service.assign(
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, null));
+
+        assertThat(decision.mode()).isEqualTo("RESERVE");
+        assertThat(decision.blockId()).isEqualTo(block);
+        assertThat(decision.locationId()).isEqualTo(near);
+        assertThat(decision.assignmentId()).isNotNull();
+    }
+
+    @Test
+    void directToPickWhenForwardFaceHasHeadroom() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID uom = UUID.randomUUID();
+        UUID faceLoc = UUID.randomUUID();
+
+        PickSlot slot = new PickSlot();
+        slot.setWarehouseId(wh);
+        slot.setLocationId(faceLoc);
+        slot.setSkuId(sku);
+        slot.setUomId(uom);
+        slot.setMinQty(new BigDecimal("12"));
+        slot.setMaxQty(new BigDecimal("48"));
+        slot.setDirectToPick(true);
+        pickSlots.save(slot);
+
+        when(inventory.onHandAtLocation(any(), any(), any())).thenReturn(new BigDecimal("10"));
+
+        PutawayDecision decision = service.assign(
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, uom, BigDecimal.ONE, null));
+
+        assertThat(decision.mode()).isEqualTo("DIRECT_TO_PICK");
+        assertThat(decision.locationId()).isEqualTo(faceLoc);
+    }
+}
