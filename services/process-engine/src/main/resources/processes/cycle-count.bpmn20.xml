@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://openwcs.org/processes">
+  <!--
+    Sample cycle-count process (build.md §7): an operator counts a location (a user task); on
+    completion the recount/adjustment steps would follow. Demonstrates a standalone user task.
+  -->
+  <process id="cycle-count" name="Cycle count" isExecutable="true">
+    <startEvent id="start"/>
+    <sequenceFlow id="f1" sourceRef="start" targetRef="count"/>
+    <userTask id="count" name="Count location"/>
+    <sequenceFlow id="f2" sourceRef="count" targetRef="end"/>
+    <endEvent id="end"/>
+  </process>
+</definitions>

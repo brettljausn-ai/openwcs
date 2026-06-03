@@ -78,7 +78,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | integration-sap | `LabelControllerTest`, `RouteFeedControllerTest`, `SapOrderControllerTest` | MockMvc (label-barcode; route-feed upsert; SAP order → Host API translation with material→SKU + unknown-material 422) |
 | integration-manhattan | `ManhattanOrderControllerTest` | MockMvc (Manhattan order → Host API translation with item→SKU + unknown-item 422) |
 | integration-host | `HostControllerTest`, `ConfirmationControllerTest`, `HostReferenceControllerTest`, `HostInventoryControllerTest`, `IdempotencyFilterTest`, `WebhookDispatcherTest` | Testcontainers + MockMvc + mocked clients (order/ASN mapping; confirmations cursor feed; SKU upsert; adjustment → StockAdjusted append; `Idempotency-Key` replay; webhook push advances cursor) |
-| process-engine | `ProcessEngineTest` | Testcontainers + Flowable (sample goods-in auto-deploys; starting it runs the service task → mocked device-task dispatch → completes) |
+| process-engine | `ProcessEngineTest`, `OutboundProcessTest` | Testcontainers + Flowable (goods-in dispatches a device task; outbound releases → user task → dispatch, exercising delegates + a wait task) |
 
 ---
 

@@ -14,8 +14,48 @@ servers:
 tags:
   - name: Definitions
   - name: Instances
+  - name: Tasks
 
 paths:
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: List user/wait tasks
+      operationId: listTasks
+      parameters:
+        - name: processInstanceId
+          in: query
+          schema: { type: string }
+        - name: assignee
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Task' }
+  /tasks/{id}/complete:
+    post:
+      tags: [Tasks]
+      summary: Complete a user task (optionally with variables)
+      operationId: completeTask
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200": { description: Completed }
   /definitions:
     get:
       tags: [Definitions]
@@ -110,3 +150,10 @@ components:
         processDefinitionKey: { type: string }
         businessKey: { type: string, nullable: true }
         ended: { type: boolean }
+    Task:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string, nullable: true }
+        assignee: { type: string, nullable: true }
+        processInstanceId: { type: string }
