@@ -39,7 +39,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop + `POST /tasks` device-task simulator. |
 | adapters/{asrs,amr-geekplus,autostore} | 9096, 9093, 9094 | 🟦 | Go; health/readiness + stub loop. (asrs on 9096 — 9092 is Kafka's.) |
 | adapters/conveyor-sniffer | 9095 | 🟡 | Go; ingests scan telegrams from defined source IPs (allowlist + pluggable decoder) and posts observations to the WCS for topology learning. |
-| ui | 5173 dev / 80 prod | 🟡 | React/Vite; **conveyor topology editor** (React Flow) + **BPMN process designer** (bpmn-js: model/deploy processes, start instances, complete user tasks), tab-switched. In compose (`--profile apps`) it's built and served by nginx on host **:80**, proxying `/api` → gateway. |
+| ui | 5173 dev / 80 prod | 🟡 | React/Vite SPA with **Keycloak login** (password grant via `openwcs-web`), a sidebar **app shell** + **dashboard**, and a **screen permission catalog** (`auth/screens.ts`) gating nav/routes by role (overridable per role/user). Screens: **conveyor topology** (React Flow), **BPMN process designer** (bpmn-js), **slotting**; reserved/stubbed: inbound, outbound, counting, GTP ops + config, transport, stock transactions, master data, settings, users, access control. In compose (`--profile apps`) built + served by nginx on host **:80** (proxies `/api`→gateway, `/realms`+`/admin`→Keycloak). |
 
 All Java services: Java 21 / Spring Boot 3.3.2, PostgreSQL 16 via Flyway + JPA/Hibernate 6
 (`ddl-auto: validate` — migrations own the schema), UUID keys, JSONB via `@JdbcTypeCode`.
@@ -185,10 +185,14 @@ default) and passes the dispatch context to allocation.
 - **Gateway JWT** (build.md §12): with `openwcs.security.enabled=true` the gateway validates
   the JWT against the Keycloak realm, requires auth on `/api/**`, forwards the identity
   downstream as `X-Auth-User`/`X-Auth-Roles`, and **always strips client-supplied** versions
-  (anti-spoofing). Off by default so the stack runs without setup.
+  (anti-spoofing). The **compose `--profile apps` demo enables it on the gateway** (validating
+  by `jwk-set-uri` so tokens minted through the UI's nginx proxy verify regardless of public
+  hostname); downstream services keep their per-service toggle off so internal calls are
+  unaffected (the gateway is the trust boundary). It remains off by default for bare host-run dev.
 - **Keycloak realm**: compose imports `platform/keycloak/openwcs-realm.json` — realm
-  `openwcs` with roles ADMIN/SUPERVISOR/OPERATOR/VIEWER, the `openwcs-web` client, and demo
-  users (dev-only passwords). Enabling auth + getting a token is documented in the README.
+  `openwcs` with roles ADMIN/SUPERVISOR/OPERATOR/VIEWER, the `openwcs-web` public client, and
+  users (admin `admIn1!` with realm-management roles for UI user-management; supervisor/operator/
+  viewer). The UI signs in via the password grant; README documents getting a token for the API.
 - **Authenticated actor**: order-management records a stock transaction's `actor` from the
   gateway-forwarded `X-Auth-User` (the request-body actor is only a fallback). So once
   security is on, every stock change is attributed to the authenticated user.
