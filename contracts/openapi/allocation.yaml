@@ -156,6 +156,27 @@ components:
                     lineNo: { type: integer, description: Order line this content fulfils. }
                     skuId: { type: string, format: uuid }
                     qty: { type: number }
+        dispatch:
+          type: object
+          nullable: true
+          description: Shared dispatch-label context; allocation builds a per-shipper label and fetches each shipper's barcode from the host.
+          properties:
+            shipTo:
+              type: object
+              nullable: true
+              properties:
+                name: { type: string }
+                line1: { type: string }
+                line2: { type: string }
+                city: { type: string }
+                region: { type: string }
+                postcode: { type: string }
+                country: { type: string }
+                contact: { type: string }
+                phone: { type: string }
+            serviceCode: { type: string, nullable: true }
+            routeCode: { type: string, nullable: true }
+            labelTemplateCode: { type: string, nullable: true }
     Allocation:
       type: object
       properties:
@@ -220,6 +241,17 @@ components:
               qty: { type: number }
         grossWeightG: { type: number }
         usedVolumeMm3: { type: number }
+        dispatchLabel:
+          type: object
+          nullable: true
+          description: The dispatch label applied to this carton (present when the order supplied dispatch context).
+          properties:
+            templateCode: { type: string, nullable: true, description: Resolved label template (order → service → warehouse default). }
+            barcode: { type: string, nullable: true, description: Host-assigned label barcode for this shipper. }
+            fields:
+              type: object
+              additionalProperties: { type: string }
+              description: "Resolved label fields (orderRef, carton seq, service, route, shipToName, addressBlock)."
     BuildBatchesRequest:
       type: object
       required: [warehouseId, orderRefs]

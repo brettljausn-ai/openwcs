@@ -235,8 +235,18 @@ public class OrderService {
         List<AllocationClient.Line> lines = order.getLines().stream()
                 .map(l -> new AllocationClient.Line(l.getLineNo(), l.getSkuId(), l.getQty()))
                 .toList();
+        // Effective dispatch-label template: order override -> service default -> warehouse default.
+        String template = order.getLabelTemplateCode();
+        if (template == null && order.getServiceCode() != null) {
+            template = masterData.serviceLabelTemplate(order.getServiceCode());
+        }
+        if (template == null) {
+            template = masterData.warehouseDefaultLabelTemplate(order.getWarehouseId());
+        }
+        AllocationClient.Dispatch dispatch = new AllocationClient.Dispatch(
+                order.getShipTo(), order.getServiceCode(), order.getRouteCode(), template);
         AllocationClient.AllocationResult result =
-                allocation.allocate(order.getOrderRef(), order.getWarehouseId(), lines);
+                allocation.allocate(order.getOrderRef(), order.getWarehouseId(), lines, dispatch);
         if (result.fulfillable()) {
             order.setStatus(OrderStatus.ALLOCATED);
             order.setStatusDetail(null);

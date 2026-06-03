@@ -21,15 +21,23 @@ public class HttpAllocationClient implements AllocationClient {
     }
 
     @Override
-    public AllocationResult allocate(String orderRef, UUID warehouseId, List<Line> lines) {
+    public AllocationResult allocate(String orderRef, UUID warehouseId, List<Line> lines, Dispatch dispatch) {
         List<Map<String, Object>> lineBodies = new ArrayList<>();
         for (Line line : lines) {
             lineBodies.add(Map.of("lineNo", line.lineNo(), "skuId", line.skuId(), "qty", line.qty()));
         }
-        Map<String, Object> body = Map.of(
-                "orderRef", orderRef,
-                "warehouseId", warehouseId,
-                "lines", lineBodies);
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("orderRef", orderRef);
+        body.put("warehouseId", warehouseId);
+        body.put("lines", lineBodies);
+        if (dispatch != null) {
+            Map<String, Object> dispatchBody = new java.util.HashMap<>();
+            dispatchBody.put("shipTo", dispatch.shipTo()); // serialized by field name; matches allocation ShipTo
+            dispatchBody.put("serviceCode", dispatch.serviceCode());
+            dispatchBody.put("routeCode", dispatch.routeCode());
+            dispatchBody.put("labelTemplateCode", dispatch.labelTemplateCode());
+            body.put("dispatch", dispatchBody);
+        }
         AllocationResponse response = http.post()
                 .uri("/api/allocation/orders")
                 .body(body)

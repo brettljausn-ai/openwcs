@@ -88,7 +88,7 @@ class OrderTransactionTest {
         String reason = "SKU " + sku + " (line 1) does not fit the largest shipper CARTON-L";
         org.mockito.Mockito.when(allocation.allocate(
                         org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-                        org.mockito.ArgumentMatchers.any()))
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(new AllocationClient.AllocationResult("CUBING_FAILED", reason));
 
         OrderView created = service.create(new CreateOrderRequest(

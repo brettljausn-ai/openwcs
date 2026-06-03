@@ -159,7 +159,7 @@ public final class CubingEngine {
                     lines.add(new ShipperAssignment.Content(key.lineNo(), key.skuId(), BigDecimal.valueOf(qty))));
             return new ShipperAssignment(
                     UUID.randomUUID(), seqNo, carton.shipper().id(), carton.shipper().code(), lines,
-                    BigDecimal.valueOf(carton.tare() + weight), BigDecimal.valueOf(volume));
+                    BigDecimal.valueOf(carton.tare() + weight), BigDecimal.valueOf(volume), null);
         }
     }
 

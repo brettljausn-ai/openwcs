@@ -3,12 +3,14 @@ package org.openwcs.allocation.service;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.openwcs.allocation.api.AllocateOrderRequest;
 import org.openwcs.allocation.api.AllocationNotFoundException;
 import org.openwcs.allocation.api.AllocationView;
+import org.openwcs.allocation.client.HostLabelClient;
 import org.openwcs.allocation.client.InventoryClient;
 import org.openwcs.allocation.client.MasterDataClient;
 import org.openwcs.allocation.client.MasterDataClient.ShipperDef;
@@ -36,13 +38,16 @@ public class AllocationService {
     private final OrderAllocationRepository allocations;
     private final MasterDataClient masterData;
     private final InventoryClient inventory;
+    private final HostLabelClient hostLabel;
 
     public AllocationService(OrderAllocationRepository allocations,
                              MasterDataClient masterData,
-                             InventoryClient inventory) {
+                             InventoryClient inventory,
+                             HostLabelClient hostLabel) {
         this.allocations = allocations;
         this.masterData = masterData;
         this.inventory = inventory;
+        this.hostLabel = hostLabel;
     }
 
     @Transactional(readOnly = true)
@@ -163,7 +168,7 @@ public class AllocationService {
                 throw e;
             }
             allocation.setStatus("FULFILLABLE");
-            allocation.setShippers(shippers);
+            allocation.setShippers(applyDispatchLabels(shippers, request));
         } else {
             // Hold nothing for a non-fulfillable order; keep per-line diagnostics but drop the
             // (now released) reservation ids from the picks.
@@ -174,6 +179,57 @@ public class AllocationService {
         }
 
         return AllocationView.from(allocations.save(allocation));
+    }
+
+    /**
+     * Enrich each cubed shipper with a dispatch label: the resolved template + shared fields
+     * (ship-to, service, route, carton sequence) plus a host-assigned barcode requested per
+     * shipper (the barcode is only knowable once cubing has produced the cartons).
+     */
+    private List<ShipperAssignment> applyDispatchLabels(List<ShipperAssignment> shippers,
+                                                        AllocateOrderRequest request) {
+        AllocateOrderRequest.Dispatch dispatch = request.dispatch();
+        if (dispatch == null || shippers.isEmpty()) {
+            return shippers;
+        }
+        int total = shippers.size();
+        List<ShipperAssignment> labeled = new ArrayList<>(total);
+        for (ShipperAssignment s : shippers) {
+            String barcode = hostLabel.requestBarcode(request.orderRef(), request.warehouseId(),
+                    dispatch.serviceCode(), dispatch.routeCode(), s.seqNo());
+            Map<String, String> fields = new LinkedHashMap<>();
+            fields.put("orderRef", request.orderRef());
+            fields.put("carton", s.seqNo() + "/" + total);
+            if (dispatch.serviceCode() != null) {
+                fields.put("service", dispatch.serviceCode());
+            }
+            if (dispatch.routeCode() != null) {
+                fields.put("route", dispatch.routeCode());
+            }
+            addShipTo(fields, dispatch.shipTo());
+            labeled.add(s.withDispatchLabel(
+                    new ShipperAssignment.DispatchLabel(dispatch.labelTemplateCode(), barcode, fields)));
+        }
+        return labeled;
+    }
+
+    private static void addShipTo(Map<String, String> fields, AllocateOrderRequest.ShipTo shipTo) {
+        if (shipTo == null) {
+            return;
+        }
+        if (shipTo.name() != null) {
+            fields.put("shipToName", shipTo.name());
+        }
+        StringBuilder block = new StringBuilder();
+        for (String part : new String[] {shipTo.line1(), shipTo.line2(), shipTo.city(),
+                shipTo.region(), shipTo.postcode(), shipTo.country()}) {
+            if (part != null && !part.isBlank()) {
+                block.append(block.isEmpty() ? "" : ", ").append(part);
+            }
+        }
+        if (!block.isEmpty()) {
+            fields.put("addressBlock", block.toString());
+        }
     }
 
     private List<ShipperAssignment> cube(AllocateOrderRequest request, String cubingMode,
@@ -229,7 +285,7 @@ public class AllocationService {
                 }
             }
             assignments.add(new ShipperAssignment(UUID.randomUUID(), seq++, shipper.id(), shipper.code(),
-                    contents, BigDecimal.valueOf(weight), BigDecimal.valueOf(volume)));
+                    contents, BigDecimal.valueOf(weight), BigDecimal.valueOf(volume), null));
         }
         return assignments;
     }

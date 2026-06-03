@@ -48,6 +48,9 @@ class AllocationServiceTest {
     @MockBean
     InventoryClient inventory;
 
+    @MockBean
+    org.openwcs.allocation.client.HostLabelClient hostLabel;
+
     @Autowired
     AllocationService service;
 
@@ -69,7 +72,7 @@ class AllocationServiceTest {
 
         AllocateOrderRequest request = new AllocateOrderRequest(
                 "ORD-CANCEL", warehouse, null,
-                List.of(new AllocateOrderRequest.Line(1, sku, new BigDecimal("5"))), null);
+                List.of(new AllocateOrderRequest.Line(1, sku, new BigDecimal("5"))), null, null);
 
         AllocationView allocated = service.allocate(request);
         assertThat(allocated.status()).isEqualTo("FULFILLABLE");
@@ -104,7 +107,7 @@ class AllocationServiceTest {
 
         AllocateOrderRequest request = new AllocateOrderRequest(
                 "ORD-BIG", warehouse, null,
-                List.of(new AllocateOrderRequest.Line(1, sku, BigDecimal.ONE)), null);
+                List.of(new AllocateOrderRequest.Line(1, sku, BigDecimal.ONE)), null, null);
 
         AllocationView view = service.allocate(request);
 
@@ -114,5 +117,53 @@ class AllocationServiceTest {
         // Nothing is held for an order that can't ship; the reservation is released.
         assertThat(view.lines().get(0).picks().get(0).reservationId()).isNull();
         verify(inventory).release(reservation);
+    }
+
+    @Test
+    void cubedShippersGetDispatchLabelsWithHostBarcodePerShipper() {
+        UUID warehouse = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID location = UUID.randomUUID();
+
+        when(masterData.fulfillmentConfig(any())).thenReturn(
+                new MasterDataClient.FulfillmentConfig(List.of("EACH"), "APP", null, false, 1, 12, null));
+        when(masterData.pickLocationIds(any())).thenReturn(List.of(location));
+        // Base UoM 600 g, volume unconstrained.
+        when(masterData.skuUoms(any())).thenReturn(List.of(new MasterDataClient.UomDef(
+                UUID.randomUUID(), "EACH", null, null, null, null, null, BigDecimal.valueOf(600), true)));
+        // One tote, net weight cap 1000 g -> 2 units (1200 g) need 2 cartons.
+        when(masterData.shippers(any())).thenReturn(List.of(new MasterDataClient.ShipperDef(
+                UUID.randomUUID(), "TOTE", null, null, null,
+                BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.valueOf(1000), "ACTIVE")));
+        when(inventory.availableAtLocation(any(), any(), any())).thenReturn(new BigDecimal("10"));
+        when(inventory.reserve(any(), any(), any(), any(), any())).thenReturn(UUID.randomUUID());
+        when(hostLabel.requestBarcode(any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenAnswer(inv -> "BC-" + inv.getArgument(4));
+
+        var dispatch = new AllocateOrderRequest.Dispatch(
+                new AllocateOrderRequest.ShipTo("Acme Ltd", "1 High St", null, "London", null, "EC1A 1AA", "GB", null, null),
+                "EXPRESS", "CENTRAL_LONDON", "SHIP-4X6");
+        AllocateOrderRequest request = new AllocateOrderRequest(
+                "ORD-LBL", warehouse, null,
+                List.of(new AllocateOrderRequest.Line(1, sku, new BigDecimal("2"))), null, dispatch);
+
+        AllocationView view = service.allocate(request);
+
+        assertThat(view.status()).isEqualTo("FULFILLABLE");
+        assertThat(view.shippers()).hasSize(2);
+        // Every carton has a dispatch label with the resolved template, shared fields, and its
+        // own host-assigned barcode.
+        assertThat(view.shippers()).allSatisfy(s -> {
+            assertThat(s.dispatchLabel()).isNotNull();
+            assertThat(s.dispatchLabel().templateCode()).isEqualTo("SHIP-4X6");
+            assertThat(s.dispatchLabel().fields()).containsEntry("service", "EXPRESS")
+                    .containsEntry("route", "CENTRAL_LONDON").containsEntry("shipToName", "Acme Ltd");
+            assertThat(s.dispatchLabel().fields().get("addressBlock")).contains("London");
+            assertThat(s.dispatchLabel().barcode()).isEqualTo("BC-" + s.seqNo());
+        });
+        assertThat(view.shippers().get(0).dispatchLabel().fields()).containsEntry("carton", "1/2");
+        // A barcode was requested from the host once per shipper.
+        verify(hostLabel, org.mockito.Mockito.times(2))
+                .requestBarcode(any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyInt());
     }
 }

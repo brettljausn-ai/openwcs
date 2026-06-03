@@ -10,12 +10,17 @@ import java.util.UUID;
  */
 public interface AllocationClient {
 
-    AllocationResult allocate(String orderRef, UUID warehouseId, List<Line> lines);
+    AllocationResult allocate(String orderRef, UUID warehouseId, List<Line> lines, Dispatch dispatch);
 
     /** Cancel an order's allocation, releasing any held reservations. No-op if none exists. */
     void cancel(String orderRef);
 
     record Line(int lineNo, UUID skuId, BigDecimal qty) {
+    }
+
+    /** Shared dispatch-label context for the order; allocation builds a per-shipper label from it. */
+    record Dispatch(org.openwcs.orders.domain.ShipToAddress shipTo, String serviceCode, String routeCode,
+                    String labelTemplateCode) {
     }
 
     /**
