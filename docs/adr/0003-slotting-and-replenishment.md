@@ -36,10 +36,13 @@ balancing wants the emptiest), so the design needs a deliberate reconciliation, 
    `location` gains `block_id`, `aisle`, `rack_level`, `lane_depth` (multi-deep capacity), and
    `distance_to_exit` (velocity-to-exit).
 3. **One weighted scorer reconciles the conflicts.** A pure `PutawayScorer` applies the **hard
-   constraints** (lane capacity, single-SKU-per-lane, **max-%-of-SKU-per-aisle cap**) then ranks
-   survivors by `wV·velocity + wC·consolidation + wR·redundancy + wB·balance`. Weights are per-block
-   (`block_policy`); the cap + a min-aisle floor are how redundancy is reconciled with
-   consolidation. Tie-break favours filling a started same-SKU lane (least honeycombing).
+   constraints** (lane capacity, **max-%-of-SKU-per-aisle cap**) then ranks survivors by
+   `wV·velocity + wC·laneAffinity + wR·redundancy + wB·balance`. **Single-SKU-per-lane is a soft
+   preference, not a hard rule** — the lane-affinity term rewards a same-SKU lane (+1) and penalises
+   mixing a different SKU (−1), so a higher `wBalance` (or other weight) can outweigh it when the
+   operator wants aisle balance to win. Weights are per-block (`block_policy`); the cap + a
+   min-aisle floor reconcile redundancy with consolidation. Tie-break favours filling a started
+   same-SKU lane (least honeycombing).
 4. **Put-away order:** direct-to-pick (cross-dock to a forward face with headroom) is tried first,
    else the SKU's block pool is scored.
 5. **Replenishment** = min/max. Below-min raises EMERGENCY (empty) / SCHEDULED tasks; an off-peak
