@@ -14,4 +14,10 @@ public interface MasterDataClient {
 
     /** True if an ACTIVE label template with this code exists. */
     boolean labelTemplateExists(String code);
+
+    /** The label-template code configured on a shipping service, or null. */
+    String serviceLabelTemplate(String serviceCode);
+
+    /** The warehouse's default label-template code (from fulfillment config), or null. */
+    String warehouseDefaultLabelTemplate(java.util.UUID warehouseId);
 }

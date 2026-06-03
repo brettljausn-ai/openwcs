@@ -107,7 +107,9 @@ the service/route/template codes validated at create time against the master-dat
 (unknown code → 400); order-management resolves them via a `MasterDataClient` (identity-forwarded,
 like allocation). These are the **shared** dispatch-label fields; the per-shipper barcode is
 **not** held on the order — shippers only exist after cubing, so each shipper's label barcode is
-requested from the host system per shipper at that point (see §7b, pending).
+requested from the host system per shipper at that point (see §7, dispatch labels). At release,
+order-management resolves the effective label template (order override → service → warehouse
+default) and passes the dispatch context to allocation.
 
 - **Lifecycle / release** (OUTBOUND): create → **release** (delegates to allocation →
   `ALLOCATED` / `NOT_FULFILLABLE` / `CUBING_FAILED`) → ship; cancel releases held reservations
@@ -142,7 +144,12 @@ requested from the host system per shipper at that point (see §7b, pending).
   cartons on `order_allocation.shippers` (JSONB); each carton has a stable **`shipperUnitId`**
   (its identity within the order — the carton→order link is the owning `order_ref`) and its
   **contents carry the order `lineNo`**, so a line split across several cartons (and a carton
-  holding several lines) is fully traceable. If a SKU is larger than the **biggest** available
+  holding several lines) is fully traceable. **Dispatch labels**: when the order supplies dispatch
+  context, each carton gets a `DispatchLabel` — the resolved label template, the shared fields
+  (ship-to name/address block, service, route, `carton seq/total`, orderRef), and a **barcode
+  requested from the host system per shipper** (the barcode is only knowable once cubing has
+  produced the cartons; via a `HostLabelClient` port, simulated until the host integration lands).
+  If a SKU is larger than the **biggest** available
   carton the order cannot be cubed: no shippers are produced, any held reservations are
   released, and the plan is parked in **`CUBING_FAILED`** with a `statusDetail` reason (the
   offending line/SKU) for an operator to resolve in the UI.
