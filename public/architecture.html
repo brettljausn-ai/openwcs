@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title data-i18n="arch.title">How openWCS is built — Architecture — openWCS</title>
+  <meta name="description" content="A plain-language tour of how openWCS is built: a set of small specialised services that each own one job, talking over a shared event log, sitting between your WMS/ERP and the warehouse floor. No jargon — just how the pieces fit together." />
+  <meta name="theme-color" content="#061812" />
+  <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/architecture.html" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta property="og:title" content="How openWCS is built — Architecture" />
+  <meta property="og:description" content="A plain-language tour of how openWCS is built: small specialised services that each own one job, talking over a shared event log, between your WMS/ERP and the warehouse floor." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script defer src="i18n.js"></script>
+</head>
+<body id="top">
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
+      <nav class="nav-links">
+        <a href="index.html" data-i18n="arch.nav1">← Overview</a>
+        <a href="functions.html" data-i18n="arch.nav2">Functions</a>
+        <a href="automation.html" data-i18n="arch.nav3">Automation</a>
+        <a href="architecture.html" data-i18n="arch.nav4">Architecture</a>
+      </nav>
+      <div class="nav-right">
+        <div class="lang" id="lang">
+          <button class="lang-toggle" id="lang-toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Select language">
+            <svg class="globe" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg>
+            <span class="lang-code" id="lang-code">EN</span>
+            <svg class="chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <ul class="lang-menu" id="lang-menu" role="listbox" aria-label="Language">
+            <li role="option" data-lang="en"><span>English</span></li>
+            <li role="option" data-lang="de"><span>Deutsch</span></li>
+            <li role="option" data-lang="fr"><span>Français</span></li>
+            <li role="option" data-lang="es"><span>Español</span></li>
+          </ul>
+        </div>
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="arch.eyebrow1">How openWCS is built</p>
+      <h1 data-i18n="arch.h1">The pieces, and <span class="lime">how they fit.</span></h1>
+      <p class="lead" data-i18n="arch.lead1">
+        You don't need to be an engineer to understand how openWCS works. This page is a plain-language
+        tour: where openWCS sits in your warehouse, the small specialised parts it is made of, and the
+        journey a single box takes from the loading dock to the outbound truck.
+      </p>
+    </div>
+  </section>
+
+  <!-- 1. The big picture -->
+  <section>
+    <div class="wrap">
+      <div class="section-head" data-reveal>
+        <p class="eyebrow" data-i18n="arch.eyebrow2">The big picture</p>
+        <h2 data-i18n="arch.h2">The brain between your office and your floor.</h2>
+        <p data-i18n="arch.p1">
+          Your business software — your WMS or ERP, the SAP or Manhattan system that knows what
+          customers ordered — decides <em>what</em> needs to happen. Your machines on the floor —
+          conveyors, storage cranes, robots, pick stations — actually move the goods. openWCS is the
+          layer in between that turns "ship these orders" into the exact moves each machine must make,
+          in the right order, in real time.
+        </p>
+      </div>
+      <div class="layer-stack" data-reveal>
+        <div class="layer">
+          <div class="layer-label" data-i18n="arch.layer1l">Decides what</div>
+          <div class="layer-body">
+            <strong data-i18n="arch.layer1t">Your WMS / ERP (SAP, Manhattan…)</strong>
+            <span data-i18n="arch.layer1p">Holds the orders, the customers and the stock picture for your wider business.</span>
+          </div>
+        </div>
+        <div class="layer-arrow" aria-hidden="true">↕</div>
+        <div class="layer layer-mid">
+          <div class="layer-label" data-i18n="arch.layer2l">Decides how &amp; when</div>
+          <div class="layer-body">
+            <strong data-i18n="arch.layer2t">openWCS — the control system</strong>
+            <span data-i18n="arch.layer2p">Plans the work, talks to every machine, and keeps a live, second-by-second picture of the floor.</span>
+          </div>
+        </div>
+        <div class="layer-arrow" aria-hidden="true">↕</div>
+        <div class="layer">
+          <div class="layer-label" data-i18n="arch.layer3l">Does the moving</div>
+          <div class="layer-body">
+            <strong data-i18n="arch.layer3t">The warehouse floor</strong>
+            <span data-i18n="arch.layer3p">Conveyors, automated storage (ASRS), mobile robots (AMRs) and goods-to-person pick stations.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Made of small parts -->
+  <section>
+    <div class="wrap">
+      <div class="section-head" data-reveal>
+        <p class="eyebrow" data-i18n="arch.eyebrow3">Made of small, focused parts</p>
+        <h2 data-i18n="arch.h3">Many small specialists, not one giant black box.</h2>
+        <p data-i18n="arch.p2">
+          Instead of one enormous program, openWCS is a team of small services — think of them as
+          specialists who each own one job and do it well. They cooperate by posting messages to a
+          shared, tamper-proof logbook (the "event log") that every other part can read. If one
+          specialist is busy or restarts, the others keep working.
+        </p>
+      </div>
+      <div class="grid grid-3" data-reveal>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="arch.svc1t">Master data</div></div>
+          <h3 data-i18n="arch.svc1h">The reference library</h3>
+          <p data-i18n="arch.svc1p">Knows your products, packaging, storage locations and equipment — the facts everything else looks up.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="arch.svc2t">Inventory</div></div>
+          <h3 data-i18n="arch.svc2h">What's where, right now</h3>
+          <p data-i18n="arch.svc2p">Keeps the live count of every unit and where it sits — rebuilt from the logbook, so it's always auditable.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="arch.svc3t">Orders</div></div>
+          <h3 data-i18n="arch.svc3h">The to-do list</h3>
+          <p data-i18n="arch.svc3p">Takes in what must ship or be received, tracks each order's life, and releases it to the floor when it's ready.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="arch.svc4t">Allocation</div></div>
+          <h3 data-i18n="arch.svc4h">Pick the right stock</h3>
+          <p data-i18n="arch.svc4p">Reserves the exact units for an order, works out cases vs. eaches, and packs them into the right cartons.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="arch.svc5t">Slotting</div></div>
+          <h3 data-i18n="arch.svc5h">Decide where to store it</h3>
+          <p data-i18n="arch.svc5p">Chooses the best home for each incoming unit so fast movers stay close to the exit and aisles stay balanced.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="arch.svc6t">Process engine</div></div>
+          <h3 data-i18n="arch.svc6h">The recipe book</h3>
+          <p data-i18n="arch.svc6p">Runs your warehouse processes — goods-in, outbound, counting — as flowcharts you draw and change yourself.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="arch.svc7t">Flow orchestrator</div></div>
+          <h3 data-i18n="arch.svc7h">The floor dispatcher</h3>
+          <p data-i18n="arch.svc7p">Turns a planned step into a concrete machine task and hands it to the right piece of equipment.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="arch.svc8t">Device adapters</div></div>
+          <h3 data-i18n="arch.svc8h">The translators</h3>
+          <p data-i18n="arch.svc8p">One small translator per machine type, so each vendor's quirks stay in one place — add a vendor, write an adapter.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="arch.svc9t">Event log</div></div>
+          <h3 data-i18n="arch.svc9h">The shared logbook</h3>
+          <p data-i18n="arch.svc9p">Every move is written down, once, in order, and can never be edited — the single source of truth everything trusts.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Why it matters to a buyer -->
+  <section>
+    <div class="wrap">
+      <div class="section-head" data-reveal>
+        <p class="eyebrow" data-i18n="arch.eyebrow4">Why this matters to you</p>
+        <h2 data-i18n="arch.h4">Why build it this way?</h2>
+        <p data-i18n="arch.p3">
+          The small-specialists design isn't just tidy engineering — it changes what you can do with the
+          system you bought.
+        </p>
+      </div>
+      <div class="grid grid-2" data-reveal>
+        <div class="card">
+          <h3 data-i18n="arch.why1h">Resilience</h3>
+          <p data-i18n="arch.why1p">If one part needs a restart or an upgrade, the rest keep running. There's no single switch that takes the whole warehouse down.</p>
+        </div>
+        <div class="card">
+          <h3 data-i18n="arch.why2h">Extensibility</h3>
+          <p data-i18n="arch.why2p">Need a new machine, process or rule? You add or change one small part instead of re-writing everything. Growth doesn't mean a rebuild.</p>
+        </div>
+        <div class="card">
+          <h3 data-i18n="arch.why3h">No vendor lock-in</h3>
+          <p data-i18n="arch.why3p">Equipment talks through swappable translators, so you're never married to one machine brand or one integrator's contract.</p>
+        </div>
+        <div class="card">
+          <h3 data-i18n="arch.why4h">Open source</h3>
+          <p data-i18n="arch.why4p">Every line is open and yours to run, read and change. Your data and your operating logic stay with you — leaving is never a rip-and-replace.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. The journey of a unit of work -->
+  <section>
+    <div class="wrap">
+      <div class="section-head" data-reveal>
+        <p class="eyebrow" data-i18n="arch.eyebrow5">Follow one box</p>
+        <h2 data-i18n="arch.h5">The journey, end to end.</h2>
+        <p data-i18n="arch.p4">
+          Here's the same story from the floor's point of view — what happens to a single unit of goods
+          from the moment it arrives to the moment it leaves on a truck. Each step is owned by one of the
+          specialists above.
+        </p>
+      </div>
+      <ol class="steps journey" data-reveal>
+        <li><strong data-i18n="arch.j1t">Goods in.</strong> <span data-i18n="arch.j1p">A delivery arrives. openWCS checks it against the expected receipt and books the new stock into the live inventory.</span></li>
+        <li><strong data-i18n="arch.j2t">Put-away &amp; slotting.</strong> <span data-i18n="arch.j2p">Slotting picks the best home for the unit — fast sellers near the exit — and the floor dispatcher sends it there.</span></li>
+        <li><strong data-i18n="arch.j3t">Storage.</strong> <span data-i18n="arch.j3p">The unit waits in automated storage. The system always knows exactly which slot holds it.</span></li>
+        <li><strong data-i18n="arch.j4t">An order comes in.</strong> <span data-i18n="arch.j4p">Your WMS/ERP sends an order through the Host API. The orders service adds it to the to-do list.</span></li>
+        <li><strong data-i18n="arch.j5t">Allocation.</strong> <span data-i18n="arch.j5p">openWCS reserves the exact units for the order and plans which cartons they'll be packed into.</span></li>
+        <li><strong data-i18n="arch.j6t">Pick at a station.</strong> <span data-i18n="arch.j6p">Storage brings the unit to a goods-to-person station, where a light shows the operator exactly what to pick and where to put it.</span></li>
+        <li><strong data-i18n="arch.j7t">Dispatch.</strong> <span data-i18n="arch.j7p">The packed carton gets its shipping label, and a confirmation flows back to your WMS/ERP. The box leaves on the truck.</span></li>
+      </ol>
+      <div class="flow journey-flow" aria-hidden="true" data-reveal>
+        <span class="box" data-i18n="arch.f1">Goods in</span>
+        <span class="arrow">→</span>
+        <span class="box" data-i18n="arch.f2">Slotting</span>
+        <span class="arrow">→</span>
+        <span class="box" data-i18n="arch.f3">Storage</span>
+        <span class="arrow">→</span>
+        <span class="box" data-i18n="arch.f4">Order</span>
+        <span class="arrow">→</span>
+        <span class="box" data-i18n="arch.f5">Allocation</span>
+        <span class="arrow">→</span>
+        <span class="box mid" data-i18n="arch.f6">Pick / GTP</span>
+        <span class="arrow">→</span>
+        <span class="box" data-i18n="arch.f7">Dispatch</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. The map / diagram -->
+  <section>
+    <div class="wrap">
+      <div class="section-head" data-reveal>
+        <p class="eyebrow" data-i18n="arch.eyebrow6">The map</p>
+        <h2 data-i18n="arch.h6">Everything on one page.</h2>
+        <p data-i18n="arch.p5">
+          The same picture as a simple map. Messages from your business systems come in at the top
+          through one guarded front door; the specialists plan the work and write every move to the
+          shared logbook; the floor dispatcher sends tasks out to the machines through their translators.
+        </p>
+      </div>
+      <div class="archmap" data-reveal>
+        <div class="archmap-row">
+          <div class="archmap-node node-host" data-i18n="arch.m1">Your WMS / ERP — SAP · Manhattan</div>
+        </div>
+        <div class="archmap-conn" aria-hidden="true">↓</div>
+        <div class="archmap-row">
+          <div class="archmap-gate" data-i18n="arch.m2">Front door — gateway · security (sign-in &amp; permissions)</div>
+        </div>
+        <div class="archmap-conn" aria-hidden="true">↓</div>
+        <div class="archmap-row archmap-services">
+          <span class="archmap-chip" data-i18n="arch.m3">Master data</span>
+          <span class="archmap-chip" data-i18n="arch.m4">Inventory</span>
+          <span class="archmap-chip" data-i18n="arch.m5">Orders</span>
+          <span class="archmap-chip" data-i18n="arch.m6">Allocation</span>
+          <span class="archmap-chip" data-i18n="arch.m7">Slotting</span>
+          <span class="archmap-chip" data-i18n="arch.m8">Process engine</span>
+          <span class="archmap-chip" data-i18n="arch.m9">Goods-to-person</span>
+        </div>
+        <div class="archmap-conn" aria-hidden="true">↕</div>
+        <div class="archmap-row">
+          <div class="archmap-log" data-i18n="arch.m10">Shared event log — the tamper-proof system of record</div>
+        </div>
+        <div class="archmap-conn" aria-hidden="true">↓</div>
+        <div class="archmap-row">
+          <div class="archmap-orch" data-i18n="arch.m11">Flow orchestrator — the floor dispatcher</div>
+        </div>
+        <div class="archmap-conn" aria-hidden="true">↓</div>
+        <div class="archmap-row archmap-services">
+          <span class="archmap-chip chip-adapter" data-i18n="arch.m12">Conveyor adapter</span>
+          <span class="archmap-chip chip-adapter" data-i18n="arch.m13">ASRS adapter</span>
+          <span class="archmap-chip chip-adapter" data-i18n="arch.m14">AMR adapter</span>
+          <span class="archmap-chip chip-adapter" data-i18n="arch.m15">AutoStore adapter</span>
+        </div>
+        <div class="archmap-conn" aria-hidden="true">↓</div>
+        <div class="archmap-row">
+          <div class="archmap-node node-floor" data-i18n="arch.m16">The machines on your floor</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Three building blocks explained -->
+  <section>
+    <div class="wrap">
+      <div class="section-head" data-reveal>
+        <p class="eyebrow" data-i18n="arch.eyebrow7">Three ideas worth knowing</p>
+        <h2 data-i18n="arch.h7">The few terms you'll hear.</h2>
+        <p data-i18n="arch.p6">
+          If you remember three things from this page, make it these.
+        </p>
+      </div>
+      <div class="grid grid-3" data-reveal>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="arch.kb1t">Adapters</div></div>
+          <h3 data-i18n="arch.kb1h">One translator per machine</h3>
+          <p data-i18n="arch.kb1p">Every machine speaks its own dialect. An adapter is a thin translator that turns openWCS's single, uniform instruction into that machine's language. Swap the machine, swap the adapter — the rest of openWCS never changes.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="arch.kb2t">Gateway &amp; security</div></div>
+          <h3 data-i18n="arch.kb2h">One guarded front door</h3>
+          <p data-i18n="arch.kb2p">Everything entering openWCS comes through a single gateway that checks who you are and what you're allowed to do. You can start relaxed for a pilot and tighten it for production — it's a setting, not a rebuild.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="arch.kb3t">Event log</div></div>
+          <h3 data-i18n="arch.kb3h">The system of record</h3>
+          <p data-i18n="arch.kb3p">Every movement is written to an append-only log — entries are added, never edited or erased. It's the official history of your warehouse: fully auditable, and the live stock picture can always be rebuilt from it.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section>
+    <div class="wrap">
+      <div class="cta-band" data-reveal>
+        <p class="eyebrow" data-i18n="arch.eyebrow8">Open &amp; yours to run</p>
+        <h2 data-i18n="arch.h8">See it for yourself.</h2>
+        <p data-i18n="arch.p7">Every service, adapter and contract is open source. Read the code, run the whole stack on your own machines, and shape it to your warehouse.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki" data-i18n="arch.btn1">Read the docs</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span data-i18n="arch.foot5">openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span><a href="index.html">Overview</a> · <a href="functions.html">Functions</a> · <a href="automation.html">Automation</a> · <a href="architecture.html">Architecture</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+    </div>
+  </footer>
+</body>
+</html>

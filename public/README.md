@@ -16,6 +16,13 @@ alternative to locked-in WCS apps from integrators.
   - **`gtp.html`** — goods-to-person station execution: STOCK + ORDER/PUT_WALL nodes, present one
     stock HU → put-to-light put-list across many order destinations (the batch), ORDER_LOCATION vs
     PUT_WALL modes. **Built**.
+  - **`architecture.html`** — a plain-language **Architecture** tour for non-technical buyers: where
+    openWCS sits between the WMS/ERP and the floor, the small specialised services (master data,
+    inventory, orders, allocation, slotting, process engine, flow-orchestrator, device adapters) over
+    a shared event log, the end-to-end journey of a unit of work (goods-in → slotting → storage →
+    order → allocation → pick/GTP → dispatch), and the gateway/security + event-log concepts. Linked
+    from the index nav (`navArch` → `architecture.html`) and the homepage architecture section
+    (`archMore`). Built with HTML/CSS visuals only (`.layer-stack`, `.archmap`, `.steps.journey`).
   - **`functions.html`** — the Function overview hub: a card grid linking every function (foundations
     + storage/movement + roadmap) with a one-line description and a **Built** / **Roadmap** status
     pill (`.pill .pill-built` / `.pill .pill-roadmap` in `styles.css`).

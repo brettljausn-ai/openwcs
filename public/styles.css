@@ -270,6 +270,66 @@ h2 { font-size: clamp(2.1rem, 4.4vw, 3.2rem); letter-spacing: -.01em; }
 }
 .arch pre b { color: var(--herbal-lime); font-weight: 400; }
 
+/* ---- Layered stack (big-picture: office → openWCS → floor) ---- */
+.layer-stack { display: flex; flex-direction: column; align-items: stretch; max-width: 720px; }
+.layer {
+  display: flex; align-items: center; gap: 1.1rem;
+  border: 1px solid var(--glass-border); border-radius: var(--radius);
+  background: var(--glass-bg); padding: 1.2rem 1.4rem;
+}
+.layer-mid {
+  border-color: var(--glass-border-bright);
+  background: linear-gradient(180deg, rgba(141,198,63,.08), rgba(255,255,255,.02));
+  box-shadow: 0 0 26px -10px var(--herbal-glow);
+}
+.layer-label {
+  flex: 0 0 auto; min-width: 9.5rem;
+  font-family: var(--font-mono); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--herbal-lime);
+}
+.layer-body { display: flex; flex-direction: column; gap: .25rem; }
+.layer-body strong { color: var(--text); font-size: 1.05rem; }
+.layer-body span { color: var(--text-dim); font-size: .95rem; }
+.layer-arrow { align-self: center; color: var(--herbal-lime); font-size: 1.3rem; line-height: 1; padding: .35rem 0; }
+
+/* ---- Journey step list + horizontal flow ---- */
+.steps.journey li strong { display: inline; }
+.journey-flow { margin-top: clamp(1.5rem, 3vw, 2.4rem); }
+
+/* ---- Architecture map (box-and-arrow diagram, no JS) ---- */
+.archmap {
+  border: 1px solid var(--glass-border); border-radius: var(--radius);
+  background: var(--glass-bg); padding: clamp(1.3rem, 3vw, 2.2rem);
+  display: flex; flex-direction: column; align-items: center; gap: .2rem;
+}
+.archmap-row { width: 100%; display: flex; justify-content: center; flex-wrap: wrap; gap: .6rem; }
+.archmap-conn { color: var(--herbal-lime); font-size: 1.15rem; line-height: 1; padding: .15rem 0; }
+.archmap-node, .archmap-gate, .archmap-log, .archmap-orch {
+  text-align: center; padding: .85rem 1.2rem; border-radius: 12px;
+  border: 1px solid var(--glass-border); background: var(--glass-bg-strong);
+  font-size: .98rem; color: var(--text);
+}
+.node-host, .node-floor { min-width: 60%; }
+.archmap-gate {
+  border-color: var(--glass-border-bright);
+  background: rgba(141,198,63,.08); min-width: 70%;
+  font-family: var(--font-mono); font-size: .82rem; letter-spacing: .02em;
+}
+.archmap-log {
+  border-color: var(--glass-border-bright);
+  background: linear-gradient(180deg, rgba(141,198,63,.1), rgba(255,255,255,.02));
+  box-shadow: 0 0 24px -10px var(--herbal-glow);
+  min-width: 80%; color: var(--text);
+}
+.archmap-orch { min-width: 55%; }
+.archmap-services { gap: .55rem; }
+.archmap-chip {
+  padding: .55rem .9rem; border-radius: 999px;
+  border: 1px solid var(--glass-border); background: var(--glass-bg);
+  font-family: var(--font-mono); font-size: .76rem; letter-spacing: .04em; color: var(--text-dim);
+}
+.archmap-chip.chip-adapter { border-color: var(--glass-border-bright); color: var(--text); background: rgba(141,198,63,.06); }
+
 /* ---- CTA band ---- */
 .cta-band {
   text-align: center;
@@ -306,6 +366,9 @@ footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; g
   .compare td.feat { font-size: 1.08rem; padding-top: .85rem; }
   .compare td.dim::before { content: '✗  '; color: var(--danger); font-family: var(--font-mono); }
   .compare td.us::before { content: '✓  '; color: var(--herbal-lime); font-family: var(--font-mono); }
+  .layer { flex-direction: column; align-items: flex-start; gap: .5rem; }
+  .layer-label { min-width: 0; }
+  .archmap-node, .archmap-gate, .archmap-log, .archmap-orch, .node-host, .node-floor { min-width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
