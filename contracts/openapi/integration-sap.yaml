@@ -13,8 +13,28 @@ servers:
 
 tags:
   - name: Labels
+  - name: Routes
 
 paths:
+  /routes/sync:
+    post:
+      tags: [Routes]
+      summary: Upsert host routes into the master-data Route catalog
+      description: The host (SAP) is the source of truth for routes; this upserts them by code.
+      operationId: syncRoutes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: '#/components/schemas/RouteDto' }
+      responses:
+        "200":
+          description: Sync summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RouteSyncResult' }
   /labels:
     post:
       tags: [Labels]
@@ -47,3 +67,17 @@ components:
       type: object
       properties:
         barcode: { type: string }
+    RouteDto:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, example: CENTRAL_LONDON }
+        name: { type: string, nullable: true }
+        region: { type: string, nullable: true }
+        hostRef: { type: string, nullable: true, description: The route's id in the host system. }
+    RouteSyncResult:
+      type: object
+      properties:
+        received: { type: integer }
+        created: { type: integer }
+        updated: { type: integer }
