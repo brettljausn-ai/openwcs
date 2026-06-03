@@ -3,8 +3,9 @@
 Scripts and unit files for running an openWCS **demo** on a single Ubuntu
 server and keeping it automatically up to date with `main`.
 
-> Single-box demo — **no TLS, security off by default**. Not hardened for
-> production. For cloud/production topologies see the wiki **Deployment Guide**.
+> Single-box demo — security off by default; not hardened for production. The UI
+> is served over **HTTPS** (self-signed by default — see [§3 HTTPS / TLS](#3-https--tls-on-the-ui)).
+> For cloud/production topologies see the wiki **Deployment Guide**.
 
 | File | Purpose |
 |------|---------|
@@ -94,7 +95,53 @@ inbound ports or SSH keys are needed, and a broken build never reaches the demo.
 
 ---
 
-## 3. Manual redeploy / operations
+## 3. HTTPS / TLS on the UI
+
+The UI container (nginx) **forces HTTPS**: port **443** serves the SPA and proxies
+`/api`, `/realms`, `/admin`, `/resources`; port **80** issues a `301` redirect to
+`https://`. Browse the demo at **`https://<server>/`**.
+
+**Open the firewall for 443** (in addition to 80 for the redirect):
+
+```bash
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+```
+
+(Internal upstreams — gateway/keycloak — stay plain HTTP on the compose network;
+only the edge is TLS, which is fine.)
+
+### Self-signed by default (out-of-the-box)
+
+A raw-IP demo has no domain, so Let's Encrypt can't issue a cert. If no real cert
+is mounted, the container **auto-generates a self-signed cert** on start (into
+`/etc/nginx/tls/tls.crt` + `tls.key`). Browsers will show a **one-time warning**
+("Your connection is not private") when you visit `https://<IP>/` — click
+*Advanced → Proceed*. This is expected and harmless for a demo. HSTS is **not**
+enabled, so accepting the exception won't lock you out later.
+
+Add your host's IP/DNS to the cert's SAN list via the `TLS_SAN` env on the `ui`
+service, e.g. `TLS_SAN: "IP:203.0.113.5"` (the cert already covers `localhost`).
+
+### Supplying a real cert
+
+If you have a real cert (e.g. an internal CA, or a domain with Let's Encrypt),
+mount a directory containing `tls.crt` + `tls.key` over the cert path — the
+entrypoint detects existing files and **uses them as-is** (never overwrites):
+
+```yaml
+# platform/docker-compose.yml, ui service
+volumes:
+  - /etc/openwcs/tls:/etc/nginx/tls:ro
+```
+
+The cert path is overridable with `TLS_CERT_DIR` (default `/etc/nginx/tls`). If
+you front the demo with a real domain, point DNS at the server and drop the
+domain's cert/key into the mounted dir as `tls.crt`/`tls.key`.
+
+---
+
+## 4. Manual redeploy / operations
 
 ```bash
 # redeploy now (no-op if main hasn't moved)

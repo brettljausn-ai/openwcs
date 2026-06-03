@@ -309,8 +309,18 @@ services:
   ui:
     profiles: ["apps"]
     build: ../ui
-    ports: ["80:80"]          # browse the demo at http://<host>/  (nginx proxies /api -> gateway, /realms+/admin -> keycloak)
+    # HTTPS is forced: 443 serves the SPA + proxies; 80 301-redirects to 443.
+    # Browse the demo at https://<host>/  (nginx proxies /api -> gateway, /realms+/admin -> keycloak).
+    # With no real cert mounted, the container self-signs one on start -> expect a
+    # one-time browser warning when using a raw IP. See deploy/README.md.
+    ports: ["80:80", "443:443"]
     depends_on: [gateway, keycloak]
+    # To use a real cert instead of the self-signed one, mount a dir containing
+    # tls.crt + tls.key over the cert path (overridable via TLS_CERT_DIR):
+    # volumes:
+    #   - /etc/openwcs/tls:/etc/nginx/tls:ro
+    # environment:
+    #   TLS_SAN: "DNS:wcs.example.com"   # extra SANs for the auto self-signed cert
 
 volumes:
   pgdata:
