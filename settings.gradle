@@ -23,5 +23,8 @@ include 'services:notification'
 include 'services:integration-sap'
 include 'services:integration-manhattan'
 
+// canonical, vendor-neutral host API (WMS/ERP integrate here once; adapters translate into it)
+include 'services:integration-host'
+
 // NOTE: Go device adapters (services/adapters/*) are independent Go modules,
 // built with `go build`, not part of this Gradle multi-project.

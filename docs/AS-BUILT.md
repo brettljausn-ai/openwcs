@@ -28,6 +28,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | txlog | 8086 | ✅ | Append-only event log + transactional outbox + relay to `txlog.stream`. |
 | iam | 8087 | ✅ | openWCS authorization model: users → roles → coded permissions (Keycloak does auth). |
 | flow-orchestrator | 8085 | 🟡 | Device-task lifecycle over the uniform device contract; routes to adapters by family (below). |
+| integration-host | 8092 | 🟡 | Canonical vendor-neutral **Host API** (`/api/host/**`): orders + ASNs in, confirmations (cursor feed) out. |
 | integration-sap | 8089 | 🟡 | Host gateway (skeleton): `POST /labels` (per-shipper dispatch-label barcode) + `POST /routes/sync` (upserts host routes into the master-data Route catalog). |
 | process-engine / notification / integration-manhattan | 8083/8088/8090 | 🟦 | Scaffold (health/info only). |
 | adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop + `POST /tasks` device-task simulator. |
@@ -224,6 +225,24 @@ actor).
 
 Not yet wired: a BPMN process (process-engine) that *originates* these tasks — today they are
 driven directly via the API.
+
+## 7c. Host API (integration-host)
+
+The canonical, **vendor-neutral** integration surface (`/api/host`, see
+`contracts/openapi/host-api.yaml`). A host (WMS/ERP) integrates against this one contract; the
+vendor adapters (`integration-sap`/`integration-manhattan`) translate their native protocols
+into it.
+
+- `POST /api/host/orders` — outbound order (ship-to, service, route, label template, lines) →
+  translated to an order-management OUTBOUND order.
+- `POST /api/host/asns` — ASN / expected receipt → order-management INBOUND order.
+- `GET /api/host/confirmations?cursor=` — pull confirmations (receipts, picks, shipments, stock
+  changes) as a **cursor feed over the transaction log** (`txlog` global replay): returns the
+  events after the cursor plus `nextCursor`. No host endpoint required; the host controls the
+  pace. **Webhook (push) delivery is a planned follow-up**, as are master-data and
+  inventory-adjustment intake and idempotency keys.
+
+Stateless (no store of its own) — it composes order-management + txlog.
 
 ## 8. The two working vertical slices
 

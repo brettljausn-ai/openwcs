@@ -1,0 +1,19 @@
+server:
+  port: 8092
+spring:
+  application:
+    name: integration-host
+openwcs:
+  host:
+    # Canonical Host API translates to the domain services.
+    order-management-base-url: ${OPENWCS_ORDER_MANAGEMENT_BASE_URL:http://localhost:8084}
+    txlog-base-url: ${OPENWCS_TXLOG_BASE_URL:http://localhost:8086}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
