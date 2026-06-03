@@ -23,6 +23,7 @@
       <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
       <nav class="nav-links">
         <a href="index.html">← Overview</a>
+        <a href="functions.html">Functions</a>
         <a href="conveyors.html">Conveyors</a>
       </nav>
       <div class="nav-right">
@@ -124,6 +125,68 @@
   <section>
     <div class="wrap">
       <div class="section-head">
+        <p class="eyebrow">In-aisle behaviour</p>
+        <h2>Depth, not just <span class="lime">which aisle.</span></h2>
+        <p>
+          Choosing the aisle is half the decision. Within a lane, <em>where</em> a unit sits — and which
+          unit a shuttle or crane reaches for — drives the cycle time the station actually feels. openWCS
+          scores depth and reachability, not only the aisle-level pool.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">Velocity-to-exit</div>
+          <h3>Shallow for fast movers</h3>
+          <p>Distance-to-exit is measured down the lane, not just to the aisle. A class-A SKU is steered to the shallowest free position so retrieval is a short reach; slow movers are pushed to the back where the long reach rarely costs anything.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Multi-deep lanes</div>
+          <h3>Fill front-to-back, pick LIFO</h3>
+          <p>A deep lane holds one SKU and fills from the back forward, so retrieval pulls the front unit first — last-in, first-out within the lane. Put-away avoids leaving a half-empty lane that a faster unit can't get past.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Dual-cycle intuition</div>
+          <h3>Drop-off near the next pick</h3>
+          <p>A crane that has just stored a unit is positioned to grab a retrieval on the way back. Slotting leans toward placements that make a combined store-then-retrieve trip likely, so the device travels loaded in both directions instead of deadheading.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Empty-HU management</p>
+        <h2>Empties out of the <span class="lime">hot zone.</span></h2>
+        <p>
+          Empty carriers, trays and totes are inventory too — and if they sit near the exit they steal the
+          fast positions from real stock. openWCS treats empties as a managed pool with their own placement
+          and priority rules.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">Far from the exit</div>
+          <h3>Park empties deep</h3>
+          <p>Empty HUs are slotted to the positions furthest from the aisle port — the slots a fast mover would never want — so the short-cycle real estate stays reserved for stock that actually ships.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Low priority</div>
+          <h3>Move them when it's quiet</h3>
+          <p>Consolidating and relocating empties runs at a lower priority than order-driven moves, so it fills the idle gaps between picks and put-aways instead of competing with throughput at peak.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Decanting</div>
+          <h3>Feed the next put-away</h3>
+          <p>When inbound needs a carrier, an empty is pulled from the pool for decanting — so a fresh HU is ready at the station without a separate trip to fetch one mid-receipt.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
         <p class="eyebrow">At a glance</p>
         <h2>Receipt → scored location.</h2>
       </div>
@@ -157,7 +220,7 @@
   <footer>
     <div class="wrap">
       <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
-      <span><a href="index.html">Overview</a> · <a href="conveyors.html">Conveyors</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+      <span><a href="index.html">Overview</a> · <a href="functions.html">Functions</a> · <a href="conveyors.html">Conveyors</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
     </div>
   </footer>
 </body>

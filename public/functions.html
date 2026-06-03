@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Function overview — openWCS</title>
+  <meta name="description" content="The openWCS function overview: slotting, replenishment, conveyor routing, ASRS storage logic, allocation and picking, cycle counting, KPI dashboards and hardware visualisation — each tagged Built or Roadmap." />
+  <meta name="theme-color" content="#061812" />
+  <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/functions.html" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta property="og:title" content="Function overview — openWCS" />
+  <meta property="og:description" content="Every openWCS function in one place — slotting, replenishment, routing, ASRS, picking, cycle counting, dashboards — honestly tagged Built or Roadmap." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body id="top">
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
+      <nav class="nav-links">
+        <a href="index.html">← Overview</a>
+        <a href="conveyors.html">Conveyors</a>
+        <a href="asrs.html">ASRS &amp; slotting</a>
+      </nav>
+      <div class="nav-right">
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Function overview</p>
+      <h1>Everything openWCS does, <span class="lime">honestly tagged.</span></h1>
+      <p class="lead">
+        A single map of the warehouse functions openWCS covers. Each card says plainly whether it is
+        <span class="pill pill-built">Built</span> today or on the
+        <span class="pill pill-roadmap">Roadmap</span> — so you can tell what you can run now from what is
+        designed but not yet implemented.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Built today</p>
+        <h2>The functions that already run.</h2>
+        <p>
+          These are implemented in the engine: storage and movement logic, allocation and planning, and
+          the conveyor control plane. Follow a card for the deep dive.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <a class="card" href="slotting.html">
+          <div class="card-head"><div class="tag">Slotting</div><span class="pill pill-built">Built</span></div>
+          <h3>Put-away engine</h3>
+          <p>A weighted, configurable put-away scorer places each SKU by velocity, lane, redundancy and aisle balance — with self-taught ABC velocity.</p>
+        </a>
+        <a class="card" href="replenishment.html">
+          <div class="card-head"><div class="tag">Replenishment</div><span class="pill pill-built">Built</span></div>
+          <h3>Min/max &amp; off-peak top-off</h3>
+          <p>Min/max refills, opportunistic off-peak top-off to max, and direct-to-pick cross-docking when a forward face has headroom.</p>
+        </a>
+        <a class="card" href="conveyors.html">
+          <div class="card-head"><div class="tag">Conveyors</div><span class="pill pill-built">Built</span></div>
+          <h3>Routing &amp; self-learning</h3>
+          <p>Vendor-neutral topology graph, per-scan next-hop pathfinding, loop limits, PLC controllers, and topology discovery from sniffed scan traffic.</p>
+        </a>
+        <a class="card" href="asrs.html">
+          <div class="card-head"><div class="tag">ASRS</div><span class="pill pill-built">Built</span></div>
+          <h3>Automated storage logic</h3>
+          <p>Block-level put-away, re-slotting, in-aisle depth and dual-cycle behaviour, plus empty-HU management for shuttle / crane / AutoStore / AMR-GTP.</p>
+        </a>
+        <a class="card" href="picking.html">
+          <div class="card-head"><div class="tag">Allocation</div><span class="pill pill-built">Built</span></div>
+          <h3>Allocation &amp; pick planning</h3>
+          <p>Stock allocation, multi-size cubing and batch-pick planning are built. Operator pick confirmation and GTP workflows are roadmap — see the page.</p>
+        </a>
+        <a class="card" href="cycle-counting.html">
+          <div class="card-head"><div class="tag">Cycle counting</div><span class="pill pill-roadmap">Roadmap</span></div>
+          <h3>Stock counting</h3>
+          <p>A COUNT order type, a StockAdjusted projection and a sample BPMN skeleton exist; the counting tasks, variance counts and reconciliation UI are roadmap.</p>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">On the roadmap</p>
+        <h2>Designed, not yet shipped.</h2>
+        <p>
+          These have foundations in the codebase but are not implemented end-to-end. They are framed as
+          planned so you always know where the line is.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <a class="card" href="picking.html">
+          <div class="card-head"><div class="tag">Picking</div><span class="pill pill-roadmap">Roadmap</span></div>
+          <h3>Pick execution</h3>
+          <p>Today only the planning exists. Operator / goods-to-person pick confirmation, pick-by-light/voice/RF and GTP-station workflow are planned.</p>
+        </a>
+        <a class="card" href="cycle-counting.html">
+          <div class="card-head"><div class="tag">Cycle counting</div><span class="pill pill-roadmap">Roadmap</span></div>
+          <h3>Counts &amp; reconciliation</h3>
+          <p>Counting tasks, blind and variance counts, reconciliation and the count UI are planned on top of the existing COUNT order and StockAdjusted projection.</p>
+        </a>
+        <a class="card" href="kpi-dashboards.html">
+          <div class="card-head"><div class="tag">KPI dashboards</div><span class="pill pill-roadmap">Roadmap</span></div>
+          <h3>Operational metrics</h3>
+          <p>Throughput, dwell, utilisation and SLA dashboards are planned. There is no metrics store or dashboard layer yet.</p>
+        </a>
+        <a class="card" href="hardware-visualisation.html">
+          <div class="card-head"><div class="tag">Hardware viz</div><span class="pill pill-roadmap">Roadmap</span></div>
+          <h3>Live equipment status</h3>
+          <p>Today only the conveyor topology editor exists. Live equipment / ASRS / AMR / AutoStore status visualisation is planned.</p>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow">Open &amp; vendor-neutral</p>
+        <h2>Read the code behind every function.</h2>
+        <p>openWCS is open source under AGPL-3.0. What's built is in the repo; what's roadmap is tracked in the open — no marketing fog.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki">Read the docs</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span><a href="index.html">Overview</a> · <a href="conveyors.html">Conveyors</a> · <a href="asrs.html">ASRS &amp; slotting</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+    </div>
+  </footer>
+</body>
+</html>

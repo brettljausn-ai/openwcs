@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Slotting — openWCS</title>
+  <meta name="description" content="The openWCS slotting / put-away engine: a weighted, configurable scorer that places each SKU by velocity-to-exit, lane affinity, aisle redundancy and balance, with self-taught ABC velocity and off-peak re-slotting." />
+  <meta name="theme-color" content="#061812" />
+  <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/slotting.html" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta property="og:title" content="Slotting — openWCS" />
+  <meta property="og:description" content="A configurable put-away engine: velocity, lane, redundancy and balance, with self-taught ABC and off-peak re-slotting." />
+  <meta property="og:type" content="article" />
+  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body id="top">
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
+      <nav class="nav-links">
+        <a href="index.html">← Overview</a>
+        <a href="functions.html">Functions</a>
+        <a href="asrs.html">ASRS &amp; slotting</a>
+      </nav>
+      <div class="nav-right">
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs">View on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Function · Slotting <span class="pill pill-built">Built</span></p>
+      <h1>Put-away that <span class="lime">earns its place.</span></h1>
+      <p class="lead">
+        Slotting decides where each incoming SKU should live. openWCS scores every candidate location
+        against objectives that genuinely conflict — speed, lane affinity, resilience and balance — and
+        the weights are configuration you own, not a vendor's hidden rule set.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">How it works</p>
+        <h2>One weighted score, hard constraints first.</h2>
+        <p>
+          Hard constraints filter the candidate set — lane capacity, one SKU per deep lane, a cap on how
+          much of a SKU may sit in one aisle. What survives is scored, and the best location wins.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag">Velocity</div>
+          <h3>Fast movers near the exit</h3>
+          <p>Each location carries a distance-to-exit. Class-A SKUs are pulled toward the port for short cycles; slow movers settle deep where the longer reach rarely costs anything.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Self-taught ABC</div>
+          <h3>Velocity it learns</h3>
+          <p>ABC velocity class is taught in per SKU from real movement, not typed into a master record — so the layout tracks how the catalogue actually behaves.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Lane affinity</div>
+          <h3>Same SKU per deep lane</h3>
+          <p>A multi-deep lane should hold one SKU so units don't block each other; partial same-SKU lanes fill first to avoid honeycombing. A strong preference, tunable against balance.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Redundancy</div>
+          <h3>Survive an aisle outage</h3>
+          <p>A min-aisle floor and a max-share-per-aisle cap deliberately spread a SKU across aisles, so one offline shuttle/crane can't strand it — and it can be picked in parallel.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Balance</div>
+          <h3>Even out the aisles</h3>
+          <p>Put-away prefers emptier aisles so fill, travel and throughput stay balanced instead of one aisle becoming the hot-spot bottleneck.</p>
+        </div>
+        <div class="card">
+          <div class="tag">Re-slotting</div>
+          <h3>Correct drift off-peak</h3>
+          <p>In idle windows the same scorer re-evaluates stored units and recommends moves as velocity drifts, lanes fragment or aisles skew — keeping the layout optimal over time.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">At a glance</p>
+        <h2>Receipt → scored location.</h2>
+      </div>
+      <div class="arch">
+<pre>  receipt (SKU, HU) ─►  <b>openWCS slotting</b>
+                         │  hard filter: lane full · max %/aisle · one SKU/deep-lane
+                         │  score: velocity-to-exit · lane affinity · redundancy · balance
+                         │  ABC velocity ── self-taught per SKU
+                         ▼
+                    chosen location ─►  put-away move
+  off-peak: re-slot stored HUs toward better locations</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow">Configurable &amp; open</p>
+        <h2>Slot it your way.</h2>
+        <p>Every weight, cap and floor is configuration you can read and change. See the ASRS deep dive for in-aisle depth and goods-to-person specifics.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="asrs.html">ASRS deep dive</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki/Slotting-and-Replenishment">Read the docs</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span><a href="functions.html">Functions</a> · <a href="asrs.html">ASRS &amp; slotting</a> · <a href="replenishment.html">Replenishment</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+    </div>
+  </footer>
+</body>
+</html>
