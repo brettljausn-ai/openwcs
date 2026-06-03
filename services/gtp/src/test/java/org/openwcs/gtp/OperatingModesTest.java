@@ -190,7 +190,7 @@ class OperatingModesTest {
     @Test
     void stationRejectsAnUnsupportedOperatingMode() {
         GtpStation pickOnly = stationService.createStation(new CreateStationRequest(
-                UUID.randomUUID(), "GTP-" + UUID.randomUUID(), "ORDER_LOCATION", List.of("PICKING"), List.of()));
+                UUID.randomUUID(), "GTP-" + UUID.randomUUID(), null, "ORDER_LOCATION", List.of("PICKING"), List.of()));
         addStock(pickOnly);
 
         assertThatThrownBy(() -> cycleService.startCycle(pickOnly.getId(), new StartCycleRequest(
@@ -202,7 +202,7 @@ class OperatingModesTest {
     @Test
     void setSupportedModesAlwaysRetainsPicking() {
         GtpStation station = stationService.createStation(new CreateStationRequest(
-                UUID.randomUUID(), "GTP-" + UUID.randomUUID(), "PUT_WALL", List.of("PICKING"), List.of()));
+                UUID.randomUUID(), "GTP-" + UUID.randomUUID(), null, "PUT_WALL", List.of("PICKING"), List.of()));
 
         GtpStation updated = stationService.setSupportedModes(station.getId(), List.of("QC", "MAINTENANCE"));
         assertThat(updated.supportedModeSet())
@@ -214,7 +214,7 @@ class OperatingModesTest {
 
     private GtpStation station(String operatingMode) {
         GtpStation station = stationService.createStation(new CreateStationRequest(
-                UUID.randomUUID(), "GTP-" + UUID.randomUUID(), "ORDER_LOCATION",
+                UUID.randomUUID(), "GTP-" + UUID.randomUUID(), null, "ORDER_LOCATION",
                 List.of("PICKING", operatingMode), List.of()));
         addStock(station);
         return station;

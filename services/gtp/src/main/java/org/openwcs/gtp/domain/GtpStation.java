@@ -37,6 +37,10 @@ public class GtpStation extends Auditable {
     @Column(name = "code", nullable = false)
     private String code;
 
+    /** Optional human-readable display name (e.g. "Aisle 3 Put-wall"). */
+    @Column(name = "name")
+    private String name;
+
     /** ORDER_LOCATION | PUT_WALL. */
     @Column(name = "mode", nullable = false)
     private String mode = "ORDER_LOCATION";
@@ -70,6 +74,14 @@ public class GtpStation extends Auditable {
 
     public void setCode(String code) {
         this.code = code;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     public String getMode() {

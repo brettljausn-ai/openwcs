@@ -189,6 +189,81 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+    put:
+      tags: [Stations]
+      summary: Update a station's configuration
+      description: "Update a station's code, display name, destination topology mode, status and (optionally) supported operating modes."
+      operationId: updateStation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateStationRequest' }
+      responses:
+        "200":
+          description: Updated station
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Station' }
+        "404":
+          description: "Station not found"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        "409":
+          description: "Station code already exists in the warehouse"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      tags: [Stations]
+      summary: Delete a station
+      description: "Delete a station and (cascading) its nodes, demand and work cycles."
+      operationId: deleteStation
+      responses:
+        "204":
+          description: "Deleted"
+        "404":
+          description: "Station not found"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /stations/nodes/{nodeId}:
+    parameters:
+      - { name: nodeId, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [Stations]
+      summary: Update a station node
+      description: "Update a node's role, code, put-light/destination wiring, mapped location, bound order HU, position and status."
+      operationId: updateNode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateNodeRequest' }
+      responses:
+        "200":
+          description: Updated node
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Node' }
+        "404":
+          description: "Node not found"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      tags: [Stations]
+      summary: Remove a station node
+      operationId: deleteNode
+      responses:
+        "204":
+          description: "Deleted"
+        "404":
+          description: "Node not found"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /stations/{stationId}/nodes:
     parameters:
       - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -437,6 +512,7 @@ components:
       properties:
         warehouseId: { type: string, format: uuid }
         code: { type: string }
+        name: { type: string, nullable: true, description: "Optional human-readable display name." }
         mode: { type: string, enum: [ORDER_LOCATION, PUT_WALL] }
         supportedModes:
           type: array
@@ -445,6 +521,32 @@ components:
         nodes:
           type: array
           items: { $ref: '#/components/schemas/AddNodeRequest' }
+    UpdateStationRequest:
+      type: object
+      required: [code, mode]
+      description: >
+        "Update a station's editable configuration. The warehouse is immutable. When supportedModes is
+        omitted/null the current set is kept; when present it replaces the set (PICKING is always retained)."
+      properties:
+        code: { type: string }
+        name: { type: string, nullable: true }
+        mode: { type: string, enum: [ORDER_LOCATION, PUT_WALL] }
+        status: { type: string, nullable: true, description: "e.g. ACTIVE | INACTIVE." }
+        supportedModes:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/OperatingMode' }
+    UpdateNodeRequest:
+      type: object
+      required: [role, code]
+      properties:
+        role: { type: string, enum: [STOCK, ORDER] }
+        code: { type: string }
+        putLightId: { type: string, nullable: true, description: "Physical put-light/display id (ORDER role)." }
+        locationId: { type: string, format: uuid, nullable: true }
+        orderHuId: { type: string, format: uuid, nullable: true }
+        position: { type: integer, nullable: true }
+        status: { type: string, nullable: true }
     SetSupportedModesRequest:
       type: object
       required: [supportedModes]
@@ -517,6 +619,7 @@ components:
         id: { type: string, format: uuid }
         warehouseId: { type: string, format: uuid }
         code: { type: string }
+        name: { type: string, nullable: true, description: "Optional human-readable display name." }
         mode: { type: string, enum: [ORDER_LOCATION, PUT_WALL] }
         supportedModes:
           type: array

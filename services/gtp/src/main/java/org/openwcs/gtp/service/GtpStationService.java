@@ -11,6 +11,8 @@ import org.openwcs.gtp.api.AddNodeRequest;
 import org.openwcs.gtp.api.CreateStationRequest;
 import org.openwcs.gtp.api.NotFoundException;
 import org.openwcs.gtp.api.OpenDestinationRequest;
+import org.openwcs.gtp.api.UpdateNodeRequest;
+import org.openwcs.gtp.api.UpdateStationRequest;
 import org.openwcs.gtp.domain.DestinationDemand;
 import org.openwcs.gtp.domain.GtpStation;
 import org.openwcs.gtp.domain.OperatingMode;
@@ -58,6 +60,7 @@ public class GtpStationService {
         GtpStation station = new GtpStation();
         station.setWarehouseId(request.warehouseId());
         station.setCode(request.code());
+        station.setName(request.name());
         station.setMode(mode);
         station.setSupportedModeSet(parseModes(request.supportedModes()));
         stations.save(station);
@@ -69,6 +72,45 @@ public class GtpStationService {
             }
         }
         return station;
+    }
+
+    /**
+     * Update a station's editable configuration (code, name, destination topology mode, status, and
+     * optionally its supported operating modes). The warehouse is immutable. A code change is checked
+     * for uniqueness within the warehouse. When {@code supportedModes} is null the current set is kept.
+     */
+    @Transactional
+    public GtpStation updateStation(UUID stationId, UpdateStationRequest request) {
+        GtpStation station = requireStation(stationId);
+        String mode = MODES.get(request.mode());
+        if (mode == null) {
+            throw new IllegalArgumentException("mode must be ORDER_LOCATION or PUT_WALL");
+        }
+        if (!station.getCode().equals(request.code())) {
+            stations.findByWarehouseIdAndCode(station.getWarehouseId(), request.code()).ifPresent(s -> {
+                throw new IllegalStateException(
+                        "station code already exists in warehouse: " + request.code());
+            });
+            station.setCode(request.code());
+        }
+        station.setName(request.name());
+        station.setMode(mode);
+        if (request.status() != null && !request.status().isBlank()) {
+            station.setStatus(request.status().trim());
+        }
+        if (request.supportedModes() != null) {
+            Set<OperatingMode> parsed = parseModes(request.supportedModes());
+            parsed.add(OperatingMode.PICKING);
+            station.setSupportedModeSet(parsed);
+        }
+        return station;
+    }
+
+    /** Delete a station (cascades to its nodes/demand/cycles via the schema's ON DELETE CASCADE). */
+    @Transactional
+    public void deleteStation(UUID stationId) {
+        GtpStation station = requireStation(stationId);
+        stations.delete(station);
     }
 
     /**
@@ -105,6 +147,36 @@ public class GtpStationService {
         requireStation(stationId);
         return saveNode(stationId, request.role(), request.code(), request.putLightId(),
                 request.locationId(), request.orderHuId(), request.position());
+    }
+
+    /** Update an existing node's role, code, put-light/destination wiring, address, position + status. */
+    @Transactional
+    public StationNode updateNode(UUID nodeId, UpdateNodeRequest request) {
+        StationNode node = nodes.findById(nodeId)
+                .orElseThrow(() -> new NotFoundException("station node", nodeId));
+        if (!"STOCK".equals(request.role()) && !"ORDER".equals(request.role())) {
+            throw new IllegalArgumentException("node role must be STOCK or ORDER");
+        }
+        node.setRole(request.role());
+        node.setCode(request.code());
+        node.setPutLightId(request.putLightId());
+        node.setLocationId(request.locationId());
+        node.setOrderHuId(request.orderHuId());
+        if (request.position() != null) {
+            node.setPosition(request.position());
+        }
+        if (request.status() != null && !request.status().isBlank()) {
+            node.setStatus(request.status().trim());
+        }
+        return node;
+    }
+
+    /** Remove a node from a station. */
+    @Transactional
+    public void deleteNode(UUID nodeId) {
+        StationNode node = nodes.findById(nodeId)
+                .orElseThrow(() -> new NotFoundException("station node", nodeId));
+        nodes.delete(node);
     }
 
     private StationNode saveNode(UUID stationId, String role, String code, String putLightId,
