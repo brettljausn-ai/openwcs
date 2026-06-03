@@ -25,6 +25,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | inventory | 8082 | ✅ | Durable stock projection + availability/reservations (SKU- and location-scoped). |
 | order-management | 8084 | ✅ | Orders (all types) + lifecycle + release management + line transactions; delegates allocation. |
 | allocation | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing, batch picking. |
+| slotting | 8093 | ✅ | Put-away assignment for automated rack/GTP blocks (weighted scorer: velocity-to-exit · same-SKU lane consolidation · aisle redundancy · fill balance), manual pick-face slotting + min/max replenishment (opportunistic top-off), and off-peak re-slotting. ADR 0003. |
 | txlog | 8086 | ✅ | Append-only event log + transactional outbox + relay to `txlog.stream`. |
 | iam | 8087 | ✅ | openWCS authorization model: users → roles → coded permissions (Keycloak does auth). |
 | flow-orchestrator | 8085 | 🟡 | Device-task lifecycle over the uniform device contract; routes to adapters by family (below). |
@@ -52,11 +53,12 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 
 | Schema | Owner | Tables |
 |---|---|---|
-| `master_data` | master-data | warehouse, attribute_schema, sku, sku_profile, dangerous_goods, unit_of_measure, barcode_type, barcode, handling_unit_type, equipment, location, **shipper**, **warehouse_fulfillment_config**, **shipping_service**, **route**, **label_template** |
+| `master_data` | master-data | warehouse, attribute_schema, sku, sku_profile, dangerous_goods, unit_of_measure, barcode_type, barcode, handling_unit_type, equipment, location (+ block/aisle/lane-depth/distance-to-exit), **storage_block**, **shipper**, **warehouse_fulfillment_config**, **shipping_service**, **route**, **label_template** |
 | `transaction_log` | txlog | events (append-only; UPDATE/DELETE blocked by trigger), outbox |
 | `inventory` | inventory | batch, serial_unit, stock, reservation, projection_offset, processed_event |
 | `orders` | order-management | outbound_order (all order types), order_line, order_line_transaction, order_outbox |
 | `allocation` | allocation | order_allocation, allocation_line, pick_batch |
+| `slotting` | slotting | storage_profile, pick_slot, block_policy, putaway_assignment, replenishment_task, reslot_recommendation |
 | `iam` | iam | role, role_permission, app_user, user_role |
 | `flow` | flow-orchestrator | device_task |
 | `host_integration` | integration-host | idempotency_key, webhook_subscription |
@@ -357,8 +359,14 @@ run green); the first run surfaced one test-isolation bug, now fixed.
 
 ## 10. Not built / known gaps
 
-- Scaffold-only: process-engine, notification, integration-*, the asrs/amr/autostore
-  adapters, UI.
+- **Slotting (ADR 0003) fast-follows:** the engine computes put-away/replenishment/re-slot *plans*
+  and exposes them over REST (+ the goods-in `assignPutaway` delegate), but it does not yet
+  **dispatch** the moves as device tasks via flow-orchestrator; lane/aisle occupancy is derived
+  from the slotting service's own assignment ledger (not yet reconciled against live inventory);
+  velocity/ABC class is teach-in (no auto-ABC from history); replenishment source-location FEFO
+  selection and txlog audit events (`PutawayAssigned`/`ReplenishmentPlanned`/`ReslotRecommended`)
+  are pending.
+- Scaffold-only: notification, integration-*, the asrs/amr/autostore adapters.
 - flow-orchestrator dispatches device tasks but **no BPMN process originates them yet**
   (process-engine is still a scaffold); the device contract is synchronous HTTP, not the
   production Kafka transport.
