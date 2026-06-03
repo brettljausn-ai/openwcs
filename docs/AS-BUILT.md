@@ -79,6 +79,9 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
   (mm, dpi) + an ordered list of elements (TEXT/ADDRESS/BARCODE/IMAGE, positioned in mm, with
   static `value` or a data-binding `key`). `POST /{id}/render` renders a template + field
   values to a print payload (**ZPL** by default, or a minimal **PDF**), returned base64.
+  Template selection inputs: a **shipping-service** carries a `labelTemplateCode` and a
+  warehouse a `defaultLabelTemplateCode` (effective template = order override → service →
+  warehouse default, resolved at release).
 
 ## 4. inventory (stock)
 
