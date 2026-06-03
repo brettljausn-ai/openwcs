@@ -251,4 +251,6 @@ coherent as it grows.
 
 ## License
 
-See [`LICENSE`](./LICENSE).
+[GNU Affero General Public License v3.0](./LICENSE) (AGPL-3.0). Because a WCS is typically
+run as a network service, AGPL's network-use clause ensures that anyone who operates a modified
+openWCS for others must also make their changes available — keeping the platform open end to end.
