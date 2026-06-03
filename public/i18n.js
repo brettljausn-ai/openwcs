@@ -243,8 +243,12 @@
       if (val != null) nodes[i].innerHTML = val;
     }
     if (dict.__title) document.title = dict.__title;
-    var sel = document.getElementById('lang-select');
-    if (sel) sel.value = lang;
+    var code = document.getElementById('lang-code');
+    if (code) code.textContent = lang.toUpperCase();
+    var items = document.querySelectorAll('#lang-menu [data-lang]');
+    for (var j = 0; j < items.length; j++) {
+      items[j].setAttribute('aria-selected', items[j].getAttribute('data-lang') === lang ? 'true' : 'false');
+    }
     if (persist) { try { localStorage.setItem('owcs-lang', lang); } catch (e) {} }
   }
 
@@ -263,10 +267,33 @@
     for (var j = 0; j < els.length; j++) io.observe(els[j]);
   }
 
+  function initLangMenu() {
+    var root = document.getElementById('lang');
+    var toggle = document.getElementById('lang-toggle');
+    var menu = document.getElementById('lang-menu');
+    if (!root || !toggle || !menu) return;
+
+    function open(state) {
+      root.setAttribute('data-open', state ? 'true' : 'false');
+      toggle.setAttribute('aria-expanded', state ? 'true' : 'false');
+    }
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      open(root.getAttribute('data-open') !== 'true');
+    });
+    menu.addEventListener('click', function (e) {
+      var li = e.target.closest('[data-lang]');
+      if (!li) return;
+      apply(li.getAttribute('data-lang'), true);
+      open(false);
+    });
+    document.addEventListener('click', function () { open(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') open(false); });
+  }
+
   function init() {
     apply(detect(), false);
-    var sel = document.getElementById('lang-select');
-    if (sel) sel.addEventListener('change', function (e) { apply(e.target.value, true); });
+    initLangMenu();
     reveal();
   }
 

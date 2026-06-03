@@ -6,7 +6,8 @@ alternative to locked-in WCS apps from integrators.
 - **`index.html`** + **`styles.css`** — a self-contained static site (no build step). The visual
   language follows the openWCS brand tokens (dark forest / herbal-lime / glass; see
   [`../styling.md`](../styling.md)).
-- **`favicon.png`** — browser/tab icon; also rendered in lime (via CSS `mask`) as the nav logo mark.
+- **`favicon.png`** — browser/tab icon.
+- **`Logo_white_solo.png`** — the white wordmark logo shown in the nav bar.
 - **`openwcs.png`** — the hero product image, and the Open Graph / Twitter social-share image.
 - **`robots.txt`** + **`sitemap.xml`** — SEO. `index.html` carries the canonical URL, description,
   Open Graph / Twitter cards, and `SoftwareApplication` JSON-LD. If the public URL ever changes,
