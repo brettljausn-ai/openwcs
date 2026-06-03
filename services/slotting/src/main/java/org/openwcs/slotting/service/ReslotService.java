@@ -97,8 +97,8 @@ public class ReslotService {
             long skuTotalHu = active.stream().filter(x -> sku.equals(x.getSkuId())).count();
 
             List<PutawayScorer.Candidate> candidates = BlockOccupancy.candidates(sku, locations, active);
-            PutawayScorer.Input input =
-                    new PutawayScorer.Input(sku, velocityClass, consolidate, maxAislePct, skuTotalHu);
+            PutawayScorer.Input input = new PutawayScorer.Input(
+                    sku, BlockOccupancy.skuSet(a), velocityClass, consolidate, maxAislePct, skuTotalHu);
             List<PutawayScorer.Result> ranked = PutawayScorer.rank(input, candidates, weights);
             if (ranked.isEmpty()) {
                 continue;

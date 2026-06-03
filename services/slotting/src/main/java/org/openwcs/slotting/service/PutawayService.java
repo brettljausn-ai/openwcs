@@ -66,13 +66,17 @@ public class PutawayService {
         if (req.empty()) {
             return assignEmpty(req); // empty carrier: no SKU, stored far + moved at lower priority
         }
-        if (req.skuId() == null) {
-            throw new IllegalArgumentException("skuId is required (or set empty=true)");
+        boolean hasCompartments = req.compartments() != null && !req.compartments().isEmpty();
+        if (req.skuId() == null && !hasCompartments) {
+            throw new IllegalArgumentException("skuId or compartments are required (or set empty=true)");
         }
 
-        PutawayDecision direct = tryDirectToPick(req);
-        if (direct != null) {
-            return direct;
+        // Direct-to-pick only applies to a single-SKU receipt with a forward face.
+        if (req.skuId() != null) {
+            PutawayDecision direct = tryDirectToPick(req);
+            if (direct != null) {
+                return direct;
+            }
         }
         return assignToBlock(req);
     }
@@ -115,7 +119,7 @@ public class PutawayService {
         factors.put("reason", "empty-far-from-exit");
         factors.put("distanceToExit", distanceToExit(chosen));
         factors.put("transportPriority", "LOW");
-        PutawayAssignment saved = persist(req, blockId, chosen.id(), "RESERVE", null, factors);
+        PutawayAssignment saved = persist(req, null, List.of(), blockId, chosen.id(), "RESERVE", null, factors);
         return new PutawayDecision(saved.getId(), chosen.id(), blockId, "RESERVE", null, factors, "LOW");
     }
 
@@ -141,16 +145,19 @@ public class PutawayService {
             return null;
         }
         Map<String, Object> factors = Map.of("reason", "direct-to-pick", "headroom", bestHeadroom);
-        PutawayAssignment saved = persist(req, null, best.getLocationId(), "DIRECT_TO_PICK", null, factors);
+        PutawayAssignment saved = persist(req, req.skuId(), List.of(req.skuId()), null, best.getLocationId(), "DIRECT_TO_PICK", null, factors);
         return new PutawayDecision(saved.getId(), best.getLocationId(), null, "DIRECT_TO_PICK", null, factors, "NORMAL");
     }
 
     private PutawayDecision assignToBlock(PutawayRequest req) {
-        StorageProfile profile = resolveProfile(req);
+        UUID dominantSku = dominantSku(req);
+        java.util.Set<UUID> skuIds = compartmentSkuIds(req);
+
+        StorageProfile profile = resolveProfile(req.warehouseId(), dominantSku, req.blockId());
         UUID blockId = req.blockId() != null ? req.blockId()
                 : profile != null ? profile.getBlockId() : null;
         if (blockId == null) {
-            throw new IllegalArgumentException("no storage profile / block for sku " + req.skuId());
+            throw new IllegalArgumentException("no storage profile / block for sku " + dominantSku);
         }
 
         BlockPolicy policy = policies.findByBlockId(blockId).orElse(null);
@@ -180,92 +187,72 @@ public class PutawayService {
             throw new IllegalStateException("no storage locations in block " + blockId + " accept HU type " + req.huType());
         }
 
-        List<PutawayScorer.Candidate> candidates = buildCandidates(req, blockId, locations);
-        long skuTotalHu = candidates.isEmpty() ? 0
-                : assignments.findByWarehouseIdAndBlockIdAndStatusIn(req.warehouseId(), blockId, ACTIVE).stream()
-                        .filter(a -> req.skuId().equals(a.getSkuId())).count();
+        List<PutawayAssignment> active =
+                assignments.findByWarehouseIdAndBlockIdAndStatusIn(req.warehouseId(), blockId, ACTIVE);
+        List<PutawayScorer.Candidate> candidates = BlockOccupancy.candidates(dominantSku, locations, active);
+        long skuTotalHu = active.stream().filter(a -> BlockOccupancy.skuSet(a).contains(dominantSku)).count();
 
         PutawayScorer.Input input =
-                new PutawayScorer.Input(req.skuId(), velocityClass, consolidate, maxAislePct, skuTotalHu);
+                new PutawayScorer.Input(dominantSku, skuIds, velocityClass, consolidate, maxAislePct, skuTotalHu);
         List<PutawayScorer.Result> ranked = PutawayScorer.rank(input, candidates, weights);
         if (ranked.isEmpty()) {
             throw new IllegalStateException("no feasible storage location in block " + blockId);
         }
 
         PutawayScorer.Result best = ranked.get(0);
-        PutawayAssignment saved = persist(req, blockId, best.locationId(), "RESERVE",
-                BigDecimal.valueOf(best.score()), best.factors());
+        PutawayAssignment saved = persist(req, dominantSku, new ArrayList<>(skuIds), blockId, best.locationId(),
+                "RESERVE", BigDecimal.valueOf(best.score()), best.factors());
         return new PutawayDecision(saved.getId(), best.locationId(), blockId, "RESERVE",
                 BigDecimal.valueOf(best.score()), best.factors(), "NORMAL");
     }
 
-    private List<PutawayScorer.Candidate> buildCandidates(
-            PutawayRequest req, UUID blockId, List<StorageLocation> locations) {
-        Map<UUID, String> aisleByLocation = new HashMap<>();
-        Map<UUID, StorageLocation> byId = new HashMap<>();
-        for (StorageLocation l : locations) {
-            aisleByLocation.put(l.id(), aisleOf(l));
-            byId.put(l.id(), l);
+    /** The dominant compartment SKU (most qty) for a multi-compartment HU, else the single SKU. */
+    private static UUID dominantSku(PutawayRequest req) {
+        if (req.compartments() == null || req.compartments().isEmpty()) {
+            return req.skuId();
         }
-
-        // Occupancy from the active assignment ledger.
-        Map<UUID, Integer> occupiedByLocation = new HashMap<>();
-        Map<UUID, UUID> occupantByLocation = new HashMap<>();
-        Map<String, Long> usedByAisle = new HashMap<>();
-        Map<String, Long> skuByAisle = new HashMap<>();
-        for (PutawayAssignment a : assignments.findByWarehouseIdAndBlockIdAndStatusIn(req.warehouseId(), blockId, ACTIVE)) {
-            UUID loc = a.getChosenLocationId();
-            if (loc == null || !byId.containsKey(loc)) {
-                continue;
-            }
-            occupiedByLocation.merge(loc, 1, Integer::sum);
-            occupantByLocation.putIfAbsent(loc, a.getSkuId());
-            String aisle = aisleByLocation.get(loc);
-            usedByAisle.merge(aisle, 1L, Long::sum);
-            if (req.skuId().equals(a.getSkuId())) {
-                skuByAisle.merge(aisle, 1L, Long::sum);
-            }
-        }
-
-        Map<String, Long> capacityByAisle = new HashMap<>();
-        for (StorageLocation l : locations) {
-            capacityByAisle.merge(aisleOf(l), (long) laneDepth(l), Long::sum);
-        }
-
-        List<PutawayScorer.Candidate> candidates = new ArrayList<>(locations.size());
-        for (StorageLocation l : locations) {
-            String aisle = aisleOf(l);
-            candidates.add(new PutawayScorer.Candidate(
-                    l.id(),
-                    aisle,
-                    laneDepth(l),
-                    l.distanceToExit() == null ? 0.0 : l.distanceToExit().doubleValue(),
-                    occupiedByLocation.getOrDefault(l.id(), 0),
-                    occupantByLocation.get(l.id()),
-                    skuByAisle.getOrDefault(aisle, 0L),
-                    usedByAisle.getOrDefault(aisle, 0L),
-                    capacityByAisle.getOrDefault(aisle, 0L)));
-        }
-        return candidates;
+        return req.compartments().stream()
+                .filter(c -> c.skuId() != null)
+                .max(java.util.Comparator.comparing(
+                        c -> c.qty() == null ? BigDecimal.ZERO : c.qty()))
+                .map(PutawayRequest.Compartment::skuId)
+                .orElse(req.skuId());
     }
 
-    private StorageProfile resolveProfile(PutawayRequest req) {
-        if (req.blockId() != null) {
-            return profiles.findByWarehouseIdAndSkuIdAndBlockId(req.warehouseId(), req.skuId(), req.blockId())
+    /** The full compartment SKU set (lane-affinity key); single-SKU HUs become a one-element set. */
+    private static java.util.Set<UUID> compartmentSkuIds(PutawayRequest req) {
+        java.util.Set<UUID> set = new java.util.LinkedHashSet<>();
+        if (req.compartments() != null) {
+            for (PutawayRequest.Compartment c : req.compartments()) {
+                if (c.skuId() != null) {
+                    set.add(c.skuId());
+                }
+            }
+        }
+        if (set.isEmpty() && req.skuId() != null) {
+            set.add(req.skuId());
+        }
+        return set;
+    }
+
+    private StorageProfile resolveProfile(UUID warehouseId, UUID skuId, UUID blockId) {
+        if (blockId != null) {
+            return profiles.findByWarehouseIdAndSkuIdAndBlockId(warehouseId, skuId, blockId)
                     .orElse(null);
         }
-        return profiles.findByWarehouseIdAndSkuId(req.warehouseId(), req.skuId()).stream()
+        return profiles.findByWarehouseIdAndSkuId(warehouseId, skuId).stream()
                 .filter(p -> "ACTIVE".equals(p.getStatus()))
                 .findFirst()
                 .orElse(null);
     }
 
-    private PutawayAssignment persist(PutawayRequest req, UUID blockId, UUID locationId, String mode,
-                                      BigDecimal score, Map<String, Object> factors) {
+    private PutawayAssignment persist(PutawayRequest req, UUID skuId, List<UUID> skuIds, UUID blockId,
+                                      UUID locationId, String mode, BigDecimal score, Map<String, Object> factors) {
         PutawayAssignment a = new PutawayAssignment();
         a.setWarehouseId(req.warehouseId());
         a.setHuId(req.huId());
-        a.setSkuId(req.skuId());
+        a.setSkuId(skuId);
+        a.setSkuIds(skuIds);
         a.setBlockId(blockId);
         a.setChosenLocationId(locationId);
         a.setMode(mode);

@@ -85,7 +85,7 @@ class PutawayServiceTest {
                 .thenReturn(List.of(loc(far, "A1", 3, 10.0), loc(near, "A1", 3, 1.0)));
 
         PutawayDecision decision = service.assign(
-                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, null, null, false));
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, null, null, false, null));
 
         assertThat(decision.mode()).isEqualTo("RESERVE");
         assertThat(decision.blockId()).isEqualTo(block);
@@ -113,7 +113,7 @@ class PutawayServiceTest {
         when(inventory.onHandAtLocation(any(), any(), any())).thenReturn(new BigDecimal("10"));
 
         PutawayDecision decision = service.assign(
-                new PutawayRequest(wh, UUID.randomUUID(), sku, null, uom, BigDecimal.ONE, null, null, false));
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, uom, BigDecimal.ONE, null, null, false, null));
 
         assertThat(decision.mode()).isEqualTo("DIRECT_TO_PICK");
         assertThat(decision.locationId()).isEqualTo(faceLoc);
@@ -133,7 +133,7 @@ class PutawayServiceTest {
 
         // Empty carrier: no SKU, explicit block.
         PutawayDecision decision = service.assign(
-                new PutawayRequest(wh, UUID.randomUUID(), null, null, null, null, block, "TOTE", true));
+                new PutawayRequest(wh, UUID.randomUUID(), null, null, null, null, block, "TOTE", true, null));
 
         assertThat(decision.locationId()).isEqualTo(far);          // farthest from exit
         assertThat(decision.transportPriority()).isEqualTo("LOW");
@@ -157,7 +157,36 @@ class PutawayServiceTest {
                 .thenReturn(new MasterDataClient.Block(block, "SHUTTLE_ASRS", "BLOCK", true, List.of("TOTE")));
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.assign(
-                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, block, "PALLET", false)))
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, block, "PALLET", false, null)))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void multiCompartmentHuPlacedByDominantCompartmentVelocity() {
+        UUID wh = UUID.randomUUID();
+        UUID block = UUID.randomUUID();
+        UUID near = UUID.randomUUID();
+        UUID far = UUID.randomUUID();
+        UUID skuA = UUID.randomUUID(); // dominant (qty 10)
+        UUID skuB = UUID.randomUUID(); // qty 2
+
+        StorageProfile dominant = new StorageProfile();
+        dominant.setWarehouseId(wh);
+        dominant.setSkuId(skuA);
+        dominant.setBlockId(block);
+        dominant.setVelocityClass("A"); // dominant is a fast mover → near the exit
+        profiles.save(dominant);
+
+        when(masterData.storageLocations(eq(wh), eq(block)))
+                .thenReturn(List.of(loc(far, "A1", 3, 10.0), loc(near, "A1", 3, 1.0)));
+
+        PutawayRequest req = new PutawayRequest(wh, UUID.randomUUID(), null, null, null, null, block, "TOTE", false,
+                List.of(new PutawayRequest.Compartment(skuA, new BigDecimal("10")),
+                        new PutawayRequest.Compartment(skuB, new BigDecimal("2"))));
+
+        PutawayDecision decision = service.assign(req);
+
+        assertThat(decision.mode()).isEqualTo("RESERVE");
+        assertThat(decision.locationId()).isEqualTo(near); // placed by dominant skuA (class A)
     }
 }
