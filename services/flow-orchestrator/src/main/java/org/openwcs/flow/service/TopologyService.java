@@ -5,13 +5,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.openwcs.flow.api.RoutingDtos.ControllerDto;
 import org.openwcs.flow.api.RoutingDtos.EdgeDto;
 import org.openwcs.flow.api.RoutingDtos.LoopDto;
 import org.openwcs.flow.api.RoutingDtos.NodeDto;
 import org.openwcs.flow.api.RoutingDtos.Topology;
+import org.openwcs.flow.domain.ConveyorController;
 import org.openwcs.flow.domain.ConveyorEdge;
 import org.openwcs.flow.domain.ConveyorLoop;
 import org.openwcs.flow.domain.ConveyorNode;
+import org.openwcs.flow.repo.ConveyorControllerRepository;
 import org.openwcs.flow.repo.ConveyorEdgeRepository;
 import org.openwcs.flow.repo.ConveyorLoopRepository;
 import org.openwcs.flow.repo.ConveyorNodeRepository;
@@ -29,11 +32,14 @@ public class TopologyService {
     private final ConveyorNodeRepository nodes;
     private final ConveyorEdgeRepository edges;
     private final ConveyorLoopRepository loops;
+    private final ConveyorControllerRepository controllers;
 
-    public TopologyService(ConveyorNodeRepository nodes, ConveyorEdgeRepository edges, ConveyorLoopRepository loops) {
+    public TopologyService(ConveyorNodeRepository nodes, ConveyorEdgeRepository edges, ConveyorLoopRepository loops,
+                           ConveyorControllerRepository controllers) {
         this.nodes = nodes;
         this.edges = edges;
         this.loops = loops;
+        this.controllers = controllers;
     }
 
     @Transactional(readOnly = true)
@@ -43,7 +49,7 @@ public class TopologyService {
         for (ConveyorNode n : nodes.findByWarehouseId(warehouseId)) {
             codeById.put(n.getId(), n.getCode());
             nodeDtos.add(new NodeDto(n.getCode(), n.getName(), n.getHardwareAddress(),
-                    n.getPosX(), n.getPosY(), n.getLoopCode()));
+                    n.getPosX(), n.getPosY(), n.getLoopCode(), n.getControllerCode(), n.getNodeAddress()));
         }
         List<EdgeDto> edgeDtos = new ArrayList<>();
         for (ConveyorEdge e : edges.findByWarehouseId(warehouseId)) {
@@ -54,7 +60,11 @@ public class TopologyService {
         for (ConveyorLoop l : loops.findByWarehouseId(warehouseId)) {
             loopDtos.add(new LoopDto(l.getCode(), l.getMaxHus(), l.getWhenFull(), l.getOverflowTargetCode()));
         }
-        return new Topology(nodeDtos, edgeDtos, loopDtos);
+        List<ControllerDto> controllerDtos = new ArrayList<>();
+        for (ConveyorController c : controllers.findByWarehouseId(warehouseId)) {
+            controllerDtos.add(new ControllerDto(c.getCode(), c.getName(), c.getIpAddress(), c.getPort()));
+        }
+        return new Topology(nodeDtos, edgeDtos, loopDtos, controllerDtos);
     }
 
     /** Replace the whole topology for a warehouse (the editor saves the full graph). */
@@ -62,8 +72,21 @@ public class TopologyService {
     public Topology replace(UUID warehouseId, Topology topology) {
         edges.deleteByWarehouseId(warehouseId);
         loops.deleteByWarehouseId(warehouseId);
+        controllers.deleteByWarehouseId(warehouseId);
         nodes.deleteAll(nodes.findByWarehouseId(warehouseId));
         nodes.flush();
+
+        if (topology.controllers() != null) {
+            for (ControllerDto c : topology.controllers()) {
+                ConveyorController controller = new ConveyorController();
+                controller.setWarehouseId(warehouseId);
+                controller.setCode(c.code());
+                controller.setName(c.name());
+                controller.setIpAddress(c.ipAddress());
+                controller.setPort(c.port());
+                controllers.save(controller);
+            }
+        }
 
         Map<String, UUID> idByCode = new HashMap<>();
         for (NodeDto n : topology.nodes()) {
@@ -72,6 +95,8 @@ public class TopologyService {
             node.setCode(n.code());
             node.setName(n.name());
             node.setHardwareAddress(n.hardwareAddress());
+            node.setControllerCode(n.controllerCode());
+            node.setNodeAddress(n.nodeAddress());
             node.setPosX(n.posX());
             node.setPosY(n.posY());
             node.setLoopCode(n.loopCode());

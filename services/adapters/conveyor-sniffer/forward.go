@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 )
 
-// Forwarder posts a normalized scan to the WCS topology-learning endpoint.
+// Forwarder posts a normalized scan to the WCS topology-learning endpoint. The source endpoint
+// (IP and, when known, port) identifies the conveyor controller/PLC the scan came from, so the
+// WCS can group nodes seen behind the same endpoint into a controller.
 type Forwarder interface {
-	Forward(ev ScanEvent, sourceIP string) error
+	Forward(ev ScanEvent, sourceIP, sourcePort string) error
 }
 
 // httpForwarder POSTs to flow-orchestrator's POST /api/flow/conveyor/observations.
@@ -24,13 +27,19 @@ func newHTTPForwarder(url, warehouseID string) *httpForwarder {
 	return &httpForwarder{url: url, warehouseID: warehouseID, client: &http.Client{Timeout: 5 * time.Second}}
 }
 
-func (f *httpForwarder) Forward(ev ScanEvent, sourceIP string) error {
-	body, err := json.Marshal(map[string]string{
+func (f *httpForwarder) Forward(ev ScanEvent, sourceIP, sourcePort string) error {
+	payload := map[string]any{
 		"warehouseId": f.warehouseID,
 		"node":        ev.Node,
 		"barcode":     ev.Barcode,
 		"sourceIp":    sourceIP,
-	})
+	}
+	// Port is optional; include it as a number only when it parses, so the WCS can group nodes
+	// by ip:port into a controller.
+	if p, err := strconv.Atoi(sourcePort); err == nil {
+		payload["sourcePort"] = p
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}

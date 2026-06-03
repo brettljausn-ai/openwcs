@@ -10,9 +10,9 @@ import ReactFlow, {
   type Node,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { discoverTopology, loadTopology, saveTopology, type EdgeDto, type LoopDto, type NodeDto, type Topology } from './api'
+import { discoverTopology, loadTopology, saveTopology, type ControllerDto, type EdgeDto, type LoopDto, type NodeDto, type Topology } from './api'
 
-type NodeData = { name?: string; hardwareAddress?: string; loopCode?: string; label?: string }
+type NodeData = { name?: string; hardwareAddress?: string; loopCode?: string; controllerCode?: string; nodeAddress?: string; label?: string }
 type EdgeData = { exitCode: string; cost: number }
 
 function nodeLabel(code: string, data: NodeData): string {
@@ -27,6 +27,7 @@ export default function TopologyEditor() {
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<EdgeData>([])
   const [loops, setLoops] = useState<LoopDto[]>([])
+  const [controllers, setControllers] = useState<ControllerDto[]>([])
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null)
   const [status, setStatus] = useState('')
@@ -44,7 +45,13 @@ export default function TopologyEditor() {
       setNodes(t.nodes.map((n) => ({
         id: n.code,
         position: { x: n.posX ?? 0, y: n.posY ?? 0 },
-        data: { name: n.name ?? undefined, hardwareAddress: n.hardwareAddress ?? undefined, loopCode: n.loopCode ?? undefined },
+        data: {
+          name: n.name ?? undefined,
+          hardwareAddress: n.hardwareAddress ?? undefined,
+          loopCode: n.loopCode ?? undefined,
+          controllerCode: n.controllerCode ?? undefined,
+          nodeAddress: n.nodeAddress ?? undefined,
+        },
         type: 'default',
       })))
       setEdges(t.edges.map((e, i) => ({
@@ -55,7 +62,8 @@ export default function TopologyEditor() {
         data: { exitCode: e.exitCode, cost: e.cost ?? 1 },
       })))
       setLoops(t.loops)
-      setStatus(`Loaded ${t.nodes.length} nodes, ${t.edges.length} edges, ${t.loops.length} loops`)
+      setControllers(t.controllers)
+      setStatus(`Loaded ${t.nodes.length} nodes, ${t.edges.length} edges, ${t.loops.length} loops, ${t.controllers.length} controllers`)
     } catch (err) {
       setStatus(String(err))
     }
@@ -73,6 +81,8 @@ export default function TopologyEditor() {
       posX: n.position.x,
       posY: n.position.y,
       loopCode: n.data.loopCode ?? null,
+      controllerCode: n.data.controllerCode ?? null,
+      nodeAddress: n.data.nodeAddress ?? null,
     }))
     const edgeDtos: EdgeDto[] = edges.map((e) => ({
       fromCode: e.source,
@@ -80,14 +90,14 @@ export default function TopologyEditor() {
       exitCode: e.data?.exitCode ?? String(e.label ?? ''),
       cost: e.data?.cost ?? 1,
     }))
-    const topology: Topology = { nodes: nodeDtos, edges: edgeDtos, loops }
+    const topology: Topology = { nodes: nodeDtos, edges: edgeDtos, loops, controllers }
     try {
       await saveTopology(warehouseId, topology)
       setStatus('Saved')
     } catch (err) {
       setStatus(String(err))
     }
-  }, [warehouseId, nodes, edges, loops])
+  }, [warehouseId, nodes, edges, loops, controllers])
 
   // Learning: pull discovered (observed-but-unconfigured) nodes/edges onto the canvas to review.
   const runDiscovery = useCallback(async () => {
@@ -199,7 +209,9 @@ export default function TopologyEditor() {
           <section>
             <h3>Node {selNode.id}</h3>
             <Field label="Name" value={selNode.data.name ?? ''} onChange={(v) => patchNode({ name: v })} />
-            <Field label="Hardware address" value={selNode.data.hardwareAddress ?? ''} onChange={(v) => patchNode({ hardwareAddress: v })} />
+            <Field label="Controller (PLC) code" value={selNode.data.controllerCode ?? ''} onChange={(v) => patchNode({ controllerCode: v || undefined })} />
+            <Field label="Node-local address" value={selNode.data.nodeAddress ?? ''} onChange={(v) => patchNode({ nodeAddress: v || undefined })} />
+            <Field label="Hardware address (legacy)" value={selNode.data.hardwareAddress ?? ''} onChange={(v) => patchNode({ hardwareAddress: v })} />
             <Field label="Loop code" value={selNode.data.loopCode ?? ''} onChange={(v) => patchNode({ loopCode: v || undefined })} />
           </section>
         )}
@@ -212,10 +224,40 @@ export default function TopologyEditor() {
           </section>
         )}
         <section>
+          <h3>Controllers (PLCs)</h3>
+          <ControllersEditor controllers={controllers} setControllers={setControllers} />
+        </section>
+        <section>
           <h3>Loops</h3>
           <LoopsEditor loops={loops} setLoops={setLoops} />
         </section>
       </aside>
+    </div>
+  )
+}
+
+function ControllersEditor(props: { controllers: ControllerDto[]; setControllers: (c: ControllerDto[]) => void }) {
+  const { controllers, setControllers } = props
+  const update = (i: number, patch: Partial<ControllerDto>) =>
+    setControllers(controllers.map((c, idx) => (idx === i ? { ...c, ...patch } : c)))
+  return (
+    <div>
+      <p style={{ color: 'var(--text-dim,#666)', fontSize: 12, marginTop: 0 }}>
+        One PLC (IP:port) can host many nodes — set a node's controller + node-local address in its
+        properties. Controllers are also seeded automatically from the listener.
+      </p>
+      {controllers.map((c, i) => (
+        <div key={i} style={{ border: '1px solid #eee', padding: '0.4rem', marginBottom: '0.4rem', fontSize: 13 }}>
+          <Field label="Code" value={c.code} onChange={(v) => update(i, { code: v })} />
+          <Field label="Name" value={c.name ?? ''} onChange={(v) => update(i, { name: v || null })} />
+          <Field label="IP address" value={c.ipAddress} onChange={(v) => update(i, { ipAddress: v })} />
+          <Field label="Port" value={String(c.port ?? '')} onChange={(v) => update(i, { port: v ? Number(v) : null })} />
+          <button onClick={() => setControllers(controllers.filter((_, idx) => idx !== i))}>Remove</button>
+        </div>
+      ))}
+      <button onClick={() => setControllers(controllers.concat({ code: 'PLC', name: null, ipAddress: '', port: null }))}>
+        Add controller
+      </button>
     </div>
   )
 }

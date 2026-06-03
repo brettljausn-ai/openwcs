@@ -50,7 +50,7 @@ func (s *sniffer) serve(ln net.Listener) {
 
 func (s *sniffer) handle(conn net.Conn) {
 	defer conn.Close()
-	ip, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+	ip, port, _ := net.SplitHostPort(conn.RemoteAddr().String())
 	if !s.ipAllowed(ip) {
 		log.Printf("conveyor-sniffer: rejecting telegram source %s (not in allowlist)", ip)
 		return
@@ -61,7 +61,7 @@ func (s *sniffer) handle(conn net.Conn) {
 		if !ok {
 			continue
 		}
-		if err := s.forwarder.Forward(ev, ip); err != nil {
+		if err := s.forwarder.Forward(ev, ip, port); err != nil {
 			log.Printf("conveyor-sniffer: forward of %s@%s failed: %v", ev.Barcode, ev.Node, err)
 		}
 	}

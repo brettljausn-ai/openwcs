@@ -35,6 +35,9 @@ public class TopologyObservation {
     @Column(name = "source_ip")
     private String sourceIp;
 
+    @Column(name = "source_port")
+    private Integer sourcePort;
+
     @Column(name = "observed_at", nullable = false)
     private Instant observedAt;
 
@@ -72,6 +75,14 @@ public class TopologyObservation {
 
     public void setSourceIp(String sourceIp) {
         this.sourceIp = sourceIp;
+    }
+
+    public Integer getSourcePort() {
+        return sourcePort;
+    }
+
+    public void setSourcePort(Integer sourcePort) {
+        this.sourcePort = sourcePort;
     }
 
     public Instant getObservedAt() {
