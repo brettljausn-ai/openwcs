@@ -28,6 +28,29 @@ export interface Sku {
   dateTracked: boolean
 }
 
+// SKU sub-resources. SKU, UoM and barcodes are host-owned master data — the WCS reads
+// them only (managed via host sync); there are deliberately no create/edit/delete calls.
+export interface UnitOfMeasure {
+  id?: string
+  skuId?: string
+  code: string
+  parentUomId?: string | null
+  qtyInParent?: number | null
+  lengthMm?: number | null
+  widthMm?: number | null
+  heightMm?: number | null
+  weightG?: number | null
+  baseUnit: boolean
+}
+
+export interface Barcode {
+  id?: string
+  skuId?: string
+  uomId?: string | null
+  value: string
+  barcodeTypeId?: string | null
+}
+
 export interface StorageBlock {
   id?: string
   warehouseId: string
@@ -133,19 +156,17 @@ export async function deleteWarehouse(id: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------- SKUs
+// Host-owned master data: read-only in the WCS (no create/update/delete — those live on the host).
 export async function listSkus(q?: string): Promise<Sku[]> {
   const url = q ? `${base}/skus?size=500&q=${encodeURIComponent(q)}` : `${base}/skus?size=500`
   const p = await unwrap<Page<Sku>>(await fetch(url))
   return p.content
 }
-export async function createSku(s: Sku): Promise<Sku> {
-  return unwrap(await fetch(`${base}/skus`, { method: 'POST', headers: json, body: JSON.stringify(s) }))
+export async function listSkuUoms(skuId: string): Promise<UnitOfMeasure[]> {
+  return unwrap(await fetch(`${base}/skus/${skuId}/uoms`))
 }
-export async function updateSku(id: string, s: Sku): Promise<Sku> {
-  return unwrap(await fetch(`${base}/skus/${id}`, { method: 'PUT', headers: json, body: JSON.stringify(s) }))
-}
-export async function deleteSku(id: string): Promise<void> {
-  return expectOk(await fetch(`${base}/skus/${id}`, { method: 'DELETE' }))
+export async function listSkuBarcodes(skuId: string): Promise<Barcode[]> {
+  return unwrap(await fetch(`${base}/skus/${skuId}/barcodes`))
 }
 
 // -------------------------------------------------------------- Storage blocks

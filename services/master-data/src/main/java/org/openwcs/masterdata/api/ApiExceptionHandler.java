@@ -27,6 +27,18 @@ public class ApiExceptionHandler {
         return problem;
     }
 
+    /**
+     * An interactive caller tried to write host-owned master data (SKU / UoM / barcode). The WCS is a
+     * slave to that data; only the host-sync path may upsert it, so interactive writes are forbidden.
+     */
+    @ExceptionHandler(HostManagedException.class)
+    public ProblemDetail onHostManaged(HostManagedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
+        problem.setTitle("Read-only (host-managed)");
+        problem.setDetail(ex.getMessage());
+        return problem;
+    }
+
     /** A malformed request value (e.g. an unsupported label render format). */
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail onBadRequest(IllegalArgumentException ex) {
