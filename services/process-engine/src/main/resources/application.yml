@@ -20,6 +20,7 @@ openwcs:
     # Service tasks originate work in the WCS; delegates call these services.
     flow-orchestrator-base-url: ${OPENWCS_FLOW_ORCHESTRATOR_BASE_URL:http://localhost:8085}
     order-management-base-url: ${OPENWCS_ORDER_MANAGEMENT_BASE_URL:http://localhost:8084}
+    slotting-base-url: ${OPENWCS_SLOTTING_BASE_URL:http://localhost:8093}
 
 management:
   endpoints:

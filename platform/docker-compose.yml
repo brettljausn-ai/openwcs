@@ -110,6 +110,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: openwcs
       OPENWCS_FLOW_ORCHESTRATOR_BASE_URL: http://flow-orchestrator:8085
       OPENWCS_ORDER_MANAGEMENT_BASE_URL: http://order-management:8084
+      OPENWCS_SLOTTING_BASE_URL: http://slotting:8093
 
   order-management:
     profiles: ["apps"]

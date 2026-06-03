@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://openwcs.org/processes">
+  <!--
+    Goods-in with put-away (ADR 0003): on start, the assignPutaway delegate asks the slotting
+    service where the received HU should go (setting targetLocationId / putawayMode), then the
+    dispatchDeviceTask delegate originates the physical move in flow-orchestrator. A production
+    process adds receiving, quality and exception handling.
+  -->
+  <process id="goods-in-putaway" name="Goods-in with put-away" isExecutable="true">
+    <startEvent id="start"/>
+    <sequenceFlow id="f1" sourceRef="start" targetRef="assign"/>
+    <serviceTask id="assign" name="Assign put-away location"
+                 flowable:delegateExpression="${assignPutaway}"/>
+    <sequenceFlow id="f2" sourceRef="assign" targetRef="dispatch"/>
+    <serviceTask id="dispatch" name="Dispatch put-away move"
+                 flowable:delegateExpression="${dispatchDeviceTask}"/>
+    <sequenceFlow id="f3" sourceRef="dispatch" targetRef="end"/>
+    <endEvent id="end"/>
+  </process>
+</definitions>
