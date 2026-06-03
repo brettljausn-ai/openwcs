@@ -58,8 +58,12 @@ class PutawayServiceTest {
     InventoryClient inventory;
 
     private static StorageLocation loc(UUID id, String aisle, int laneDepth, double dist) {
+        return loc(id, aisle, laneDepth, dist, null);
+    }
+
+    private static StorageLocation loc(UUID id, String aisle, int laneDepth, double dist, List<String> allowedHuTypes) {
         return new StorageLocation(id, "L-" + id.toString().substring(0, 4), "STORAGE", "ASRS_SLOT",
-                aisle, 1, laneDepth, BigDecimal.valueOf(dist), null, "ACTIVE");
+                aisle, 1, laneDepth, BigDecimal.valueOf(dist), null, "ACTIVE", allowedHuTypes);
     }
 
     @Test
@@ -81,7 +85,7 @@ class PutawayServiceTest {
                 .thenReturn(List.of(loc(far, "A1", 3, 10.0), loc(near, "A1", 3, 1.0)));
 
         PutawayDecision decision = service.assign(
-                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, null));
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, null, null));
 
         assertThat(decision.mode()).isEqualTo("RESERVE");
         assertThat(decision.blockId()).isEqualTo(block);
@@ -109,9 +113,30 @@ class PutawayServiceTest {
         when(inventory.onHandAtLocation(any(), any(), any())).thenReturn(new BigDecimal("10"));
 
         PutawayDecision decision = service.assign(
-                new PutawayRequest(wh, UUID.randomUUID(), sku, null, uom, BigDecimal.ONE, null));
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, uom, BigDecimal.ONE, null, null));
 
         assertThat(decision.mode()).isEqualTo("DIRECT_TO_PICK");
         assertThat(decision.locationId()).isEqualTo(faceLoc);
+    }
+
+    @Test
+    void rejectsHuTypeNotAllowedInTheBlock() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID block = UUID.randomUUID();
+
+        StorageProfile profile = new StorageProfile();
+        profile.setWarehouseId(wh);
+        profile.setSkuId(sku);
+        profile.setBlockId(block);
+        profiles.save(profile);
+
+        // Block only stores TOTEs; a PALLET must be rejected.
+        when(masterData.block(eq(block)))
+                .thenReturn(new MasterDataClient.Block(block, "SHUTTLE_ASRS", "BLOCK", true, List.of("TOTE")));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.assign(
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, block, "PALLET")))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

@@ -117,11 +117,19 @@ public class PutawayService {
         String velocityClass = profile != null ? profile.getVelocityClass() : "B";
         boolean consolidate = profile == null || profile.isConsolidate();
 
+        // The automated area only stores HU types it permits (different per area).
+        MasterDataClient.Block block = masterData.block(blockId);
+        if (req.huType() != null && block != null && !huTypeAllowed(block.allowedHuTypes(), req.huType())) {
+            throw new IllegalArgumentException(
+                    "HU type " + req.huType() + " is not storable in block " + blockId);
+        }
+
         List<StorageLocation> locations = masterData.storageLocations(req.warehouseId(), blockId).stream()
                 .filter(l -> "STORAGE".equals(l.purpose()) && (l.status() == null || "ACTIVE".equals(l.status())))
+                .filter(l -> req.huType() == null || huTypeAllowed(l.allowedHuTypes(), req.huType()))
                 .toList();
         if (locations.isEmpty()) {
-            throw new IllegalStateException("no storage locations in block " + blockId);
+            throw new IllegalStateException("no storage locations in block " + blockId + " accept HU type " + req.huType());
         }
 
         List<PutawayScorer.Candidate> candidates = buildCandidates(req, blockId, locations);
@@ -217,6 +225,11 @@ public class PutawayService {
         a.setFactors(factors);
         a.setStatus("PLANNED");
         return assignments.save(a);
+    }
+
+    /** An empty / null allow-list accepts any HU type; otherwise the type must be listed. */
+    private static boolean huTypeAllowed(List<String> allowList, String huType) {
+        return allowList == null || allowList.isEmpty() || allowList.contains(huType);
     }
 
     private static String aisleOf(StorageLocation l) {

@@ -55,7 +55,7 @@ class ReslotServiceTest {
     MasterDataClient masterData;
 
     private static StorageLocation loc(UUID id, String aisle, double dist) {
-        return new StorageLocation(id, "L", "STORAGE", "ASRS_SLOT", aisle, 1, 3, BigDecimal.valueOf(dist), null, "ACTIVE");
+        return new StorageLocation(id, "L", "STORAGE", "ASRS_SLOT", aisle, 1, 3, BigDecimal.valueOf(dist), null, "ACTIVE", null);
     }
 
     private BlockPolicy velocityOnlyPolicy(UUID wh, UUID block, boolean enabled) {
