@@ -10,6 +10,7 @@ import org.openwcs.flow.domain.DeviceTask;
 import org.openwcs.flow.repo.DeviceTaskRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClientException;
@@ -79,5 +80,23 @@ public class DeviceTaskService {
         return tasks.findByCorrelationIdOrderByCreatedAtAsc(correlationId).stream()
                 .map(DeviceTaskView::from)
                 .toList();
+    }
+
+    /**
+     * Recent device tasks (newest first) for the transport overview. Filters are optional and
+     * combine; {@code limit} is clamped to [1, 500] so the poll-driven UI can't ask for the world.
+     */
+    @Transactional(readOnly = true)
+    public List<DeviceTaskView> search(UUID warehouseId, String status, String family, UUID equipmentId, int limit) {
+        int capped = Math.max(1, Math.min(limit, 500));
+        String statusFilter = blankToNull(status);
+        String familyFilter = blankToNull(family);
+        return tasks.search(warehouseId, statusFilter, familyFilter, equipmentId, PageRequest.of(0, capped)).stream()
+                .map(DeviceTaskView::from)
+                .toList();
+    }
+
+    private static String blankToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s;
     }
 }

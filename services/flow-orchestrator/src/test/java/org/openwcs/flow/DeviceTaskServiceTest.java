@@ -84,6 +84,42 @@ class DeviceTaskServiceTest {
     }
 
     @Test
+    void searchReturnsRecentTasksFilteredAndNewestFirst() {
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("COMPLETED", "ok", Map.of()));
+
+        UUID warehouse = UUID.randomUUID();
+        UUID otherWarehouse = UUID.randomUUID();
+        DeviceTaskView first = service.request(
+                new RequestDeviceTask(warehouse, "CONVEYOR", null, "CONVEY", Map.of(), null), "tester");
+        DeviceTaskView second = service.request(
+                new RequestDeviceTask(warehouse, "ASRS", null, "STORE", Map.of(), null), "tester");
+        service.request(
+                new RequestDeviceTask(otherWarehouse, "CONVEYOR", null, "CONVEY", Map.of(), null), "tester");
+
+        // Filter by warehouse: the two warehouse tasks, newest first.
+        List<DeviceTaskView> byWarehouse = service.search(warehouse, null, null, null, 100);
+        assertThat(byWarehouse).extracting(DeviceTaskView::id)
+                .containsExactly(second.id(), first.id());
+
+        // Filter by family within the warehouse: only the CONVEYOR one.
+        List<DeviceTaskView> byFamily = service.search(warehouse, null, "CONVEYOR", null, 100);
+        assertThat(byFamily).extracting(DeviceTaskView::id).containsExactly(first.id());
+
+        // Filter by status within the warehouse: both warehouse tasks are COMPLETED.
+        // (Scoped to the warehouse so other tests' tasks in the shared DB don't leak in.)
+        assertThat(service.search(warehouse, "COMPLETED", null, null, 100))
+                .extracting(DeviceTaskView::id)
+                .containsExactly(second.id(), first.id());
+        assertThat(service.search(warehouse, "FAILED", null, null, 100)).isEmpty();
+
+        // Limit is honoured.
+        assertThat(service.search(warehouse, null, null, null, 1))
+                .extracting(DeviceTaskView::id)
+                .containsExactly(second.id());
+    }
+
+    @Test
     void unknownTaskIdThrows() {
         org.junit.jupiter.api.Assertions.assertThrows(
                 DeviceTaskNotFoundException.class, () -> service.get(UUID.randomUUID()));
