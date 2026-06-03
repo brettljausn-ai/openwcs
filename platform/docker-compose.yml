@@ -188,7 +188,11 @@ services:
     profiles: ["apps"]
     build: ../services/integration-manhattan
     ports: ["8090:8090"]
-    depends_on: [postgres, kafka]
+    depends_on: [postgres, kafka, master-data, integration-host]
+    environment:
+      # Translate Manhattan orders/ASNs into the canonical Host API (materials → SKUs).
+      OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
+      OPENWCS_HOST_API_BASE_URL: http://integration-host:8092
 
   integration-host:
     profiles: ["apps"]

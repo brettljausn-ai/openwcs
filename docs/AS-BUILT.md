@@ -30,7 +30,8 @@ What is **actually implemented** today (not the target architecture). Design int
 | flow-orchestrator | 8085 | 🟡 | Device-task lifecycle over the uniform device contract; routes to adapters by family (below). |
 | integration-host | 8092 | 🟡 | Canonical vendor-neutral **Host API** (`/api/host/**`): orders + ASNs in, confirmations (cursor feed) out. |
 | integration-sap | 8089 | 🟡 | Host gateway (skeleton): `POST /labels` (per-shipper dispatch-label barcode), `POST /routes/sync` (→ master-data Route catalog), and `POST /orders` + `/asns` translating SAP messages into the canonical Host API. |
-| process-engine / notification / integration-manhattan | 8083/8088/8090 | 🟦 | Scaffold (health/info only). |
+| integration-manhattan | 8090 | 🟡 | Host gateway (skeleton): `POST /orders` + `/asns` translating Manhattan Active messages into the canonical Host API. |
+| process-engine / notification | 8083/8088 | 🟦 | Scaffold (health/info only). |
 | adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop + `POST /tasks` device-task simulator. |
 | adapters/{asrs,amr-geekplus,autostore} | 9092–9094 | 🟦 | Go; health/readiness + stub loop. |
 | ui | 5173 | 🟦 | Vite skeleton. |
@@ -231,9 +232,9 @@ driven directly via the API.
 
 The canonical, **vendor-neutral** integration surface (`/api/host`, see
 `contracts/openapi/host-api.yaml`). A host (WMS/ERP) integrates against this one contract; the
-vendor adapters translate their native protocols into it — **integration-sap** does this today
-(`POST /api/integration/sap/orders`,`/asns` reshape a SAP message and resolve materials to SKUs,
-then call `/api/host/orders`,`/asns`); integration-manhattan parity is pending.
+vendor adapters translate their native protocols into it — **both integration-sap and
+integration-manhattan** do this (`POST .../orders`,`/asns` reshape the vendor message and
+resolve materials/items to SKUs, then call `/api/host/orders`,`/asns`).
 
 - `POST /api/host/orders` — outbound order (ship-to, service, route, label template, lines) →
   translated to an order-management OUTBOUND order.

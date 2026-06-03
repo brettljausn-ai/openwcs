@@ -3,6 +3,11 @@ server:
 spring:
   application:
     name: integration-manhattan
+openwcs:
+  integration:
+    # Resolve Manhattan item ids to SKUs, and translate orders/ASNs into the canonical Host API.
+    master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
+    host-api-base-url: ${OPENWCS_HOST_API_BASE_URL:http://localhost:8092}
 management:
   endpoints:
     web:

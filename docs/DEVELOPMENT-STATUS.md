@@ -30,7 +30,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | iam | Java | 8087 | ✅ | Authorization model: users → roles → coded permissions; seeded roles; effective-permission resolution. (Keycloak does auth.) |
 | notification | Java | 8088 | 🟦 | — |
 | integration-sap | Java | 8089 | 🟡 | Host gateway: per-shipper dispatch-label barcode (`POST /labels`) + route feed (`POST /routes/sync`) + SAP order/ASN intake (`POST /orders`,`/asns`) translated into the canonical Host API (materials resolved to SKUs). |
-| integration-manhattan | Java | 8090 | 🟦 | Host gateway. |
+| integration-manhattan | Java | 8090 | 🟡 | Host gateway: Manhattan order/ASN intake (`POST /orders`,`/asns`) translated into the canonical Host API (items resolved to SKUs). |
 | integration-host | Java | 8092 | 🟡 | Canonical vendor-neutral Host API (`/api/host/**`): orders + ASNs + SKU upserts + inventory adjustments in; confirmations out via pull (cursor feed) **and** webhook push; idempotency keys. |
 | adapters/conveyor | Go | 9091 | 🟡 | Health + stub loop + `POST /tasks` device-task simulator (CONVEY/DIVERT/MERGE/SCAN). |
 | adapters/{asrs,amr-geekplus,autostore} | Go | 9092–9094 | 🟦 | Health + stub loop. |
@@ -38,8 +38,8 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | libs/common | Java | — | ✅ | `EventEnvelope`. |
 
 **Contracts:** OpenAPI ✅ master-data, inventory, txlog, allocation, order-management, iam,
-flow-orchestrator, integration-sap, host-api; ⬜ master-data shipper/fulfillment-config paths,
-other services. Avro/Schema-Registry ⬜.
+flow-orchestrator, integration-sap, integration-manhattan, host-api; ⬜ master-data
+shipper/fulfillment-config paths, other services. Avro/Schema-Registry ⬜.
 
 **Platform:** docker-compose ✅ (incl. allocation; Keycloak imports the `openwcs` realm).
 **CI ✅** (GitHub Actions: Java build+test with Testcontainers, Go adapters, UI build, OpenAPI
@@ -54,7 +54,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | **0 — Foundations** | ✅ | Repo + compose + shared schemas + txlog/outbox/relay + Kafka ✅; IAM model + gateway JWT + per-endpoint RBAC (all services) + inter-service identity propagation ✅ (toggleable); **CI ✅ (green), Keycloak `openwcs` realm ✅, gradle wrapper ✅**; **JWT edge-auth path exercised end-to-end against a live Keycloak realm (Testcontainers) ✅**. Remaining hardening: mTLS between services. |
 | **1 — Master data + inventory MVP** | ✅ | Master Data ✅, Inventory projection ✅, log→projection loop proven ✅. |
 | **2 — Process engine + one equipment family** | 🟡 | **flow-orchestrator device-task lifecycle + uniform device contract ✅, conveyor adapter `POST /tasks` simulator ✅, DEVICE_VIEW/DEVICE_OPERATE RBAC ✅.** Gaps: process-engine (Flowable BPMN) ⬜, goods-in-via-BPMN ⬜. |
-| **3 — Outbound + more equipment** | 🟡 | **order-management ✅, allocation + cubing + batch picking + release management ✅, inventory reservation/ATP ✅, dispatch labels/services/routes ✅ (incl. integration-sap label-barcode + route feed).** Gaps: host-integration gateways are skeletal (real SAP/Manhattan protocols ⬜, integration-manhattan ⬜); the *BPMN* outbound process ⬜; more adapters ⬜. |
+| **3 — Outbound + more equipment** | 🟡 | **order-management ✅, allocation + cubing + batch picking + release management ✅, inventory reservation/ATP ✅, dispatch labels/services/routes ✅ (incl. integration-sap label-barcode + route feed).** Gaps: host-integration gateways translate into the canonical Host API but the real SAP/Manhattan wire protocols (OData/BAPI/IDoc, Manhattan REST) are still skeletal ⬜; the *BPMN* outbound process ⬜; more adapters ⬜. |
 | **4 — Counting & operations** | 🟡 | `StockAdjusted` projection ✅; cycle-count process ⬜; dashboards/alerting ⬜. |
 | **5 — Hardening & scale** | ⬜ | DLQs, circuit breakers, replay tooling, perf, security review. |
 
@@ -74,6 +74,7 @@ validation). **Gradle wrapper committed.** Helm/k8s ⬜.
 | adapters/conveyor | `main_test.go` | Go httptest (`POST /tasks`: COMPLETED, FAILED on unknown command, 405 on GET) |
 | gateway | `GatewayAuthEndToEndTest` | Testcontainers (live Keycloak + imported `openwcs` realm): no token → 401, realm JWT → 200 + identity propagated, client-supplied `X-Auth-*` stripped (anti-spoof) |
 | integration-sap | `LabelControllerTest`, `RouteFeedControllerTest`, `SapOrderControllerTest` | MockMvc (label-barcode; route-feed upsert; SAP order → Host API translation with material→SKU + unknown-material 422) |
+| integration-manhattan | `ManhattanOrderControllerTest` | MockMvc (Manhattan order → Host API translation with item→SKU + unknown-item 422) |
 | integration-host | `HostControllerTest`, `ConfirmationControllerTest`, `HostReferenceControllerTest`, `HostInventoryControllerTest`, `IdempotencyFilterTest`, `WebhookDispatcherTest` | Testcontainers + MockMvc + mocked clients (order/ASN mapping; confirmations cursor feed; SKU upsert; adjustment → StockAdjusted append; `Idempotency-Key` replay; webhook push advances cursor) |
 
 ---
