@@ -28,7 +28,8 @@ What is **actually implemented** today (not the target architecture). Design int
 | txlog | 8086 | ✅ | Append-only event log + transactional outbox + relay to `txlog.stream`. |
 | iam | 8087 | ✅ | openWCS authorization model: users → roles → coded permissions (Keycloak does auth). |
 | flow-orchestrator | 8085 | 🟡 | Device-task lifecycle over the uniform device contract; routes to adapters by family (below). |
-| process-engine / notification / integration-sap / integration-manhattan | 8083/8088–8090 | 🟦 | Scaffold (health/info only). |
+| integration-sap | 8089 | 🟡 | Host gateway (skeleton) + `POST /api/integration/sap/labels`: per-shipper dispatch-label barcode allocation (simulated host). |
+| process-engine / notification / integration-manhattan | 8083/8088/8090 | 🟦 | Scaffold (health/info only). |
 | adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop + `POST /tasks` device-task simulator. |
 | adapters/{asrs,amr-geekplus,autostore} | 9092–9094 | 🟦 | Go; health/readiness + stub loop. |
 | ui | 5173 | 🟦 | Vite skeleton. |
@@ -148,7 +149,8 @@ default) and passes the dispatch context to allocation.
   context, each carton gets a `DispatchLabel` — the resolved label template, the shared fields
   (ship-to name/address block, service, route, `carton seq/total`, orderRef), and a **barcode
   requested from the host system per shipper** (the barcode is only knowable once cubing has
-  produced the cartons; via a `HostLabelClient` port, simulated until the host integration lands).
+  produced the cartons; via a `HostLabelClient` port → the **integration-sap** gateway when
+  `openwcs.allocation.host-label-base-url` is set (compose), or a built-in simulator otherwise).
   If a SKU is larger than the **biggest** available
   carton the order cannot be cubed: no shippers are produced, any held reservations are
   released, and the plan is parked in **`CUBING_FAILED`** with a `statusDetail` reason (the

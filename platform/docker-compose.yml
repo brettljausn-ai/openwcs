@@ -128,6 +128,8 @@ services:
       SPRING_DATASOURCE_PASSWORD: openwcs
       OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
       OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
+      # Per-shipper dispatch-label barcodes come from the host via integration-sap (ADR 0002).
+      OPENWCS_ALLOCATION_HOST_LABEL_BASE_URL: http://integration-sap:8089
 
   flow-orchestrator:
     profiles: ["apps"]

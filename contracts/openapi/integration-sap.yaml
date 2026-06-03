@@ -1,0 +1,49 @@
+openapi: 3.0.3
+info:
+  title: openWCS SAP Integration API
+  version: 0.1.0
+  description: >
+    Host integration gateway / anti-corruption layer for SAP. Currently exposes per-shipper
+    dispatch-label barcode allocation: after cubing produces the cartons, allocation requests a
+    unique label barcode per shipper from the host. (Skeleton: returns a deterministic barcode;
+    the real OData/BAPI/RFC call is wired later.)
+servers:
+  - url: /api/integration/sap
+    description: Via the API gateway
+
+tags:
+  - name: Labels
+
+paths:
+  /labels:
+    post:
+      tags: [Labels]
+      summary: Allocate a label barcode for one shipper
+      operationId: allocateLabelBarcode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LabelBarcodeRequest' }
+      responses:
+        "200":
+          description: Allocated barcode
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LabelBarcodeResponse' }
+
+components:
+  schemas:
+    LabelBarcodeRequest:
+      type: object
+      required: [orderRef, seqNo]
+      properties:
+        orderRef: { type: string }
+        warehouseId: { type: string, format: uuid, nullable: true }
+        serviceCode: { type: string, nullable: true }
+        routeCode: { type: string, nullable: true }
+        seqNo: { type: integer, description: Carton sequence within the order (1..N). }
+    LabelBarcodeResponse:
+      type: object
+      properties:
+        barcode: { type: string }
