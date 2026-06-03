@@ -34,7 +34,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | process-engine / notification | 8083/8088 | 🟦 | Scaffold (health/info only). |
 | adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop + `POST /tasks` device-task simulator. |
 | adapters/{asrs,amr-geekplus,autostore} | 9092–9094 | 🟦 | Go; health/readiness + stub loop. |
-| ui | 5173 | 🟦 | Vite skeleton. |
+| ui | 5173 | 🟡 | React/Vite; **conveyor topology editor** (React Flow: drag nodes, draw edges, set hardware address + loops) over the topology API. |
 
 All Java services: Java 21 / Spring Boot 3.3.2, PostgreSQL 16 via Flyway + JPA/Hibernate 6
 (`ddl-auto: validate` — migrations own the schema), UUID keys, JSONB via `@JdbcTypeCode`.
@@ -241,8 +241,10 @@ barcode → `NO_ROUTE`. The whole graph is loaded/saved via `GET`/`PUT /conveyor
 admin editor. **Loop capacity**: a node can belong to a named loop with a max HU count; when a
 scan would route an HU into a loop that is at capacity, the WCS either `HOLD`s it (wait upstream,
 re-evaluated next scan) or diverts it to the loop's `OVERFLOW` target — configurable per loop.
-Occupancy is the count of active routes whose last-scanned node is in that loop. The **schematic
-UI editor** and a traffic-sniffing **topology-discovery** seam are the remaining follow-ups.
+Occupancy is the count of active routes whose last-scanned node is in that loop. An **admin
+schematic editor** (the `ui` app, React Flow) loads/saves the whole graph — drag nodes, draw
+edges, set per-node hardware address, and define loops. A traffic-sniffing **topology-discovery**
+seam is the remaining follow-up.
 
 ## 7c. Host API (integration-host)
 
