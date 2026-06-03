@@ -7,6 +7,8 @@ openwcs:
   integration:
     # master-data catalog: the host route feed is upserted into the Route catalog (build.md §16).
     master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
+    # Canonical Host API: SAP orders/ASNs are translated into it (anti-corruption layer).
+    host-api-base-url: ${OPENWCS_HOST_API_BASE_URL:http://localhost:8092}
 management:
   endpoints:
     web:

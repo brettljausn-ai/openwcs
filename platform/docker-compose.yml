@@ -177,10 +177,12 @@ services:
     profiles: ["apps"]
     build: ../services/integration-sap
     ports: ["8089:8089"]
-    depends_on: [postgres, kafka, master-data]
+    depends_on: [postgres, kafka, master-data, integration-host]
     environment:
-      # Host gateway: label-barcode allocation + route feed upserted into the master-data catalog.
+      # Host gateway: label-barcode allocation + route feed upserted into the master-data catalog;
+      # SAP orders/ASNs are translated into the canonical Host API.
       OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
+      OPENWCS_HOST_API_BASE_URL: http://integration-host:8092
 
   integration-manhattan:
     profiles: ["apps"]

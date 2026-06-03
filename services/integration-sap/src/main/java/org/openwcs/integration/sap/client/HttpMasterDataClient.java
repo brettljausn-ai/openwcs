@@ -38,6 +38,18 @@ public class HttpMasterDataClient implements MasterDataClient {
         return UpsertResult.CREATED;
     }
 
+    @Override
+    public java.util.UUID skuIdByCode(String code) {
+        SkuPage page = http.get()
+                .uri(uri -> uri.path("/api/master-data/skus").queryParam("code", code).build())
+                .retrieve()
+                .body(SkuPage.class);
+        if (page == null || page.content() == null || page.content().isEmpty()) {
+            return null;
+        }
+        return java.util.UUID.fromString(page.content().get(0).id());
+    }
+
     private RouteResponse findByCode(String code) {
         List<RouteResponse> hits = http.get()
                 .uri(uri -> uri.path("/api/master-data/routes").queryParam("code", code).build())
@@ -48,5 +60,11 @@ public class HttpMasterDataClient implements MasterDataClient {
     }
 
     private record RouteResponse(String id, String code, String status) {
+    }
+
+    private record SkuPage(List<SkuRef> content) {
+    }
+
+    private record SkuRef(String id, String code) {
     }
 }

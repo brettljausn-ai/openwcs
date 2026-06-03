@@ -14,8 +14,36 @@ servers:
 tags:
   - name: Labels
   - name: Routes
+  - name: Orders
 
 paths:
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Translate a SAP order into the canonical Host API
+      description: Anti-corruption layer — reshapes a SAP order and resolves materials to SKUs, then calls /api/host/orders.
+      operationId: sapOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SapOrder' }
+      responses:
+        "200": { description: Accepted and forwarded }
+        "422": { description: A material could not be resolved to a SKU }
+  /asns:
+    post:
+      tags: [Orders]
+      summary: Translate a SAP inbound delivery into the canonical Host API (ASN)
+      operationId: sapAsn
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SapAsn' }
+      responses:
+        "200": { description: Accepted and forwarded }
+        "422": { description: A material could not be resolved to a SKU }
   /routes/sync:
     post:
       tags: [Routes]
@@ -81,3 +109,39 @@ components:
         received: { type: integer }
         created: { type: integer }
         updated: { type: integer }
+    SapItem:
+      type: object
+      properties:
+        material: { type: string, description: SAP material number (resolved to a SKU code). }
+        quantity: { type: number }
+    SapShipTo:
+      type: object
+      properties:
+        name: { type: string }
+        street: { type: string }
+        city: { type: string }
+        postalCode: { type: string }
+        country: { type: string }
+    SapOrder:
+      type: object
+      required: [salesOrder, warehouseId]
+      properties:
+        salesOrder: { type: string }
+        warehouseId: { type: string, format: uuid }
+        soldTo: { type: string }
+        serviceCode: { type: string }
+        routeCode: { type: string }
+        shipTo: { $ref: '#/components/schemas/SapShipTo' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SapItem' }
+    SapAsn:
+      type: object
+      required: [inboundDelivery, warehouseId]
+      properties:
+        inboundDelivery: { type: string }
+        warehouseId: { type: string, format: uuid }
+        supplier: { type: string }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SapItem' }
