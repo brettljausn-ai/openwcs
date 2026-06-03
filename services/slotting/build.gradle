@@ -11,6 +11,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
+    // Consumes the streamed transaction log (topic txlog.stream) to learn SKU velocity (build.md §9).
+    implementation 'org.springframework.kafka:spring-kafka'
+
     // Service-local `slotting` store; calls master-data + inventory over REST.
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'

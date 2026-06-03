@@ -11,4 +11,7 @@ public interface BlockPolicyRepository extends JpaRepository<BlockPolicy, UUID> 
 
     /** Blocks with re-slotting switched on — drives the off-peak re-slot scheduler. */
     List<BlockPolicy> findByReslotEnabledTrue();
+
+    /** Policies for a warehouse — the auto-ABC classifier reads its EWMA/share knobs from here. */
+    List<BlockPolicy> findByWarehouseId(UUID warehouseId);
 }
