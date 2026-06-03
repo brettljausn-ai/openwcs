@@ -21,3 +21,6 @@ ui/dist/
 .vscode/
 *.iml
 .DS_Store
+
+# Agent worktrees (isolated subagent checkouts)
+.claude/worktrees/

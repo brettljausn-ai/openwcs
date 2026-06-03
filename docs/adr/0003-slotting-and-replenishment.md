@@ -65,3 +65,34 @@ balancing wants the emptiest), so the design needs a deliberate reconciliation, 
   replenishment.
 - Granularity matches reality: automated blocks slot at the pool level (random/dynamic storage),
   manual faces stay fixed so pickers/pick-by-light rely on stable locations.
+
+## Refinements (implemented since)
+
+The design above shipped first; these refinements followed (each its own PR), all on the same engine:
+
+1. **Single-SKU-per-lane is soft, not hard.** The scorer no longer excludes a lane holding a
+   different SKU; a `lane-affinity` term (weight `wConsolidation`) rewards a same-SKU lane (+1),
+   is neutral on empty lanes (0) and penalises mixing (−1), so a higher `wBalance` can outweigh it.
+   Hard constraints are only lane capacity and the max-%-per-aisle cap.
+2. **HU type capabilities + per-area allow-lists.** `handling_unit_type` gains `compartments` (1–8),
+   `storable_in_automation`, `transportable_on_conveyor`; `storage_block` gains `allowed_hu_types`.
+   Put-away rejects an HU type a block (or location) doesn't permit — so "conveyable but not
+   storable in automation" is enforced by the per-area allow-list.
+3. **Empty-HU placement.** Empty carriers (no SKU) are placed at the location **farthest from the
+   aisle exit** and flagged **LOW** transport priority; they're a buffer for decanting.
+4. **Multi-compartment HUs (1–8, a SKU per compartment).** The **dominant** compartment (most qty)
+   drives velocity/redundancy/cap; lane affinity matches on the **compartment SKU set** (single-SKU
+   HUs are a one-element set). Assignments persist `sku_ids`.
+5. **Cell-as-location coordinates.** A storage location row is one cell, uniquely identified by
+   `(warehouse, aisle, side, pos_x, pos_y, pos_z)`, so an HU's position is always exactly known; a
+   multi-deep lane = cells sharing `(aisle, side, pos_x, pos_y)` over `pos_z`.
+6. **Self-taught, recency-weighted ABC velocity** (supersedes decision 7's "future enhancement"):
+   the `slotting` service consumes `txlog.stream` movements, maintains a per-SKU EWMA pick-frequency
+   (configurable half-life), and an off-peak job assigns A/B/C onto `storage_profile` unless a
+   `manual_override` is set — so spiking/new-season SKUs ramp to A fast and decay.
+
+**Still fast-follows:** physical move dispatch (put-away/replenishment/re-slot/decant) via
+flow-orchestrator; txlog audit events; inventory-truth occupancy + HU live-location booking (incl.
+on-conveyor); the goods-in **decant** step (a process gateway: not storable in the target automation
+→ decant into a storable HU → put away); and the engine grouping cells into deep lanes
+(deepest-empty-first fill) now that locations are cells.
