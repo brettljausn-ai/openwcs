@@ -1,0 +1,5 @@
+# openWCS product site
+User-agent: *
+Allow: /
+
+Sitemap: https://brettljausn-ai.github.io/openwcs/sitemap.xml
