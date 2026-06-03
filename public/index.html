@@ -21,8 +21,10 @@
   <meta property="og:description" content="Orchestrate conveyors, ASRS, AMRs and AutoStore between your WMS/ERP and the machines — open, vendor-neutral, and yours to change." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://brettljausn-ai.github.io/openwcs/" />
-  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/favicon.png" />
-  <meta property="og:image:alt" content="openWCS logo" />
+  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
+  <meta property="og:image:width" content="800" />
+  <meta property="og:image:height" content="447" />
+  <meta property="og:image:alt" content="openWCS — open-source warehouse control system orchestrating an automated warehouse" />
   <meta property="og:locale" content="en_US" />
   <meta property="og:locale:alternate" content="de_DE" />
   <meta property="og:locale:alternate" content="fr_FR" />
@@ -32,7 +34,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="openWCS — the open Warehouse Control System" />
   <meta name="twitter:description" content="The transparent, vendor-neutral alternative to locked-in WCS apps from integrators. Open source (AGPL-3.0), self-hosted, yours to change." />
-  <meta name="twitter:image" content="https://brettljausn-ai.github.io/openwcs/favicon.png" />
+  <meta name="twitter:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
 
   <!-- Structured data -->
   <script type="application/ld+json">
@@ -45,7 +47,7 @@
     "operatingSystem": "Linux, Docker",
     "description": "An open-source Warehouse Control System that orchestrates automated material-handling equipment — conveyors, ASRS, AMRs and AutoStore — between the WMS/ERP and the machines. Vendor-neutral, self-hosted, and admin-configurable.",
     "url": "https://brettljausn-ai.github.io/openwcs/",
-    "image": "https://brettljausn-ai.github.io/openwcs/favicon.png",
+    "image": "https://brettljausn-ai.github.io/openwcs/openwcs.png",
     "license": "https://www.gnu.org/licenses/agpl-3.0.html",
     "isAccessibleForFree": true,
     "codeRepository": "https://github.com/brettljausn-ai/openwcs",
@@ -62,7 +64,7 @@
 <body id="top">
   <header class="nav">
     <div class="nav-inner">
-      <a class="brand" href="#top"><span class="logo-mark" aria-hidden="true"></span>open<b>WCS</b></a>
+      <a class="brand" href="#top"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
       <nav class="nav-links">
         <a href="#capabilities" data-i18n="navCap">Capabilities</a>
         <a href="#why" data-i18n="navWhy">Why open</a>
@@ -70,12 +72,19 @@
         <a href="#architecture" data-i18n="navArch">Architecture</a>
       </nav>
       <div class="nav-right">
-        <select id="lang-select" class="lang-select" aria-label="Language">
-          <option value="en">English</option>
-          <option value="de">Deutsch</option>
-          <option value="fr">Français</option>
-          <option value="es">Español</option>
-        </select>
+        <div class="lang" id="lang">
+          <button class="lang-toggle" id="lang-toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Select language">
+            <svg class="globe" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg>
+            <span class="lang-code" id="lang-code">EN</span>
+            <svg class="chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <ul class="lang-menu" id="lang-menu" role="listbox" aria-label="Language">
+            <li role="option" data-lang="en"><span>English</span></li>
+            <li role="option" data-lang="de"><span>Deutsch</span></li>
+            <li role="option" data-lang="fr"><span>Français</span></li>
+            <li role="option" data-lang="es"><span>Español</span></li>
+          </ul>
+        </div>
         <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
       </div>
     </div>
@@ -98,8 +107,9 @@
         </div>
         <p class="hero-note" data-i18n="heroNote">AGPL-3.0 open source · self-host · no per-flow license fees</p>
       </div>
-      <div class="hero-visual" aria-hidden="true">
-        <span class="hero-mark"></span>
+      <div class="hero-visual">
+        <img class="hero-img" src="openwcs.png" width="800" height="447"
+             alt="openWCS orchestrating an automated warehouse — conveyors, racking and robots" />
       </div>
     </div>
 
