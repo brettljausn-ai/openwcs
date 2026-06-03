@@ -57,6 +57,10 @@ public class WarehouseFulfillmentConfig extends Auditable {
     @Column(name = "pick_tote_shipper_id")
     private UUID pickToteShipperId;
 
+    /** Fallback dispatch-label template (label-template code) when an order/service sets none. */
+    @Column(name = "default_label_template_code")
+    private String defaultLabelTemplateCode;
+
     public UUID getId() {
         return id;
     }
@@ -127,5 +131,13 @@ public class WarehouseFulfillmentConfig extends Auditable {
 
     public void setPickToteShipperId(UUID pickToteShipperId) {
         this.pickToteShipperId = pickToteShipperId;
+    }
+
+    public String getDefaultLabelTemplateCode() {
+        return defaultLabelTemplateCode;
+    }
+
+    public void setDefaultLabelTemplateCode(String defaultLabelTemplateCode) {
+        this.defaultLabelTemplateCode = defaultLabelTemplateCode;
     }
 }

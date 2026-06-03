@@ -1291,6 +1291,7 @@ components:
         code: { type: string, example: EXPRESS }
         name: { type: string, nullable: true }
         carrier: { type: string, nullable: true, example: DPD }
+        labelTemplateCode: { type: string, nullable: true, description: Default dispatch-label template for this service. }
         status: { type: string, default: ACTIVE, enum: [ACTIVE, ARCHIVED] }
     Route:
       type: object

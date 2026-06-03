@@ -47,10 +47,12 @@ class DispatchCatalogApiTest {
         String created = mockMvc.perform(post("/api/master-data/shipping-services")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(om.writeValueAsString(Map.of(
-                                "code", "EXPRESS", "name", "Next-day express", "carrier", "DPD"))))
+                                "code", "EXPRESS", "name", "Next-day express", "carrier", "DPD",
+                                "labelTemplateCode", "SHIP-4X6"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.labelTemplateCode").value("SHIP-4X6"))
                 .andReturn().getResponse().getContentAsString();
         String id = om.readTree(created).get("id").asText();
 

@@ -32,6 +32,10 @@ public class ShippingService extends Auditable {
     @Column(name = "carrier")
     private String carrier;
 
+    /** Default dispatch-label template (master-data label-template code) for this service. */
+    @Column(name = "label_template_code")
+    private String labelTemplateCode;
+
     @Column(name = "status", nullable = false)
     private String status = "ACTIVE";
 
@@ -65,6 +69,14 @@ public class ShippingService extends Auditable {
 
     public void setCarrier(String carrier) {
         this.carrier = carrier;
+    }
+
+    public String getLabelTemplateCode() {
+        return labelTemplateCode;
+    }
+
+    public void setLabelTemplateCode(String labelTemplateCode) {
+        this.labelTemplateCode = labelTemplateCode;
     }
 
     public String getStatus() {
