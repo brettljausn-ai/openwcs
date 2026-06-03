@@ -36,7 +36,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop + `POST /tasks` device-task simulator. |
 | adapters/{asrs,amr-geekplus,autostore} | 9092–9094 | 🟦 | Go; health/readiness + stub loop. |
 | adapters/conveyor-sniffer | 9095 | 🟡 | Go; ingests scan telegrams from defined source IPs (allowlist + pluggable decoder) and posts observations to the WCS for topology learning. |
-| ui | 5173 | 🟡 | React/Vite; **conveyor topology editor** (React Flow: drag nodes, draw edges, set hardware address + loops) over the topology API. |
+| ui | 5173 | 🟡 | React/Vite; **conveyor topology editor** (React Flow) + **BPMN process designer** (bpmn-js: model/deploy processes, start instances, complete user tasks), tab-switched. |
 
 All Java services: Java 21 / Spring Boot 3.3.2, PostgreSQL 16 via Flyway + JPA/Hibernate 6
 (`ddl-auto: validate` — migrations own the schema), UUID keys, JSONB via `@JdbcTypeCode`.

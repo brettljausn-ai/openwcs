@@ -166,7 +166,7 @@ export default function TopologyEditor() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'var(--font-body, sans-serif)' }}>
+    <div style={{ display: 'flex', height: '100%', fontFamily: 'var(--font-body, sans-serif)' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '0.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', borderBottom: '1px solid #ddd' }}>
           <strong>Conveyor topology</strong>
