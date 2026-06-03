@@ -3,6 +3,23 @@ server:
 spring:
   application:
     name: process-engine
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/openwcs}
+    username: ${SPRING_DATASOURCE_USERNAME:openwcs}
+    password: ${SPRING_DATASOURCE_PASSWORD:openwcs}
+
+# Flowable BPMN engine (build.md §7). It manages its own ACT_* tables (database-schema-update);
+# async executor off (steps run inline for now); audit history so instances are queryable.
+flowable:
+  database-schema-update: true
+  async-executor-activate: false
+  history-level: audit
+
+openwcs:
+  process:
+    # Service tasks originate work in the WCS; delegates call these services.
+    flow-orchestrator-base-url: ${OPENWCS_FLOW_ORCHESTRATOR_BASE_URL:http://localhost:8085}
+
 management:
   endpoints:
     web:

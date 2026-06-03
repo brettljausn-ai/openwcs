@@ -8,5 +8,15 @@ dependencies {
     implementation project(':libs:common')
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // Embedded BPMN engine (build.md §7). The process starter is BPMN-only (no IDM/app/UI);
+    // it manages its own ACT_* tables on the shared datasource.
+    implementation 'org.flowable:flowable-spring-boot-starter-process:7.1.0'
+
+    runtimeOnly 'org.postgresql:postgresql'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.testcontainers:junit-jupiter:1.20.1'
+    testImplementation 'org.testcontainers:postgresql:1.20.1'
 }

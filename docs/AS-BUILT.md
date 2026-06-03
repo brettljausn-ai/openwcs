@@ -31,7 +31,8 @@ What is **actually implemented** today (not the target architecture). Design int
 | integration-host | 8092 | 🟡 | Canonical vendor-neutral **Host API** (`/api/host/**`): orders + ASNs in, confirmations (cursor feed) out. |
 | integration-sap | 8089 | 🟡 | Host gateway (skeleton): `POST /labels` (per-shipper dispatch-label barcode), `POST /routes/sync` (→ master-data Route catalog), and `POST /orders` + `/asns` translating SAP messages into the canonical Host API. |
 | integration-manhattan | 8090 | 🟡 | Host gateway (skeleton): `POST /orders` + `/asns` translating Manhattan Active messages into the canonical Host API. |
-| process-engine / notification | 8083/8088 | 🟦 | Scaffold (health/info only). |
+| process-engine | 8083 | 🟡 | Embedded **Flowable BPMN** engine: deploy process definitions, start/inspect instances; service tasks originate WCS work (e.g. device tasks). |
+| notification | 8088 | 🟦 | Scaffold (health/info only). |
 | adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop + `POST /tasks` device-task simulator. |
 | adapters/{asrs,amr-geekplus,autostore} | 9092–9094 | 🟦 | Go; health/readiness + stub loop. |
 | adapters/conveyor-sniffer | 9095 | 🟡 | Go; ingests scan telegrams from defined source IPs (allowlist + pluggable decoder) and posts observations to the WCS for topology learning. |
@@ -59,6 +60,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 | `iam` | iam | role, role_permission, app_user, user_role |
 | `flow` | flow-orchestrator | device_task |
 | `host_integration` | integration-host | idempotency_key, webhook_subscription |
+| `ACT_*` (public) | process-engine | Flowable's own engine tables (it manages its schema; a documented exception to schema-per-service) |
 
 ---
 
@@ -283,6 +285,26 @@ resolve materials/items to SKUs, then call `/api/host/orders`,`/asns`).
 
 Mostly a translation layer over order-management + master-data + txlog; its only state is the
 small `host_integration` schema (idempotency keys + webhook subscriptions/cursors).
+
+## 7d. Process engine (Flowable BPMN)
+
+An embedded **Flowable** BPMN engine (build.md §7) runs admin-designed processes (`/api/process`,
+see `contracts/openapi/process-engine.yaml`). The engine manages its own `ACT_*` tables on the
+shared datasource (`database-schema-update`; async executor off — steps run inline for now;
+audit history).
+
+- `GET/POST /process/definitions` — list / deploy BPMN 2.0 definitions (raw XML); processes on
+  the classpath under `processes/*.bpmn20.xml` are auto-deployed at startup.
+- `POST /process/instances` — start an instance (`processKey`, optional `businessKey` + variables);
+  `GET /process/instances/{id}` — running or historic status.
+- **Service tasks originate WCS work** via Spring-bean delegates referenced as
+  `flowable:delegateExpression="${...}"`. The shipped `dispatchDeviceTask` delegate reads process
+  variables and calls flow-orchestrator to create a device task — so a BPMN process can drive
+  equipment. A sample `goods-in` process demonstrates this (start → dispatch device task → end).
+
+This closes the Phase 2 gap where device tasks/routes were driven only directly via the API:
+a process can now originate them. Richer processes (receiving/putaway, outbound, cycle count)
+and a process designer UI are follow-ups.
 
 ## 8. The two working vertical slices
 
