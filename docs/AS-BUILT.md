@@ -238,8 +238,11 @@ shortest path (`RoutingEngine`, Dijkstra — recomputed per scan, so topology ch
 automatically), and replies `{action: ROUTE, exitCode, toNode}`; as each target is reached the
 plan advances, ending in `COMPLETE`. Unknown node / unreachable target → `EXCEPTION`; unknown
 barcode → `NO_ROUTE`. The whole graph is loaded/saved via `GET`/`PUT /conveyor/topology` for the
-admin editor. **Loop capacity limits** (HOLD/OVERFLOW) and the **schematic UI editor** are
-follow-up increments; a traffic-sniffing **topology-discovery** seam is planned.
+admin editor. **Loop capacity**: a node can belong to a named loop with a max HU count; when a
+scan would route an HU into a loop that is at capacity, the WCS either `HOLD`s it (wait upstream,
+re-evaluated next scan) or diverts it to the loop's `OVERFLOW` target — configurable per loop.
+Occupancy is the count of active routes whose last-scanned node is in that loop. The **schematic
+UI editor** and a traffic-sniffing **topology-discovery** seam are the remaining follow-ups.
 
 ## 7c. Host API (integration-host)
 

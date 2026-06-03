@@ -44,6 +44,16 @@ public final class RoutingDtos {
         public static RoutingDecision exception(String detail) {
             return new RoutingDecision("EXCEPTION", null, null, null, null, detail);
         }
+
+        /** A loop the HU would enter is at capacity; wait upstream and re-evaluate next scan. */
+        public static RoutingDecision hold(String currentTarget, String detail) {
+            return new RoutingDecision("HOLD", null, null, null, currentTarget, detail);
+        }
+
+        /** Loop full: diverted to the loop's overflow target instead of entering. */
+        public static RoutingDecision overflow(String exitCode, String toNode, String currentTarget, String detail) {
+            return new RoutingDecision("ROUTE", exitCode, toNode, null, currentTarget, detail);
+        }
     }
 
     /** Register/replace a handling unit's ordered target node codes. */
@@ -56,12 +66,17 @@ public final class RoutingDtos {
     }
 
     /** The whole conveyor graph for a warehouse — the load/save shape for the admin editor. */
-    public record Topology(List<NodeDto> nodes, List<EdgeDto> edges) {
+    public record Topology(List<NodeDto> nodes, List<EdgeDto> edges, List<LoopDto> loops) {
     }
 
-    public record NodeDto(String code, String name, String hardwareAddress, Double posX, Double posY) {
+    public record NodeDto(String code, String name, String hardwareAddress, Double posX, Double posY,
+                          String loopCode) {
     }
 
     public record EdgeDto(String fromCode, String toCode, String exitCode, Integer cost) {
+    }
+
+    /** A looping section: capacity + what to do when full (HOLD or OVERFLOW to a target). */
+    public record LoopDto(String code, int maxHus, String whenFull, String overflowTarget) {
     }
 }
