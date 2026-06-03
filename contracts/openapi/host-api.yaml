@@ -15,8 +15,45 @@ servers:
 tags:
   - name: Orders
   - name: Confirmations
+  - name: MasterData
+  - name: Inventory
 
 paths:
+  /masterdata/skus:
+    post:
+      tags: [MasterData]
+      summary: Upsert a SKU (host-driven master-data sync)
+      operationId: upsertHostSku
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HostSku' }
+      responses:
+        "200":
+          description: Upsert result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpsertResponse' }
+        "400": { description: Invalid request }
+  /inventory/adjustments:
+    post:
+      tags: [Inventory]
+      summary: Post a stock adjustment (signed delta)
+      description: Emitted as a StockAdjusted event to the transaction log; the inventory projection applies it.
+      operationId: postInventoryAdjustment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InventoryAdjustment' }
+      responses:
+        "200":
+          description: Appended event identifiers
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Appended' }
+        "400": { description: Invalid request }
   /orders:
     post:
       tags: [Orders]
@@ -142,3 +179,34 @@ components:
           type: array
           items: { $ref: '#/components/schemas/Confirmation' }
         nextCursor: { type: integer, format: int64 }
+    HostSku:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
+        description: { type: string, nullable: true }
+        ownerClient: { type: string, nullable: true }
+        batchTracked: { type: boolean, nullable: true }
+        serialTracked: { type: boolean, nullable: true }
+        dateTracked: { type: boolean, nullable: true }
+    UpsertResponse:
+      type: object
+      properties:
+        code: { type: string }
+        result: { type: string, enum: [CREATED, UPDATED] }
+    InventoryAdjustment:
+      type: object
+      required: [warehouseId, skuId, qtyDelta]
+      properties:
+        warehouseId: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        locationId: { type: string, format: uuid, nullable: true }
+        qtyDelta: { type: number, description: Signed delta (negative to reduce). }
+        uomCode: { type: string, nullable: true }
+        status: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+    Appended:
+      type: object
+      properties:
+        eventId: { type: string }
+        position: { type: integer, format: int64 }

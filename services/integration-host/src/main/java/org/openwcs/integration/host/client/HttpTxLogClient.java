@@ -1,6 +1,8 @@
 package org.openwcs.integration.host.client;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
@@ -28,5 +30,19 @@ public class HttpTxLogClient implements TxLogClient {
                 .body(new ParameterizedTypeReference<List<TxEvent>>() {
                 });
         return events == null ? List.of() : events;
+    }
+
+    @Override
+    public Appended append(String streamId, String eventType, String actor, Map<String, Object> payload) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("streamId", streamId);
+        body.put("eventType", eventType);
+        body.put("actor", actor);
+        body.put("payload", payload);
+        return http.post()
+                .uri("/api/txlog/events")
+                .body(body)
+                .retrieve()
+                .body(Appended.class);
     }
 }

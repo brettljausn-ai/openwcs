@@ -192,11 +192,13 @@ services:
     profiles: ["apps"]
     build: ../services/integration-host
     ports: ["8092:8092"]
-    depends_on: [order-management, txlog]
+    depends_on: [order-management, txlog, master-data]
     environment:
-      # Canonical Host API → domain services (orders in, confirmations from the txlog feed).
+      # Canonical Host API → domain services (orders in, confirmations from the txlog feed,
+      # master-data SKU upserts, inventory adjustments appended to the txlog).
       OPENWCS_ORDER_MANAGEMENT_BASE_URL: http://order-management:8084
       OPENWCS_TXLOG_BASE_URL: http://txlog:8086
+      OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
 
   conveyor-adapter:
     profiles: ["apps"]
