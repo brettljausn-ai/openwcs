@@ -11,6 +11,9 @@ public interface MasterDataClient {
     /** Candidate storage locations in a block (the slotting pool), with their lane attributes. */
     List<StorageLocation> storageLocations(UUID warehouseId, UUID blockId);
 
+    /** A storage block's slotting metadata, incl. its allowed-HU-types allow-list (null if unknown). */
+    Block block(UUID blockId);
+
     record StorageLocation(
             UUID id,
             String code,
@@ -21,6 +24,15 @@ public interface MasterDataClient {
             Integer laneDepth,
             BigDecimal distanceToExit,
             Map<String, Object> capacity,
-            String status) {
+            String status,
+            List<String> allowedHuTypes) {
+    }
+
+    record Block(
+            UUID id,
+            String storageType,
+            String slottingGranularity,
+            boolean gtp,
+            List<String> allowedHuTypes) {
     }
 }

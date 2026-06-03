@@ -37,6 +37,18 @@ public class HandlingUnitType extends Auditable {
     @Column(name = "nestable", nullable = false)
     private boolean nestable;
 
+    /** Number of compartments (1–8); each compartment can hold a different SKU. */
+    @Column(name = "compartments", nullable = false)
+    private int compartments = 1;
+
+    /** Whether this HU type may be stored inside an automated system (ASRS/AutoStore/AMR-GTP). */
+    @Column(name = "storable_in_automation", nullable = false)
+    private boolean storableInAutomation = true;
+
+    /** Whether this HU type can travel on a conveyor (some are conveyable but not storable). */
+    @Column(name = "transportable_on_conveyor", nullable = false)
+    private boolean transportableOnConveyor = true;
+
     public UUID getId() {
         return id;
     }
@@ -91,5 +103,29 @@ public class HandlingUnitType extends Auditable {
 
     public void setNestable(boolean nestable) {
         this.nestable = nestable;
+    }
+
+    public int getCompartments() {
+        return compartments;
+    }
+
+    public void setCompartments(int compartments) {
+        this.compartments = compartments;
+    }
+
+    public boolean isStorableInAutomation() {
+        return storableInAutomation;
+    }
+
+    public void setStorableInAutomation(boolean storableInAutomation) {
+        this.storableInAutomation = storableInAutomation;
+    }
+
+    public boolean isTransportableOnConveyor() {
+        return transportableOnConveyor;
+    }
+
+    public void setTransportableOnConveyor(boolean transportableOnConveyor) {
+        this.transportableOnConveyor = transportableOnConveyor;
     }
 }

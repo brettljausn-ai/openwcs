@@ -6,7 +6,10 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.util.List;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * A storage block — a group of storage locations slotted as one pool (ADR 0003).
@@ -45,6 +48,11 @@ public class StorageBlock extends Auditable {
 
     @Column(name = "is_gtp", nullable = false)
     private boolean gtp = false;
+
+    /** HU type names this block (automated area) accepts; null/empty = accept any. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "allowed_hu_types")
+    private List<String> allowedHuTypes;
 
     @Column(name = "status", nullable = false)
     private String status = "ACTIVE";
@@ -103,6 +111,14 @@ public class StorageBlock extends Auditable {
 
     public void setGtp(boolean gtp) {
         this.gtp = gtp;
+    }
+
+    public List<String> getAllowedHuTypes() {
+        return allowedHuTypes;
+    }
+
+    public void setAllowedHuTypes(List<String> allowedHuTypes) {
+        this.allowedHuTypes = allowedHuTypes;
     }
 
     public String getStatus() {

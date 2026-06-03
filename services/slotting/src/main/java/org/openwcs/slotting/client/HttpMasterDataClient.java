@@ -29,6 +29,18 @@ public class HttpMasterDataClient implements MasterDataClient {
         return page.content();
     }
 
+    @Override
+    public Block block(UUID blockId) {
+        try {
+            return http.get()
+                    .uri("/api/master-data/storage-blocks/{id}", blockId)
+                    .retrieve()
+                    .body(Block.class);
+        } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
+            return null;
+        }
+    }
+
     private record LocationPage(List<StorageLocation> content) {
     }
 }

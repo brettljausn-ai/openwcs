@@ -60,10 +60,12 @@ class StorageBlockTest {
         block.setStorageType("SHUTTLE_ASRS");
         block.setSlottingGranularity("BLOCK");
         block.setGtp(true);
+        block.setAllowedHuTypes(java.util.List.of("TOTE", "TRAY")); // this area only stores totes/trays
         block = blocks.save(block);
 
         assertThat(block.getId()).isNotNull();
         assertThat(blocks.findByWarehouseIdAndStorageType(wh.getId(), "SHUTTLE_ASRS")).hasSize(1);
+        assertThat(blocks.findById(block.getId()).orElseThrow().getAllowedHuTypes()).containsExactly("TOTE", "TRAY");
 
         Location lane = new Location();
         lane.setWarehouseId(wh.getId());
