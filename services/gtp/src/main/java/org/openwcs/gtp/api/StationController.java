@@ -51,6 +51,14 @@ public class StationController {
         return StationView.NodeView.from(node);
     }
 
+    /** Configure the operating modes a station supports (PICKING is always retained). */
+    @PostMapping("/{stationId}/operating-modes")
+    public StationView setSupportedModes(@PathVariable UUID stationId,
+                                         @Valid @RequestBody SetSupportedModesRequest request) {
+        GtpStation station = service.setSupportedModes(stationId, request.supportedModes());
+        return StationView.from(station, service.nodesOf(stationId));
+    }
+
     @GetMapping("/{stationId}/demand")
     public List<DemandView> demand(@PathVariable UUID stationId) {
         service.requireStation(stationId);

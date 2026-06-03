@@ -2,8 +2,10 @@ package org.openwcs.gtp.service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.openwcs.gtp.api.AddNodeRequest;
 import org.openwcs.gtp.api.CreateStationRequest;
@@ -11,6 +13,7 @@ import org.openwcs.gtp.api.NotFoundException;
 import org.openwcs.gtp.api.OpenDestinationRequest;
 import org.openwcs.gtp.domain.DestinationDemand;
 import org.openwcs.gtp.domain.GtpStation;
+import org.openwcs.gtp.domain.OperatingMode;
 import org.openwcs.gtp.domain.StationNode;
 import org.openwcs.gtp.repo.DestinationDemandRepository;
 import org.openwcs.gtp.repo.GtpStationRepository;
@@ -56,6 +59,7 @@ public class GtpStationService {
         station.setWarehouseId(request.warehouseId());
         station.setCode(request.code());
         station.setMode(mode);
+        station.setSupportedModeSet(parseModes(request.supportedModes()));
         stations.save(station);
 
         if (request.nodes() != null) {
@@ -65,6 +69,35 @@ public class GtpStationService {
             }
         }
         return station;
+    }
+
+    /**
+     * Replace the set of operating modes a station supports. An empty/blank list is rejected; PICKING
+     * is always retained so a station never loses the base flow.
+     */
+    @Transactional
+    public GtpStation setSupportedModes(UUID stationId, List<String> modes) {
+        GtpStation station = requireStation(stationId);
+        Set<OperatingMode> parsed = parseModes(modes);
+        parsed.add(OperatingMode.PICKING);
+        station.setSupportedModeSet(parsed);
+        return station;
+    }
+
+    /** Parse a list of operating-mode names into an ordered set; null/empty defaults to PICKING. */
+    private Set<OperatingMode> parseModes(List<String> modes) {
+        Set<OperatingMode> parsed = new LinkedHashSet<>();
+        if (modes != null) {
+            for (String m : modes) {
+                if (m != null && !m.isBlank()) {
+                    parsed.add(OperatingMode.parse(m.trim()));
+                }
+            }
+        }
+        if (parsed.isEmpty()) {
+            parsed.add(OperatingMode.PICKING);
+        }
+        return parsed;
     }
 
     @Transactional

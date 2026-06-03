@@ -6,13 +6,21 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * A goods-to-person workplace/station. {@code mode} documents the physical realisation of its
  * order destinations — {@code ORDER_LOCATION} (order HUs in fixed/conveyor locations) or
- * {@code PUT_WALL} (a rack of lit cubbies, typical for AMR goods-to-rack). The execution shape
- * is identical in both modes.
+ * {@code PUT_WALL} (a rack of lit cubbies, typical for AMR goods-to-rack); it is the destination
+ * <em>topology</em> and is unchanged by operating modes.
+ *
+ * <p>{@code supportedModes} is the orthogonal set of {@link OperatingMode operating modes} the
+ * station can run (what the operator does with a presented HU) — stored as a comma-separated set,
+ * mirroring the simple text style of {@code mode}. Defaults to {@code PICKING}.
  */
 @Entity
 @Table(name = "gtp_station")
@@ -32,6 +40,10 @@ public class GtpStation extends Auditable {
     /** ORDER_LOCATION | PUT_WALL. */
     @Column(name = "mode", nullable = false)
     private String mode = "ORDER_LOCATION";
+
+    /** Comma-separated set of supported {@link OperatingMode}s; at least PICKING. */
+    @Column(name = "supported_modes", nullable = false)
+    private String supportedModes = OperatingMode.PICKING.name();
 
     @Column(name = "status", nullable = false)
     private String status = "ACTIVE";
@@ -66,6 +78,35 @@ public class GtpStation extends Auditable {
 
     public void setMode(String mode) {
         this.mode = mode;
+    }
+
+    public String getSupportedModes() {
+        return supportedModes;
+    }
+
+    public void setSupportedModes(String supportedModes) {
+        this.supportedModes = supportedModes;
+    }
+
+    /** The supported operating modes as a parsed, ordered set. */
+    public Set<OperatingMode> supportedModeSet() {
+        if (supportedModes == null || supportedModes.isBlank()) {
+            return Set.of();
+        }
+        return Arrays.stream(supportedModes.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(OperatingMode::parse)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /** Store a supported-modes set as the comma-separated column value (insertion order). */
+    public void setSupportedModeSet(Set<OperatingMode> modes) {
+        this.supportedModes = modes.stream().map(OperatingMode::name).collect(Collectors.joining(","));
+    }
+
+    public boolean supports(OperatingMode mode) {
+        return supportedModeSet().contains(mode);
     }
 
     public String getStatus() {
