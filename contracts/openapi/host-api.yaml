@@ -19,8 +19,53 @@ tags:
   - name: Confirmations
   - name: MasterData
   - name: Inventory
+  - name: Webhooks
 
 paths:
+  /webhooks:
+    get:
+      tags: [Webhooks]
+      summary: List webhook subscriptions
+      operationId: listWebhooks
+      responses:
+        "200":
+          description: Subscriptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/WebhookSubscription' }
+    post:
+      tags: [Webhooks]
+      summary: Register a webhook (push confirmations to a callback URL)
+      operationId: registerWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [callbackUrl]
+              properties:
+                callbackUrl: { type: string, format: uri }
+      responses:
+        "200":
+          description: Created subscription
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookSubscription' }
+  /webhooks/{id}:
+    delete:
+      tags: [Webhooks]
+      summary: Deactivate a webhook subscription
+      operationId: deactivateWebhook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Deactivated }
   /masterdata/skus:
     post:
       tags: [MasterData]
@@ -212,3 +257,10 @@ components:
       properties:
         eventId: { type: string }
         position: { type: integer, format: int64 }
+    WebhookSubscription:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        callbackUrl: { type: string, format: uri }
+        cursor: { type: integer, format: int64, description: Last global position delivered. }
+        active: { type: boolean }

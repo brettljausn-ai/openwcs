@@ -12,8 +12,9 @@ API, so a host integrates once against a stable contract.
 
 Contract: [`contracts/openapi/host-api.yaml`](../../contracts/openapi/host-api.yaml). Port 8092.
 
-Also: `POST /api/host/masterdata/skus` (SKU upsert) and `POST /api/host/inventory/adjustments`
-(→ StockAdjusted). Any POST accepts an `Idempotency-Key` header (repeat = replay, no
-re-processing). Small `host_integration` store for idempotency keys.
-
-Roadmap: webhook (push) delivery of confirmations.
+Also: `POST /api/host/masterdata/skus` (SKU upsert), `POST /api/host/inventory/adjustments`
+(→ StockAdjusted), and `POST /api/host/webhooks` to register a callback for **pushed**
+confirmations (a scheduled dispatcher advances each subscription's cursor as deliveries
+succeed; enable with `openwcs.host.webhook.enabled`). Any POST accepts an `Idempotency-Key`
+header (repeat = replay, no re-processing). Small `host_integration` store for idempotency keys
++ webhook subscriptions.

@@ -203,6 +203,8 @@ services:
       OPENWCS_ORDER_MANAGEMENT_BASE_URL: http://order-management:8084
       OPENWCS_TXLOG_BASE_URL: http://txlog:8086
       OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
+      # Push confirmations to registered webhooks (poller over the txlog feed).
+      OPENWCS_HOST_WEBHOOK_ENABLED: "true"
 
   conveyor-adapter:
     profiles: ["apps"]
