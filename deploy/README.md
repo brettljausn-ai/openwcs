@@ -11,6 +11,7 @@ server and keeping it automatically up to date with `main`.
 |------|---------|
 | [`scripts/setup-demo.sh`](../scripts/setup-demo.sh) | One-shot bootstrap of a fresh server: installs Docker + JDK 21, clones, builds jars, starts the stack. |
 | [`scripts/deploy.sh`](../scripts/deploy.sh) | Idempotent redeploy: fast-forward `main`, and *if it advanced* rebuild jars + recompose. Self-locking. |
+| [`scripts/issue-cert.sh`](../scripts/issue-cert.sh) | Obtain/renew a Let's Encrypt cert for the UI domain (HTTP-01 webroot) and hot-reload nginx. Cron-safe. |
 | `deploy/openwcs-deploy.service` / `.timer` | systemd timer that runs `deploy.sh` every 2 min (poll-based auto-deploy). |
 | [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) | GitHub Actions deploy job for a self-hosted runner, gated on green CI (push-based auto-deploy). |
 
@@ -123,21 +124,35 @@ enabled, so accepting the exception won't lock you out later.
 Add your host's IP/DNS to the cert's SAN list via the `TLS_SAN` env on the `ui`
 service, e.g. `TLS_SAN: "IP:203.0.113.5"` (the cert already covers `localhost`).
 
-### Supplying a real cert
+### Real cert via Let's Encrypt (recommended once you have a domain)
 
-If you have a real cert (e.g. an internal CA, or a domain with Let's Encrypt),
-mount a directory containing `tls.crt` + `tls.key` over the cert path — the
-entrypoint detects existing files and **uses them as-is** (never overwrites):
+The `ui` service already mounts a host cert dir (`${OPENWCS_TLS_DIR:-/etc/openwcs/tls}`
+→ `/etc/nginx/tls`) and a shared ACME webroot (`${OPENWCS_ACME_DIR:-/etc/openwcs/acme}`),
+and nginx serves the ACME HTTP-01 challenge over port 80 — so issuing a real cert is
+one command, no downtime, no compose edits.
 
-```yaml
-# platform/docker-compose.yml, ui service
-volumes:
-  - /etc/openwcs/tls:/etc/nginx/tls:ro
-```
+1. **Point DNS** — create an `A` record for your domain at the server's IP, e.g.
+   `openwcs.brettljausn.ai` → `141.136.36.170`. Open ports **80 and 443** (HTTP-01
+   needs 80).
+2. **Issue the cert** (certbot runs in a one-shot container; installs the cert where
+   nginx reads it and hot-reloads):
+   ```bash
+   sudo /opt/openwcs/scripts/issue-cert.sh openwcs.brettljausn.ai you@brettljausn.ai
+   ```
+   Then browse **`https://openwcs.brettljausn.ai/`** — no browser warning.
+3. **Auto-renew** — Let's Encrypt certs last 90 days. Add a cron (the script renews
+   only when near expiry, then reloads nginx):
+   ```bash
+   # crontab -e  (root)
+   0 3 * * * /opt/openwcs/scripts/issue-cert.sh openwcs.brettljausn.ai you@brettljausn.ai >> /var/log/openwcs-cert.log 2>&1
+   ```
 
-The cert path is overridable with `TLS_CERT_DIR` (default `/etc/nginx/tls`). If
-you front the demo with a real domain, point DNS at the server and drop the
-domain's cert/key into the mounted dir as `tls.crt`/`tls.key`.
+Once you're on a real cert you can safely enable **HSTS** — uncomment the
+`Strict-Transport-Security` header in `ui/nginx.conf`.
+
+**Other real certs** (internal CA, wildcard, etc.): just drop `tls.crt` + `tls.key`
+into the cert dir (`/etc/openwcs/tls` by default) and restart the `ui` container — the
+entrypoint uses existing files as-is and never overwrites them.
 
 ---
 
