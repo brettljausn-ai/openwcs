@@ -1,0 +1,65 @@
+package org.openwcs.gtp.api;
+
+import jakarta.validation.Valid;
+import java.util.List;
+import java.util.UUID;
+import org.openwcs.gtp.domain.GtpStation;
+import org.openwcs.gtp.domain.StationNode;
+import org.openwcs.gtp.service.GtpStationService;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+/** Configure GTP stations + nodes and open order destinations (ADR 0006). */
+@RestController
+@RequestMapping("/api/gtp/stations")
+public class StationController {
+
+    private final GtpStationService service;
+
+    public StationController(GtpStationService service) {
+        this.service = service;
+    }
+
+    @PostMapping
+    public StationView create(@Valid @RequestBody CreateStationRequest request) {
+        GtpStation station = service.createStation(request);
+        return StationView.from(station, service.nodesOf(station.getId()));
+    }
+
+    @GetMapping
+    public List<StationView> byWarehouse(@RequestParam("warehouseId") UUID warehouseId) {
+        return service.byWarehouse(warehouseId).stream()
+                .map(s -> StationView.from(s, service.nodesOf(s.getId())))
+                .toList();
+    }
+
+    @GetMapping("/{stationId}")
+    public StationView get(@PathVariable UUID stationId) {
+        GtpStation station = service.requireStation(stationId);
+        return StationView.from(station, service.nodesOf(stationId));
+    }
+
+    @PostMapping("/{stationId}/nodes")
+    public StationView.NodeView addNode(@PathVariable UUID stationId,
+                                        @Valid @RequestBody AddNodeRequest request) {
+        StationNode node = service.addNode(stationId, request);
+        return StationView.NodeView.from(node);
+    }
+
+    @GetMapping("/{stationId}/demand")
+    public List<DemandView> demand(@PathVariable UUID stationId) {
+        service.requireStation(stationId);
+        return service.demandsOfStation(stationId).stream().map(DemandView::from).toList();
+    }
+
+    @PostMapping("/nodes/{nodeId}/destinations")
+    public DemandView openDestination(@PathVariable UUID nodeId,
+                                      @Valid @RequestBody OpenDestinationRequest request) {
+        return DemandView.from(service.openDestination(nodeId, request));
+    }
+}

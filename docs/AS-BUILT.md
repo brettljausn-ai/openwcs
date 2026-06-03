@@ -26,6 +26,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | order-management | 8084 | ✅ | Orders (all types) + lifecycle + release management + line transactions; delegates allocation. |
 | allocation | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing, batch picking. |
 | slotting | 8093 | ✅ | Put-away assignment for automated rack/GTP blocks (weighted scorer: velocity-to-exit · same-SKU lane consolidation · aisle redundancy · fill balance), manual pick-face slotting + min/max replenishment (opportunistic top-off), and off-peak re-slotting. ADR 0003. |
+| gtp | 8094 | ✅ | Goods-to-person station execution: configure stations + STOCK/ORDER nodes, open order destinations (bind order HU + demand), present a stock HU → put-to-light put-list across destinations (one HU serves many orders: the batch), confirm puts (incl. short), complete destinations. ORDER_LOCATION (conveyor HU-in-location) and PUT_WALL (lit rack cubbies, typical AMR) modes share one engine. ADR 0006. |
 | txlog | 8086 | ✅ | Append-only event log + transactional outbox + relay to `txlog.stream`. |
 | iam | 8087 | ✅ | openWCS authorization model: users → roles → coded permissions (Keycloak does auth). |
 | flow-orchestrator | 8085 | 🟡 | Device-task lifecycle over the uniform device contract; routes to adapters by family (below). |
@@ -59,6 +60,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 | `orders` | order-management | outbound_order (all order types), order_line, order_line_transaction, order_outbox |
 | `allocation` | allocation | order_allocation, allocation_line, pick_batch |
 | `slotting` | slotting | storage_profile, pick_slot, block_policy, putaway_assignment, replenishment_task, reslot_recommendation |
+| `gtp` | gtp | gtp_station, station_node, destination_demand, work_cycle, put_instruction |
 | `iam` | iam | role, role_permission, app_user, user_role |
 | `flow` | flow-orchestrator | device_task |
 | `host_integration` | integration-host | idempotency_key, webhook_subscription |
@@ -312,6 +314,42 @@ audit history).
 This closes the Phase 2 gap where device tasks/routes were driven only directly via the API:
 a process now originates them, including operator wait-steps. A process **designer UI** is the
 remaining follow-up.
+
+## 7e. gtp (goods-to-person station execution) — ADR 0006
+
+A GTP **station** (`gtp_station`) has a `mode` — `ORDER_LOCATION` (order HUs in fixed/conveyor
+locations) or `PUT_WALL` (a rack of lit cubbies, typical for AMR goods-to-rack) — and a set of
+**nodes** (`station_node`): `STOCK` (≥1, where a stock HU is presented) and `ORDER` (the order
+destinations, each with an optional `put_light_id` and a currently bound order HU). The two modes
+share one execution engine; `mode` only documents the physical realisation of an ORDER node.
+
+**Open demand** (`destination_demand`) is posted against an ORDER node (an order/line, a SKU, and
+the qty to put there) — the REST seam where allocation/order-management feed work in (by UUID).
+
+The **pick-and-put work cycle** (`work_cycle` + `put_instruction`):
+
+- `POST /api/gtp/stations/{id}/present {stockHuId, skuId, qty}` — matches the SKU against open
+  demand across the station's ORDER nodes and **greedily fills most-needed-first**, emitting a
+  **put-list** (`put_instruction`: destination node + resolved order/HU + put-light + qty). One
+  stock HU serves many destinations — the goods-to-person **batch**.
+- `POST /api/gtp/puts/{id}/confirm {qty?}` — decrements the cycle's remaining stock and the
+  destination demand's putted qty; a smaller qty is a **short put** (instruction → `SHORT`, the
+  destination's remaining demand stays `OPEN` for a later cycle). A fully-putted destination →
+  `COMPLETED`; a cycle with no `OPEN` puts left → `COMPLETED`.
+- `GET /api/gtp/cycles/{id}` / `POST /api/gtp/cycles/{id}/close` / `GET /api/gtp/stations/{id}/demand`.
+
+**Short-pick / exception handling:** if the presented qty can't cover all demand, the surplus
+demand simply stays OPEN for the next stock HU of that SKU.
+
+**Seams (fast-follow, not built):** the physical lights and retrieving stock/order HUs to the
+station (ASRS/AMR/conveyor) are device-adapter + flow-orchestrator concerns — gtp only records
+`put_light_id`/`stock_hu_id`/`order_hu_id` and exposes the instructions. Demand origination
+(auto-wire from allocation batches) and stock decrement → txlog are follow-ups.
+
+Per-endpoint RBAC (`RbacFilter`, gated by `openwcs.security.enabled`): reads → `ORDER_VIEW`,
+present/confirm → `DEVICE_OPERATE` (OPERATOR role). Contract: `contracts/openapi/gtp.yaml`.
+
+---
 
 ## 8. The two working vertical slices
 

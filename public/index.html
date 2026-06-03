@@ -293,10 +293,11 @@
   WMS / ERP ─►  <b>Host API</b>  ─►  order-management · master-data · inventory
             │                          │  (event-sourced transaction log → Kafka)
             │   <b>process-engine</b> (BPMN) ─► flow-orchestrator ─► device adapters
+            │   allocation · slotting · <b>goods-to-person</b> (put-to-light) stations
             └──────────────────────────┴────►  Conveyor · ASRS · AMR · AutoStore</pre>
       </div>
       <div class="grid grid-3" style="margin-top:1.2rem" data-reveal>
-        <div class="card"><div class="tag" data-i18n="a1t">Java 21 · Spring Boot</div><h3 data-i18n="a1h">Domain services</h3><p data-i18n="a1p">master-data, inventory, orders, allocation, flow-orchestrator, txlog, IAM — each independently deployable.</p></div>
+        <div class="card"><div class="tag" data-i18n="a1t">Java 21 · Spring Boot</div><h3 data-i18n="a1h">Domain services</h3><p data-i18n="a1p">master-data, inventory, orders, allocation, slotting, goods-to-person stations, flow-orchestrator, txlog, IAM — each independently deployable.</p></div>
         <div class="card"><div class="tag" data-i18n="a2t">Go</div><h3 data-i18n="a2h">Equipment adapters</h3><p data-i18n="a2p">Lightweight drivers that speak each vendor’s protocol and the uniform device contract.</p></div>
         <div class="card"><div class="tag" data-i18n="a3t">Postgres · Kafka</div><h3 data-i18n="a3h">Event backbone</h3><p data-i18n="a3p">Schema-per-service stores and an append-only event log — auditable, replayable, rebuildable.</p></div>
       </div>

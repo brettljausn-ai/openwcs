@@ -1,0 +1,332 @@
+openapi: 3.0.3
+info:
+  title: openWCS GTP API
+  version: 0.1.0
+  description: >
+    "Goods-to-person (GTP) station execution (ADR 0006): configure stations and their STOCK/ORDER
+    nodes, open order destinations (bind an order HU + post demand), present a stock HU to generate
+    a put-to-light put-list across destinations (ORDER_LOCATION or PUT_WALL mode), confirm puts, and
+    query station / cycle state. References orders/SKUs/HUs/locations by UUID."
+servers:
+  - url: /api/gtp
+    description: Via the API gateway
+
+tags:
+  - name: Stations
+  - name: WorkCycle
+
+paths:
+  /stations:
+    post:
+      tags: [Stations]
+      summary: Create (configure) a GTP station
+      operationId: createStation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateStationRequest' }
+      responses:
+        "200":
+          description: Station created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Station' }
+        "409":
+          description: "Station code already exists in the warehouse"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    get:
+      tags: [Stations]
+      summary: List stations in a warehouse
+      operationId: listStations
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Station' }
+  /stations/{stationId}:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Stations]
+      summary: Get a station and its nodes
+      operationId: getStation
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Station' }
+        "404":
+          description: "Station not found"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /stations/{stationId}/nodes:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Stations]
+      summary: Add a node to a station
+      operationId: addNode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddNodeRequest' }
+      responses:
+        "200":
+          description: Node added
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Node' }
+  /stations/{stationId}/demand:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Stations]
+      summary: List open/closed demand across a station's destinations
+      operationId: stationDemand
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Demand' }
+  /stations/nodes/{nodeId}/destinations:
+    parameters:
+      - { name: nodeId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Stations]
+      summary: Open an order destination at an ORDER node
+      description: >
+        "Bind an order HU to the ORDER node and post its demand (a SKU and how many units must be
+        put there). Demand normally originates from allocation/order-management."
+      operationId: openDestination
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OpenDestinationRequest' }
+      responses:
+        "200":
+          description: Destination opened
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Demand' }
+        "400":
+          description: "Node is not an ORDER node"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /stations/{stationId}/present:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [WorkCycle]
+      summary: Present a stock HU and get the put-list
+      description: >
+        "Match the presented stock HU's SKU against open demand across the station's ORDER nodes and
+        greedily fill it most-needed-first. Returns the work cycle with its generated put-list (one
+        stock HU serving many destinations: the goods-to-person batch)."
+      operationId: presentStock
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PresentStockRequest' }
+      responses:
+        "200":
+          description: Work cycle with put-list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkCycle' }
+        "409":
+          description: "Station has no STOCK node configured"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /cycles/{cycleId}:
+    parameters:
+      - { name: cycleId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [WorkCycle]
+      summary: Get a work cycle and its put-list
+      operationId: getCycle
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkCycle' }
+        "404":
+          description: "Cycle not found"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /cycles/{cycleId}/close:
+    parameters:
+      - { name: cycleId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [WorkCycle]
+      summary: Close a work cycle
+      description: "Cancel any still-OPEN puts and close the cycle (e.g. the stock HU is sent away)."
+      operationId: closeCycle
+      responses:
+        "200":
+          description: Closed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkCycle' }
+  /puts/{putInstructionId}/confirm:
+    parameters:
+      - { name: putInstructionId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [WorkCycle]
+      summary: Confirm a put
+      description: >
+        "Confirm a put instruction. Omit qty (or send the full lit qty) for a normal confirm; a
+        smaller qty is a short put (the instruction closes SHORT and the destination's remaining
+        demand stays open for a later cycle)."
+      operationId: confirmPut
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfirmPutRequest' }
+      responses:
+        "200":
+          description: Updated put instruction
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PutInstruction' }
+        "404":
+          description: "Put instruction not found"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        "409":
+          description: "Put instruction is not OPEN"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  schemas:
+    CreateStationRequest:
+      type: object
+      required: [warehouseId, code, mode]
+      properties:
+        warehouseId: { type: string, format: uuid }
+        code: { type: string }
+        mode: { type: string, enum: [ORDER_LOCATION, PUT_WALL] }
+        nodes:
+          type: array
+          items: { $ref: '#/components/schemas/AddNodeRequest' }
+    AddNodeRequest:
+      type: object
+      required: [role, code]
+      properties:
+        role: { type: string, enum: [STOCK, ORDER] }
+        code: { type: string }
+        putLightId: { type: string, nullable: true, description: "Physical put-light/display id (ORDER role)." }
+        locationId: { type: string, format: uuid, nullable: true }
+        orderHuId: { type: string, format: uuid, nullable: true }
+        position: { type: integer, nullable: true }
+    OpenDestinationRequest:
+      type: object
+      required: [orderHuId, orderRef, skuId, qty]
+      properties:
+        orderHuId: { type: string, format: uuid }
+        orderRef: { type: string }
+        orderLineId: { type: string, format: uuid, nullable: true }
+        skuId: { type: string, format: uuid }
+        qty: { type: number }
+    PresentStockRequest:
+      type: object
+      required: [stockHuId, skuId, qty]
+      properties:
+        stockNodeId: { type: string, format: uuid, nullable: true, description: "Specific STOCK node; defaults to the station's first." }
+        stockHuId: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        qty: { type: number }
+    ConfirmPutRequest:
+      type: object
+      properties:
+        qty: { type: number, nullable: true, description: "Putted qty; omit for the full lit qty, smaller for a short put." }
+    Station:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        warehouseId: { type: string, format: uuid }
+        code: { type: string }
+        mode: { type: string, enum: [ORDER_LOCATION, PUT_WALL] }
+        status: { type: string }
+        nodes:
+          type: array
+          items: { $ref: '#/components/schemas/Node' }
+    Node:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        role: { type: string, enum: [STOCK, ORDER] }
+        code: { type: string }
+        putLightId: { type: string, nullable: true }
+        locationId: { type: string, format: uuid, nullable: true }
+        orderHuId: { type: string, format: uuid, nullable: true }
+        position: { type: integer }
+        status: { type: string }
+    Demand:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        stationNodeId: { type: string, format: uuid }
+        orderRef: { type: string }
+        orderLineId: { type: string, format: uuid, nullable: true }
+        skuId: { type: string, format: uuid }
+        requestedQty: { type: number }
+        puttedQty: { type: number }
+        remainingQty: { type: number }
+        status: { type: string, enum: [OPEN, COMPLETED, CANCELLED] }
+    WorkCycle:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        stationId: { type: string, format: uuid }
+        stockNodeId: { type: string, format: uuid }
+        stockHuId: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        mode: { type: string, enum: [ORDER_LOCATION, PUT_WALL] }
+        presentedQty: { type: number }
+        remainingQty: { type: number }
+        status: { type: string, enum: [OPEN, COMPLETED, CLOSED] }
+        puts:
+          type: array
+          items: { $ref: '#/components/schemas/PutInstruction' }
+    PutInstruction:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        destinationNodeId: { type: string, format: uuid }
+        destinationDemandId: { type: string, format: uuid }
+        orderRef: { type: string }
+        orderLineId: { type: string, format: uuid, nullable: true }
+        orderHuId: { type: string, format: uuid, nullable: true }
+        putLightId: { type: string, nullable: true }
+        qty: { type: number }
+        confirmedQty: { type: number }
+        status: { type: string, enum: [OPEN, CONFIRMED, SHORT, CANCELLED] }
+    Error:
+      type: object
+      properties:
+        error: { type: string }
