@@ -15,14 +15,17 @@ import java.util.UUID;
  *
  * <ul>
  *   <li><b>velocity-to-exit</b> — fast movers (class A) near the aisle exit, slow movers (C) deep;</li>
- *   <li><b>consolidation</b> — fill a partial same-SKU lane (cuts honeycombing/reshuffles);</li>
+ *   <li><b>lane affinity (soft single-SKU-per-lane)</b> — reward filling a partial same-SKU lane,
+ *       penalise mixing a different SKU into a lane (cuts honeycombing/reshuffles);</li>
  *   <li><b>redundancy</b> — spread a SKU to an aisle that doesn't hold it yet (survive an aisle outage);</li>
  *   <li><b>balance</b> — prefer emptier aisles so travel/throughput stays even.</li>
  * </ul>
  *
- * Consolidation (same lane) and redundancy (new aisle) pull in opposite directions on purpose; the
- * weights pick the trade-off and the {@code maxAislePct} cap is the hard guard against over-
- * concentration.
+ * <p>The only <b>hard</b> constraints are lane capacity and the {@code maxAislePct} cap.
+ * Single-SKU-per-lane is intentionally <b>soft</b> — a SKU is tried in its own lane, but a higher
+ * {@code wBalance} (or other weight) can outweigh the mixing penalty when the operator wants aisle
+ * balance to win. Lane affinity (same lane) and redundancy (new aisle) pull in opposite directions
+ * on purpose; the weights pick the trade-off.
  */
 public final class PutawayScorer {
 
@@ -82,7 +85,7 @@ public final class PutawayScorer {
         for (Candidate c : feasible) {
             double norm = span <= 0 ? 0.0 : (c.distanceToExit() - minDist) / span; // 0 = nearest exit
             double velocityFit = velocityFit(in.velocityClass(), norm);
-            double consolidation = (in.consolidate() && in.skuId().equals(c.occupantSkuId())) ? 1.0 : 0.0;
+            double consolidation = laneAffinity(in, c);
             double redundancy = c.aisleSkuHu() == 0 ? 1.0 : 0.0; // reward an aisle without this SKU yet
             double balance = c.aisleCapacityHu() <= 0 ? 0.0 : 1.0 - ((double) c.aisleUsedHu() / c.aisleCapacityHu());
 
@@ -120,17 +123,30 @@ public final class PutawayScorer {
         return results;
     }
 
-    /** Hard constraints: lane capacity, single-SKU-per-lane, and the max-%-per-aisle cap. */
+    /**
+     * Hard constraints: lane capacity and the max-%-per-aisle cap. Single-SKU-per-lane is NOT
+     * hard — it is a soft preference (see {@link #laneAffinity}) so aisle balance (or another
+     * weighted objective) can outweigh it when the operator configures it that way.
+     */
     private static boolean isFeasible(Input in, Candidate c) {
         if (c.occupiedHu() >= c.laneDepth()) {
             return false; // lane full
         }
-        if (c.occupantSkuId() != null && !c.occupantSkuId().equals(in.skuId())) {
-            return false; // single-SKU-per-lane
-        }
         // Prospective share of the SKU's stock that would sit in this aisle after placement.
         double prospective = (c.aisleSkuHu() + 1.0) / (in.skuTotalHu() + 1.0);
         return !(prospective > in.maxAislePct() && c.aisleSkuHu() > 0);
+    }
+
+    /**
+     * Lane affinity (soft single-SKU-per-lane): rewards filling a partial same-SKU lane and
+     * penalises mixing a different SKU into a lane. Returns +1 same-SKU, 0 empty, −1 different-SKU.
+     * Weighted by {@code wConsolidation}; gated by the SKU's {@code consolidate} flag.
+     */
+    private static double laneAffinity(Input in, Candidate c) {
+        if (!in.consolidate() || c.occupantSkuId() == null) {
+            return 0.0; // empty lane, or affinity disabled for this SKU
+        }
+        return in.skuId().equals(c.occupantSkuId()) ? 1.0 : -1.0;
     }
 
     /** A movers want norm≈0 (near exit), C movers want norm≈1 (deep), B is indifferent. */

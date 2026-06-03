@@ -64,7 +64,7 @@
         <div class="card">
           <div class="tag">Multi-deep</div>
           <h3>Same SKU per lane</h3>
-          <p>A triple-deep lane (X1,Y1,Z1–3) holds one SKU so units never block each other. Partial same-SKU lanes are filled first to avoid <em>honeycombing</em> — empty-but-unusable depth.</p>
+          <p>A triple-deep lane (X1,Y1,Z1–3) should hold one SKU so units don't block each other, and partial same-SKU lanes are filled first to avoid <em>honeycombing</em>. It's a strong preference, not a hard rule — aisle balance can outweigh it when you configure it to.</p>
         </div>
         <div class="card">
           <div class="tag">Redundancy</div>
@@ -131,8 +131,8 @@
 <pre>  receipt (SKU, HU) ─►  <b>openWCS slotting</b>
                          │  direct-to-pick?  → forward face (cross-dock)
                          │  else score block pool:
-                         │     velocity-to-exit · same-SKU lane · redundancy · balance
-                         │     ── hard: lane full · one SKU/lane · max %/aisle ──
+                         │     velocity-to-exit · same-SKU lane (soft) · redundancy · balance
+                         │     ── hard: lane full · max %/aisle ──
                          ▼
                     chosen location ─►  put-away move  (→ GTP pick station on demand)
   off-peak: replenish faces to max · re-slot stored HUs toward better locations</pre>

@@ -43,13 +43,34 @@ class PutawayScorerTest {
     }
 
     @Test
-    void excludesLaneHoldingADifferentSku() {
-        UUID occupied = UUID.randomUUID();
+    void mixingADifferentSkuIsAllowedButPenalised() {
+        UUID emptyLane = UUID.randomUUID();
+        UUID mixedLane = UUID.randomUUID();
         var input = new PutawayScorer.Input(SKU, "B", true, 1.0, 0);
-        var policy = new PutawayScorer.Policy(1, 1, 1, 1);
+        var policy = new PutawayScorer.Policy(0, 1, 0, 0); // lane-affinity only
 
-        var blocked = new PutawayScorer.Candidate(occupied, "A1", 3, 1.0, 1, OTHER_SKU, 0, 1, 3);
-        assertThat(PutawayScorer.rank(input, List.of(blocked), policy)).isEmpty();
+        // A different-SKU lane is still feasible (not excluded), but scores below an empty lane.
+        var mixed = new PutawayScorer.Candidate(mixedLane, "A1", 3, 1.0, 1, OTHER_SKU, 0, 1, 3);
+        var ranked = PutawayScorer.rank(input, List.of(mixed, empty(emptyLane, "A2", 1.0)), policy);
+
+        assertThat(ranked).hasSize(2); // both feasible — single-SKU-per-lane is soft
+        assertThat(ranked.get(0).locationId()).isEqualTo(emptyLane);
+    }
+
+    @Test
+    void aisleBalanceCanOutweighLanePurityWhenConfigured() {
+        UUID mixedButEmptyAisle = UUID.randomUUID(); // different-SKU lane, but in an almost-empty aisle
+        UUID pureButBusyAisle = UUID.randomUUID();   // empty lane, but in a nearly-full aisle
+        var input = new PutawayScorer.Input(SKU, "B", true, 1.0, 0);
+        var policy = new PutawayScorer.Policy(0, 1, 0, 2); // balance weighted above lane affinity
+
+        var mixed = new PutawayScorer.Candidate(mixedButEmptyAisle, "A1", 3, 1.0, 1, OTHER_SKU, 0, 1, 9);
+        var pure = new PutawayScorer.Candidate(pureButBusyAisle, "A2", 3, 1.0, 0, null, 0, 8, 9);
+
+        var ranked = PutawayScorer.rank(input, List.of(mixed, pure), policy);
+
+        // the mixing penalty (−1·1) is outweighed by far better balance (≈0.889 vs 0.111, ·2).
+        assertThat(ranked.get(0).locationId()).isEqualTo(mixedButEmptyAisle);
     }
 
     @Test
