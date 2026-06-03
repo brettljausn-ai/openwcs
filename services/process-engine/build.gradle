@@ -8,6 +8,7 @@ dependencies {
     implementation project(':libs:common')
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
 
     // Embedded BPMN engine (build.md §7). The process starter is BPMN-only (no IDM/app/UI);
     // it manages its own ACT_* tables on the shared datasource.
