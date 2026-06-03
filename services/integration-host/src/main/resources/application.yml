@@ -27,6 +27,12 @@ openwcs:
     order-management-base-url: ${OPENWCS_ORDER_MANAGEMENT_BASE_URL:http://localhost:8084}
     txlog-base-url: ${OPENWCS_TXLOG_BASE_URL:http://localhost:8086}
     master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
+    webhook:
+      # Push confirmations to registered callbacks. Off by default (pull feed is used); enable
+      # in deployed envs. The poller advances each subscription's cursor as deliveries succeed.
+      enabled: ${OPENWCS_HOST_WEBHOOK_ENABLED:false}
+      interval-ms: ${OPENWCS_HOST_WEBHOOK_INTERVAL_MS:5000}
+      batch-size: 100
 management:
   endpoints:
     web:

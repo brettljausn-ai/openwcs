@@ -56,7 +56,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 | `allocation` | allocation | order_allocation, allocation_line, pick_batch |
 | `iam` | iam | role, role_permission, app_user, user_role |
 | `flow` | flow-orchestrator | device_task |
-| `host_integration` | integration-host | idempotency_key (webhook delivery state to follow) |
+| `host_integration` | integration-host | idempotency_key, webhook_subscription |
 
 ---
 
@@ -244,13 +244,18 @@ into it.
 - `GET /api/host/confirmations?cursor=` — pull confirmations (receipts, picks, shipments, stock
   changes) as a **cursor feed over the transaction log** (`txlog` global replay): returns the
   events after the cursor plus `nextCursor`. No host endpoint required; the host controls the
-  pace. **Webhook (push) delivery is a planned follow-up.**
+  pace.
+- **Webhook (push)** (`/api/host/webhooks`): a host registers a callback URL; a scheduled
+  dispatcher streams confirmations to it, advancing the subscription's cursor only past
+  successfully-delivered (2xx) events — at-least-once, with a failing endpoint retried from its
+  cursor on the next pass. Enabled by `openwcs.host.webhook.enabled` (on in compose; off in
+  dev/test, where the pull feed is used).
 - **Idempotency**: any host POST may send an `Idempotency-Key` header; a repeat of the same key
   replays the stored 2xx response instead of re-processing (an `IdempotencyFilter` over a small
   `host_integration` store), so a host's retry never double-creates an order/ASN/adjustment.
 
 Mostly a translation layer over order-management + master-data + txlog; its only state is the
-small `host_integration` schema (idempotency keys; webhook delivery cursors to follow).
+small `host_integration` schema (idempotency keys + webhook subscriptions/cursors).
 
 ## 8. The two working vertical slices
 
