@@ -82,7 +82,7 @@ openwcs/
 | `services/adapters/asrs` | Go | 9092 | Shuttle/crane adapter (telegram) |
 | `services/adapters/amr-geekplus` | Go | 9093 | Geek+ RCS adapter (REST + WebSocket) |
 | `services/adapters/autostore` | Go | 9094 | AutoStore grid adapter (REST) |
-| `ui` | React/TS | 5173 | Operator (legibility-first) + management (full design system) SPA |
+| `ui` | React/TS | 5173 | Operator + management SPA; first screen: conveyor topology editor (React Flow) over the flow-orchestrator topology API |
 
 ---
 

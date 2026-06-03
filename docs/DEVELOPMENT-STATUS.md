@@ -34,7 +34,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | integration-host | Java | 8092 | 🟡 | Canonical vendor-neutral Host API (`/api/host/**`): orders + ASNs + SKU upserts + inventory adjustments in; confirmations out via pull (cursor feed) **and** webhook push; idempotency keys. |
 | adapters/conveyor | Go | 9091 | 🟡 | Health + stub loop + `POST /tasks` device-task simulator (CONVEY/DIVERT/MERGE/SCAN). |
 | adapters/{asrs,amr-geekplus,autostore} | Go | 9092–9094 | 🟦 | Health + stub loop. |
-| ui | React/TS | 5173 | 🟦 | Vite skeleton. |
+| ui | React/TS | 5173 | 🟡 | React/Vite + React Flow conveyor topology editor (drag nodes, draw edges, hardware address, loops) over the topology API. |
 | libs/common | Java | — | ✅ | `EventEnvelope`. |
 
 **Contracts:** OpenAPI ✅ master-data, inventory, txlog, allocation, order-management, iam,
