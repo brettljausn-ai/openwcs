@@ -1,0 +1,39 @@
+server:
+  port: 8094
+spring:
+  application:
+    name: gtp
+  # Service-local store: an isolated `gtp` schema in dev.
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/openwcs}
+    username: ${SPRING_DATASOURCE_USERNAME:openwcs}
+    password: ${SPRING_DATASOURCE_PASSWORD:openwcs}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: gtp
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    schemas: gtp
+    default-schema: gtp
+    create-schemas: true
+
+openwcs:
+  # Per-endpoint RBAC (build.md §4.8); off by default so the stack runs before a Keycloak realm.
+  security:
+    enabled: ${OPENWCS_SECURITY_ENABLED:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

@@ -20,6 +20,9 @@ spring:
         - id: slotting
           uri: ${OPENWCS_URI_SLOTTING:http://localhost:8093}
           predicates: [ "Path=/api/slotting/**" ]
+        - id: gtp
+          uri: ${OPENWCS_URI_GTP:http://localhost:8094}
+          predicates: [ "Path=/api/gtp/**" ]
         - id: process-engine
           uri: ${OPENWCS_URI_PROCESS_ENGINE:http://localhost:8083}
           predicates: [ "Path=/api/process/**" ]
