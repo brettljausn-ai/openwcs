@@ -6,7 +6,10 @@ info:
     "Goods-to-person (GTP) station execution (ADR 0006): configure stations and their STOCK/ORDER
     nodes, open order destinations (bind an order HU + post demand), present a stock HU to generate
     a put-to-light put-list across destinations (ORDER_LOCATION or PUT_WALL mode), confirm puts, and
-    query station / cycle state. References orders/SKUs/HUs/locations by UUID."
+    query station / cycle state. A station also supports a set of orthogonal *operating modes*
+    (PICKING | DECANTING | STOCK_COUNT | QC | MAINTENANCE) — each work cycle runs one and carries the
+    mode-appropriate task lines (decant-moves / count entries / verdicts / checks).
+    References orders/SKUs/HUs/locations by UUID."
 servers:
   - url: /api/gtp
     description: Via the API gateway
@@ -87,6 +90,30 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Node' }
+  /stations/{stationId}/operating-modes:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Stations]
+      summary: Configure a station's supported operating modes
+      description: "Replace the set of operating modes the station supports. PICKING is always retained."
+      operationId: setSupportedModes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetSupportedModesRequest' }
+      responses:
+        "200":
+          description: Updated station
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Station' }
+        "404":
+          description: "Station not found"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /stations/{stationId}/demand:
     parameters:
       - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -156,6 +183,34 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /stations/{stationId}/cycles:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [WorkCycle]
+      summary: Open a work cycle in a given operating mode
+      description: >
+        "Start a work cycle in a given operating mode (PICKING | DECANTING | STOCK_COUNT | QC |
+        MAINTENANCE) and present its HU(s), generating the mode-appropriate task lines: decant-moves
+        (DECANTING), count entries (STOCK_COUNT), verdict slots (QC), or check slots (MAINTENANCE).
+        For PICKING this is equivalent to POST /stations/{id}/present and returns a put-list."
+      operationId: startCycle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartCycleRequest' }
+      responses:
+        "200":
+          description: Work cycle with its task lines (or put-list, for PICKING)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkCycle' }
+        "409":
+          description: "Station does not support the operating mode, or has no STOCK node"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /cycles/{cycleId}:
     parameters:
       - { name: cycleId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -220,9 +275,45 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /tasks/{taskLineId}/outcome:
+    parameters:
+      - { name: taskLineId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [WorkCycle]
+      summary: Submit a task-line outcome
+      description: >
+        "Submit the per-line outcome of a non-PICKING task line and confirm it: the moved qty
+        (DECANT_MOVE), the counted qty — variance is computed vs the expected (COUNT_ENTRY), a
+        PASS|FAIL|HOLD verdict (QC_VERDICT), or an OK|DEFECTIVE|REPAIR verdict (MAINTENANCE_CHECK)."
+      operationId: submitOutcome
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SubmitOutcomeRequest' }
+      responses:
+        "200":
+          description: Updated, confirmed task line
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskLine' }
+        "404":
+          description: "Task line not found"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        "409":
+          description: "Task line is not OPEN"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
 components:
   schemas:
+    OperatingMode:
+      type: string
+      enum: [PICKING, DECANTING, STOCK_COUNT, QC, MAINTENANCE]
+      description: "What the operator does with a presented HU (orthogonal to the destination topology `mode`)."
     CreateStationRequest:
       type: object
       required: [warehouseId, code, mode]
@@ -230,9 +321,48 @@ components:
         warehouseId: { type: string, format: uuid }
         code: { type: string }
         mode: { type: string, enum: [ORDER_LOCATION, PUT_WALL] }
+        supportedModes:
+          type: array
+          description: "Operating modes the station supports; defaults to [PICKING] when omitted."
+          items: { $ref: '#/components/schemas/OperatingMode' }
         nodes:
           type: array
           items: { $ref: '#/components/schemas/AddNodeRequest' }
+    SetSupportedModesRequest:
+      type: object
+      required: [supportedModes]
+      properties:
+        supportedModes:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/OperatingMode' }
+    StartCycleRequest:
+      type: object
+      required: [operatingMode]
+      properties:
+        operatingMode: { $ref: '#/components/schemas/OperatingMode' }
+        stockNodeId: { type: string, format: uuid, nullable: true, description: "Specific STOCK node; defaults to the station's first." }
+        stockHuId: { type: string, format: uuid, nullable: true, description: "Presented source/stock HU (or empty carrier for MAINTENANCE)." }
+        targetHuId: { type: string, format: uuid, nullable: true, description: "Empty target HU to fill (DECANTING)." }
+        skuId: { type: string, format: uuid, nullable: true, description: "Single SKU (PICKING)." }
+        qty: { type: number, nullable: true, description: "Presented qty (PICKING)." }
+        lines:
+          type: array
+          description: "Mode-appropriate task lines (decant moves / count entries / verdict slots / check slots)."
+          items: { $ref: '#/components/schemas/LineSpec' }
+    LineSpec:
+      type: object
+      properties:
+        huId: { type: string, format: uuid, nullable: true }
+        skuId: { type: string, format: uuid, nullable: true }
+        compartment: { type: string, nullable: true, description: "Target compartment (DECANT_MOVE)." }
+        qty: { type: number, nullable: true, description: "Qty to move (DECANT) or expected/system qty (STOCK_COUNT)." }
+        putLightId: { type: string, nullable: true }
+    SubmitOutcomeRequest:
+      type: object
+      properties:
+        actualQty: { type: number, nullable: true, description: "Moved qty (DECANT) or counted qty (STOCK_COUNT)." }
+        verdict: { type: string, nullable: true, description: "PASS|FAIL|HOLD (QC) or OK|DEFECTIVE|REPAIR (MAINTENANCE)." }
     AddNodeRequest:
       type: object
       required: [role, code]
@@ -271,6 +401,9 @@ components:
         warehouseId: { type: string, format: uuid }
         code: { type: string }
         mode: { type: string, enum: [ORDER_LOCATION, PUT_WALL] }
+        supportedModes:
+          type: array
+          items: { $ref: '#/components/schemas/OperatingMode' }
         status: { type: string }
         nodes:
           type: array
@@ -303,16 +436,37 @@ components:
       properties:
         id: { type: string, format: uuid }
         stationId: { type: string, format: uuid }
+        operatingMode: { $ref: '#/components/schemas/OperatingMode' }
         stockNodeId: { type: string, format: uuid }
-        stockHuId: { type: string, format: uuid }
-        skuId: { type: string, format: uuid }
+        stockHuId: { type: string, format: uuid, nullable: true }
+        targetHuId: { type: string, format: uuid, nullable: true, description: "Filled target HU (DECANTING)." }
+        skuId: { type: string, format: uuid, nullable: true }
         mode: { type: string, enum: [ORDER_LOCATION, PUT_WALL] }
-        presentedQty: { type: number }
-        remainingQty: { type: number }
+        presentedQty: { type: number, nullable: true }
+        remainingQty: { type: number, nullable: true }
         status: { type: string, enum: [OPEN, COMPLETED, CLOSED] }
         puts:
           type: array
+          description: "PICKING put-list."
           items: { $ref: '#/components/schemas/PutInstruction' }
+        taskLines:
+          type: array
+          description: "Mode-appropriate task lines (non-PICKING modes)."
+          items: { $ref: '#/components/schemas/TaskLine' }
+    TaskLine:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        lineType: { type: string, enum: [DECANT_MOVE, COUNT_ENTRY, QC_VERDICT, MAINTENANCE_CHECK] }
+        huId: { type: string, format: uuid, nullable: true }
+        skuId: { type: string, format: uuid, nullable: true }
+        compartment: { type: string, nullable: true }
+        expectedQty: { type: number, nullable: true }
+        actualQty: { type: number, nullable: true }
+        variance: { type: number, nullable: true }
+        verdict: { type: string, nullable: true, enum: [PASS, FAIL, HOLD, OK, DEFECTIVE, REPAIR] }
+        putLightId: { type: string, nullable: true }
+        status: { type: string, enum: [OPEN, CONFIRMED, CANCELLED] }
     PutInstruction:
       type: object
       properties:

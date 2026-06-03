@@ -177,7 +177,7 @@ class WorkCycleExecutionTest {
 
     private GtpStation createStation(String mode, UUID warehouseId) {
         return stationService.createStation(new CreateStationRequest(
-                warehouseId, "GTP-" + UUID.randomUUID(), mode, List.of()));
+                warehouseId, "GTP-" + UUID.randomUUID(), mode, null, List.of()));
     }
 
     private void addStock(GtpStation station, String code) {

@@ -3,19 +3,22 @@ package org.openwcs.gtp.api;
 import java.util.List;
 import java.util.UUID;
 import org.openwcs.gtp.domain.GtpStation;
+import org.openwcs.gtp.domain.OperatingMode;
 import org.openwcs.gtp.domain.StationNode;
 
-/** A station and its configured nodes. */
+/** A station, its destination topology + supported operating modes, and its configured nodes. */
 public record StationView(
         UUID id,
         UUID warehouseId,
         String code,
         String mode,
+        List<String> supportedModes,
         String status,
         List<NodeView> nodes) {
 
     public static StationView from(GtpStation s, List<StationNode> nodes) {
-        return new StationView(s.getId(), s.getWarehouseId(), s.getCode(), s.getMode(), s.getStatus(),
+        return new StationView(s.getId(), s.getWarehouseId(), s.getCode(), s.getMode(),
+                s.supportedModeSet().stream().map(OperatingMode::name).toList(), s.getStatus(),
                 nodes.stream().map(NodeView::from).toList());
     }
 

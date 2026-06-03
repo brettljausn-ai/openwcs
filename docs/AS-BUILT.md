@@ -26,7 +26,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | order-management | 8084 | ✅ | Orders (all types) + lifecycle + release management + line transactions; delegates allocation. |
 | allocation | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing, batch picking. |
 | slotting | 8093 | ✅ | Put-away assignment for automated rack/GTP blocks (weighted scorer: velocity-to-exit · same-SKU lane consolidation · aisle redundancy · fill balance), manual pick-face slotting + min/max replenishment (opportunistic top-off), and off-peak re-slotting. ADR 0003. |
-| gtp | 8094 | ✅ | Goods-to-person station execution: configure stations + STOCK/ORDER nodes, open order destinations (bind order HU + demand), present a stock HU → put-to-light put-list across destinations (one HU serves many orders: the batch), confirm puts (incl. short), complete destinations. ORDER_LOCATION (conveyor HU-in-location) and PUT_WALL (lit rack cubbies, typical AMR) modes share one engine. ADR 0006. |
+| gtp | 8094 | ✅ | Goods-to-person station execution: configure stations + STOCK/ORDER nodes, open order destinations (bind order HU + demand), present a stock HU → put-to-light put-list across destinations (one HU serves many orders: the batch), confirm puts (incl. short), complete destinations. ORDER_LOCATION (conveyor HU-in-location) and PUT_WALL (lit rack cubbies, typical AMR) destination topology share one engine. Orthogonal **operating modes** (PICKING / DECANTING / STOCK_COUNT / QC / MAINTENANCE): each cycle runs one and carries mode-appropriate task lines (decant-moves / count entries+variance / PASS-FAIL-HOLD verdicts / OK-DEFECTIVE-REPAIR checks); seams to slotting put-away (decant) and inventory StockAdjusted (count). ADR 0006. |
 | txlog | 8086 | ✅ | Append-only event log + transactional outbox + relay to `txlog.stream`. |
 | iam | 8087 | ✅ | openWCS authorization model: users → roles → coded permissions (Keycloak does auth). |
 | flow-orchestrator | 8085 | 🟡 | Device-task lifecycle over the uniform device contract; routes to adapters by family (below). |
@@ -60,7 +60,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 | `orders` | order-management | outbound_order (all order types), order_line, order_line_transaction, order_outbox |
 | `allocation` | allocation | order_allocation, allocation_line, pick_batch |
 | `slotting` | slotting | storage_profile, pick_slot, block_policy, putaway_assignment (+ sku_ids for multi-compartment), replenishment_task, reslot_recommendation, sku_velocity (+ velocity offset/processed-event for the auto-ABC EWMA) |
-| `gtp` | gtp | gtp_station, station_node, destination_demand, work_cycle, put_instruction |
+| `gtp` | gtp | gtp_station (+ supported_modes), station_node, destination_demand, work_cycle (+ operating_mode, target_hu_id), put_instruction, task_line |
 | `iam` | iam | role, role_permission, app_user, user_role |
 | `flow` | flow-orchestrator | device_task |
 | `host_integration` | integration-host | idempotency_key, webhook_subscription |
@@ -341,6 +341,34 @@ The **pick-and-put work cycle** (`work_cycle` + `put_instruction`):
 **Short-pick / exception handling:** if the presented qty can't cover all demand, the surplus
 demand simply stays OPEN for the next stock HU of that SKU.
 
+### Operating modes
+
+Orthogonal to the destination topology (`mode`), a station **supports a set of operating modes**
+(`gtp_station.supported_modes`, ≥ `PICKING`) = what the operator does with a presented HU. Each
+`work_cycle` carries the one `operating_mode` it runs, and (for non-PICKING modes) a set of
+mode-appropriate **task lines** (`task_line`) — the put-list generalised — each with an
+outcome/confirmation.
+
+- **PICKING** — the put-to-light flow above, unchanged (`put_instruction`).
+- **DECANTING** — present a source HU + an empty `target_hu_id`; task lines are *decant-moves*
+  (SKU + qty into a target compartment). On confirm the moved qty is recorded; the filled target +
+  its SKUs are exposed for slotting **put-away** (seam).
+- **STOCK_COUNT** — present an HU; *count entries* (SKU + expected qty). On confirm the counted qty
+  is recorded and **variance = counted − expected**; non-zero variances surface as **StockAdjusted**
+  intents (seam to inventory).
+- **QC** — present an HU; *verdict slots* per HU/SKU recording `PASS | FAIL | HOLD`.
+- **MAINTENANCE** — request HUs/empty carriers; *check slots* recording `OK | DEFECTIVE | REPAIR`.
+
+REST (additive; PICKING endpoints unchanged): `POST /stations/{id}/operating-modes` (configure
+supported modes), `POST /stations/{id}/cycles {operatingMode, …, lines[]}` (open a cycle in any
+mode — PICKING delegates to `present`), `POST /tasks/{taskLineId}/outcome {actualQty?, verdict?}`
+(submit a per-line outcome). Migration `V2__operating_modes.sql`.
+
+**Mode seams (not hard-wired):** DECANTING exposes the filled target HU + its compartment SKUs for
+a slotting put-away call (`decantedTargetReady`); STOCK_COUNT exposes non-zero count variances as
+`StockAdjusted` intents (`stockCountAdjustment`). GTP records both; it does not call slotting or
+adjust inventory itself.
+
 **Seams (fast-follow, not built):** the physical lights and retrieving stock/order HUs to the
 station (ASRS/AMR/conveyor) are device-adapter + flow-orchestrator concerns — gtp only records
 `put_light_id`/`stock_hu_id`/`order_hu_id` and exposes the instructions. Demand origination
@@ -409,8 +437,11 @@ run green); the first run surfaced one test-isolation bug, now fixed.
   **decant** step, HU live-location/on-conveyor booking, FEFO replenishment sourcing and txlog audit
   events (`PutawayAssigned`/`ReplenishmentPlanned`/`ReslotRecommended`) are pending.
 - **GTP station execution** (`gtp`, ADR 0006): built — STOCK + ORDER/PUT_WALL nodes, batch
-  pick-and-put with put-to-light, ORDER_LOCATION vs PUT_WALL modes. Physical lights + stock/order-HU
-  retrieval + demand auto-wire from allocation are seams (not built).
+  pick-and-put with put-to-light, ORDER_LOCATION vs PUT_WALL destination topology, plus orthogonal
+  operating modes (PICKING / DECANTING / STOCK_COUNT / QC / MAINTENANCE) on a generalised work-cycle
+  with mode-appropriate task lines + outcomes. Physical lights + stock/order-HU retrieval + demand
+  auto-wire from allocation, and the decant→slotting-putaway / count→inventory-StockAdjusted
+  integrations, are seams (not built).
 - Scaffold-only: notification, integration-*, the asrs/amr/autostore device adapters.
 - flow-orchestrator dispatches device tasks but **no BPMN process originates them yet**
   (process-engine is still a scaffold); the device contract is synchronous HTTP, not the

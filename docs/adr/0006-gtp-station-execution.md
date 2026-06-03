@@ -89,6 +89,61 @@ ORDER_LOCATION and PUT_WALL produce put instructions through the *same* matching
 only difference is what an `ORDER` node represents physically (a conveyor order-HU location
 vs. a lit rack cubby). Tests assert both modes yield correct instructions.
 
+## Operating modes (2026-06)
+
+The station's `mode` (`ORDER_LOCATION` vs `PUT_WALL`) is the destination **topology** and is
+unchanged. We add an **orthogonal operating mode** = *what the operator does when an HU is
+presented*. A station **supports a set** of operating modes (`GtpStation.supportedModes`, a
+comma-separated set, ≥ `PICKING`); each `WorkCycle` carries the one `operatingMode` it runs.
+
+The five operating modes (`OperatingMode` enum):
+
+- **PICKING** — the original present-stock → put-to-light flow, unchanged. Its cycle still produces
+  `PutInstruction`s against open `DestinationDemand`; it is simply `operatingMode = PICKING`.
+- **DECANTING** — present a source (stock) HU **and** an empty `targetHuId`; the cycle's task lines
+  are *decant-moves* (move `qty` of a SKU into a target compartment). On confirm the moved qty is
+  recorded; the filled target HU + its compartment SKUs are exposed for slotting **put-away**
+  (`decantedTargetReady` — a seam, see below).
+- **STOCK_COUNT** (cycle counting) — present an HU; each task line is a *count entry* (a SKU with an
+  expected/system qty). On confirm the **counted qty** is recorded and **variance = counted −
+  expected** is computed; non-zero variances surface as **StockAdjusted intents**
+  (`stockCountAdjustment` — a seam).
+- **QC** — present an HU; each task line is a *verdict slot* per HU/SKU. On confirm a verdict
+  `PASS | FAIL | HOLD` (quarantine) is recorded.
+- **MAINTENANCE** — request specific HUs/empty carriers; each task line is a *check slot*. On confirm
+  a condition outcome `OK | DEFECTIVE | REPAIR` is recorded.
+
+### Generalising the cycle
+
+The put-list **generalises** to a set of mode-appropriate **task lines** (`TaskLine`, table
+`task_line`): decant-moves, count entries, QC verdicts, maintenance checks — each with an
+**outcome/confirmation** (`actualQty`/`variance` or `verdict`, `status ∈ OPEN | CONFIRMED |
+CANCELLED`). PICKING keeps using `put_instruction` unchanged (no breaking change); the other modes
+use `task_line`. The PICKING-specific `WorkCycle` columns (`stockHuId`, `skuId`, `presentedQty`,
+`remainingQty`) become nullable for the modes that don't carry a single presented SKU+qty.
+
+REST (additive, existing PICKING endpoints unchanged):
+
+- `POST /api/gtp/stations/{id}/operating-modes {supportedModes[]}` — configure supported modes.
+- `POST /api/gtp/stations/{id}/cycles {operatingMode, stockHuId?, targetHuId?, skuId?, qty?, lines[]}`
+  — open a cycle in any mode and present its HU(s); PICKING delegates to `present`.
+- `POST /api/gtp/tasks/{taskLineId}/outcome {actualQty?, verdict?}` — submit a per-line outcome.
+- The existing `POST /stations/{id}/present`, `POST /puts/{id}/confirm`, `GET /cycles/{id}`,
+  `POST /cycles/{id}/close` are unchanged (present is now a PICKING shorthand for `cycles`).
+
+Migration `V2__operating_modes.sql` adds `gtp_station.supported_modes`,
+`work_cycle.operating_mode` + `work_cycle.target_hu_id`, relaxes the PICKING-only NOT NULL/range
+guards on `work_cycle`, and creates `task_line`.
+
+### Mode seams (not hard-wired)
+
+- **DECANTING → slotting put-away** — a confirmed decant cycle exposes the filled target HU + its
+  compartment SKUs (`WorkCycleService.decantedTargetReady`) for a slotting put-away call; GTP does
+  **not** invoke slotting itself.
+- **STOCK_COUNT → inventory `StockAdjusted`** — non-zero count variances are exposed
+  (`WorkCycleService.stockCountAdjustment`) as adjustment intents; GTP records them and does **not**
+  adjust inventory directly.
+
 ### Seams (fast-follow, not built here)
 
 - **Physical hardware** — actual put-lights, and retrieving stock/order HUs to the station
