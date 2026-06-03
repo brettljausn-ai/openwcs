@@ -54,12 +54,12 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 
 | Schema | Owner | Tables |
 |---|---|---|
-| `master_data` | master-data | warehouse, attribute_schema, sku, sku_profile, dangerous_goods, unit_of_measure, barcode_type, barcode, handling_unit_type, equipment, location (+ block/aisle/lane-depth/distance-to-exit), **storage_block**, **shipper**, **warehouse_fulfillment_config**, **shipping_service**, **route**, **label_template** |
+| `master_data` | master-data | warehouse, attribute_schema, sku, sku_profile, dangerous_goods, unit_of_measure, barcode_type, barcode, handling_unit_type (+ compartments/storable-in-automation/conveyable), equipment, location (+ block/aisle/lane-depth/distance-to-exit + **cell coords side/pos_x/pos_y/pos_z**), **storage_block** (+ allowed_hu_types), **shipper**, **warehouse_fulfillment_config**, **shipping_service**, **route**, **label_template** |
 | `transaction_log` | txlog | events (append-only; UPDATE/DELETE blocked by trigger), outbox |
 | `inventory` | inventory | batch, serial_unit, stock, reservation, projection_offset, processed_event |
 | `orders` | order-management | outbound_order (all order types), order_line, order_line_transaction, order_outbox |
 | `allocation` | allocation | order_allocation, allocation_line, pick_batch |
-| `slotting` | slotting | storage_profile, pick_slot, block_policy, putaway_assignment, replenishment_task, reslot_recommendation |
+| `slotting` | slotting | storage_profile, pick_slot, block_policy, putaway_assignment (+ sku_ids for multi-compartment), replenishment_task, reslot_recommendation, sku_velocity (+ velocity offset/processed-event for the auto-ABC EWMA) |
 | `gtp` | gtp | gtp_station, station_node, destination_demand, work_cycle, put_instruction |
 | `iam` | iam | role, role_permission, app_user, user_role |
 | `flow` | flow-orchestrator | device_task |
@@ -397,14 +397,21 @@ run green); the first run surfaced one test-isolation bug, now fixed.
 
 ## 10. Not built / known gaps
 
-- **Slotting (ADR 0003) fast-follows:** the engine computes put-away/replenishment/re-slot *plans*
-  and exposes them over REST (+ the goods-in `assignPutaway` delegate), but it does not yet
-  **dispatch** the moves as device tasks via flow-orchestrator; lane/aisle occupancy is derived
-  from the slotting service's own assignment ledger (not yet reconciled against live inventory);
-  velocity/ABC class is teach-in (no auto-ABC from history); replenishment source-location FEFO
-  selection and txlog audit events (`PutawayAssigned`/`ReplenishmentPlanned`/`ReslotRecommended`)
-  are pending.
-- Scaffold-only: notification, integration-*, the asrs/amr/autostore adapters.
+- **Slotting (ADR 0003 + its Refinements section):** built — soft single-SKU-per-lane, HU type
+  capabilities + per-area allowed-HU-types, empty-HU far placement + LOW transport priority,
+  multi-compartment HUs (dominant velocity + SKU-set affinity), cell-as-location coordinates
+  (aisle/side/x/y/z), and **self-taught recency-weighted ABC** (EWMA from `txlog.stream`,
+  off-peak classify, `manual_override`). **Fast-follows:** the engine computes put-away/
+  replenishment/re-slot *plans* and exposes them over REST (+ the goods-in `assignPutaway`
+  delegate) but does not yet **dispatch** moves as device tasks via flow-orchestrator; lane/aisle
+  occupancy comes from the service's own assignment ledger (not yet reconciled against live
+  inventory); the engine doesn't yet group cells into deep lanes (deepest-empty-first); the goods-in
+  **decant** step, HU live-location/on-conveyor booking, FEFO replenishment sourcing and txlog audit
+  events (`PutawayAssigned`/`ReplenishmentPlanned`/`ReslotRecommended`) are pending.
+- **GTP station execution** (`gtp`, ADR 0006): built — STOCK + ORDER/PUT_WALL nodes, batch
+  pick-and-put with put-to-light, ORDER_LOCATION vs PUT_WALL modes. Physical lights + stock/order-HU
+  retrieval + demand auto-wire from allocation are seams (not built).
+- Scaffold-only: notification, integration-*, the asrs/amr/autostore device adapters.
 - flow-orchestrator dispatches device tasks but **no BPMN process originates them yet**
   (process-engine is still a scaffold); the device contract is synchronous HTTP, not the
   production Kafka transport.
