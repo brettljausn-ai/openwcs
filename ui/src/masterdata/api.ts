@@ -89,6 +89,7 @@ export interface Location {
   posX?: number | null
   posY?: number | null
   posZ?: number | null
+  hardwareAddress?: string | null
 }
 
 export interface Equipment {

@@ -1039,6 +1039,31 @@ function StorageBlockDialog({
   onSaved: () => void
 }) {
   const [d, setD] = useState<StorageBlock>(initial)
+  // Equipment options for the optional FK link (the device that serves this block).
+  const [equipment, setEquipment] = useState<Equipment[]>([])
+  useEffect(() => {
+    let active = true
+    if (!initial.warehouseId) return
+    listEquipment(initial.warehouseId)
+      .then((list) => {
+        if (active) setEquipment(list)
+      })
+      .catch(() => {
+        /* non-fatal: the select just stays at "— none —" */
+      })
+    return () => {
+      active = false
+    }
+  }, [initial.warehouseId])
+  const equipmentOptions = [
+    { value: '', label: '— none —' },
+    ...equipment.map((e) => ({
+      value: e.id ?? '',
+      label: `${e.subtype ? `${e.type}/${e.subtype}` : e.type ?? e.family} · ${[e.vendor, e.model]
+        .filter(Boolean)
+        .join(' ') || '—'}`,
+    })),
+  ]
   const valid = d.code.trim() !== '' && d.storageType.trim() !== ''
   return (
     <EditDialog
@@ -1087,6 +1112,14 @@ function StorageBlockDialog({
         <AllowedHuTypesPicker
           value={d.allowedHuTypes ?? []}
           onChange={(next) => setD({ ...d, allowedHuTypes: next })}
+        />
+      </Field>
+      <Field label={<>Equipment <InfoTip text="The equipment that serves this storage area, e.g. the ASRS aisle." example="ASRS Shuttle A" /></>}>
+        <Select
+          value={d.equipmentId ?? ''}
+          onChange={(val) => setD({ ...d, equipmentId: val === '' ? null : val })}
+          options={equipmentOptions}
+          ariaLabel="Equipment"
         />
       </Field>
       <Field label={<>Status <InfoTip text="Lifecycle state: ACTIVE is in use, INACTIVE is paused, ARCHIVED is retired." example="ACTIVE" /></>}>
@@ -1806,6 +1839,13 @@ function LocationDialog({
             onChange={(e) => setD({ ...d, distanceToExit: num(e.target.value) })}
           />
         </Field>
+        <Field label={<>Hardware address <InfoTip text="Controller / device address for this location (e.g. an ASRS bin address). Optional — can be filled in later." example="A01.R02.L05.D1" /></>}>
+          <input
+            className="form-control"
+            value={d.hardwareAddress ?? ''}
+            onChange={(e) => setD({ ...d, hardwareAddress: e.target.value || null })}
+          />
+        </Field>
         <Field label={<>Lane depth <InfoTip text="How many handling units deep this location's lane is: 1 = single-deep, 2 = double-deep." example="2" /></>}>
           <input
             className="form-control"
@@ -1938,6 +1978,57 @@ function ProcessTypesPicker({
               {on ? '✓' : ''}
             </span>
             {p.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// Equipment families/types that serve storage areas (blocks) — only then do we
+// surface the "Storage areas" multi-select linking blocks via block.equipmentId.
+const STORAGE_SERVING_FAMILIES = ['ASRS', 'AUTOSTORE', 'AMR']
+function servesStorage(d: Equipment): boolean {
+  return d.type === 'ASRS' || STORAGE_SERVING_FAMILIES.includes(d.family)
+}
+
+/**
+ * Multi-select of the warehouse's storage blocks for an ASRS-style device. Chips
+ * styled like the HU-types / process-types pickers; selected block ids populate
+ * the set, which the dialog reconciles into each block's equipmentId on save.
+ */
+function StorageAreasPicker({
+  blocks,
+  loading,
+  error,
+  selected,
+  onToggle,
+}: {
+  blocks: StorageBlock[]
+  loading: boolean
+  error: string | null
+  selected: Set<string>
+  onToggle: (id: string) => void
+}) {
+  if (error) return <div className="alert alert-danger">{error}</div>
+  if (loading) return <span className="muted">Loading storage blocks…</span>
+  if (blocks.length === 0) return <span className="muted">No storage blocks in this warehouse.</span>
+  return (
+    <div className="md-chips">
+      {blocks.map((b) => {
+        const on = !!b.id && selected.has(b.id)
+        return (
+          <button
+            key={b.id ?? b.code}
+            type="button"
+            className={`md-chip${on ? ' is-on' : ''}`}
+            aria-pressed={on}
+            onClick={() => b.id && onToggle(b.id)}
+          >
+            <span className="md-chip-box" aria-hidden="true">
+              {on ? '✓' : ''}
+            </span>
+            {b.code} · {b.storageType}
           </button>
         )
       })}
@@ -2090,6 +2181,43 @@ function EquipmentDialog({
   const subtypeOptions = d.type ? EQUIPMENT_SUBTYPES[d.type] : undefined
   const showProcessTypes = !!d.type && PROCESS_CAPABLE_TYPES.includes(d.type)
   const isConveyor = !!d.type && CONVEYOR_TYPES.includes(d.type)
+  const showStorageAreas = servesStorage(d)
+
+  // Warehouse storage blocks + the set of those linked to THIS equipment (by id).
+  const [blocks, setBlocks] = useState<StorageBlock[]>([])
+  const [blocksLoading, setBlocksLoading] = useState(false)
+  const [blocksError, setBlocksError] = useState<string | null>(null)
+  const [linked, setLinked] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    let active = true
+    if (!initial.warehouseId) return
+    setBlocksLoading(true)
+    listStorageBlocks(initial.warehouseId)
+      .then((list) => {
+        if (!active) return
+        setBlocks(list)
+        // Pre-check blocks already pointing at this equipment (edit mode only).
+        setLinked(new Set(list.filter((b) => b.id && b.equipmentId === initial.id).map((b) => b.id!)))
+      })
+      .catch((e) => {
+        if (active) setBlocksError(errMsg(e))
+      })
+      .finally(() => {
+        if (active) setBlocksLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [initial.warehouseId, initial.id])
+
+  function toggleBlock(id: string) {
+    setLinked((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   // When Type changes: reset/initialise subtype, clear process types if the new
   // type can't carry them, and re-derive the routing family.
@@ -2112,8 +2240,27 @@ function EquipmentDialog({
       wide
       onClose={onClose}
       onSave={async (e) => {
-        if (e.id) await updateEquipment(e.id, e)
-        else await createEquipment(e)
+        // Save the equipment first so a freshly-created device has an id to link to.
+        const saved = e.id ? await updateEquipment(e.id, e) : await createEquipment(e)
+        const savedId = saved.id
+        // Reconcile the block ⇄ equipment links via each block's equipmentId.
+        // Only ASRS-style devices expose the picker; for others `linked` is whatever
+        // was loaded (the blocks already pointing here), so nothing changes.
+        if (savedId && servesStorage(saved)) {
+          await Promise.all(
+            blocks.map((b) => {
+              if (!b.id) return null
+              const wantLinked = linked.has(b.id)
+              if (wantLinked && b.equipmentId !== savedId) {
+                return updateStorageBlock(b.id, { ...b, equipmentId: savedId })
+              }
+              if (!wantLinked && b.equipmentId === savedId) {
+                return updateStorageBlock(b.id, { ...b, equipmentId: null })
+              }
+              return null
+            }),
+          )
+        }
         onSaved()
       }}
     >
@@ -2251,6 +2398,28 @@ function EquipmentDialog({
           <ProcessTypesPicker
             value={d.processTypes ?? []}
             onChange={(next) => setD({ ...d, processTypes: next })}
+          />
+        </Field>
+      )}
+
+      {showStorageAreas && (
+        <Field
+          label={
+            <>
+              Storage areas{' '}
+              <InfoTip
+                text="Storage areas (blocks) served by this ASRS — links them via the block's equipment."
+                example="ASRS-A01, ASRS-A02"
+              />
+            </>
+          }
+        >
+          <StorageAreasPicker
+            blocks={blocks}
+            loading={blocksLoading}
+            error={blocksError}
+            selected={linked}
+            onToggle={toggleBlock}
           />
         </Field>
       )}
