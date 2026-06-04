@@ -36,6 +36,17 @@ export default function AppShell() {
     if (activeSection) setOpen((o) => (o.includes(activeSection) ? o : [...o, activeSection]))
   }, [activeSection])
 
+  // A top-level item with children (e.g. Master data) is its own collapsible section.
+  const activeItem = SCREENS.find(
+    (s) => s.children?.length && (pathname === s.path || pathname.startsWith(`${s.path}/`)),
+  )?.key
+  const [itemOpen, setItemOpen] = useState<string[]>(activeItem ? [activeItem] : [])
+  const toggleItem = (key: string) =>
+    setItemOpen((o) => (o.includes(key) ? o.filter((x) => x !== key) : [...o, key]))
+  useEffect(() => {
+    if (activeItem) setItemOpen((o) => (o.includes(activeItem) ? o : [...o, activeItem]))
+  }, [activeItem])
+
   const link = (s: ScreenDef) => (
     <NavLink key={s.key} to={s.path} end={s.path === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>
       <span className="nav-ico" aria-hidden="true">{s.icon}</span>
@@ -43,31 +54,29 @@ export default function AppShell() {
     </NavLink>
   )
 
-  // An item with children renders a second menu level (e.g. Master data → its catalogs),
-  // expanded while the user is on one of its sub-pages.
+  // A top-level item with children (e.g. Master data) renders as its own collapsible section —
+  // same behaviour as Operations/Engineering: a small-caps header that expands to its sub-pages.
   const renderItem = (s: ScreenDef) => {
     if (!s.children?.length) return link(s)
-    const expanded = pathname === s.path || pathname.startsWith(`${s.path}/`)
+    const isOpen = itemOpen.includes(s.key)
     return (
-      <div key={s.key} className="sidebar-item-group">
-        <NavLink to={s.children[0].path} className={`sidebar-parent${expanded ? ' active' : ''}`}>
-          <span className="nav-ico" aria-hidden="true">{s.icon}</span>
+      <div key={s.key} className="sidebar-group">
+        <button
+          type="button"
+          className={`sidebar-section${isOpen ? ' is-open' : ''}`}
+          aria-expanded={isOpen}
+          onClick={() => toggleItem(s.key)}
+        >
+          <span className="sidebar-section-chev" aria-hidden="true">▸</span>
           {s.label}
-          <span className="sidebar-subchev" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
-        </NavLink>
-        {expanded && (
-          <div className="sidebar-subnav">
-            {s.children.map((c) => (
-              <NavLink
-                key={c.path}
-                to={c.path}
-                className={({ isActive }) => `sidebar-subitem${isActive ? ' active' : ''}`}
-              >
-                {c.label}
-              </NavLink>
-            ))}
-          </div>
-        )}
+        </button>
+        {isOpen &&
+          s.children.map((c) => (
+            <NavLink key={c.path} to={c.path} className={({ isActive }) => (isActive ? 'active' : '')}>
+              <span className="nav-ico" aria-hidden="true" />
+              {c.label}
+            </NavLink>
+          ))}
       </div>
     )
   }
