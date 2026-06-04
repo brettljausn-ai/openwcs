@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, type ThreeEvent } from '@react-three/fiber'
-import { Grid, Html, OrbitControls, PivotControls, Text } from '@react-three/drei'
+import { Grid, Html, Line, OrbitControls, PivotControls, Text } from '@react-three/drei'
 import * as THREE from 'three'
 import Select from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
@@ -50,6 +50,26 @@ function num(v: string, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback
 }
 
+// World-space centre of a placed item, including its level's elevation so cross-level links
+// render at the right height. For a polyline conveyor the centre is the mean of its waypoints.
+function worldCenter(
+  eq: AutomationEquipment,
+  levels: AutomationLevel[],
+): [number, number, number] {
+  const elev = levels.find((l) => l.id === eq.levelId)?.elevationM ?? 0
+  if (Array.isArray(eq.path) && eq.path.length >= 1) {
+    let sx = 0
+    let sz = 0
+    for (const p of eq.path) {
+      sx += p[0]
+      sz += p[1]
+    }
+    const n = eq.path.length
+    return [sx / n, elev + eq.heightM / 2 + eq.posYM, sz / n]
+  }
+  return [eq.posXM, elev + eq.heightM / 2 + eq.posYM, eq.posZM]
+}
+
 export default function AutomationTopology3D() {
   const { currentWarehouseId: warehouseId } = useWarehouse()
 
@@ -68,6 +88,14 @@ export default function AutomationTopology3D() {
   // While a waypoint handle is being dragged we disable OrbitControls so the camera stays put.
   const [orbitEnabled, setOrbitEnabled] = useState(true)
 
+  // Connect mode: while ON, equipment clicks pick a connection source then target instead of
+  // selecting/dragging. connectFrom holds the chosen source's placed id (null = pick source next).
+  const [connectMode, setConnectMode] = useState(false)
+  const [connectFrom, setConnectFrom] = useState<string | null>(null)
+  const [selectedConnId, setSelectedConnId] = useState<string | null>(null)
+  // Library filter: show only equipment with no placement anywhere in the editor.
+  const [unplacedOnly, setUnplacedOnly] = useState(false)
+
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -82,6 +110,17 @@ export default function AutomationTopology3D() {
     for (const e of library) if (e.id) m.set(e.id, e)
     return m
   }, [library])
+
+  // How many placements (across all levels) reference each master-data equipment id. Drives the
+  // library's placed/unplaced badges and the "Unplaced only" filter; recomputes as equipment changes.
+  const placementCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const e of equipment) {
+      if (!e.equipmentId) continue
+      m.set(e.equipmentId, (m.get(e.equipmentId) ?? 0) + 1)
+    }
+    return m
+  }, [equipment])
 
   const load = useCallback(async () => {
     if (!warehouseId) {
@@ -264,21 +303,80 @@ export default function AutomationTopology3D() {
   const deleteSelected = useCallback(() => {
     if (!selectedId) return
     setEquipment((es) => es.filter((e) => e.id !== selectedId))
+    // Drop any connections that referenced the removed item so we don't keep dangling links.
+    setConnections((cs) =>
+      cs.filter((c) => c.fromPlacedId !== selectedId && c.toPlacedId !== selectedId),
+    )
+    if (connectFrom === selectedId) setConnectFrom(null)
     setSelectedId(null)
     setDirty(true)
-  }, [selectedId])
+  }, [selectedId, connectFrom])
 
-  // Group the equipment library by type for the left panel.
+  // ---- connection helpers ------------------------------------------------
+  // A click on a piece of equipment while connect mode is on. First pick = source; second pick =
+  // target (creates the connection). Clicking the same item cancels the in-progress pick.
+  const handleConnectPick = useCallback(
+    (placedId: string) => {
+      setConnectFrom((from) => {
+        if (!from) return placedId
+        if (from === placedId) return null // clicking the source again cancels
+        setConnections((cs) => [
+          ...cs,
+          {
+            id: crypto.randomUUID(),
+            fromPlacedId: from,
+            toPlacedId: placedId,
+            fromPointId: null,
+            toPointId: null,
+            label: null,
+            status: 'ACTIVE',
+          },
+        ])
+        setDirty(true)
+        return null // ready to chain another from-pick
+      })
+    },
+    [],
+  )
+
+  const deleteConnection = useCallback((id: string) => {
+    setConnections((cs) => cs.filter((c) => c.id !== id))
+    setSelectedConnId((s) => (s === id ? null : s))
+    setDirty(true)
+  }, [])
+
+  const toggleConnectMode = useCallback(() => {
+    setConnectMode((on) => {
+      const next = !on
+      setConnectFrom(null)
+      if (next) {
+        setSelectedId(null)
+        setDrawPath(false)
+      }
+      return next
+    })
+  }, [])
+
+  // Lookup of placed item (any level) by id, for resolving connection endpoints to codes.
+  const equipmentById = useMemo(() => {
+    const m = new Map<string, AutomationEquipment>()
+    for (const e of equipment) m.set(e.id, e)
+    return m
+  }, [equipment])
+
+  // Group the equipment library by type for the left panel. "Unplaced only" hides any library
+  // entry that already has at least one placement in the editor.
   const libraryGroups = useMemo(() => {
     const groups = new Map<string, Equipment[]>()
     for (const e of library) {
+      if (unplacedOnly && e.id && (placementCounts.get(e.id) ?? 0) > 0) continue
       const key = equipmentTypeLabel(e)
       const arr = groups.get(key) ?? []
       arr.push(e)
       groups.set(key, arr)
     }
     return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  }, [library])
+  }, [library, unplacedOnly, placementCounts])
 
   if (!warehouseId) {
     return (
@@ -313,6 +411,15 @@ export default function AutomationTopology3D() {
         </div>
         <div className="atopo-actions">
           {dirty && <span className="atopo-dirty">Unsaved changes</span>}
+          <button
+            type="button"
+            className={`btn btn-sm ${connectMode ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={toggleConnectMode}
+            disabled={loading || saving}
+            title="Link two pieces of equipment: click a source, then a target."
+          >
+            {connectMode ? 'Connecting…' : 'Connect'}
+          </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={load} disabled={loading || saving}>
             {loading ? 'Loading…' : 'Reload'}
           </button>
@@ -359,30 +466,50 @@ export default function AutomationTopology3D() {
         {/* ---- left: equipment library ---- */}
         <aside className="atopo-panel atopo-library glass">
           <h3>Equipment library</h3>
+          {library.length > 0 && (
+            <label className="md-check atopo-unplaced">
+              <input
+                type="checkbox"
+                checked={unplacedOnly}
+                onChange={(e) => setUnplacedOnly(e.target.checked)}
+              />
+              Unplaced only
+            </label>
+          )}
           {library.length === 0 ? (
             <p className="atopo-muted">
               No equipment — create some in Master data → Equipment.
             </p>
+          ) : libraryGroups.length === 0 ? (
+            <p className="atopo-muted">All equipment is placed.</p>
           ) : (
             libraryGroups.map(([type, items]) => (
               <div key={type} className="atopo-libgroup">
                 <div className="atopo-libgroup-head">{type}</div>
-                {items.map((e) => (
-                  <div key={e.id} className="atopo-librow">
-                    <span className="atopo-librow-label">
-                      {e.model || e.subtype || e.family}
-                      {e.vendor ? <span className="atopo-muted"> · {e.vendor}</span> : null}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn btn-outline btn-sm"
-                      onClick={() => addFromLibrary(e)}
-                      disabled={!activeLevelId}
-                    >
-                      + Add
-                    </button>
-                  </div>
-                ))}
+                {items.map((e) => {
+                  const placedCount = e.id ? placementCounts.get(e.id) ?? 0 : 0
+                  return (
+                    <div key={e.id} className="atopo-librow">
+                      <span className="atopo-librow-label">
+                        {e.model || e.subtype || e.family}
+                        {e.vendor ? <span className="atopo-muted"> · {e.vendor}</span> : null}
+                        <span
+                          className={`atopo-badge ${placedCount > 0 ? 'is-placed' : 'is-unplaced'}`}
+                        >
+                          {placedCount > 0 ? `placed ${placedCount}` : 'not placed'}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => addFromLibrary(e)}
+                        disabled={!activeLevelId}
+                      >
+                        + Add
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
             ))
           )}
@@ -418,10 +545,17 @@ export default function AutomationTopology3D() {
               />
               <SceneContent
                 items={levelEquipment}
+                allItems={equipment}
+                levels={levels}
+                connections={connections}
+                selectedConnId={selectedConnId}
+                connectMode={connectMode}
+                connectFrom={connectFrom}
                 lib={libById}
                 selectedId={selectedId}
                 drawPath={drawPath}
                 onSelect={setSelectedId}
+                onConnectPick={handleConnectPick}
                 onMove={(id, x, z, rotDeg) =>
                   patchEquipment(id, { posXM: x, posZM: z, rotationDeg: rotDeg })
                 }
@@ -446,9 +580,13 @@ export default function AutomationTopology3D() {
               />
             </Canvas>
             <div className="atopo-hint">
-              {drawPath
-                ? 'Draw mode: click the floor to add conveyor waypoints'
-                : 'Drag to orbit · right-drag to pan · scroll to zoom'}
+              {connectMode
+                ? connectFrom
+                  ? `Connect: from ${equipmentById.get(connectFrom)?.code ?? '?'} — click a target (or the source again to cancel)`
+                  : 'Connect: click a source piece of equipment'
+                : drawPath
+                  ? 'Draw mode: click the floor to add conveyor waypoints'
+                  : 'Drag to orbit · right-drag to pan · scroll to zoom'}
             </div>
             </>
           )}
@@ -507,6 +645,14 @@ export default function AutomationTopology3D() {
               </button>
             </div>
           )}
+
+          <ConnectionsPanel
+            connections={connections}
+            equipmentById={equipmentById}
+            selectedConnId={selectedConnId}
+            onSelect={(id) => setSelectedConnId((s) => (s === id ? null : id))}
+            onDelete={deleteConnection}
+          />
         </aside>
       </div>
 
@@ -633,16 +779,91 @@ function ConveyorPathTools({
   )
 }
 
+// Collapsible list of equipment-to-equipment connections with per-row delete + highlight-select.
+function ConnectionsPanel({
+  connections,
+  equipmentById,
+  selectedConnId,
+  onSelect,
+  onDelete,
+}: {
+  connections: AutomationConnection[]
+  equipmentById: Map<string, AutomationEquipment>
+  selectedConnId: string | null
+  onSelect: (id: string) => void
+  onDelete: (id: string) => void
+}) {
+  const [open, setOpen] = useState(true)
+  return (
+    <div className="atopo-conns">
+      <button
+        type="button"
+        className="atopo-conns-head"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        <span>Connections ({connections.length})</span>
+        <span className="atopo-conns-chevron">{open ? '▾' : '▸'}</span>
+      </button>
+      {open &&
+        (connections.length === 0 ? (
+          <p className="atopo-muted atopo-conns-empty">
+            None yet — use Connect to link two pieces of equipment.
+          </p>
+        ) : (
+          <ul className="atopo-conns-list">
+            {connections.map((c) => {
+              const from = equipmentById.get(c.fromPlacedId)
+              const to = equipmentById.get(c.toPlacedId)
+              const dangling = !from || !to
+              return (
+                <li
+                  key={c.id}
+                  className={`atopo-conns-row${c.id === selectedConnId ? ' is-active' : ''}`}
+                >
+                  <button
+                    type="button"
+                    className="atopo-conns-label"
+                    onClick={() => onSelect(c.id)}
+                    title={dangling ? 'One endpoint is missing from this layout' : 'Highlight this link'}
+                  >
+                    {from?.code ?? '?'} → {to?.code ?? '?'}
+                    {dangling ? <span className="atopo-muted"> · dangling</span> : null}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    onClick={() => onDelete(c.id)}
+                  >
+                    Delete
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        ))}
+    </div>
+  )
+}
+
 // =========================================================================
 // 3D scene
 // =========================================================================
 
 interface SceneContentProps {
   items: AutomationEquipment[]
+  // Every placed item across all levels — used to resolve connection endpoints (incl. cross-level).
+  allItems: AutomationEquipment[]
+  levels: AutomationLevel[]
+  connections: AutomationConnection[]
+  selectedConnId: string | null
+  connectMode: boolean
+  connectFrom: string | null
   lib: Map<string, Equipment>
   selectedId: string | null
   drawPath: boolean
   onSelect: (id: string | null) => void
+  onConnectPick: (id: string) => void
   onMove: (id: string, x: number, z: number, rotationDeg: number) => void
   onAppendWaypoint: (id: string, x: number, z: number) => void
   onMoveWaypoint: (id: string, index: number, x: number, z: number) => void
@@ -651,24 +872,43 @@ interface SceneContentProps {
 
 function SceneContent({
   items,
+  allItems,
+  levels,
+  connections,
+  selectedConnId,
+  connectMode,
+  connectFrom,
   lib,
   selectedId,
   drawPath,
   onSelect,
+  onConnectPick,
   onMove,
   onAppendWaypoint,
   onMoveWaypoint,
   onHandleDragChange,
 }: SceneContentProps) {
+  const byId = useMemo(() => {
+    const m = new Map<string, AutomationEquipment>()
+    for (const e of allItems) m.set(e.id, e)
+    return m
+  }, [allItems])
+
   return (
     <group>
       {/* The (invisible) ground plane. In draw mode it appends a waypoint to the selected
-          conveyor; otherwise a plain left-click deselects. */}
+          conveyor; in connect mode an empty-space click cancels the in-progress pick; otherwise
+          a plain left-click deselects. */}
       <mesh
         rotation-x={-Math.PI / 2}
         position={[0, -0.001, 0]}
         onPointerDown={(e: ThreeEvent<PointerEvent>) => {
           if (e.button !== 0) return
+          if (connectMode) {
+            e.stopPropagation()
+            if (connectFrom) onConnectPick(connectFrom) // re-pick source id => cancel
+            return
+          }
           if (drawPath && selectedId) {
             // Suppress deselect while drawing; append the clicked floor point as a waypoint.
             e.stopPropagation()
@@ -682,6 +922,21 @@ function SceneContent({
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
+      {/* Connection lines — drawn for every link whose endpoints both currently exist (any level). */}
+      {connections.map((c) => {
+        const from = byId.get(c.fromPlacedId)
+        const to = byId.get(c.toPlacedId)
+        if (!from || !to) return null
+        return (
+          <ConnectionLine
+            key={c.id}
+            a={worldCenter(from, levels)}
+            b={worldCenter(to, levels)}
+            active={c.id === selectedConnId}
+          />
+        )
+      })}
+
       {items.map((eq) => (
         <EquipmentMesh
           key={eq.id}
@@ -689,7 +944,10 @@ function SceneContent({
           conveyor={isConveyor(eq, lib)}
           color={colorFor(eq, lib)}
           selected={eq.id === selectedId}
-          onSelect={() => onSelect(eq.id)}
+          // In connect mode highlight the chosen source and route clicks to the connect picker.
+          connectMode={connectMode}
+          connectSource={eq.id === connectFrom}
+          onSelect={() => (connectMode ? onConnectPick(eq.id) : onSelect(eq.id))}
           onMove={(x, z, rot) => onMove(eq.id, x, z, rot)}
           onMoveWaypoint={(index, x, z) => onMoveWaypoint(eq.id, index, x, z)}
           onHandleDragChange={onHandleDragChange}
@@ -699,11 +957,47 @@ function SceneContent({
   )
 }
 
+// A line between two world points with a small cone arrowhead at the "to" end.
+function ConnectionLine({
+  a,
+  b,
+  active,
+}: {
+  a: [number, number, number]
+  b: [number, number, number]
+  active: boolean
+}) {
+  const color = active ? '#8DC63F' : '#f0a85a'
+  const va = new THREE.Vector3(a[0], a[1], a[2])
+  const vb = new THREE.Vector3(b[0], b[1], b[2])
+  const dir = new THREE.Vector3().subVectors(vb, va)
+  const len = dir.length()
+  // Orient a +Y cone to point along the link direction (arrowhead at the "to" end).
+  const quat = new THREE.Quaternion()
+  if (len > 1e-4) {
+    quat.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize())
+  }
+  return (
+    <group>
+      <Line points={[a, b]} color={color} lineWidth={active ? 3 : 2} />
+      {len > 1e-4 && (
+        <mesh position={[b[0], b[1], b[2]]} quaternion={quat}>
+          <coneGeometry args={[0.18, 0.5, 12]} />
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.3} />
+        </mesh>
+      )}
+    </group>
+  )
+}
+
 interface EquipmentMeshProps {
   eq: AutomationEquipment
   conveyor: boolean
   color: string
   selected: boolean
+  // Connect mode on → clicks pick connection endpoints; the chosen source is highlighted.
+  connectMode: boolean
+  connectSource: boolean
   onSelect: () => void
   onMove: (x: number, z: number, rotationDeg: number) => void
   onMoveWaypoint: (index: number, x: number, z: number) => void
@@ -715,18 +1009,26 @@ function EquipmentMesh({
   conveyor,
   color,
   selected,
+  connectMode,
+  connectSource,
   onSelect,
   onMove,
   onMoveWaypoint,
   onHandleDragChange,
 }: EquipmentMeshProps) {
+  // Highlight either the editor selection or (in connect mode) the chosen source.
+  const highlight = connectMode ? connectSource : selected
+  const highlightColor = connectMode ? '#f0a85a' : '#8DC63F'
+
   // Conveyor with a usable polyline → render as connected segments + (when selected) handles.
+  // While connecting we suppress waypoint handles so clicks register as connect picks.
   if (conveyor && hasPath(eq)) {
     return (
       <ConveyorPath
         eq={eq}
         color={color}
-        selected={selected}
+        selected={highlight}
+        editable={selected && !connectMode}
         onSelect={onSelect}
         onMoveWaypoint={onMoveWaypoint}
         onHandleDragChange={onHandleDragChange}
@@ -748,16 +1050,16 @@ function EquipmentMesh({
       <boxGeometry args={[eq.lengthM, eq.heightM, eq.widthM]} />
       <meshStandardMaterial
         color={color}
-        emissive={selected ? '#8DC63F' : '#000000'}
-        emissiveIntensity={selected ? 0.5 : 0}
+        emissive={highlight ? highlightColor : '#000000'}
+        emissiveIntensity={highlight ? 0.5 : 0}
         metalness={0.1}
         roughness={0.7}
       />
-      {selected && (
-        // Simple wireframe outline on the selected box.
+      {highlight && (
+        // Simple wireframe outline on the highlighted box.
         <lineSegments>
           <edgesGeometry args={[new THREE.BoxGeometry(eq.lengthM * 1.02, eq.heightM * 1.02, eq.widthM * 1.02)]} />
-          <lineBasicMaterial color="#8DC63F" />
+          <lineBasicMaterial color={highlightColor} />
         </lineSegments>
       )}
       <Html position={[0, eq.heightM / 2 + 0.4, 0]} center distanceFactor={18} occlude={false}>
@@ -766,8 +1068,8 @@ function EquipmentMesh({
     </mesh>
   )
 
-  // When selected, wrap in PivotControls for drag-move + rotate; write back on change.
-  if (selected) {
+  // When selected (and not connecting), wrap in PivotControls for drag-move + rotate.
+  if (selected && !connectMode) {
     return (
       <PivotControls
         anchor={[0, 0, 0]}
@@ -830,17 +1132,20 @@ interface ConveyorPathProps {
   eq: AutomationEquipment
   color: string
   selected: boolean
+  // When true, draggable waypoint handles are shown (suppressed while in connect mode).
+  editable: boolean
   onSelect: () => void
   onMoveWaypoint: (index: number, x: number, z: number) => void
   onHandleDragChange: (active: boolean) => void
 }
 
 // Renders a conveyor as a chain of box segments following its centreline waypoints, plus
-// (when selected) draggable sphere handles to edit each waypoint on the XZ ground plane.
+// (when editable) draggable sphere handles to edit each waypoint on the XZ ground plane.
 function ConveyorPath({
   eq,
   color,
   selected,
+  editable,
   onSelect,
   onMoveWaypoint,
   onHandleDragChange,
@@ -905,8 +1210,8 @@ function ConveyorPath({
         </Html>
       )}
 
-      {/* Editable waypoint handles, only for the selected conveyor. */}
-      {selected &&
+      {/* Editable waypoint handles, only when this conveyor is the editable selection. */}
+      {editable &&
         path.map((p, i) => (
           <WaypointHandle
             key={i}
@@ -1027,7 +1332,33 @@ function Styles() {
         padding: .35rem .5rem; border-radius: 8px; font-size: .8125rem;
         border: 1px solid var(--glass-border); margin-bottom: .3rem;
       }
-      .atopo-librow-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .atopo-librow-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: .35rem; }
+      .atopo-unplaced { margin: 0 0 .6rem; font-size: .8rem; }
+      .atopo-badge {
+        font-family: var(--font-mono); font-size: .62rem; text-transform: uppercase; letter-spacing: .05em;
+        padding: 1px 6px; border-radius: 999px; border: 1px solid var(--glass-border); white-space: nowrap;
+      }
+      .atopo-badge.is-placed { color: var(--herbal-lime); border-color: rgba(141, 198, 63, .4); background: rgba(141, 198, 63, .12); }
+      .atopo-badge.is-unplaced { color: var(--text-dim); }
+      .atopo-conns { margin-top: .8rem; border-top: 1px solid var(--glass-border); padding-top: .6rem; }
+      .atopo-conns-head {
+        width: 100%; display: flex; align-items: center; justify-content: space-between;
+        background: none; border: none; cursor: pointer; padding: 0; color: var(--text);
+        font-family: var(--font-body); font-size: .9rem; font-weight: 600;
+      }
+      .atopo-conns-chevron { color: var(--text-dim); }
+      .atopo-conns-empty { margin: .5rem 0 0; }
+      .atopo-conns-list { list-style: none; margin: .5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+      .atopo-conns-row {
+        display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+        padding: .3rem .45rem; border-radius: 8px; border: 1px solid var(--glass-border);
+      }
+      .atopo-conns-row.is-active { border-color: var(--glass-border-bright); background: rgba(141, 198, 63, .1); }
+      .atopo-conns-label {
+        flex: 1; text-align: left; background: none; border: none; cursor: pointer; padding: 0;
+        color: var(--text); font-family: var(--font-mono); font-size: .8rem;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
       .atopo-fields { display: flex; flex-direction: column; gap: .6rem; }
       .atopo-field { display: flex; flex-direction: column; gap: .25rem; margin: 0; }
       .atopo-field > span { font-size: .8125rem; color: var(--text-dim); }

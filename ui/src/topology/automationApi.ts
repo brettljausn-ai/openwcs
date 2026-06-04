@@ -34,9 +34,21 @@ export interface AutomationEquipment {
   closed?: boolean
 }
 
-// Opaque round-tripped payloads — this slice doesn't edit connections or function points,
+// A directed link between two placed-equipment items. from/toPlacedId reference
+// AutomationEquipment.id; the optional point ids reference function points on either end.
+// The whole record round-trips on load/save (server remaps client temp-ids).
+export interface AutomationConnection {
+  id: string
+  fromPlacedId: string
+  toPlacedId: string
+  fromPointId?: string | null
+  toPointId?: string | null
+  label?: string | null
+  status?: string
+}
+
+// Opaque round-tripped payload — this slice doesn't edit function points,
 // it only preserves whatever the server returned so a save doesn't drop them.
-export type AutomationConnection = Record<string, unknown>
 export type AutomationFunctionPoint = Record<string, unknown>
 
 export interface AutomationTopology {
