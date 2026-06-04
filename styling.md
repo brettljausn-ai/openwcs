@@ -1,8 +1,6 @@
-# BJ Assistant — Dark / Glassy / Futuristic Styling Guide
+# Dark / Glassy / Futuristic Styling Guide
 
-A copy-pasteable reference for replicating the BJ Assistant visual language in
-other BrettlJausn / brand-adjacent projects. Covers the design tokens,
-background system, glass primitives, typography, components, and animations
+Covers the design tokens, background system, glass primitives, typography, components, and animations
 used across the public landing page (`src/views/landing.ejs`) and the app
 shell (`public/css/style.css`).
 
@@ -1004,11 +1002,11 @@ the subject into a narrow column.
       <button class="btn btn-danger btn-sm">Delete</button>
     </div>
   </div>
-  <h2>RE:FW: NDA Brettljausn (former Ethon Advisory)</h2>
+  <h2>RE:FW: NDA (NDA)</h2>
   <p class="inbox-view-meta">
     <span class="inbox-view-meta-row">From <strong>Gerets, Denise</strong></span>
-    <span class="inbox-view-meta-row">To <span>karl@brettljausn.ai</span></span>
-    <span class="inbox-view-meta-row">Cc <span>legal@brettljausn.ai</span></span>
+    <span class="inbox-view-meta-row">To <span>name@domain.ai</span></span>
+    <span class="inbox-view-meta-row">Cc <span>name@domain.ai</span></span>
     <span class="inbox-view-meta-row inbox-view-meta-date">29 Apr 2026, 14:21</span>
   </p>
 </div>
