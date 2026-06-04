@@ -350,6 +350,7 @@ export default function AutomationTopology3D() {
               </button>
             </div>
           ) : (
+            <>
             <Canvas camera={{ position: [12, 12, 12], fov: 50 }}>
               <color attach="background" args={['#081e16']} />
               <ambientLight intensity={0.6} />
@@ -376,8 +377,23 @@ export default function AutomationTopology3D() {
                   patchEquipment(id, { posXM: x, posZM: z, rotationDeg: rotDeg })
                 }
               />
-              <OrbitControls makeDefault enableDamping />
+              <OrbitControls
+                makeDefault
+                enableDamping
+                enablePan
+                enableZoom
+                enableRotate
+                screenSpacePanning
+                panSpeed={1.2}
+                zoomSpeed={1.1}
+                minDistance={2}
+                maxDistance={150}
+                maxPolarAngle={Math.PI / 2.05}
+                mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
+              />
             </Canvas>
+            <div className="atopo-hint">Drag to orbit · right-drag to pan · scroll to zoom</div>
+            </>
           )}
         </div>
 
@@ -620,8 +636,14 @@ function Styles() {
       .atopo-body { display: grid; grid-template-columns: 260px 1fr 280px; gap: .6rem; align-items: stretch; }
       .atopo-panel { padding: .8rem; overflow-y: auto; max-height: 70vh; }
       .atopo-panel h3 { font-size: .95rem; margin: 0 0 .6rem; }
-      .atopo-canvas { padding: 0; height: 70vh; overflow: hidden; }
+      .atopo-canvas { padding: 0; height: 70vh; overflow: hidden; position: relative; }
       .atopo-canvas canvas { display: block; }
+      .atopo-hint {
+        position: absolute; left: 12px; bottom: 12px; z-index: 2; pointer-events: none;
+        padding: .3rem .6rem; border-radius: 8px; font-size: .72rem; letter-spacing: .02em;
+        color: rgba(214, 228, 220, .85); background: rgba(8, 30, 22, .6);
+        border: 1px solid var(--glass-border);
+      }
       .atopo-empty {
         height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
         gap: .8rem; color: var(--text-dim); text-align: center; padding: 1rem;
