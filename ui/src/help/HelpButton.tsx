@@ -4,22 +4,34 @@ import { useLocation } from 'react-router-dom'
 import { SCREENS } from '../auth/screens'
 import { HELP, ScreenHelp } from './content'
 
-// Resolve the screen the user is on from the current path (longest-prefix match; '/' = dashboard).
-function currentScreenKey(pathname: string): string | null {
-  if (pathname === '/') return 'dashboard'
+// Resolve the help key + drawer title for the current path. Master-data sub-pages
+// (/master-data/:entity) get their own per-catalog help ('master-data:<entity>'); everything
+// else is a longest-prefix match on the screen catalog ('/' = dashboard).
+function resolveHelp(pathname: string): { key: string; label: string } | null {
+  if (pathname === '/') return { key: 'dashboard', label: 'Dashboard' }
+  const md = pathname.match(/^\/master-data\/([a-z-]+)/)
+  if (md) {
+    const childPath = `/master-data/${md[1]}`
+    const masterData = SCREENS.find((s) => s.key === 'master-data')
+    const label = masterData?.children?.find((c) => c.path === childPath)?.label ?? masterData?.label ?? 'Master data'
+    return { key: `master-data:${md[1]}`, label }
+  }
   const match = SCREENS
     .filter((s) => s.path !== '/' && pathname.startsWith(s.path))
     .sort((a, b) => b.path.length - a.path.length)[0]
-  return match?.key ?? null
+  return match ? { key: match.key, label: match.label } : null
 }
 
 // A "?" button in the app top bar that opens a guidance drawer for the current screen. Renders
 // nothing when the current screen has no help entry.
 export default function HelpButton() {
   const { pathname } = useLocation()
-  const key = currentScreenKey(pathname)
-  const help = key ? HELP[key] : null
-  const label = SCREENS.find((s) => s.key === key)?.label ?? 'Help'
+  const resolved = resolveHelp(pathname)
+  // The specific entry, falling back to the generic master-data help for any sub-page lacking one.
+  const help = resolved
+    ? HELP[resolved.key] ?? (resolved.key.startsWith('master-data:') ? HELP['master-data'] : null)
+    : null
+  const label = resolved?.label ?? 'Help'
   const [open, setOpen] = useState(false)
 
   // Close the drawer when navigating to another screen.
