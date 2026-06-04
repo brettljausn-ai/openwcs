@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Select from '../ui/Select'
 
 // --- Transaction-log event shape (contracts/openapi/txlog.yaml → EventView) ---
 type TxEvent = {
@@ -261,18 +262,15 @@ export default function StockTxnScreen() {
           </label>
           <label style={{ display: 'block' }}>
             <span className="muted" style={{ fontSize: '.75rem' }}>Type</span>
-            <select
-              className="form-control"
+            <Select
               value={fType}
-              onChange={(ev) => setFType(ev.target.value)}
-            >
-              <option value="">All types</option>
-              {STOCK_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setFType(v)}
+              ariaLabel="Type"
+              options={[
+                { value: '', label: 'All types' },
+                ...STOCK_TYPES.map((t) => ({ value: t, label: t })),
+              ]}
+            />
           </label>
           <label style={{ display: 'block' }}>
             <span className="muted" style={{ fontSize: '.75rem' }}>From</span>

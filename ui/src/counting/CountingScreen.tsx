@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import Select from '../ui/Select'
 
 // Stock counting (cycle counting) — drives the /api/counting service: ad-hoc + scheduled
 // (ABC-cadence) count tasks, a count-capture form (counted qty per line), variance vs the
@@ -268,19 +269,16 @@ export default function CountingScreen() {
       </div>
 
       <div className="toolbar">
-        <select
-          className="form-control"
+        <Select
+          ariaLabel="Status"
           style={{ width: 170 }}
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="">All statuses</option>
-          {TASK_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => setStatusFilter(v)}
+          options={[
+            { value: '', label: 'All statuses' },
+            ...TASK_STATUSES.map((s) => ({ value: s, label: s })),
+          ]}
+        />
         <button className="btn btn-primary" onClick={loadTasks} disabled={loading}>
           {loading ? 'Loading…' : 'Load'}
         </button>
@@ -707,32 +705,25 @@ function ScheduleDialog({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
             <label style={fieldLabel}>
               Scope
-              <select
-                className="form-control"
+              <Select
+                ariaLabel="Scope"
                 value={form.scopeType}
-                onChange={(e) => setForm({ ...form, scopeType: e.target.value })}
-              >
-                {['ABC_CLASS', 'LOCATION', 'SKU', 'ZONE', 'BLOCK'].map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setForm({ ...form, scopeType: v })}
+                options={['ABC_CLASS', 'LOCATION', 'SKU', 'ZONE', 'BLOCK'].map((s) => ({
+                  value: s,
+                  label: s,
+                }))}
+              />
             </label>
             {needsAbc ? (
               <label style={fieldLabel}>
                 ABC class
-                <select
-                  className="form-control"
+                <Select
+                  ariaLabel="ABC class"
                   value={form.abcClass}
-                  onChange={(e) => setForm({ ...form, abcClass: e.target.value })}
-                >
-                  {['A', 'B', 'C'].map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setForm({ ...form, abcClass: v })}
+                  options={['A', 'B', 'C'].map((c) => ({ value: c, label: c }))}
+                />
               </label>
             ) : (
               <label style={fieldLabel}>
@@ -749,17 +740,12 @@ function ScheduleDialog({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
             <label style={fieldLabel}>
               Count type
-              <select
-                className="form-control"
+              <Select
+                ariaLabel="Count type"
                 value={form.countType}
-                onChange={(e) => setForm({ ...form, countType: e.target.value })}
-              >
-                {['VARIANCE', 'BLIND'].map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setForm({ ...form, countType: v })}
+                options={['VARIANCE', 'BLIND'].map((c) => ({ value: c, label: c }))}
+              />
             </label>
             <label style={fieldLabel}>
               Cadence (days)

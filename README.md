@@ -87,7 +87,7 @@ openwcs/
 | `services/adapters/amr-geekplus` | Go | 9093 | Geek+ RCS adapter (REST + WebSocket) |
 | `services/adapters/autostore` | Go | 9094 | AutoStore grid adapter (REST) |
 | `services/adapters/conveyor-sniffer` | Go | 9095 | Captures scan telegrams from defined IPs → posts observations to the WCS for conveyor topology learning |
-| `ui` | React/TS | 5173 dev / 443 prod | Operator + management SPA: Keycloak login, dashboard, and role/user-gated screens — orders (inbound/outbound), counting, GTP operator + config, transport, stock transactions, topology, processes, slotting, master data, settings, users, access control, warehouse access. A global top-bar warehouse switcher auto-selects each user's default warehouse on login and scopes every warehouse-related screen (no UUID entry). In compose served by nginx on host `:443` (HTTPS forced). |
+| `ui` | React/TS | 5173 dev / 443 prod | Operator + management SPA: Keycloak login, dashboard, and role/user-gated screens — orders (inbound/outbound), counting, GTP operator + config, transport, stock transactions, topology, processes, slotting, master data, settings, users, access control, warehouse access. A global top-bar warehouse switcher auto-selects each user's default warehouse on login and scopes every warehouse-related screen (no UUID entry). Inbound/outbound are read-only (host owns orders). Shared styled Select + searchable/sortable/paginated DataTable; warehouse-access user list paginates server-side. In compose served by nginx on host `:443` (HTTPS forced). |
 
 ---
 

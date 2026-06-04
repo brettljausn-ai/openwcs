@@ -10,6 +10,7 @@ import ReactFlow, {
   type Node,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import Select from '../ui/Select'
 import { discoverTopology, loadTopology, saveTopology, type ControllerDto, type EdgeDto, type LoopDto, type NodeDto, type Topology } from './api'
 
 type NodeData = { name?: string; hardwareAddress?: string; loopCode?: string; controllerCode?: string; nodeAddress?: string; label?: string }
@@ -283,10 +284,15 @@ function LoopsEditor(props: { loops: LoopDto[]; setLoops: (l: LoopDto[]) => void
           <Field label="Max HUs" value={String(l.maxHus)} onChange={(v) => update(i, { maxHus: Number(v) || 0 })} />
           <label style={{ display: 'block', marginBottom: '0.5rem' }}>
             <div style={{ color: 'var(--text-dim,#666)' }}>When full</div>
-            <select value={l.whenFull} onChange={(e) => update(i, { whenFull: e.target.value })}>
-              <option value="HOLD">HOLD</option>
-              <option value="OVERFLOW">OVERFLOW</option>
-            </select>
+            <Select
+              ariaLabel="When full"
+              value={l.whenFull}
+              onChange={(v) => update(i, { whenFull: v })}
+              options={[
+                { value: 'HOLD', label: 'HOLD' },
+                { value: 'OVERFLOW', label: 'OVERFLOW' },
+              ]}
+            />
           </label>
           {l.whenFull === 'OVERFLOW' && (
             <Field label="Overflow target node" value={l.overflowTarget ?? ''} onChange={(v) => update(i, { overflowTarget: v || null })} />

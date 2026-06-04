@@ -1,3 +1,4 @@
+import Select from '../ui/Select'
 import { useWarehouse } from './WarehouseContext'
 
 // Global warehouse picker for the app top bar. Lists only the warehouses the user is allowed
@@ -15,18 +16,15 @@ export default function WarehouseSwitcher() {
   return (
     <label className="warehouse-switcher">
       <span className="warehouse-switcher-label">Warehouse</span>
-      <select
-        className="form-control"
+      <Select
+        ariaLabel="Warehouse"
         value={currentWarehouseId}
-        onChange={(e) => setCurrentWarehouseId(e.target.value)}
-      >
-        {warehouses.map((w) => (
-          <option key={w.id} value={w.id}>
-            {w.code} — {w.name}
-            {w.id === defaultWarehouseId ? ' (default)' : ''}
-          </option>
-        ))}
-      </select>
+        onChange={setCurrentWarehouseId}
+        options={warehouses.map((w) => ({
+          value: w.id,
+          label: `${w.code} — ${w.name}${w.id === defaultWarehouseId ? ' (default)' : ''}`,
+        }))}
+      />
     </label>
   )
 }

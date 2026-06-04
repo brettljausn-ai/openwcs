@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import UserAutocomplete from '../ui/UserAutocomplete'
 
 // Roles the matrix offers as columns. Mirrors the Role union in ui/src/auth/screens.ts
 // (not imported — this screen keeps a local copy of the catalog per the access-control brief).
@@ -46,7 +47,7 @@ type AccessMap = Record<string, Override>
 interface RowState {
   overridden: boolean
   roles: Record<Role, boolean>
-  usersText: string
+  users: string[]
 }
 
 function rolesRecord(active: readonly string[]): Record<Role, boolean> {
@@ -60,7 +61,7 @@ function rolesRecord(active: readonly string[]): Record<Role, boolean> {
 
 // A non-overridden row that mirrors the screen's built-in default roles.
 function defaultRow(entry: CatalogEntry): RowState {
-  return { overridden: false, roles: rolesRecord(entry.defaultRoles), usersText: '' }
+  return { overridden: false, roles: rolesRecord(entry.defaultRoles), users: [] }
 }
 
 function rowFromOverride(entry: CatalogEntry, o: Override | undefined): RowState {
@@ -69,15 +70,8 @@ function rowFromOverride(entry: CatalogEntry, o: Override | undefined): RowState
   return {
     overridden: true,
     roles: rolesRecord((o?.roles ?? []).filter((r) => (ROLES as readonly string[]).includes(r))),
-    usersText: (o?.users ?? []).join(', '),
+    users: o?.users ?? [],
   }
-}
-
-function parseUsers(text: string): string[] {
-  return text
-    .split(/[,\n]/)
-    .map((u) => u.trim())
-    .filter((u) => u.length > 0)
 }
 
 export default function AccessControlScreen() {
@@ -136,13 +130,13 @@ export default function AccessControlScreen() {
     })
   }
 
-  function setUsers(key: string, text: string) {
+  function setUsers(key: string, usernames: string[]) {
     setSavedAt(null)
     setRows((prev) => {
       const row = prev[key]
-      // Keep it a default row only while the field is being cleared back to empty.
-      const overridden = row.overridden || text.trim().length > 0
-      return { ...prev, [key]: { ...row, overridden, usersText: text } }
+      // Keep it a default row only while the list is being cleared back to empty.
+      const overridden = row.overridden || usernames.length > 0
+      return { ...prev, [key]: { ...row, overridden, users: usernames } }
     })
   }
 
@@ -157,7 +151,7 @@ export default function AccessControlScreen() {
       const row = rows[entry.key]
       if (!row || !row.overridden) continue // default row → UI defaults apply
       const roles = ROLES.filter((r) => row.roles[r])
-      const users = parseUsers(row.usersText)
+      const users = row.users
       if (roles.length === 0 && users.length === 0) continue // emptied override → back to defaults
       map[entry.key] = { roles, users }
     }
@@ -273,7 +267,7 @@ function SectionRows({
   rows: Record<string, RowState>
   loading: boolean
   onToggleRole: (key: string, role: Role) => void
-  onSetUsers: (key: string, text: string) => void
+  onSetUsers: (key: string, usernames: string[]) => void
   onClear: (key: string) => void
 }) {
   const entries = CATALOG.filter((e) => e.section === section)
@@ -312,13 +306,10 @@ function SectionRows({
               </td>
             ))}
             <td>
-              <input
-                className="form-control"
-                type="text"
-                placeholder="alice, bob"
-                value={row.usersText}
-                disabled={loading}
-                onChange={(e) => onSetUsers(entry.key, e.target.value)}
+              <UserAutocomplete
+                value={row.users}
+                onChange={(u) => onSetUsers(entry.key, u)}
+                ariaLabel={`Allowed users for ${entry.label}`}
               />
             </td>
             <td>

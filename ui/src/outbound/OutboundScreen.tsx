@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import Select from '../ui/Select'
+import DataTable from '../ui/DataTable'
 
 // Outbound Orders screen — UI-only against existing endpoints:
 //   order-management:  GET/POST /api/orders, /api/orders/{id}, /api/orders/{id}/{release|cancel|ship}
@@ -115,7 +117,6 @@ export default function OutboundScreen() {
   const [error, setError] = useState<string>('')
 
   const [selected, setSelected] = useState<Order | null>(null)
-  const [showCreate, setShowCreate] = useState(false)
 
   const skuById = useMemo(() => {
     const m = new Map<string, Sku>()
@@ -154,64 +155,54 @@ export default function OutboundScreen() {
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ minWidth: 200 }}>
             <label>Status</label>
-            <select className="form-control" value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="">All statuses</option>
-              {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <Select
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v)}
+              ariaLabel="Status"
+              options={[
+                { value: '', label: 'All statuses' },
+                ...STATUSES.map((s) => ({ value: s, label: s })),
+              ]}
+            />
           </div>
           <div style={{ flex: 1 }} />
+          <span className="muted" style={{ fontSize: '.82rem' }}>
+            Outbound orders are owned by the host system — released &amp; fulfilled here, not created.
+          </span>
           <button className="btn btn-ghost" onClick={loadOrders} disabled={!warehouseId || loading}>
             Refresh
-          </button>
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)} disabled={!warehouseId}>
-            New order
           </button>
         </div>
       </div>
 
-      <div className="glass" style={{ padding: '0', overflow: 'hidden' }}>
-        {loading ? (
-          <div style={{ padding: '2rem', textAlign: 'center' }}>
-            <span className="spin" /> <span className="muted" style={{ marginLeft: '.5rem' }}>Loading…</span>
-          </div>
-        ) : outbound.length === 0 ? (
-          <div className="muted" style={{ padding: '2rem', textAlign: 'center' }}>
-            No outbound orders {statusFilter ? `with status ${statusFilter}` : ''} in this warehouse.
-          </div>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Order ref</th>
-                <th>Customer</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Priority</th>
-                <th style={{ textAlign: 'right' }}>Lines</th>
-                <th>Service</th>
-                <th>Route</th>
-                <th>Dispatch by</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {outbound.map((o) => (
-                <tr key={o.id} style={{ cursor: 'pointer' }} onClick={() => setSelected(o)}>
-                  <td><strong>{o.orderRef}</strong></td>
-                  <td>{o.customerRef || '—'}</td>
-                  <td><span className={`badge ${statusBadge(o.status)}`}>{o.status}</span></td>
-                  <td style={{ textAlign: 'right' }}>{o.priority}</td>
-                  <td style={{ textAlign: 'right' }}>{o.lines?.length ?? 0}</td>
-                  <td>{o.serviceCode || '—'}</td>
-                  <td>{o.routeCode || '—'}</td>
-                  <td>{fmtDate(o.dispatchBy)}</td>
-                  <td>{fmtDate(o.createdAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {loading ? (
+        <div className="glass" style={{ padding: '2rem', textAlign: 'center' }}>
+          <span className="spin" /> <span className="muted" style={{ marginLeft: '.5rem' }}>Loading…</span>
+        </div>
+      ) : (
+        <div className="glass card-pad">
+          <DataTable
+            rows={outbound}
+            rowKey={(o) => o.id}
+            onRowClick={(o) => setSelected(o)}
+            search={(o) => `${o.orderRef} ${o.customerRef ?? ''} ${o.status} ${o.serviceCode ?? ''} ${o.routeCode ?? ''}`}
+            searchPlaceholder="Search orders…"
+            initialSort={{ key: 'createdAt', dir: 'desc' }}
+            empty={`No outbound orders ${statusFilter ? `with status ${statusFilter}` : ''} in this warehouse.`}
+            columns={[
+              { key: 'orderRef', header: 'Order ref', sortable: true, sortValue: (o) => o.orderRef, render: (o) => <strong>{o.orderRef}</strong> },
+              { key: 'customerRef', header: 'Customer', sortable: true, sortValue: (o) => o.customerRef ?? '', render: (o) => o.customerRef || '—' },
+              { key: 'status', header: 'Status', sortable: true, sortValue: (o) => o.status, render: (o) => <span className={`badge ${statusBadge(o.status)}`}>{o.status}</span> },
+              { key: 'priority', header: 'Priority', align: 'right', sortable: true, sortValue: (o) => o.priority, render: (o) => o.priority },
+              { key: 'lines', header: 'Lines', align: 'right', sortable: true, sortValue: (o) => o.lines?.length ?? 0, render: (o) => o.lines?.length ?? 0 },
+              { key: 'serviceCode', header: 'Service', render: (o) => o.serviceCode || '—' },
+              { key: 'routeCode', header: 'Route', render: (o) => o.routeCode || '—' },
+              { key: 'dispatchBy', header: 'Dispatch by', sortable: true, sortValue: (o) => o.dispatchBy ?? '', render: (o) => fmtDate(o.dispatchBy) },
+              { key: 'createdAt', header: 'Created', sortable: true, sortValue: (o) => o.createdAt ?? '', render: (o) => fmtDate(o.createdAt) },
+            ]}
+          />
+        </div>
+      )}
 
       {selected && (
         <OrderDetail
@@ -222,13 +213,6 @@ export default function OutboundScreen() {
         />
       )}
 
-      {showCreate && warehouseId && (
-        <CreateOrderDialog
-          warehouseId={warehouseId}
-          onClose={() => setShowCreate(false)}
-          onCreated={() => { setShowCreate(false); loadOrders() }}
-        />
-      )}
     </div>
   )
 }
@@ -510,148 +494,6 @@ function Field({ label, value }: { label: string; value?: string | null }) {
     <div>
       <div className="muted" style={{ fontSize: '.7rem', textTransform: 'uppercase', letterSpacing: '.05em' }}>{label}</div>
       <div>{value || '—'}</div>
-    </div>
-  )
-}
-
-// ----------------------------------------------------------------- create dialog
-interface DraftLine { skuId: string; qty: string }
-
-function CreateOrderDialog({ warehouseId, onClose, onCreated }: {
-  warehouseId: string
-  onClose: () => void
-  onCreated: () => void
-}) {
-  const [skus, setSkus] = useState<Sku[]>([])
-  const [orderRef, setOrderRef] = useState('')
-  const [customerRef, setCustomerRef] = useState('')
-  const [priority, setPriority] = useState('5')
-  const [serviceCode, setServiceCode] = useState('')
-  const [routeCode, setRouteCode] = useState('')
-  const [dispatchBy, setDispatchBy] = useState('')
-  const [lines, setLines] = useState<DraftLine[]>([{ skuId: '', qty: '' }])
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-
-  useEffect(() => {
-    let cancelled = false
-    fetch('/api/master-data/skus?size=500')
-      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((data: PageResponse<Sku>) => { if (!cancelled) setSkus(data.content || []) })
-      .catch(() => { if (!cancelled) setErr('Could not load SKUs.') })
-    return () => { cancelled = true }
-  }, [])
-
-  function setLine(i: number, patch: Partial<DraftLine>) {
-    setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
-  }
-  function addLine() { setLines((ls) => [...ls, { skuId: '', qty: '' }]) }
-  function removeLine(i: number) { setLines((ls) => ls.filter((_, idx) => idx !== i)) }
-
-  function submit() {
-    setErr('')
-    if (!orderRef.trim()) { setErr('Order ref is required.'); return }
-    const validLines = lines.filter((l) => l.skuId && l.qty)
-    if (validLines.length === 0) { setErr('Add at least one line with a SKU and quantity.'); return }
-    for (const l of validLines) {
-      const q = Number(l.qty)
-      if (!(q > 0)) { setErr('Each line quantity must be greater than zero.'); return }
-    }
-    const body = {
-      orderRef: orderRef.trim(),
-      warehouseId,
-      orderType: 'OUTBOUND',
-      customerRef: customerRef.trim() || undefined,
-      priority: priority ? Number(priority) : undefined,
-      dispatchBy: dispatchBy ? new Date(dispatchBy).toISOString() : undefined,
-      serviceCode: serviceCode.trim() || undefined,
-      routeCode: routeCode.trim() || undefined,
-      lines: validLines.map((l) => ({ skuId: l.skuId, qty: Number(l.qty) })),
-    }
-    setBusy(true)
-    fetch('/api/orders', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    })
-      .then(async (r) => { if (!r.ok) throw await readError(r); onCreated() })
-      .catch((e) => setErr(typeof e === 'string' ? e : 'Could not create order.'))
-      .finally(() => setBusy(false))
-  }
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="dialog" style={{ maxWidth: 720, maxHeight: '90vh', overflow: 'auto' }}
-           onClick={(e) => e.stopPropagation()}>
-        <h2>New outbound order</h2>
-        {err && <div className="alert alert-danger">{err}</div>}
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
-          <div>
-            <label>Order ref *</label>
-            <input className="form-control" value={orderRef} onChange={(e) => setOrderRef(e.target.value)} placeholder="SO-1001" />
-          </div>
-          <div>
-            <label>Customer ref</label>
-            <input className="form-control" value={customerRef} onChange={(e) => setCustomerRef(e.target.value)} />
-          </div>
-          <div>
-            <label>Priority</label>
-            <input className="form-control" type="number" value={priority} onChange={(e) => setPriority(e.target.value)} />
-          </div>
-          <div>
-            <label>Dispatch by</label>
-            <input className="form-control" type="datetime-local" value={dispatchBy} onChange={(e) => setDispatchBy(e.target.value)} />
-          </div>
-          <div>
-            <label>Service code</label>
-            <input className="form-control" value={serviceCode} onChange={(e) => setServiceCode(e.target.value)} placeholder="EXPRESS" />
-          </div>
-          <div>
-            <label>Route code</label>
-            <input className="form-control" value={routeCode} onChange={(e) => setRouteCode(e.target.value)} placeholder="CENTRAL_LONDON" />
-          </div>
-        </div>
-
-        <h3 style={{ margin: '1.25rem 0 .5rem' }}>Lines</h3>
-        <table>
-          <thead>
-            <tr>
-              <th style={{ width: '55%' }}>SKU</th>
-              <th>Qty</th>
-              <th style={{ width: 40 }} />
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((l, i) => (
-              <tr key={i}>
-                <td>
-                  <select className="form-control" value={l.skuId} onChange={(e) => setLine(i, { skuId: e.target.value })}>
-                    <option value="">Select a SKU…</option>
-                    {skus.map((s) => (
-                      <option key={s.id} value={s.id}>{s.code}{s.description ? ` — ${s.description}` : ''}</option>
-                    ))}
-                  </select>
-                </td>
-                <td>
-                  <input className="form-control" type="number" min="0" step="any" value={l.qty}
-                         onChange={(e) => setLine(i, { qty: e.target.value })} />
-                </td>
-                <td>
-                  <button className="btn btn-ghost btn-sm" disabled={lines.length === 1}
-                          onClick={() => removeLine(i)} title="Remove line">✕</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <button className="btn btn-ghost btn-sm" style={{ marginTop: '.5rem' }} onClick={addLine}>+ Add line</button>
-
-        <div className="dialog-actions">
-          <button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="btn btn-primary" onClick={submit} disabled={busy}>
-            {busy ? 'Creating…' : 'Create order'}
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

@@ -54,16 +54,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(() => load())
   const [overrides, setOverrides] = useState<AccessOverrides>({})
 
-  // Install the global fetch interceptor once; keep it pointed at the current token.
-  useEffect(() => {
-    installAuthFetch()
-  }, [])
-  useEffect(() => {
-    configureAuth(
-      () => session?.token ?? null,
-      () => setSession(null), // 401 on an API call -> drop the session (route guard sends to /login)
-    )
-  }, [session])
+  // Wire the global fetch interceptor SYNCHRONOUSLY during render — a parent renders before its
+  // children's effects run, so the bearer token is in place before WarehouseProvider (or any
+  // screen) fires its first API call on reload or right after login. Doing this in an effect
+  // raced those child effects: the first call went out tokenless → 401 → "No warehouse access"
+  // (interceptor not yet installed) or a logout bounce (post-login fetch with the stale null
+  // token). configureAuth/installAuthFetch are idempotent setters, so re-running on every render
+  // is safe.
+  installAuthFetch()
+  configureAuth(
+    () => session?.token ?? null,
+    () => {
+      sessionStorage.removeItem(STORAGE_KEY)
+      setSession(null) // 401 on an API call -> drop the session (route guard sends to /login)
+    },
+  )
 
   // Persist + load per-screen access overrides (graceful: endpoint may not exist yet).
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import Select from '../ui/Select'
 import {
   PickSlot,
   StorageBlock,
@@ -149,13 +150,24 @@ function BlockSlotting({
       </table>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
         <input style={input} placeholder="sku" value={form.skuId} onChange={(e) => setForm({ ...form, skuId: e.target.value })} />
-        <select style={input} value={form.blockId} onChange={(e) => setForm({ ...form, blockId: e.target.value })}>
-          <option value="">block…</option>
-          {blocks.map((b) => <option key={b.id} value={b.id}>{b.code} ({b.storageType})</option>)}
-        </select>
-        <select style={{ ...input, width: 70 }} value={form.velocityClass} onChange={(e) => setForm({ ...form, velocityClass: e.target.value })}>
-          <option>A</option><option>B</option><option>C</option>
-        </select>
+        <Select
+          ariaLabel="Block"
+          placeholder="block…"
+          style={input}
+          value={form.blockId}
+          onChange={(v) => setForm({ ...form, blockId: v })}
+          options={[
+            { value: '', label: 'block…' },
+            ...blocks.map((b) => ({ value: b.id, label: `${b.code} (${b.storageType})` })),
+          ]}
+        />
+        <Select
+          ariaLabel="Velocity class"
+          style={{ ...input, width: 70 }}
+          value={form.velocityClass}
+          onChange={(v) => setForm({ ...form, velocityClass: v })}
+          options={['A', 'B', 'C'].map((c) => ({ value: c, label: c }))}
+        />
         <label style={{ fontSize: 13 }}><input type="checkbox" checked={form.consolidate} onChange={(e) => setForm({ ...form, consolidate: e.target.checked })} /> consolidate</label>
         <input style={{ ...input, width: 70 }} type="number" placeholder="min aisles" value={form.minAisles} onChange={(e) => setForm({ ...form, minAisles: Number(e.target.value) })} />
         <input style={{ ...input, width: 80 }} type="number" step="0.1" placeholder="max aisle %" value={form.maxAislePct} onChange={(e) => setForm({ ...form, maxAislePct: Number(e.target.value) })} />

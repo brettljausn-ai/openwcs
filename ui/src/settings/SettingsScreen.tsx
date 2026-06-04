@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import Select from '../ui/Select'
 import styles from './settings.module.css'
 import {
   AdapterInfo,
@@ -78,19 +79,16 @@ export default function SettingsScreen() {
             <div className={`glass ${styles.section}`}>
               <div className={styles.field} style={{ maxWidth: 360 }}>
                 <label htmlFor="wh">Warehouse</label>
-                <select
-                  id="wh"
-                  className="form-control"
+                <Select
+                  ariaLabel="Warehouse"
                   value={warehouseId}
-                  onChange={(e) => setWarehouseId(e.target.value)}
-                >
-                  {warehouses.length === 0 && <option value="">No warehouses found</option>}
-                  {warehouses.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.code} — {w.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setWarehouseId(v)}
+                  options={
+                    warehouses.length === 0
+                      ? [{ value: '', label: 'No warehouses found' }]
+                      : warehouses.map((w) => ({ value: w.id, label: `${w.code} — ${w.name}` }))
+                  }
+                />
                 <span className={styles.fieldHint}>Policies and schedules below apply to this warehouse.</span>
               </div>
             </div>
@@ -225,14 +223,16 @@ function SlottingPolicy({ warehouseId }: { warehouseId: string }) {
 
       <div className={styles.field} style={{ maxWidth: 360, marginBottom: '1.25rem' }}>
         <label htmlFor="block">Storage block</label>
-        <select id="block" className="form-control" value={blockId} onChange={(e) => setBlockId(e.target.value)}>
-          {blocks.length === 0 && <option value="">No storage blocks for this warehouse</option>}
-          {blocks.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.code} ({b.storageType})
-            </option>
-          ))}
-        </select>
+        <Select
+          ariaLabel="Storage block"
+          value={blockId}
+          onChange={(v) => setBlockId(v)}
+          options={
+            blocks.length === 0
+              ? [{ value: '', label: 'No storage blocks for this warehouse' }]
+              : blocks.map((b) => ({ value: b.id, label: `${b.code} (${b.storageType})` }))
+          }
+        />
         {isNew && policy && <span className={styles.fieldHint}>No policy yet — showing defaults; saving creates one.</span>}
       </div>
 
@@ -451,30 +451,45 @@ function CountingSettings({ warehouseId }: { warehouseId: string }) {
         </div>
         <div className={styles.field}>
           <label>Scope</label>
-          <select className="form-control" value={form.scopeType} onChange={(e) => setForm({ ...form, scopeType: e.target.value })}>
-            <option value="ABC_CLASS">ABC class</option>
-            <option value="ZONE">Zone</option>
-            <option value="BLOCK">Block</option>
-            <option value="LOCATION">Location</option>
-            <option value="SKU">SKU</option>
-          </select>
+          <Select
+            ariaLabel="Scope"
+            value={form.scopeType}
+            onChange={(v) => setForm({ ...form, scopeType: v })}
+            options={[
+              { value: 'ABC_CLASS', label: 'ABC class' },
+              { value: 'ZONE', label: 'Zone' },
+              { value: 'BLOCK', label: 'Block' },
+              { value: 'LOCATION', label: 'Location' },
+              { value: 'SKU', label: 'SKU' },
+            ]}
+          />
         </div>
         {form.scopeType === 'ABC_CLASS' && (
           <div className={styles.field}>
             <label>ABC class</label>
-            <select className="form-control" value={form.abcClass} onChange={(e) => setForm({ ...form, abcClass: e.target.value })}>
-              <option>A</option>
-              <option>B</option>
-              <option>C</option>
-            </select>
+            <Select
+              ariaLabel="ABC class"
+              value={form.abcClass}
+              onChange={(v) => setForm({ ...form, abcClass: v })}
+              options={[
+                { value: 'A', label: 'A' },
+                { value: 'B', label: 'B' },
+                { value: 'C', label: 'C' },
+              ]}
+            />
           </div>
         )}
         <div className={styles.field}>
           <label>Count type</label>
-          <select className="form-control" value={form.countType} onChange={(e) => setForm({ ...form, countType: e.target.value })}>
-            <option value="BLIND">Blind</option>
-            <option value="VARIANCE">Variance</option>
-          </select>
+          <Select
+            ariaLabel="Count type"
+            value={form.countType}
+            onChange={(v) => setForm({ ...form, countType: v })}
+            options={[
+              { value: 'BLIND', label: 'Blind' },
+              { value: 'VARIANCE', label: 'Variance' },
+            ]}
+          />
         </div>
         <NumberField label="Cadence (days)" value={form.cadenceDays} step="1" onChange={(v) => setForm({ ...form, cadenceDays: v })} />
         <NumberField label="Tolerance" value={form.tolerance} step="0.01" onChange={(v) => setForm({ ...form, tolerance: v })} hint="Accepted variance" />
