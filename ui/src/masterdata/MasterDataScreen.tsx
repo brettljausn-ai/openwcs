@@ -17,6 +17,7 @@ import {
   UnitOfMeasure,
   Warehouse,
   archiveHandlingUnitType,
+  bulkCreateLocations,
   createEquipment,
   createHandlingUnitType,
   createLabelTemplate,
@@ -714,6 +715,79 @@ function ReadField({ label, value }: { label: string; value: React.ReactNode }) 
 const STORAGE_TYPES = ['SHUTTLE_ASRS', 'CRANE_ASRS', 'AUTOSTORE', 'AMR_GTP', 'MANUAL_PICK', 'RESERVE_RACK']
 const GRANULARITIES = ['BLOCK', 'LOCATION']
 
+const STORAGE_TYPE_DESCRIPTIONS: Record<string, string> = {
+  SHUTTLE_ASRS:
+    'Automated shuttle racking (per-level shuttles); the WCS slots to the pool, the system assigns the bin.',
+  CRANE_ASRS: 'Crane-served automated aisle (typically one crane per aisle), single/double-deep.',
+  AUTOSTORE: 'Grid/bin cube with robots on top.',
+  AMR_GTP: 'Autonomous mobile robots bring stock to a goods-to-person station.',
+  MANUAL_PICK: 'Operator pick faces; one fixed SKU+UoM per location.',
+  RESERVE_RACK: 'Bulk/reserve storage that replenishes pick faces.',
+}
+
+// Storage types whose locations are automation slots/bins by default.
+const AUTOMATION_STORAGE_TYPES = ['SHUTTLE_ASRS', 'CRANE_ASRS', 'AUTOSTORE', 'AMR_GTP']
+
+/**
+ * Safeguarded multi-select for "Allowed HU types" — no free text. Renders the ACTIVE
+ * handling-unit type names as toggleable chips; selected names populate the string[].
+ * An empty selection means "any".
+ */
+function AllowedHuTypesPicker({
+  value,
+  onChange,
+}: {
+  value: string[]
+  onChange: (next: string[]) => void
+}) {
+  const [types, setTypes] = useState<HandlingUnitType[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    listHandlingUnitTypes()
+      .then((all) => {
+        if (active) setTypes(all.filter((t) => t.status !== 'ARCHIVED'))
+      })
+      .catch((e) => {
+        if (active) setError(errMsg(e))
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  function toggle(name: string) {
+    onChange(value.includes(name) ? value.filter((n) => n !== name) : [...value, name])
+  }
+
+  if (error) return <div className="alert alert-danger">{error}</div>
+  if (types === null) return <span className="muted">Loading handling unit types…</span>
+  if (types.length === 0) return <span className="muted">No active handling unit types defined.</span>
+
+  return (
+    <div className="md-chips">
+      {types.map((t) => {
+        const on = value.includes(t.name)
+        return (
+          <button
+            key={t.id ?? t.name}
+            type="button"
+            className={`md-chip${on ? ' is-on' : ''}`}
+            aria-pressed={on}
+            onClick={() => toggle(t.name)}
+          >
+            <span className="md-chip-box" aria-hidden="true">
+              {on ? '✓' : ''}
+            </span>
+            {t.name}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function ScopeNotice({ warehouseId }: { warehouseId: string }) {
   if (warehouseId) return null
   return <div className="alert">Select a warehouse above to manage this entity.</div>
@@ -730,6 +804,7 @@ function StorageBlocksTab({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<StorageBlock | null>(null)
+  const [guided, setGuided] = useState(false)
 
   const load = useCallback(async () => {
     if (!warehouseId) {
@@ -764,7 +839,11 @@ function StorageBlocksTab({
 
   return (
     <div className="glass card-pad md-panel">
-      <Toolbar label="storage block" onAdd={() => setEditing(blank)} />
+      <Toolbar label="storage block" onAdd={() => setEditing(blank)}>
+        <button className="btn btn-ghost btn-sm" onClick={() => setGuided(true)}>
+          Guided builder
+        </button>
+      </Toolbar>
       {error && <div className="alert alert-danger">{error}</div>}
       <DataTable
         rows={rows}
@@ -833,6 +912,16 @@ function StorageBlocksTab({
           onSaved={load}
         />
       )}
+      {guided && (
+        <GuidedBlockBuilder
+          warehouseId={warehouseId}
+          onClose={() => setGuided(false)}
+          onCompleted={() => {
+            setGuided(false)
+            load()
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -847,7 +936,6 @@ function StorageBlockDialog({
   onSaved: () => void
 }) {
   const [d, setD] = useState<StorageBlock>(initial)
-  const [huText, setHuText] = useState((initial.allowedHuTypes ?? []).join(', '))
   const valid = d.code.trim() !== '' && d.storageType.trim() !== ''
   return (
     <EditDialog
@@ -856,11 +944,7 @@ function StorageBlockDialog({
       canSave={valid}
       onClose={onClose}
       onSave={async () => {
-        const huTypes = huText
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean)
-        const body = { ...d, allowedHuTypes: huTypes }
+        const body = { ...d, allowedHuTypes: d.allowedHuTypes ?? [] }
         if (body.id) await updateStorageBlock(body.id, body)
         else await createStorageBlock(body)
         onSaved()
@@ -889,13 +973,405 @@ function StorageBlockDialog({
         <input type="checkbox" checked={d.gtp} onChange={(e) => setD({ ...d, gtp: e.target.checked })} />
         Goods-to-person (GTP)
       </label>
-      <Field label="Allowed HU types (comma-separated, blank = any)">
-        <input className="form-control" value={huText} onChange={(e) => setHuText(e.target.value)} />
+      <Field label="Allowed HU types (blank = any)">
+        <AllowedHuTypesPicker
+          value={d.allowedHuTypes ?? []}
+          onChange={(next) => setD({ ...d, allowedHuTypes: next })}
+        />
       </Field>
       <Field label="Status">
         <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
       </Field>
     </EditDialog>
+  )
+}
+
+// -------------------------------------------------------------------------
+// Guided storage-block builder wizard.
+//
+// Step 1: create the storage block (every field explained + example).
+// Step 2: confirm and offer to build its locations.
+// Step 3: generate a rack of locations from aisle/levels/positions/sides and
+//         bulk-create them; optionally repeat for another aisle.
+// -------------------------------------------------------------------------
+
+function GuidedExplain({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="md-explain" style={{ margin: '.15rem 0 0', fontSize: '.78rem', lineHeight: 1.4 }}>
+      {children}
+    </p>
+  )
+}
+
+const SIDES = ['BOTH', 'LEFT', 'RIGHT'] as const
+type SideMode = (typeof SIDES)[number]
+
+function GuidedBlockBuilder({
+  warehouseId,
+  onClose,
+  onCompleted,
+}: {
+  warehouseId: string
+  onClose: () => void
+  onCompleted: () => void
+}) {
+  type Step = 'block' | 'confirm' | 'locations'
+  const [step, setStep] = useState<Step>('block')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
+
+  // ---- Step 1: storage block draft ----
+  const [block, setBlock] = useState<StorageBlock>({
+    warehouseId,
+    code: '',
+    storageType: STORAGE_TYPES[0],
+    slottingGranularity: 'BLOCK',
+    gtp: false,
+    allowedHuTypes: [],
+    status: 'ACTIVE',
+  })
+  // The created block (id + code) once step 1 succeeds.
+  const [created, setCreated] = useState<StorageBlock | null>(null)
+  // Track whether the user has manually overridden the granularity default.
+  const [granTouched, setGranTouched] = useState(false)
+
+  function setStorageType(t: string) {
+    setBlock((b) => ({
+      ...b,
+      storageType: t,
+      slottingGranularity: granTouched ? b.slottingGranularity : t === 'MANUAL_PICK' ? 'LOCATION' : 'BLOCK',
+    }))
+  }
+
+  const blockValid = block.code.trim() !== '' && block.storageType.trim() !== ''
+
+  async function createBlock() {
+    setBusy(true)
+    setError(null)
+    try {
+      const saved = await createStorageBlock({ ...block, allowedHuTypes: block.allowedHuTypes ?? [] })
+      setCreated(saved)
+      setStep('confirm')
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // ---- Step 3: location generator ----
+  const isAutomation = AUTOMATION_STORAGE_TYPES.includes(block.storageType)
+  const defaultLocType = isAutomation && LOCATION_TYPES.includes('ASRS_SLOT') ? 'ASRS_SLOT' : 'BIN'
+  const [aisle, setAisle] = useState('A01')
+  const [levels, setLevels] = useState(10)
+  const [positions, setPositions] = useState(40)
+  const [side, setSide] = useState<SideMode>('BOTH')
+  const [locType, setLocType] = useState(defaultLocType)
+  const [purpose, setPurpose] = useState('STORAGE')
+  const [confirmBig, setConfirmBig] = useState(false)
+
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const sideCodes: ('L' | 'R')[] = side === 'BOTH' ? ['L', 'R'] : side === 'LEFT' ? ['L'] : ['R']
+  const total = levels * positions * sideCodes.length
+  const blockCode = created?.code ?? block.code
+  const previewCode = `${blockCode}-${aisle}-L${pad(1)}-P${pad(1)}-${sideCodes[0] ?? 'L'}`
+  const genInvalid = !aisle.trim() || levels < 1 || positions < 1
+  const tooBig = total > 2000
+
+  function buildLocations(): Location[] {
+    if (!created?.id) return []
+    const list: Location[] = []
+    for (let level = 1; level <= levels; level++) {
+      for (let pos = 1; pos <= positions; pos++) {
+        for (const sc of sideCodes) {
+          list.push({
+            warehouseId,
+            blockId: created.id,
+            code: `${blockCode}-${aisle}-L${pad(level)}-P${pad(pos)}-${sc}`,
+            locationType: locType,
+            purpose,
+            status: 'ACTIVE',
+            aisle,
+            side: sc === 'L' ? 'LEFT' : 'RIGHT',
+            rackLevel: level,
+            posX: pos,
+            posY: level,
+            mixedAllowed: false,
+            laneDepth: 1,
+          })
+        }
+      }
+    }
+    return list
+  }
+
+  async function generate() {
+    if (tooBig && !confirmBig) {
+      setConfirmBig(true)
+      return
+    }
+    setBusy(true)
+    setError(null)
+    setInfo(null)
+    try {
+      const list = buildLocations()
+      const saved = await bulkCreateLocations(list)
+      setInfo(`Created ${saved.length} location${saved.length === 1 ? '' : 's'}.`)
+      setConfirmBig(false)
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog title="Guided storage-block builder" onClose={onClose} size="lg">
+      {error && <div className="alert alert-danger">{error}</div>}
+
+      {step === 'block' && (
+        <>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Step 1 of 3 — describe the storage block.
+          </p>
+          <div className="md-form">
+            <Field label="Code" required>
+              <input
+                className="form-control"
+                value={block.code}
+                placeholder="ASRS-A01"
+                onChange={(e) => setBlock({ ...block, code: e.target.value })}
+              />
+              <GuidedExplain>
+                Unique code for this block/aisle. e.g. <code>ASRS-A01</code>, <code>PICK-FAST</code>,{' '}
+                <code>RESERVE-1</code>.
+              </GuidedExplain>
+            </Field>
+
+            <Field label="Storage type" required>
+              <Select
+                value={block.storageType}
+                onChange={setStorageType}
+                options={STORAGE_TYPES.map((t) => ({ value: t, label: t }))}
+                ariaLabel="Storage type"
+              />
+              <GuidedExplain>{STORAGE_TYPE_DESCRIPTIONS[block.storageType]}</GuidedExplain>
+            </Field>
+
+            <Field label="Slotting granularity">
+              <Select
+                value={block.slottingGranularity}
+                onChange={(val) => {
+                  setGranTouched(true)
+                  setBlock({ ...block, slottingGranularity: val })
+                }}
+                options={GRANULARITIES.map((g) => ({ value: g, label: g }))}
+                ariaLabel="Slotting granularity"
+              />
+              <GuidedExplain>
+                <strong>BLOCK</strong> = automated pool: the WCS slots a SKU to the block and the system holds the exact
+                bin. <strong>LOCATION</strong> = fixed pick face: one SKU per location. Defaults to LOCATION for manual
+                pick, otherwise BLOCK.
+              </GuidedExplain>
+            </Field>
+
+            <Field label="Goods-to-person (GTP)">
+              <label className="md-check">
+                <input
+                  type="checkbox"
+                  checked={block.gtp}
+                  onChange={(e) => setBlock({ ...block, gtp: e.target.checked })}
+                />
+                Picked at a manned station
+              </label>
+              <GuidedExplain>Stock is picked at a manned station, not in the aisle.</GuidedExplain>
+            </Field>
+
+            <Field label="Allowed HU types (blank = any)">
+              <AllowedHuTypesPicker
+                value={block.allowedHuTypes ?? []}
+                onChange={(next) => setBlock({ ...block, allowedHuTypes: next })}
+              />
+              <GuidedExplain>
+                Which handling units may be stored here, e.g. TOTE for an automated tote aisle. Pallets are
+                non-automation. Leave blank to allow any.
+              </GuidedExplain>
+            </Field>
+
+            <Field label="Status">
+              <Select
+                value={block.status}
+                onChange={(v) => setBlock({ ...block, status: v })}
+                options={['ACTIVE', 'INACTIVE'].map((s) => ({ value: s, label: s }))}
+                ariaLabel="Status"
+              />
+            </Field>
+          </div>
+          <div className="dialog-actions">
+            <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={busy}>
+              Cancel
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={createBlock} disabled={busy || !blockValid}>
+              {busy ? <span className="spin" /> : 'Create block'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {step === 'confirm' && created && (
+        <>
+          <p style={{ fontSize: '1rem' }}>
+            ✓ Block <strong>{created.code}</strong> created. Build its locations now?
+          </p>
+          <div className="dialog-actions">
+            <button className="btn btn-ghost btn-sm" onClick={onCompleted}>
+              Done
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={() => setStep('locations')}>
+              Yes, add locations
+            </button>
+          </div>
+        </>
+      )}
+
+      {step === 'locations' && created && (
+        <>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Step 3 of 3 — generate locations for block <strong>{created.code}</strong>.
+          </p>
+          {info && <div className="alert alert-success">{info}</div>}
+          <div className="md-form">
+            <Field label="Aisle">
+              <input
+                className="form-control"
+                value={aisle}
+                placeholder="A01"
+                onChange={(e) => {
+                  setAisle(e.target.value)
+                  setInfo(null)
+                  setConfirmBig(false)
+                }}
+              />
+              <GuidedExplain>The aisle identifier, e.g. <code>A01</code>.</GuidedExplain>
+            </Field>
+            <div className="md-grid-2">
+              <Field label="Rack levels">
+                <input
+                  className="form-control"
+                  type="number"
+                  min={1}
+                  value={levels}
+                  onChange={(e) => {
+                    setLevels(num(e.target.value) ?? 1)
+                    setConfirmBig(false)
+                  }}
+                />
+                <GuidedExplain>
+                  Tiers high, e.g. <code>10</code> → L01..L10.
+                </GuidedExplain>
+              </Field>
+              <Field label="Positions per level">
+                <input
+                  className="form-control"
+                  type="number"
+                  min={1}
+                  value={positions}
+                  onChange={(e) => {
+                    setPositions(num(e.target.value) ?? 1)
+                    setConfirmBig(false)
+                  }}
+                />
+                <GuidedExplain>
+                  Bins along the aisle, e.g. <code>40</code> → P01..P40.
+                </GuidedExplain>
+              </Field>
+            </div>
+            <Field label="Sides">
+              <Select
+                value={side}
+                onChange={(v) => {
+                  setSide(v as SideMode)
+                  setConfirmBig(false)
+                }}
+                options={[
+                  { value: 'BOTH', label: 'Both' },
+                  { value: 'LEFT', label: 'Left' },
+                  { value: 'RIGHT', label: 'Right' },
+                ]}
+                ariaLabel="Sides"
+              />
+              <GuidedExplain>Generate one or both sides of the aisle.</GuidedExplain>
+            </Field>
+            <div className="md-grid-2">
+              <Field label="Location type">
+                <Select
+                  value={locType}
+                  onChange={setLocType}
+                  options={LOCATION_TYPES.map((t) => ({ value: t, label: t }))}
+                  ariaLabel="Location type"
+                />
+              </Field>
+              <Field label="Purpose">
+                <Select
+                  value={purpose}
+                  onChange={setPurpose}
+                  options={PURPOSES.map((p) => ({ value: p, label: p }))}
+                  ariaLabel="Purpose"
+                />
+              </Field>
+            </div>
+
+            <div className="md-preview">
+              <div>
+                Code pattern:{' '}
+                <code>{`${blockCode}-${aisle || 'A01'}-L{level}-P{pos}-{side}`}</code>
+              </div>
+              <div>
+                Example: <code>{previewCode}</code>
+              </div>
+              <div>
+                Total locations: <strong>{total.toLocaleString()}</strong> ({levels} × {positions} ×{' '}
+                {sideCodes.length})
+              </div>
+            </div>
+
+            {tooBig && (
+              <div className="alert alert-warning">
+                That is {total.toLocaleString()} locations (over 2,000). Please confirm you really want to generate this
+                many.
+              </div>
+            )}
+          </div>
+          <div className="dialog-actions">
+            <button className="btn btn-ghost btn-sm" onClick={onCompleted} disabled={busy}>
+              Done
+            </button>
+            {info ? (
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setAisle('')
+                  setInfo(null)
+                  setConfirmBig(false)
+                }}
+              >
+                Add another aisle
+              </button>
+            ) : null}
+            <button className="btn btn-primary btn-sm" onClick={generate} disabled={busy || genInvalid}>
+              {busy ? (
+                <span className="spin" />
+              ) : tooBig && confirmBig ? (
+                `Generate ${total.toLocaleString()}`
+              ) : (
+                'Generate'
+              )}
+            </button>
+          </div>
+        </>
+      )}
+    </Dialog>
   )
 }
 
@@ -1892,6 +2368,20 @@ function Styles() {
       .md-detail { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; margin-bottom: 1rem; }
       .md-read-value { padding: .4rem 0; color: var(--text); font-size: .9rem; }
       .md-subhead { font-size: .9rem; margin: 1.1rem 0 .5rem; }
+      .md-chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+      .md-chip { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .7rem; border-radius: 999px;
+        border: 1px solid var(--border, rgba(255,255,255,.18)); background: transparent; color: var(--text);
+        font-size: .82rem; cursor: pointer; }
+      .md-chip:hover { border-color: var(--accent, #c6ff00); }
+      .md-chip.is-on { background: rgba(198,255,0,.12); border-color: var(--accent, #c6ff00); color: var(--text); }
+      .md-chip-box { display: inline-flex; align-items: center; justify-content: center; width: 1rem; height: 1rem;
+        font-size: .7rem; color: var(--accent, #c6ff00); }
+      .md-explain { color: var(--muted, rgba(255,255,255,.6)); }
+      .md-explain code { font-size: .78rem; }
+      .md-preview { border: 1px dashed var(--border, rgba(255,255,255,.18)); border-radius: .5rem; padding: .7rem .85rem;
+        display: flex; flex-direction: column; gap: .3rem; font-size: .85rem; }
+      .alert-success { background: rgba(108, 219, 90, .12); color: #9be37e; border: 1px solid rgba(108, 219, 90, .3); }
+      .alert-warning { background: rgba(255, 196, 0, .12); color: #ffd566; border: 1px solid rgba(255, 196, 0, .3); }
     `}</style>
   )
 }
