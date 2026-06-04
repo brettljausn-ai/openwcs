@@ -2087,10 +2087,10 @@ function Styles() {
       .atopo-levelmeta { display: flex; gap: 1rem; padding: .6rem .8rem; flex-wrap: wrap; }
       .atopo-inline { display: flex; flex-direction: column; gap: .25rem; min-width: 200px; flex: 1; margin: 0; }
       .atopo-inline > span { font-size: .8125rem; color: var(--text-dim); }
-      .atopo-body { display: grid; grid-template-columns: 260px 1fr 280px; gap: .6rem; align-items: stretch; }
-      .atopo-panel { padding: .8rem; overflow-y: auto; max-height: 70vh; }
+      .atopo-body { display: grid; grid-template-columns: 230px 1fr 250px; gap: .6rem; align-items: stretch; }
+      .atopo-panel { padding: .8rem; overflow-y: auto; max-height: 82vh; }
       .atopo-panel h3 { font-size: .95rem; margin: 0 0 .6rem; }
-      .atopo-canvas { padding: 0; height: 70vh; overflow: hidden; position: relative; }
+      .atopo-canvas { padding: 0; height: 82vh; overflow: hidden; position: relative; }
       .atopo-canvas canvas { display: block; }
       .atopo-hint {
         position: absolute; left: 12px; bottom: 12px; z-index: 2; pointer-events: none;

@@ -45,8 +45,13 @@ export default function AppShell() {
     </NavLink>
   )
 
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('openwcs.sidebarCollapsed') === '1')
+  useEffect(() => {
+    localStorage.setItem('openwcs.sidebarCollapsed', collapsed ? '1' : '0')
+  }, [collapsed])
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell${collapsed ? ' sidebar-collapsed' : ''}`}>
       <aside className="sidebar">
         <div className="sidebar-brand">
           <img src="/Logo_white_solo.png" alt="" />
@@ -86,6 +91,15 @@ export default function AppShell() {
 
       <main className="app-main">
         <div className="app-topbar">
+          <button
+            type="button"
+            className="sidebar-toggle"
+            onClick={() => setCollapsed((c) => !c)}
+            title={collapsed ? 'Show menu' : 'Hide menu'}
+            aria-label="Toggle menu"
+          >
+            {collapsed ? '☰' : '⟨'}
+          </button>
           <HelpButton />
           <WarehouseSwitcher />
         </div>
