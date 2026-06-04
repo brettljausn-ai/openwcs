@@ -11,6 +11,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface LocationRepository extends JpaRepository<Location, UUID> {
+    long countByWarehouseId(UUID warehouseId);
+
     Optional<Location> findByWarehouseIdAndCode(UUID warehouseId, String code);
 
     List<Location> findByParentId(UUID parentId);

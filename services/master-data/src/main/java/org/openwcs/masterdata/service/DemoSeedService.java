@@ -17,6 +17,7 @@ import org.openwcs.masterdata.domain.UnitOfMeasure;
 import org.openwcs.masterdata.repo.BarcodeRepository;
 import org.openwcs.masterdata.repo.BarcodeTypeRepository;
 import org.openwcs.masterdata.repo.HandlingUnitTypeRepository;
+import org.openwcs.masterdata.repo.LocationRepository;
 import org.openwcs.masterdata.repo.ShipperRepository;
 import org.openwcs.masterdata.repo.SkuRepository;
 import org.openwcs.masterdata.repo.SystemConfigurationRepository;
@@ -41,40 +42,68 @@ public class DemoSeedService {
     static final String STORAGE_HU_NAME = "DEMO-STORAGE-HU";
     private static final int SKU_COUNT = 100;
 
+    // Fun movie-merch SKU names (franchise item × merch type → 100 unique descriptions).
+    private static final String[] FRANCHISE_ITEMS = {
+        "Star Wars Millennium Falcon", "Star Wars X-Wing", "Star Wars Darth Vader", "Star Wars Grogu",
+        "Star Wars Lightsaber", "Star Wars Stormtrooper", "Star Wars BB-8", "Star Wars Death Star",
+        "Harry Potter Hedwig", "Harry Potter Golden Snitch", "Harry Potter Hogwarts Castle", "Harry Potter Wand",
+        "Harry Potter Sorting Hat", "Harry Potter Marauder's Map", "Harry Potter Nimbus 2000", "Harry Potter House Scarf",
+        "Marvel Iron Man Helmet", "Marvel Captain America Shield", "Marvel Thor's Hammer", "Marvel Spider-Man Mask",
+        "Marvel Infinity Gauntlet", "Marvel Hulk Fists", "Marvel Black Panther Mask", "Marvel Groot",
+        "Lord of the Rings One Ring", "Jurassic Park T-Rex", "Back to the Future DeLorean",
+    };
+    private static final String[] MERCH_TYPES = {
+        "model kit", "plush", "action figure", "building-block set", "mug", "poster", "keychain", "tee", "replica", "figurine",
+    };
+
     private final SkuRepository skus;
     private final UnitOfMeasureRepository uoms;
     private final BarcodeRepository barcodes;
     private final BarcodeTypeRepository barcodeTypes;
     private final HandlingUnitTypeRepository huTypes;
     private final ShipperRepository shippers;
+    private final LocationRepository locations;
     private final SystemConfigurationRepository config;
 
     public DemoSeedService(SkuRepository skus, UnitOfMeasureRepository uoms, BarcodeRepository barcodes,
             BarcodeTypeRepository barcodeTypes, HandlingUnitTypeRepository huTypes, ShipperRepository shippers,
-            SystemConfigurationRepository config) {
+            LocationRepository locations, SystemConfigurationRepository config) {
         this.skus = skus;
         this.uoms = uoms;
         this.barcodes = barcodes;
         this.barcodeTypes = barcodeTypes;
         this.huTypes = huTypes;
         this.shippers = shippers;
+        this.locations = locations;
         this.config = config;
     }
 
+    /** A fun, unique demo product name for SKU index i (1-based). */
+    static String demoItemName(int i) {
+        int idx = (i - 1) % FRANCHISE_ITEMS.length;
+        int type = ((i - 1) / FRANCHISE_ITEMS.length) % MERCH_TYPES.length;
+        return FRANCHISE_ITEMS[idx] + " " + MERCH_TYPES[type];
+    }
+
     @Transactional(readOnly = true)
-    public DemoStatusView status() {
+    public DemoStatusView status(UUID warehouseId) {
         long skuCount = skus.count();
         boolean enabled = config.findById(DEMO_FLAG)
                 .map(c -> Boolean.parseBoolean(c.getValue())).orElse(false);
-        return new DemoStatusView(enabled, skuCount == 0, skuCount);
+        boolean hasLocations = warehouseId != null && locations.countByWarehouseId(warehouseId) > 0;
+        return new DemoStatusView(enabled, skuCount == 0 && hasLocations, skuCount);
     }
 
-    /** Seed the demo catalog. Allowed only on an empty (host-free) system. */
+    /** Seed the demo catalog. Allowed only on an empty (host-free) system that already has locations. */
     @Transactional
     public DemoResult enable(UUID warehouseId) {
         if (skus.count() > 0) {
             throw new IllegalStateException(
                     "Demo mode can only be enabled on a fresh system with no host data (the SKU catalog is not empty).");
+        }
+        if (warehouseId == null || locations.countByWarehouseId(warehouseId) == 0) {
+            throw new IllegalStateException(
+                    "Create storage locations for this warehouse first — demo mode places stock into existing locations.");
         }
         BarcodeType ean13 = barcodeTypes.findByName("EAN13")
                 .orElseThrow(() -> new IllegalStateException("EAN13 barcode type is missing from reference data."));
@@ -88,7 +117,8 @@ public class DemoSeedService {
         for (int i = 1; i <= SKU_COUNT; i++) {
             Sku sku = new Sku();
             sku.setCode(String.format("%s%03d", SKU_PREFIX, i));
-            sku.setDescription("Demo item " + i);
+            sku.setDescription(demoItemName(i));
+            sku.setOwnerClient("DEMO");
             sku.setStatus("ACTIVE");
             sku = skus.save(sku);
             skuN++;
