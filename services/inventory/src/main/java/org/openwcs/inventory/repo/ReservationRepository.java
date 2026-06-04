@@ -14,6 +14,8 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
 
     List<Reservation> findByWarehouseIdAndSkuIdAndStatus(UUID warehouseId, UUID skuId, String status);
 
+    List<Reservation> findByWarehouseIdAndStatus(UUID warehouseId, String status);
+
     /** Quantity currently HELD against a SKU in a warehouse (subtract from on-hand for ATP). */
     @Query("""
         select coalesce(sum(r.qty), 0) from Reservation r

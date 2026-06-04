@@ -19,6 +19,8 @@ import CountingScreen from './counting/CountingScreen'
 import GtpOpsScreen from './gtpops/GtpOpsScreen'
 import TransportScreen from './transport/TransportScreen'
 import StockTxnScreen from './stocktxn/StockTxnScreen'
+import StockOverviewScreen from './inventory/StockOverviewScreen'
+import HandlingUnitsScreen from './inventory/HandlingUnitsScreen'
 import MasterDataScreen from './masterdata/MasterDataScreen'
 import GtpConfigScreen from './gtpconfig/GtpConfigScreen'
 import SettingsScreen from './settings/SettingsScreen'
@@ -37,6 +39,8 @@ const COMPONENTS: Record<string, JSX.Element> = {
   'gtp-ops': <GtpOpsScreen />,
   transport: <TransportScreen />,
   'stock-transactions': <StockTxnScreen />,
+  'stock-overview': <StockOverviewScreen />,
+  'handling-units': <HandlingUnitsScreen />,
   'master-data': <MasterDataScreen />,
   'gtp-config': <GtpConfigScreen />,
   settings: <SettingsScreen />,
