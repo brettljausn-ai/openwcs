@@ -1,6 +1,8 @@
 package org.openwcs.masterdata.service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 import org.openwcs.masterdata.api.DemoResult;
@@ -157,23 +159,47 @@ public class DemoSeedService {
     /** Remove everything demo mode created (DEMO-prefixed master data); leave other config alone. */
     @Transactional
     public DemoResult disable() {
-        int skuN = 0;
-        int uomN = 0;
+        List<Sku> demoSkus = skus.findAll().stream()
+                .filter(s -> s.getCode() != null && s.getCode().startsWith(SKU_PREFIX))
+                .toList();
+
         int bcN = 0;
-        for (Sku sku : skus.findAll()) {
-            if (sku.getCode() != null && sku.getCode().startsWith(SKU_PREFIX)) {
-                for (Barcode b : barcodes.findBySkuId(sku.getId())) {
-                    barcodes.delete(b);
-                    bcN++;
-                }
-                for (UnitOfMeasure u : uoms.findBySkuId(sku.getId())) {
-                    uoms.delete(u);
-                    uomN++;
-                }
-                skus.delete(sku);
-                skuN++;
+        for (Sku sku : demoSkus) {
+            for (Barcode b : barcodes.findBySkuId(sku.getId())) {
+                barcodes.delete(b);
+                bcN++;
             }
         }
+        barcodes.flush();
+
+        // Delete child UoMs (the PACK references its base via parent_uom_id) BEFORE the base ones,
+        // flushing between, so the self-referential FK is never violated (the cause of the
+        // "request conflicts with existing data" error on disable).
+        List<UnitOfMeasure> demoUoms = new ArrayList<>();
+        for (Sku sku : demoSkus) {
+            demoUoms.addAll(uoms.findBySkuId(sku.getId()));
+        }
+        int uomN = 0;
+        for (UnitOfMeasure u : demoUoms) {
+            if (!u.isBaseUnit()) {
+                uoms.delete(u);
+                uomN++;
+            }
+        }
+        uoms.flush();
+        for (UnitOfMeasure u : demoUoms) {
+            if (u.isBaseUnit()) {
+                uoms.delete(u);
+                uomN++;
+            }
+        }
+        uoms.flush();
+
+        for (Sku sku : demoSkus) {
+            skus.delete(sku);
+        }
+        skus.flush();
+        int skuN = demoSkus.size();
 
         int shipperN = 0;
         for (Shipper sh : shippers.findAll()) {

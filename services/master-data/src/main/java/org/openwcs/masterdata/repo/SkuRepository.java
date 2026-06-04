@@ -14,11 +14,14 @@ public interface SkuRepository extends JpaRepository<Sku, UUID> {
 
     Page<Sku> findByOwnerClientIgnoreCase(String ownerClient, Pageable pageable);
 
-    /** Free-text search on code or description. */
+    /** Free-text search on code, description, or any of the SKU's barcodes. */
     @Query("""
-        select s from Sku s
+        select distinct s from Sku s
         where lower(s.code) like lower(concat('%', :q, '%'))
            or lower(s.description) like lower(concat('%', :q, '%'))
+           or exists (
+                select 1 from Barcode b
+                where b.skuId = s.id and lower(b.value) like lower(concat('%', :q, '%')))
         """)
     Page<Sku> search(@Param("q") String q, Pageable pageable);
 }

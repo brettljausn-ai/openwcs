@@ -15,6 +15,12 @@ export interface Warehouse {
   name: string
   timezone: string
   status: string
+  addressLine1?: string
+  addressLine2?: string
+  city?: string
+  region?: string
+  postalCode?: string
+  country?: string
 }
 
 export interface Sku {

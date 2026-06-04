@@ -91,10 +91,9 @@ export default function MasterDataScreen() {
         </p>
       </div>
 
-      {active.scoped && (
+      {active.scoped && whError && (
         <div className="toolbar">
-          <span className="muted">Scoped to the warehouse selected in the top bar.</span>
-          {whError && <span className="muted">{whError}</span>}
+          <span className="muted">{whError}</span>
         </div>
       )}
 
@@ -383,6 +382,15 @@ function WarehousesTab({ onWarehousesChanged }: { onWarehousesChanged: () => voi
   )
 }
 
+// Full IANA timezone list (falls back to a short list on engines without Intl.supportedValuesOf).
+const TZ_OPTIONS = (() => {
+  const supported = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf
+  const zones = supported
+    ? supported('timeZone')
+    : ['UTC', 'Europe/Vienna', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Los_Angeles', 'Asia/Singapore', 'Australia/Sydney']
+  return zones.map((z) => ({ value: z, label: z }))
+})()
+
 function WarehouseDialog({
   initial,
   onClose,
@@ -413,12 +421,25 @@ function WarehouseDialog({
         <input className="form-control" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
       </Field>
       <Field label="Timezone" required>
-        <input
-          className="form-control"
-          value={d.timezone}
-          placeholder="e.g. Europe/Vienna"
-          onChange={(e) => setD({ ...d, timezone: e.target.value })}
-        />
+        <Select ariaLabel="Timezone" value={d.timezone} onChange={(v) => setD({ ...d, timezone: v })} options={TZ_OPTIONS} />
+      </Field>
+      <Field label="Address line 1">
+        <input className="form-control" value={d.addressLine1 ?? ''} onChange={(e) => setD({ ...d, addressLine1: e.target.value })} />
+      </Field>
+      <Field label="Address line 2">
+        <input className="form-control" value={d.addressLine2 ?? ''} onChange={(e) => setD({ ...d, addressLine2: e.target.value })} />
+      </Field>
+      <Field label="City">
+        <input className="form-control" value={d.city ?? ''} onChange={(e) => setD({ ...d, city: e.target.value })} />
+      </Field>
+      <Field label="Region / State">
+        <input className="form-control" value={d.region ?? ''} onChange={(e) => setD({ ...d, region: e.target.value })} />
+      </Field>
+      <Field label="Postal code">
+        <input className="form-control" value={d.postalCode ?? ''} onChange={(e) => setD({ ...d, postalCode: e.target.value })} />
+      </Field>
+      <Field label="Country">
+        <input className="form-control" value={d.country ?? ''} onChange={(e) => setD({ ...d, country: e.target.value })} />
       </Field>
       <Field label="Status">
         <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
@@ -474,7 +495,7 @@ function SkusTab() {
         <input
           className="form-control"
           style={{ maxWidth: 240 }}
-          placeholder="Search code / description…"
+          placeholder="Search code / description / barcode…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && load(search)}
