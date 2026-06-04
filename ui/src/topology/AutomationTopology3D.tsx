@@ -20,6 +20,7 @@ import {
   type AutomationFunctionPoint,
   type AutomationLevel,
 } from './automationApi'
+import PlanEditor2D from './PlanEditor2D'
 
 const DEG = Math.PI / 180
 
@@ -126,7 +127,7 @@ function pointAlong(
 
 // Three muted, distinct colours keyed off the equipment family/type. Anything that isn't a
 // recognisable conveyor / storage(ASRS) / sorter falls back to a neutral slate.
-function colorFor(eq: AutomationEquipment, lib: Map<string, Equipment>): string {
+export function colorFor(eq: AutomationEquipment, lib: Map<string, Equipment>): string {
   const meta = eq.equipmentId ? lib.get(eq.equipmentId) : undefined
   const key = `${meta?.family ?? ''} ${meta?.type ?? ''} ${meta?.subtype ?? ''} ${eq.code}`.toLowerCase()
   if (/conveyor|roller|belt|transport/.test(key)) return '#4f8a8b' // teal — transport
@@ -142,7 +143,7 @@ function equipmentTypeLabel(meta?: Equipment): string {
 
 // A placement is a conveyor (polyline-capable) when its library family is CONVEYOR. That family
 // covers straight conveyors, curves, and sorters. Everything else stays a single box.
-function isConveyor(eq: AutomationEquipment, lib: Map<string, Equipment>): boolean {
+export function isConveyor(eq: AutomationEquipment, lib: Map<string, Equipment>): boolean {
   const meta = eq.equipmentId ? lib.get(eq.equipmentId) : undefined
   return (meta?.family ?? '').toUpperCase() === 'CONVEYOR'
 }
@@ -156,7 +157,7 @@ function hasPath(eq: AutomationEquipment): boolean {
 // equipment carries explicit `sections` we use them; otherwise (legacy / freshly-seeded path) we
 // derive implicit sequential sections from the path (i → i+1, plus last → first when closed),
 // so old path-only conveyors keep rendering exactly as before — now with travel arrows.
-function effectiveSections(eq: AutomationEquipment): number[][] {
+export function effectiveSections(eq: AutomationEquipment): number[][] {
   const path = Array.isArray(eq.path) ? eq.path : []
   if (path.length < 2) return []
   if (Array.isArray(eq.sections) && eq.sections.length > 0) {
@@ -179,7 +180,7 @@ function effectiveSections(eq: AutomationEquipment): number[][] {
 }
 
 // Indices of path points that are the `from` of 2+ sections — automatic decision / divert points.
-function decisionPoints(sections: number[][]): Set<number> {
+export function decisionPoints(sections: number[][]): Set<number> {
   const fromCount = new Map<number, number>()
   for (const [f] of sections) fromCount.set(f, (fromCount.get(f) ?? 0) + 1)
   const out = new Set<number>()
@@ -188,7 +189,7 @@ function decisionPoints(sections: number[][]): Set<number> {
 }
 
 // Indices of path points that take part in at least one section (the junction/node markers).
-function junctionPoints(sections: number[][]): Set<number> {
+export function junctionPoints(sections: number[][]): Set<number> {
   const out = new Set<number>()
   for (const [f, t] of sections) {
     out.add(f)
@@ -234,6 +235,8 @@ export default function AutomationTopology3D() {
   const [library, setLibrary] = useState<Equipment[]>([])
   const [activeLevelId, setActiveLevelId] = useState<string>('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Which editor surface is shown in the centre column. Both share all the state above.
+  const [view, setView] = useState<'3d' | '2d'>('3d')
 
   // When ON, clicking the ground plane draws conveyor sections on the selected conveyor: each
   // click resolves (or appends) a path point and, when an anchor is set, pushes a directed section
@@ -657,6 +660,22 @@ export default function AutomationTopology3D() {
           </button>
         </div>
         <div className="atopo-actions">
+          <div className="atopo-viewtoggle" role="group" aria-label="View">
+            <button
+              type="button"
+              className={`atopo-viewbtn${view === '3d' ? ' is-active' : ''}`}
+              onClick={() => setView('3d')}
+            >
+              3D
+            </button>
+            <button
+              type="button"
+              className={`atopo-viewbtn${view === '2d' ? ' is-active' : ''}`}
+              onClick={() => setView('2d')}
+            >
+              2D plan
+            </button>
+          </div>
           {dirty && <span className="atopo-dirty">Unsaved changes</span>}
           <button
             type="button"
@@ -771,6 +790,16 @@ export default function AutomationTopology3D() {
                 + Add the first level
               </button>
             </div>
+          ) : view === '2d' ? (
+            <PlanEditor2D
+              items={levelEquipment}
+              libById={libById}
+              selectedId={selectedId}
+              drawing={drawPath}
+              onSelect={setSelectedId}
+              onPatch={patchEquipment}
+              onDrawAt={drawSectionAt}
+            />
           ) : (
             <>
             <Canvas camera={{ position: [12, 12, 12], fov: 50 }}>
@@ -2076,6 +2105,15 @@ function Styles() {
       .atopo-levels { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
       .atopo-actions { display: flex; align-items: center; gap: .5rem; }
       .atopo-dirty { font-size: .75rem; color: #f4b860; }
+      .atopo-viewtoggle { display: inline-flex; border: 1px solid var(--glass-border); border-radius: 999px; overflow: hidden; }
+      .atopo-viewbtn {
+        padding: .3rem .7rem; background: none; border: none; cursor: pointer;
+        color: var(--text-dim); font-family: var(--font-body); font-size: .78rem;
+        border-right: 1px solid var(--glass-border);
+      }
+      .atopo-viewbtn:last-child { border-right: none; }
+      .atopo-viewbtn:hover { color: var(--text); }
+      .atopo-viewbtn.is-active { background: rgba(141, 198, 63, .15); color: var(--herbal-lime); }
       .atopo-leveltab {
         padding: .35rem .8rem; border-radius: 999px; cursor: pointer; font-size: .8125rem;
         background: var(--glass-bg); color: var(--text); border: 1px solid var(--glass-border);
