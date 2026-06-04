@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import Select from '../ui/Select'
 
 // ---------------------------------------------------------------- API types
 type OrderStatus =
@@ -147,7 +148,6 @@ export default function InboundScreen() {
   const [locations, setLocations] = useState<Location[]>([])
 
   const [detail, setDetail] = useState<Order | null>(null)
-  const [showCreate, setShowCreate] = useState(false)
 
   const skuLabel = useCallback(
     (id: string) => {
@@ -243,20 +243,16 @@ export default function InboundScreen() {
 
       {/* Filters + actions */}
       <div className="toolbar">
-        <select
-          className="form-control"
+        <Select
           style={{ maxWidth: 220 }}
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          aria-label="Status filter"
-        >
-          <option value="">All statuses</option>
-          {STATUS_FILTERS.map((s) => (
-            <option key={s} value={s}>
-              {s.replace(/_/g, ' ')}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => setStatusFilter(v)}
+          ariaLabel="Status filter"
+          options={[
+            { value: '', label: 'All statuses' },
+            ...STATUS_FILTERS.map((s) => ({ value: s, label: s.replace(/_/g, ' ') })),
+          ]}
+        />
 
         <button type="button" className="btn btn-ghost btn-sm" onClick={loadOrders} disabled={!warehouseId || loading}>
           Refresh
@@ -264,14 +260,9 @@ export default function InboundScreen() {
 
         <div className="spacer" />
 
-        <button
-          type="button"
-          className="btn btn-primary btn-sm"
-          onClick={() => setShowCreate(true)}
-          disabled={!warehouseId}
-        >
-          + New ASN / inbound
-        </button>
+        <span className="muted" style={{ fontSize: '.82rem' }}>
+          Inbound orders &amp; ASNs are owned by the host system — received here, not created.
+        </span>
       </div>
 
       {error && <div className="alert alert-danger">{error}</div>}
@@ -364,18 +355,6 @@ export default function InboundScreen() {
         />
       )}
 
-      {showCreate && (
-        <CreateDialog
-          warehouseId={warehouseId}
-          warehouseLabel={warehouseLabel}
-          skus={skus}
-          onClose={() => setShowCreate(false)}
-          onCreated={() => {
-            setShowCreate(false)
-            loadOrders()
-          }}
-        />
-      )}
     </div>
   )
 }
@@ -567,15 +546,19 @@ function ReceiveDialog({
         <label className="muted" style={{ display: 'block', margin: '.75rem 0 .25rem' }}>
           Receiving location
         </label>
-        <select className="form-control" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
-          {locations.length === 0 && <option value="">No locations available</option>}
-          {locations.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.code}
-              {l.purpose ? ` (${l.purpose})` : ''}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={locationId}
+          onChange={(v) => setLocationId(v)}
+          ariaLabel="Receiving location"
+          options={
+            locations.length === 0
+              ? [{ value: '', label: 'No locations available' }]
+              : locations.map((l) => ({
+                  value: l.id,
+                  label: `${l.code}${l.purpose ? ` (${l.purpose})` : ''}`,
+                }))
+          }
+        />
 
         <div className="dialog-actions">
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>
@@ -583,197 +566,6 @@ function ReceiveDialog({
           </button>
           <button type="button" className="btn btn-primary" onClick={submit} disabled={busy}>
             {busy ? 'Posting…' : 'Post receipt'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------- create ASN / inbound
-interface DraftLine {
-  skuId: string
-  qty: string
-}
-
-function CreateDialog({
-  warehouseId,
-  warehouseLabel,
-  skus,
-  onClose,
-  onCreated,
-}: {
-  warehouseId: string
-  warehouseLabel: string
-  skus: Sku[]
-  onClose: () => void
-  onCreated: () => void
-}) {
-  const [asnRef, setAsnRef] = useState('')
-  const [supplierRef, setSupplierRef] = useState('')
-  const [lines, setLines] = useState<DraftLine[]>([{ skuId: skus[0]?.id ?? '', qty: '1' }])
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  function setLine(i: number, patch: Partial<DraftLine>) {
-    setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
-  }
-  function addLine() {
-    setLines((prev) => [...prev, { skuId: skus[0]?.id ?? '', qty: '1' }])
-  }
-  function removeLine(i: number) {
-    setLines((prev) => (prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev))
-  }
-
-  async function submit() {
-    setErr(null)
-    if (!asnRef.trim()) {
-      setErr('Enter an ASN / order reference.')
-      return
-    }
-    const cleaned = lines
-      .map((l) => ({ skuId: l.skuId, qty: Number(l.qty) }))
-      .filter((l) => l.skuId && Number.isFinite(l.qty) && l.qty > 0)
-    if (cleaned.length === 0) {
-      setErr('Add at least one line with a SKU and a positive quantity.')
-      return
-    }
-    setBusy(true)
-    try {
-      // The Host API turns an ASN into an INBOUND order in order-management.
-      const res = await fetch('/api/host/asns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          asnRef: asnRef.trim(),
-          warehouseId,
-          supplierRef: supplierRef.trim() || null,
-          lines: cleaned,
-        }),
-      })
-      if (!res.ok) throw new Error(await problemMessage(res))
-      onCreated()
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to create ASN.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        className="dialog"
-        style={{ maxWidth: 'min(720px, calc(100vw - 2rem))' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2>New ASN / inbound</h2>
-        <p className="muted" style={{ marginTop: '-.5rem' }}>
-          Creates an expected receipt for {warehouseLabel}. It appears here as an inbound order ready to receive.
-        </p>
-
-        {err && <div className="alert alert-danger">{err}</div>}
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
-          <div>
-            <label className="muted" style={{ display: 'block', marginBottom: '.25rem' }}>
-              ASN / reference
-            </label>
-            <input
-              className="form-control"
-              value={asnRef}
-              onChange={(e) => setAsnRef(e.target.value)}
-              placeholder="ASN-2026-0001"
-            />
-          </div>
-          <div>
-            <label className="muted" style={{ display: 'block', marginBottom: '.25rem' }}>
-              Supplier reference (optional)
-            </label>
-            <input
-              className="form-control"
-              value={supplierRef}
-              onChange={(e) => setSupplierRef(e.target.value)}
-              placeholder="Supplier / PO"
-            />
-          </div>
-        </div>
-
-        <div style={{ marginTop: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '.5rem' }}>
-            <strong style={{ flex: 1 }}>Lines</strong>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={addLine} disabled={skus.length === 0}>
-              + Add line
-            </button>
-          </div>
-
-          {skus.length === 0 && (
-            <p className="muted" style={{ margin: 0 }}>
-              No SKUs found in master data — create SKUs before raising an ASN.
-            </p>
-          )}
-
-          {skus.length > 0 && (
-            <table>
-              <thead>
-                <tr>
-                  <th>SKU</th>
-                  <th style={{ width: 120, textAlign: 'right' }}>Quantity</th>
-                  <th style={{ width: 40 }} />
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((l, i) => (
-                  <tr key={i}>
-                    <td>
-                      <select
-                        className="form-control"
-                        value={l.skuId}
-                        onChange={(e) => setLine(i, { skuId: e.target.value })}
-                      >
-                        {skus.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.code}
-                            {s.description ? ` — ${s.description}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        className="form-control"
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={l.qty}
-                        onChange={(e) => setLine(i, { qty: e.target.value })}
-                        style={{ textAlign: 'right' }}
-                      />
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => removeLine(i)}
-                        disabled={lines.length <= 1}
-                        aria-label="Remove line"
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        <div className="dialog-actions">
-          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>
-            Cancel
-          </button>
-          <button type="button" className="btn btn-primary" onClick={submit} disabled={busy || skus.length === 0}>
-            {busy ? 'Creating…' : 'Create ASN'}
           </button>
         </div>
       </div>

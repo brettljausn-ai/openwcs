@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Select from '../ui/Select'
 import {
   Workplace,
   WorkplaceSession,
@@ -327,13 +328,12 @@ function PresentPanel({ workplace, onStarted }: { workplace: Workplace; onStarte
       <div style={{ display: 'grid', gap: '.9rem', marginTop: '1rem' }}>
         {stockNodes.length > 1 && (
           <Field label="Stock node">
-            <select className="form-control" value={stockNodeId} onChange={(e) => setStockNodeId(e.target.value)}>
-              {stockNodes.map((n) => (
-                <option key={n.id} value={n.id}>
-                  {n.code}
-                </option>
-              ))}
-            </select>
+            <Select
+              ariaLabel="Stock node"
+              value={stockNodeId}
+              onChange={(v) => setStockNodeId(v)}
+              options={stockNodes.map((n) => ({ value: n.id, label: n.code }))}
+            />
           </Field>
         )}
         <Field label="Stock HU">

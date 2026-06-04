@@ -34,6 +34,11 @@ export async function getAllAccess(): Promise<Record<string, WarehouseAccess>> {
   return ok(await fetch('/api/iam/warehouse-access'))
 }
 
+/** One user's warehouse access. */
+export async function getAccess(username: string): Promise<WarehouseAccess> {
+  return ok(await fetch(`/api/iam/warehouse-access/${encodeURIComponent(username)}`))
+}
+
 /** Replace a user's allowed warehouses + default. Default must be one of the allowed warehouses. */
 export async function setAccess(username: string, access: WarehouseAccess): Promise<WarehouseAccess> {
   return ok(

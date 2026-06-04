@@ -86,6 +86,25 @@ export function listUsers(search?: string): Promise<KcUser[]> {
   return getJson<KcUser[]>(`/users?${q.toString()}`)
 }
 
+/** Server-side user search with pagination — for lists that can reach thousands of users. */
+export function searchUsers(opts: { search?: string; first?: number; max?: number }): Promise<KcUser[]> {
+  const q = new URLSearchParams({
+    first: String(opts.first ?? 0),
+    max: String(opts.max ?? 20),
+    briefRepresentation: 'true',
+  })
+  if (opts.search && opts.search.trim()) q.set('search', opts.search.trim())
+  return getJson<KcUser[]>(`/users?${q.toString()}`)
+}
+
+/** Total users matching an optional search — drives server-side pagination. */
+export function countUsers(search?: string): Promise<number> {
+  const q = new URLSearchParams()
+  if (search && search.trim()) q.set('search', search.trim())
+  const suffix = q.toString() ? `?${q.toString()}` : ''
+  return getJson<number>(`/users/count${suffix}`)
+}
+
 export function getUser(id: string): Promise<KcUser> {
   return getJson<KcUser>(`/users/${id}`)
 }

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import Select from '../ui/Select'
+import { Warehouse, getAccess, listWarehouses, setAccess } from '../warehouseaccess/api'
 import {
   KcRole,
   KcUser,
@@ -224,9 +226,47 @@ function UserDialog({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Default-warehouse selector. Options come from master-data; the loaded access (allowed set +
+  // current default) is only fetched in edit mode, where the username already exists.
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const [defaultWarehouse, setDefaultWarehouse] = useState('')
+  const [loadedAccess, setLoadedAccess] = useState<{ warehouses: string[]; defaultWarehouse: string | null } | null>(null)
+
   function set<K extends keyof NewUser>(key: K, value: NewUser[K]) {
     setForm((f) => ({ ...f, [key]: value }))
   }
+
+  // Load the warehouse list once (graceful: no options on failure).
+  useEffect(() => {
+    let cancelled = false
+    listWarehouses()
+      .then((ws) => { if (!cancelled) setWarehouses(ws) })
+      .catch(() => { if (!cancelled) setWarehouses([]) })
+    return () => { cancelled = true }
+  }, [])
+
+  // In edit mode, preselect the user's current default warehouse.
+  useEffect(() => {
+    if (!existing) return
+    let cancelled = false
+    getAccess(existing.username)
+      .then((acc) => {
+        if (cancelled) return
+        setLoadedAccess(acc)
+        setDefaultWarehouse(acc.defaultWarehouse ?? '')
+      })
+      .catch(() => { /* no current access — leave default unset */ })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const warehouseOptions = useMemo(
+    () => [
+      { value: '', label: '— none —' },
+      ...warehouses.map((w) => ({ value: w.code, label: `${w.code} — ${w.name}` })),
+    ],
+    [warehouses],
+  )
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -242,6 +282,17 @@ function UserDialog({
       }
       if (isEdit && existing) {
         await updateUser(existing.id, payload)
+        // Persist the default warehouse if it changed. Setting a default auto-adds the user to that
+        // warehouse's allowed list (union with the previously-loaded allowed set).
+        const loadedDefault = loadedAccess?.defaultWarehouse ?? ''
+        if (defaultWarehouse !== loadedDefault) {
+          const allowed = new Set(loadedAccess?.warehouses ?? [])
+          if (defaultWarehouse) allowed.add(defaultWarehouse)
+          await setAccess(existing.username, {
+            warehouses: Array.from(allowed),
+            defaultWarehouse: defaultWarehouse || null,
+          })
+        }
       } else {
         await createUser(payload)
       }
@@ -292,6 +343,19 @@ function UserDialog({
           <input type="checkbox" checked={form.enabled} onChange={(e) => set('enabled', e.target.checked)} />
           Enabled
         </label>
+
+        {isEdit && (
+          <div style={{ marginTop: '.9rem' }}>
+            <label>Default warehouse</label>
+            <Select
+              value={defaultWarehouse}
+              onChange={setDefaultWarehouse}
+              options={warehouseOptions}
+              ariaLabel="Default warehouse"
+              placeholder="— none —"
+            />
+          </div>
+        )}
 
         <div className="dialog-actions">
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>

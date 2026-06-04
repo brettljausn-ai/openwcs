@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import Select from '../ui/Select'
 import { listWarehouses, Warehouse } from '../masterdata/api'
 import {
   CreateStationBody,
@@ -60,19 +61,16 @@ export default function GtpConfigScreen() {
 
       <div className="toolbar">
         <label style={{ margin: 0 }}>Warehouse</label>
-        <select
-          className="form-control"
+        <Select
+          ariaLabel="Warehouse"
           style={{ maxWidth: 320 }}
           value={warehouseId}
-          onChange={(e) => setWarehouseId(e.target.value)}
-        >
-          <option value="">Select a warehouse…</option>
-          {warehouses.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.code} — {w.name}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => setWarehouseId(v)}
+          options={[
+            { value: '', label: 'Select a warehouse…' },
+            ...warehouses.map((w) => ({ value: w.id ?? '', label: `${w.code} — ${w.name}` })),
+          ]}
+        />
         {whError && <span className="muted">{whError}</span>}
       </div>
 
@@ -461,23 +459,21 @@ function StationDialog({
       </div>
       <div className="gtp-grid-2">
         <Field label="Destination topology" required>
-          <select className="form-control" value={mode} onChange={(e) => setMode(e.target.value as StationMode)}>
-            {STATION_MODES.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+          <Select
+            ariaLabel="Destination topology"
+            value={mode}
+            onChange={(v) => setMode(v as StationMode)}
+            options={STATION_MODES.map((m) => ({ value: m, label: m }))}
+          />
         </Field>
         {initial && (
           <Field label="Status">
-            <select className="form-control" value={status} onChange={(e) => setStatus(e.target.value)}>
-              {['ACTIVE', 'INACTIVE', 'ARCHIVED'].map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+            <Select
+              ariaLabel="Status"
+              value={status}
+              onChange={(v) => setStatus(v)}
+              options={['ACTIVE', 'INACTIVE', 'ARCHIVED'].map((s) => ({ value: s, label: s }))}
+            />
           </Field>
         )}
       </div>
@@ -639,13 +635,12 @@ function NodeDialog({
     >
       <div className="gtp-grid-2">
         <Field label="Role" required>
-          <select className="form-control" value={role} onChange={(e) => setRole(e.target.value as NodeRole)}>
-            {NODE_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
+          <Select
+            ariaLabel="Role"
+            value={role}
+            onChange={(v) => setRole(v as NodeRole)}
+            options={NODE_ROLES.map((r) => ({ value: r, label: r }))}
+          />
         </Field>
         <Field label="Code" required>
           <input className="form-control" value={code} onChange={(e) => setCode(e.target.value)} />
@@ -690,13 +685,12 @@ function NodeDialog({
         </Field>
       </div>
       <Field label="Status">
-        <select className="form-control" value={status} onChange={(e) => setStatus(e.target.value)}>
-          {['ACTIVE', 'INACTIVE'].map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+        <Select
+          ariaLabel="Status"
+          value={status}
+          onChange={(v) => setStatus(v)}
+          options={['ACTIVE', 'INACTIVE'].map((s) => ({ value: s, label: s }))}
+        />
       </Field>
     </EditDialog>
   )

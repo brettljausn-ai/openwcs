@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import Select from '../ui/Select'
 import { DeviceTask, listDeviceTasks } from './api'
 
 // Transport overview (build.md §8): a live view of the device tasks the flow-orchestrator
@@ -170,16 +171,20 @@ export default function TransportScreen() {
       {/* Filters */}
       <div className="glass" style={{ padding: '1rem 1.25rem', marginBottom: '1.25rem', display: 'flex', flexWrap: 'wrap', gap: '.75rem', alignItems: 'flex-end' }}>
         <Field label="Status">
-          <select className="form-control" value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">All statuses</option>
-            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <Select
+            ariaLabel="Status"
+            value={status}
+            onChange={(v) => setStatus(v)}
+            options={[{ value: '', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s }))]}
+          />
         </Field>
         <Field label="Equipment family">
-          <select className="form-control" value={family} onChange={(e) => setFamily(e.target.value)}>
-            <option value="">All families</option>
-            {FAMILIES.map((f) => <option key={f} value={f}>{f}</option>)}
-          </select>
+          <Select
+            ariaLabel="Equipment family"
+            value={family}
+            onChange={(v) => setFamily(v)}
+            options={[{ value: '', label: 'All families' }, ...FAMILIES.map((f) => ({ value: f, label: f }))]}
+          />
         </Field>
         <Field label="Equipment ID">
           <input className="form-control" style={{ width: 280 }} placeholder="any equipment (UUID)" value={equipmentId} onChange={(e) => setEquipmentId(e.target.value)} />

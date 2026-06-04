@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import Select from '../ui/Select'
 import {
   Barcode,
   Equipment,
@@ -279,13 +280,12 @@ const STATUS_OPTIONS = ['ACTIVE', 'INACTIVE', 'ARCHIVED']
 
 function StatusSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <select className="form-control" value={value} onChange={(e) => onChange(e.target.value)}>
-      {STATUS_OPTIONS.map((s) => (
-        <option key={s} value={s}>
-          {s}
-        </option>
-      ))}
-    </select>
+    <Select
+      value={value}
+      onChange={onChange}
+      options={STATUS_OPTIONS.map((s) => ({ value: s, label: s }))}
+      ariaLabel="Status"
+    />
   )
 }
 
@@ -802,30 +802,20 @@ function StorageBlockDialog({
         <input className="form-control" value={d.code} onChange={(e) => setD({ ...d, code: e.target.value })} />
       </Field>
       <Field label="Storage type" required>
-        <select
-          className="form-control"
+        <Select
           value={d.storageType}
-          onChange={(e) => setD({ ...d, storageType: e.target.value })}
-        >
-          {STORAGE_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+          onChange={(val) => setD({ ...d, storageType: val })}
+          options={STORAGE_TYPES.map((t) => ({ value: t, label: t }))}
+          ariaLabel="Storage type"
+        />
       </Field>
       <Field label="Slotting granularity">
-        <select
-          className="form-control"
+        <Select
           value={d.slottingGranularity}
-          onChange={(e) => setD({ ...d, slottingGranularity: e.target.value })}
-        >
-          {GRANULARITIES.map((g) => (
-            <option key={g} value={g}>
-              {g}
-            </option>
-          ))}
-        </select>
+          onChange={(val) => setD({ ...d, slottingGranularity: val })}
+          options={GRANULARITIES.map((g) => ({ value: g, label: g }))}
+          ariaLabel="Slotting granularity"
+        />
       </Field>
       <label className="md-check">
         <input type="checkbox" checked={d.gtp} onChange={(e) => setD({ ...d, gtp: e.target.checked })} />
@@ -1031,45 +1021,32 @@ function LocationDialog({
       </Field>
       <div className="md-grid-2">
         <Field label="Location type" required>
-          <select
-            className="form-control"
+          <Select
             value={d.locationType}
-            onChange={(e) => setD({ ...d, locationType: e.target.value })}
-          >
-            {LOCATION_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => setD({ ...d, locationType: val })}
+            options={LOCATION_TYPES.map((t) => ({ value: t, label: t }))}
+            ariaLabel="Location type"
+          />
         </Field>
         <Field label="Purpose" required>
-          <select
-            className="form-control"
+          <Select
             value={d.purpose}
-            onChange={(e) => setD({ ...d, purpose: e.target.value })}
-          >
-            {PURPOSES.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => setD({ ...d, purpose: val })}
+            options={PURPOSES.map((p) => ({ value: p, label: p }))}
+            ariaLabel="Purpose"
+          />
         </Field>
       </div>
       <Field label="Storage block">
-        <select
-          className="form-control"
+        <Select
           value={d.blockId ?? ''}
-          onChange={(e) => setD({ ...d, blockId: e.target.value || null })}
-        >
-          <option value="">— None —</option>
-          {blocks.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.code} ({b.storageType})
-            </option>
-          ))}
-        </select>
+          onChange={(val) => setD({ ...d, blockId: val || null })}
+          options={[
+            { value: '', label: '— None —' },
+            ...blocks.map((b) => ({ value: b.id ?? '', label: `${b.code} (${b.storageType})` })),
+          ]}
+          ariaLabel="Storage block"
+        />
       </Field>
       <div className="md-grid-2">
         <Field label="Aisle">
@@ -1270,13 +1247,12 @@ function EquipmentDialog({
       }}
     >
       <Field label="Family" required>
-        <select className="form-control" value={d.family} onChange={(e) => setD({ ...d, family: e.target.value })}>
-          {EQUIPMENT_FAMILIES.map((f) => (
-            <option key={f} value={f}>
-              {f}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={d.family}
+          onChange={(val) => setD({ ...d, family: val })}
+          options={EQUIPMENT_FAMILIES.map((f) => ({ value: f, label: f }))}
+          ariaLabel="Family"
+        />
       </Field>
       <Field label="Vendor">
         <input
