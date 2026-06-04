@@ -212,6 +212,7 @@ function EditDialog<T>({
   onSave,
   children,
   canSave = true,
+  wide = false,
 }: {
   title: string
   draft: T
@@ -219,6 +220,7 @@ function EditDialog<T>({
   onSave: (draft: T) => Promise<void>
   children: React.ReactNode
   canSave?: boolean
+  wide?: boolean
 }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -235,9 +237,9 @@ function EditDialog<T>({
     }
   }
   return (
-    <Dialog title={title} onClose={onClose}>
+    <Dialog title={title} onClose={onClose} size={wide ? 'lg' : undefined}>
       {error && <div className="alert alert-danger">{error}</div>}
-      <div className="md-form">{children}</div>
+      <div className={`md-form${wide ? ' md-form-2col' : ''}`}>{children}</div>
       <div className="dialog-actions">
         <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}>
           Cancel
@@ -395,12 +397,10 @@ function WarehousesTab({ onWarehousesChanged }: { onWarehousesChanged: () => voi
   )
 }
 
-// Full IANA timezone list (falls back to a short list on engines without Intl.supportedValuesOf).
+// Simple UTC offsets (UTC-12 … UTC+14) — easier than the full IANA list.
 const TZ_OPTIONS = (() => {
-  const supported = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf
-  const zones = supported
-    ? supported('timeZone')
-    : ['UTC', 'Europe/Vienna', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Los_Angeles', 'Asia/Singapore', 'Australia/Sydney']
+  const zones: string[] = []
+  for (let h = -12; h <= 14; h++) zones.push(h === 0 ? 'UTC' : `UTC${h > 0 ? '+' : ''}${h}`)
   return zones.map((z) => ({ value: z, label: z }))
 })()
 
@@ -420,6 +420,7 @@ function WarehouseDialog({
       title={initial.id ? 'Edit warehouse' : 'New warehouse'}
       draft={d}
       canSave={valid}
+      wide
       onClose={onClose}
       onSave={async (w) => {
         if (w.id) await updateWarehouse(w.id, w)
@@ -1791,6 +1792,7 @@ function Styles() {
       .md-row-actions { display: flex; gap: .4rem; justify-content: flex-end; white-space: nowrap; }
       .md-scroll-x { overflow-x: auto; }
       .md-form { display: flex; flex-direction: column; gap: .85rem; }
+      .md-form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem 1rem; }
       .md-field { display: flex; flex-direction: column; }
       .md-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; }
       .md-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .85rem; }
