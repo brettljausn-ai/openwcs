@@ -95,6 +95,12 @@ export interface Equipment {
   id?: string
   warehouseId: string
   family: string
+  type?: string | null
+  subtype?: string | null
+  defaultWidthM?: number | null
+  defaultHeightM?: number | null
+  defaultLengthM?: number | null
+  processTypes?: string[] | null
   vendor?: string | null
   model?: string | null
   adapterEndpoint?: string | null
