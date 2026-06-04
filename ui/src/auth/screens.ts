@@ -11,7 +11,7 @@
 
 export type Role = 'ADMIN' | 'SUPERVISOR' | 'OPERATOR' | 'VIEWER'
 
-export type Section = 'Operations' | 'Engineering' | 'Configuration' | 'Administration'
+export type Section = 'Master data' | 'Operations' | 'Engineering' | 'Configuration' | 'Administration'
 
 export interface ScreenDef {
   key: string
@@ -21,7 +21,6 @@ export interface ScreenDef {
   icon: string
   defaultRoles: Role[]
   description: string
-  children?: { label: string; path: string }[] // optional nested sub-pages (a second menu level)
 }
 
 export const SCREENS: ScreenDef[] = [
@@ -42,17 +41,16 @@ export const SCREENS: ScreenDef[] = [
   { key: 'processes', label: 'Processes', path: '/processes', section: 'Engineering', icon: '⇉', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Design and deploy BPMN processes; run instances and tasks.' },
   { key: 'slotting', label: 'Slotting', path: '/slotting', section: 'Engineering', icon: '▦', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Pick-face and automated-block slotting & replenishment policy.' },
 
-  // Configuration — master & system config
-  // Master data is a top-level menu item (no section); its catalogs are nested sub-pages.
-  { key: 'master-data', label: 'Master data', path: '/master-data', icon: '⛁', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Warehouses, SKUs, storage blocks, locations, equipment, label templates.', children: [
-    { label: 'Warehouses', path: '/master-data/warehouses' },
-    { label: 'SKUs', path: '/master-data/skus' },
-    { label: 'Storage blocks', path: '/master-data/storage-blocks' },
-    { label: 'Locations', path: '/master-data/locations' },
-    { label: 'Equipment', path: '/master-data/equipment' },
-    { label: 'Handling unit types', path: '/master-data/handling-unit-types' },
-    { label: 'Label templates', path: '/master-data/label-templates' },
-  ] },
+  // Master data — its own section; each catalog is an individually-routed, access-controllable screen.
+  { key: 'master-data:warehouses', label: 'Warehouses', path: '/master-data/warehouses', section: 'Master data', icon: '⌂', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Warehouses / sites — the top-level locations everything is scoped to.' },
+  { key: 'master-data:skus', label: 'SKUs', path: '/master-data/skus', section: 'Master data', icon: '▤', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'SKU catalog with units of measure and barcodes (host-owned, read-only).' },
+  { key: 'master-data:storage-blocks', label: 'Storage blocks', path: '/master-data/storage-blocks', section: 'Master data', icon: '▦', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Storage pools / zones for slotting (manual pick faces and automated systems).' },
+  { key: 'master-data:locations', label: 'Locations', path: '/master-data/locations', section: 'Master data', icon: '⊞', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Addressable storage locations and their rack geometry.' },
+  { key: 'master-data:equipment', label: 'Equipment', path: '/master-data/equipment', section: 'Master data', icon: '⚙', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Devices and the adapter endpoints the WCS drives.' },
+  { key: 'master-data:handling-unit-types', label: 'Handling unit types', path: '/master-data/handling-unit-types', section: 'Master data', icon: '⬡', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Container types (totes, pallets, cartons) and their capabilities.' },
+  { key: 'master-data:label-templates', label: 'Label templates', path: '/master-data/label-templates', section: 'Master data', icon: '⎙', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Dispatch / handling-unit label templates.' },
+
+  // Configuration — system config
   { key: 'gtp-config', label: 'GTP workplaces', path: '/gtp-config', section: 'Configuration', icon: '⚙', defaultRoles: ['ADMIN'], description: 'Configure GTP workplaces, nodes and operating modes.' },
   { key: 'settings', label: 'Settings', path: '/settings', section: 'Configuration', icon: '⚙', defaultRoles: ['ADMIN'], description: 'System settings, policies and integration endpoints.' },
 
@@ -62,7 +60,7 @@ export const SCREENS: ScreenDef[] = [
   { key: 'warehouse-access', label: 'Warehouse access', path: '/warehouse-access', section: 'Administration', icon: '⌂', defaultRoles: ['ADMIN'], description: 'Map users to the warehouses they may work in and set each user\'s default.' },
 ]
 
-export const SECTION_ORDER: Section[] = ['Operations', 'Engineering', 'Configuration', 'Administration']
+export const SECTION_ORDER: Section[] = ['Master data', 'Operations', 'Engineering', 'Configuration', 'Administration']
 
 /** Per-screen access override returned by the Access Control backend. */
 export type AccessOverrides = Record<string, { roles?: string[]; users?: string[] }>

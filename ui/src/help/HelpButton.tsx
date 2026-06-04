@@ -4,18 +4,11 @@ import { useLocation } from 'react-router-dom'
 import { SCREENS } from '../auth/screens'
 import { HELP, ScreenHelp } from './content'
 
-// Resolve the help key + drawer title for the current path. Master-data sub-pages
-// (/master-data/:entity) get their own per-catalog help ('master-data:<entity>'); everything
-// else is a longest-prefix match on the screen catalog ('/' = dashboard).
+// Resolve the help key + drawer title for the current path: a longest-prefix match on the screen
+// catalog ('/' = dashboard). The master-data catalog screens carry keys like 'master-data:warehouses'
+// that line up with the help content keys.
 function resolveHelp(pathname: string): { key: string; label: string } | null {
   if (pathname === '/') return { key: 'dashboard', label: 'Dashboard' }
-  const md = pathname.match(/^\/master-data\/([a-z-]+)/)
-  if (md) {
-    const childPath = `/master-data/${md[1]}`
-    const masterData = SCREENS.find((s) => s.key === 'master-data')
-    const label = masterData?.children?.find((c) => c.path === childPath)?.label ?? masterData?.label ?? 'Master data'
-    return { key: `master-data:${md[1]}`, label }
-  }
   const match = SCREENS
     .filter((s) => s.path !== '/' && pathname.startsWith(s.path))
     .sort((a, b) => b.path.length - a.path.length)[0]
