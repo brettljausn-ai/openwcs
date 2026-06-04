@@ -47,9 +47,21 @@ export interface AutomationConnection {
   status?: string
 }
 
-// Opaque round-tripped payload — this slice doesn't edit function points,
-// it only preserves whatever the server returned so a save doesn't drop them.
-export type AutomationFunctionPoint = Record<string, unknown>
+// A process point on a placed equipment (a scanner, label applicator, divert, DWS, query point,
+// wrapper, induct/discharge, …). `placedId` references AutomationEquipment.id; `offsetM` is the
+// distance along the equipment from its start; `side` nudges the marker left/right of the
+// centreline; `nodeCode` optionally maps the point to a conveyor routing node. The whole record
+// round-trips on load/save (the server remaps client temp-ids).
+export interface AutomationFunctionPoint {
+  id: string
+  placedId: string
+  functionType: string
+  name?: string | null
+  offsetM: number
+  side?: string | null
+  nodeCode?: string | null
+  status?: string
+}
 
 export interface AutomationTopology {
   levels: AutomationLevel[]
