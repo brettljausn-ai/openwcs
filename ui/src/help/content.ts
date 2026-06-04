@@ -235,6 +235,64 @@ export const HELP: Record<string, ScreenHelp> = {
       "Press Refresh after a receipt, pick or adjustment to confirm it landed; if it isn't here yet, give it a moment and refresh again."
     ]
   },
+  "stock-overview": {
+    "summary": "The Stock overview is a read-only snapshot of what is currently in stock in the selected warehouse, broken down by handling unit. It shows, for each handling unit / location / SKU, how much is on hand and how much is still available (on hand minus what has been reserved), so operators and supervisors can see at a glance where stock sits and what can still be promised.",
+    "sections": [
+      {
+        "heading": "Getting started",
+        "body": "First confirm the correct warehouse is selected in the top-bar switcher — the whole screen is scoped to that warehouse, and an empty list usually means either that warehouse holds no stock yet or that a different warehouse is selected. The table loads automatically and joins internal ids to readable codes: handling-unit codes, location codes, the storage area (block), and SKU codes. There is nothing to set up — this is a view, not an editor."
+      },
+      {
+        "heading": "Reading the columns",
+        "body": "HU is the handling unit's barcode (a dash means stock not held on a handling unit). Area is the storage block the location belongs to, and Location is the exact place the stock sits. SKU is the item code. Qty in stock is the physical on-hand quantity, while Qty available is what is free to allocate after reservations are deducted — so available is at most the quantity in stock, and a gap between the two means some of it is already reserved for orders. Status reflects the stock's state."
+      },
+      {
+        "heading": "Searching and sorting",
+        "body": "Use the search box to filter rows by handling-unit code, SKU code, or location, and click any sortable column header to reorder the list — for example sort by Qty available to find where free stock is, or by HU to group a container's contents together. Searching and sorting only change what you see; they never change the stock itself."
+      },
+      {
+        "heading": "Where the numbers come from",
+        "body": "These figures are derived from the same stock events you can inspect on the Stock transactions screen, so the overview and the movement log always agree. Quantities are decimal values and are shown rounded for readability. Because this screen only reports, the way to change a number here is to do real work elsewhere — receive, put away, pick, move, count or adjust stock — and those changes then appear on the next load."
+      }
+    ],
+    "tips": [
+      "Set the warehouse in the top bar first; everything here is scoped to it.",
+      "A gap between Qty in stock and Qty available means part of that stock is reserved for orders and can't be promised again.",
+      "Sort by Qty available to quickly find where you still have free stock for a SKU.",
+      "A dash in the HU column means the stock isn't held on a handling unit; a dash in Area means its location isn't assigned to a storage block.",
+      "This screen is read-only — to change a quantity, receive, pick, move, count or adjust stock on the relevant screen and reload.",
+      "Use the search box with a SKU code to see every handling unit and location currently holding that item."
+    ]
+  },
+  "handling-units": {
+    "summary": "The Handling units screen is the registry of the physical containers — cartons, pallets, totes and the like — used to hold and move stock in the selected warehouse. Each handling unit has a scannable code, a type, a current location and a status, and this screen lets operators and supervisors register new units and keep their details up to date.",
+    "sections": [
+      {
+        "heading": "Getting started",
+        "body": "First select the warehouse you're working in using the top-bar switcher — handling units belong to exactly one warehouse, and the list (and anything you register) is scoped to it. If you see a prompt to select a warehouse, choose one to continue. The table then loads every handling unit in that warehouse, with its type and location shown as readable names rather than internal ids."
+      },
+      {
+        "heading": "Key actions",
+        "body": "Use \"+ Register handling unit\" to add a new container, or Edit on a row to change an existing one. A dialog opens where Code is required (this is the barcode/identifier operators scan); you then pick the Type (the handling-unit type, e.g. carton or pallet), the current Location, and a Status. Save stays disabled until Code is filled in. There is no delete — retire a unit instead by setting its status to RETIRED."
+      },
+      {
+        "heading": "Fields and statuses",
+        "body": "Code is the unique barcode for the handling unit. Type comes from the global handling-unit-types catalog (managed under Master data) and describes the container's envelope and capabilities. Location is the place the unit currently sits, chosen from this warehouse's locations. Status is one of ACTIVE (in use, holding stock), EMPTY (a registered but empty container), IN_TRANSIT (currently moving between locations), or RETIRED (taken out of service)."
+      },
+      {
+        "heading": "What happens after you save",
+        "body": "A registered handling unit becomes available across the system: stock can be associated with it, it appears in the Stock overview as goods are placed in it, and its movements show up in transport and stock transactions. Editing its location or status here updates the registry record; the actual physical moves and the stock it holds are driven by receiving, put-away, picking and device tasks elsewhere, not by editing the record directly."
+      }
+    ],
+    "tips": [
+      "Pick the right warehouse in the top bar first — units from other warehouses won't appear, and new ones are filed against the selected warehouse.",
+      "Code is the scannable barcode and is required; use the same value printed on the physical unit so scans match.",
+      "There's no delete: set a unit's Status to RETIRED to take it out of service while keeping its history.",
+      "Handling-unit Types come from Master data → Handling unit types; add the type there first if it's missing from the dropdown.",
+      "Use IN_TRANSIT for units currently being moved and EMPTY for registered containers that hold no stock.",
+      "After registering or relocating a unit, check the Stock overview to confirm what it's currently holding."
+    ]
+  },
   "topology": {
     "sections": [
       {

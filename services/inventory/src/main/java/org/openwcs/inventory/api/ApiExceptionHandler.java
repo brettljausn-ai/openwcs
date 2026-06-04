@@ -1,5 +1,6 @@
 package org.openwcs.inventory.api;
 
+import org.openwcs.inventory.service.HandlingUnitNotFoundException;
 import org.openwcs.inventory.service.InsufficientStockException;
 import org.openwcs.inventory.service.ReservationNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -23,6 +24,14 @@ public class ApiExceptionHandler {
     public ProblemDetail onNotFound(ReservationNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
         problem.setTitle("Reservation not found");
+        problem.setDetail(ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(HandlingUnitNotFoundException.class)
+    public ProblemDetail onNotFound(HandlingUnitNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Handling unit not found");
         problem.setDetail(ex.getMessage());
         return problem;
     }

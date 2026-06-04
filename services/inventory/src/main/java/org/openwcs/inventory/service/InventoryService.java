@@ -2,9 +2,14 @@ package org.openwcs.inventory.service;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import org.openwcs.inventory.api.StockOverviewRow;
+import org.openwcs.inventory.domain.HandlingUnit;
 import org.openwcs.inventory.domain.Reservation;
 import org.openwcs.inventory.domain.Stock;
+import org.openwcs.inventory.repo.HandlingUnitRepository;
 import org.openwcs.inventory.repo.ReservationRepository;
 import org.openwcs.inventory.repo.StockRepository;
 import org.springframework.stereotype.Service;
@@ -24,10 +29,15 @@ public class InventoryService {
 
     private final StockRepository stock;
     private final ReservationRepository reservations;
+    private final HandlingUnitRepository handlingUnits;
 
-    public InventoryService(StockRepository stock, ReservationRepository reservations) {
+    public InventoryService(
+            StockRepository stock,
+            ReservationRepository reservations,
+            HandlingUnitRepository handlingUnits) {
         this.stock = stock;
         this.reservations = reservations;
+        this.handlingUnits = handlingUnits;
     }
 
     @Transactional(readOnly = true)
@@ -48,6 +58,34 @@ public class InventoryService {
     @Transactional(readOnly = true)
     public List<Stock> listStock(UUID warehouseId, UUID skuId) {
         return stock.findByWarehouseIdAndSkuId(warehouseId, skuId);
+    }
+
+    /**
+     * Warehouse-wide stock overview: one row per bucket with on-hand qty, the quantity
+     * currently HELD against it, and the resulting available (AVAILABLE buckets only).
+     */
+    @Transactional(readOnly = true)
+    public List<StockOverviewRow> stockOverview(UUID warehouseId) {
+        List<Stock> buckets = stock.findByWarehouseId(warehouseId);
+        List<Reservation> held = reservations.findByWarehouseIdAndStatus(warehouseId, HELD);
+        Map<UUID, String> huCodes = handlingUnits.findByWarehouseId(warehouseId).stream()
+                .collect(Collectors.toMap(HandlingUnit::getHuId, HandlingUnit::getCode));
+        return buckets.stream().map(bucket -> {
+            BigDecimal reserved = held.stream()
+                    .filter(r -> r.getSkuId().equals(bucket.getSkuId()))
+                    .filter(r -> r.getLocationId() == null
+                            || r.getLocationId().equals(bucket.getLocationId()))
+                    .filter(r -> r.getHuId() == null || r.getHuId().equals(bucket.getHuId()))
+                    .map(Reservation::getQty)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal available = "AVAILABLE".equals(bucket.getStatus())
+                    ? bucket.getQty().subtract(reserved).max(BigDecimal.ZERO)
+                    : BigDecimal.ZERO;
+            String huCode = bucket.getHuId() == null ? null : huCodes.get(bucket.getHuId());
+            return new StockOverviewRow(
+                    bucket.getSkuId(), bucket.getLocationId(), bucket.getHuId(), huCode,
+                    bucket.getStatus(), bucket.getQty(), reserved, available);
+        }).toList();
     }
 
     @Transactional

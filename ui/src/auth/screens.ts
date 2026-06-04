@@ -34,6 +34,8 @@ export const SCREENS: ScreenDef[] = [
   { key: 'gtp-ops', label: 'GTP workplaces', path: '/gtp', section: 'Operations', icon: '☷', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'Goods-to-person operator consoles — one active session per workplace.' },
   { key: 'transport', label: 'Transport', path: '/transport', section: 'Operations', icon: '⇄', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Live device-task / transport overview across equipment.' },
   { key: 'stock-transactions', label: 'Stock transactions', path: '/stock-transactions', section: 'Operations', icon: '≡', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Event-sourced stock movement / transaction log.' },
+  { key: 'stock-overview', label: 'Stock overview', path: '/stock-overview', section: 'Operations', icon: '▥', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'What is currently in stock, by handling unit — quantities and availability.' },
+  { key: 'handling-units', label: 'Handling units', path: '/handling-units', section: 'Operations', icon: '▢', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'Registry of physical handling units (cartons, pallets, totes) — code, type, location and status.' },
 
   // Engineering — design & modelling
   { key: 'topology', label: 'Conveyor topology', path: '/topology', section: 'Engineering', icon: '⊹', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Model the conveyor network, controllers (PLCs) and loops.' },

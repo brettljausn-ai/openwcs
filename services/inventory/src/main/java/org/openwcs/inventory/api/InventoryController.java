@@ -33,6 +33,12 @@ public class InventoryController {
         return service.listStock(warehouseId, skuId).stream().map(StockView::from).toList();
     }
 
+    /** Warehouse-wide stock overview: every bucket with on-hand, reserved (HELD) and available qty. */
+    @GetMapping("/stock/overview")
+    public List<StockOverviewRow> stockOverview(@RequestParam UUID warehouseId) {
+        return service.stockOverview(warehouseId);
+    }
+
     /** Available-to-promise summary (on-hand − reserved); pass locationId for a pick-location ATP. */
     @GetMapping("/availability")
     public Availability availability(
