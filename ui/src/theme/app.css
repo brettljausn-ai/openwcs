@@ -565,6 +565,8 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
   color: var(--alpine-white);
 }
 .login-brand img { height: 34px; }
+.login-wordmark { line-height: 1; }
+.login-wordmark .accent { color: var(--herbal-lime); }
 .login-sub { color: var(--text-dim); font-size: .9rem; margin-bottom: 1.75rem; }
 .login-field { margin-bottom: 1rem; }
 .login-card .btn-primary { margin-top: .5rem; }

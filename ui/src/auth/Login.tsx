@@ -33,7 +33,7 @@ export default function Login() {
       <form className="glass login-card" onSubmit={submit}>
         <div className="login-brand">
           <img src="/Logo_white_solo.png" alt="" />
-          openWCS
+          <span className="login-wordmark">open<span className="accent">WCS</span></span>
         </div>
         <div className="login-sub">Warehouse Control System — sign in to continue</div>
 
