@@ -29,7 +29,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | gtp | 8094 | ✅ | Goods-to-person station execution: configure stations + STOCK/ORDER nodes, open order destinations (bind order HU + demand), present a stock HU → put-to-light put-list across destinations (one HU serves many orders: the batch), confirm puts (incl. short), complete destinations. ORDER_LOCATION (conveyor HU-in-location) and PUT_WALL (lit rack cubbies, typical AMR) destination topology share one engine. Orthogonal **operating modes** (PICKING / DECANTING / STOCK_COUNT / QC / MAINTENANCE): each cycle runs one and carries mode-appropriate task lines (decant-moves / count entries+variance / PASS-FAIL-HOLD verdicts / OK-DEFECTIVE-REPAIR checks); seams to slotting put-away (decant) and inventory StockAdjusted (count). ADR 0006. |
 | counting | 8095 | ✅ | Cycle / stock counting: count tasks (scope LOCATION/SKU/ZONE/BLOCK, BLIND vs VARIANCE), ABC-cadence schedule generator, capture counts → variance vs an inventory-expected snapshot → within-tolerance auto-approve (posts a `StockAdjusted` event) or out-of-tolerance recount; blind hides expected/variance. Seams: GTP STOCK_COUNT station + cycle-count BPMN (by id), adjustment via txlog. |
 | txlog | 8086 | ✅ | Append-only event log + transactional outbox + relay to `txlog.stream`. |
-| iam | 8087 | ✅ | openWCS authorization model: users → roles → coded permissions (Keycloak does auth). |
+| iam | 8087 | ✅ | openWCS authorization model: users → roles → coded permissions; **per-user warehouse access** (allowed warehouses + default; the gateway enforces scope). (Keycloak does auth.) |
 | flow-orchestrator | 8085 | 🟡 | Device-task lifecycle over the uniform device contract; routes to adapters by family (below). |
 | integration-host | 8092 | 🟡 | Canonical vendor-neutral **Host API** (`/api/host/**`): orders + ASNs in, confirmations (cursor feed) out. |
 | integration-sap | 8089 | 🟡 | Host gateway (skeleton): `POST /labels` (per-shipper dispatch-label barcode), `POST /routes/sync` (→ master-data Route catalog), and `POST /orders` + `/asns` translating SAP messages into the canonical Host API. |
@@ -39,7 +39,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop + `POST /tasks` device-task simulator. |
 | adapters/{asrs,amr-geekplus,autostore} | 9096, 9093, 9094 | 🟦 | Go; health/readiness + stub loop. (asrs on 9096 — 9092 is Kafka's.) |
 | adapters/conveyor-sniffer | 9095 | 🟡 | Go; ingests scan telegrams from defined source IPs (allowlist + pluggable decoder) and posts observations to the WCS for topology learning. |
-| ui | 5173 dev / 443 prod | 🟡 | React/Vite SPA with **Keycloak login** (password grant via `openwcs-web`), a sidebar **app shell** + **dashboard**, and a **screen permission catalog** (`auth/screens.ts`) gating nav/routes by role, **overridable per role/user** via the Access control screen (`iam` `screen-access` store). Built screens: dashboard; **inbound orders**, **outbound orders**, **stock counting**, **GTP operator console** (single-active-session), **transport overview**, **stock transactions**; **conveyor topology** (React Flow), **BPMN process designer** (bpmn-js), **slotting**; **master data** (SKU/UoM/barcode read-only — host-owned), **GTP workplace config**, **settings**; **user management** (Keycloak admin API), **access control**. In compose (`--profile apps`) built + served by nginx on host **:443 (HTTPS forced, 80→443)** (proxies `/api`→gateway, `/realms`+`/admin`→Keycloak). |
+| ui | 5173 dev / 443 prod | 🟡 | React/Vite SPA with **Keycloak login** (password grant via `openwcs-web`), a sidebar **app shell** + **dashboard**, and a **screen permission catalog** (`auth/screens.ts`) gating nav/routes by role, **overridable per role/user** via the Access control screen (`iam` `screen-access` store). Built screens: dashboard; **inbound orders**, **outbound orders**, **stock counting**, **GTP operator console** (single-active-session), **transport overview**, **stock transactions**; **conveyor topology** (React Flow), **BPMN process designer** (bpmn-js), **slotting**; **master data** (SKU/UoM/barcode read-only — host-owned), **GTP workplace config**, **settings**; **user management** (Keycloak admin API), **access control**, **warehouse access** (per-user allowed warehouses + default). A global **top-bar warehouse switcher** (`warehouse/WarehouseContext`) auto-selects the user's default on login and scopes every warehouse-related screen — no UUID entry anywhere. In compose (`--profile apps`) built + served by nginx on host **:443 (HTTPS forced, 80→443)** (proxies `/api`→gateway, `/realms`+`/admin`→Keycloak). |
 
 All Java services: Java 21 / Spring Boot 3.3.2, PostgreSQL 16 via Flyway + JPA/Hibernate 6
 (`ddl-auto: validate` — migrations own the schema), UUID keys, JSONB via `@JdbcTypeCode`.
@@ -63,7 +63,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 | `slotting` | slotting | storage_profile, pick_slot, block_policy, putaway_assignment (+ sku_ids for multi-compartment), replenishment_task, reslot_recommendation, sku_velocity (+ velocity offset/processed-event for the auto-ABC EWMA) |
 | `gtp` | gtp | gtp_station (+ supported_modes), station_node, destination_demand, work_cycle (+ operating_mode, target_hu_id), put_instruction, task_line |
 | `counting` | counting | count_task, count_line, count_schedule |
-| `iam` | iam | role, role_permission, app_user, user_role |
+| `iam` | iam | role, role_permission, app_user, user_role, screen_access (+ _role/_user), user_warehouse |
 | `flow` | flow-orchestrator | device_task |
 | `host_integration` | integration-host | idempotency_key, webhook_subscription |
 | `ACT_*` (public) | process-engine | Flowable's own engine tables (it manages its schema; a documented exception to schema-per-service) |
@@ -182,10 +182,21 @@ default) and passes the dispatch context to allocation.
   (`org.openwcs.common.security.Permission`). Flyway seeds ADMIN/SUPERVISOR/OPERATOR/VIEWER.
   Manage users/roles, assign roles, read a user's **effective permissions** (union across
   roles). Authentication itself is Keycloak's job; this layers RBAC on top (build.md §4.8).
-- **Gateway JWT** (build.md §12): with `openwcs.security.enabled=true` the gateway validates
-  the JWT against the Keycloak realm, requires auth on `/api/**`, forwards the identity
-  downstream as `X-Auth-User`/`X-Auth-Roles`, and **always strips client-supplied** versions
-  (anti-spoofing). The **compose `--profile apps` demo enables it on the gateway** (validating
+- **Per-user warehouse access** (`/api/iam/warehouse-access`, table `iam.user_warehouse`): maps
+  each user to the warehouses they may work in and **one default** (partial-unique index enforces
+  at-most-one default per user). `GET /me` returns the signed-in user's allowed set + default (the
+  UI's top-bar switcher auto-selects the default on login); `GET`/`PUT /{username}` list/replace a
+  user's mapping and are **ADMIN-only, enforced server-side** on `X-Auth-Roles`. A network-only
+  `/internal/warehouse-access/{username}` (off `/api/**`, so unreachable through nginx/the gateway's
+  public routes) feeds the gateway's scope enforcement.
+- **Gateway JWT + warehouse scope** (build.md §12): with `openwcs.security.enabled=true` the gateway
+  validates the JWT against the Keycloak realm, requires auth on `/api/**`, forwards the identity
+  downstream as `X-Auth-User`/`X-Auth-Roles`/`X-Auth-Warehouses`, and **always strips client-supplied**
+  versions (anti-spoofing). For non-admins it resolves the user's allowed warehouses from IAM
+  (short-TTL cache; fails open if IAM is unavailable) and **rejects with 403** any request naming a
+  `warehouseId` (query param or `/warehouses/{id}` path) outside that set. Admins are never scoped.
+  Writes that carry the warehouse only in a JSON body are a known follow-up — guarded per-endpoint
+  downstream via the forwarded `X-Auth-Warehouses` header. The **compose `--profile apps` demo enables it on the gateway** (validating
   by `jwk-set-uri` so tokens minted through the UI's nginx proxy verify regardless of public
   hostname); downstream services keep their per-service toggle off so internal calls are
   unaffected (the gateway is the trust boundary). It remains off by default for bare host-run dev.

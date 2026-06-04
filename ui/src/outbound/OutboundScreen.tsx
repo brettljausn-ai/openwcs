@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useWarehouse } from '../warehouse/WarehouseContext'
 
 // Outbound Orders screen — UI-only against existing endpoints:
 //   order-management:  GET/POST /api/orders, /api/orders/{id}, /api/orders/{id}/{release|cancel|ship}
@@ -106,8 +107,7 @@ async function readError(res: Response): Promise<string> {
 
 // ----------------------------------------------------------------- component
 export default function OutboundScreen() {
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
-  const [warehouseId, setWarehouseId] = useState<string>('')
+  const { currentWarehouseId: warehouseId } = useWarehouse()
   const [statusFilter, setStatusFilter] = useState<string>('')
 
   const [orders, setOrders] = useState<Order[]>([])
@@ -120,22 +120,6 @@ export default function OutboundScreen() {
   const skuById = useMemo(() => {
     const m = new Map<string, Sku>()
     return m // populated lazily by detail/create via a shared cache below
-  }, [])
-
-  // -- load warehouses once
-  useEffect(() => {
-    let cancelled = false
-    fetch('/api/master-data/warehouses?size=200')
-      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((data: PageResponse<Warehouse>) => {
-        if (cancelled) return
-        const list = data.content || []
-        setWarehouses(list)
-        if (list.length && !warehouseId) setWarehouseId(list[0].id)
-      })
-      .catch(() => { if (!cancelled) setError('Could not load warehouses.') })
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // -- load orders
@@ -168,16 +152,6 @@ export default function OutboundScreen() {
 
       <div className="glass" style={{ padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div style={{ minWidth: 220 }}>
-            <label>Warehouse</label>
-            <select className="form-control" value={warehouseId}
-                    onChange={(e) => setWarehouseId(e.target.value)}>
-              {warehouses.length === 0 && <option value="">No warehouses</option>}
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>{w.code} — {w.name}</option>
-              ))}
-            </select>
-          </div>
           <div style={{ minWidth: 200 }}>
             <label>Status</label>
             <select className="form-control" value={statusFilter}

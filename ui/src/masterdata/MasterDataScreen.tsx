@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useWarehouse } from '../warehouse/WarehouseContext'
 import {
   Barcode,
   Equipment,
@@ -49,17 +50,15 @@ const ENTITIES: { key: EntityKey; label: string; scoped: boolean }[] = [
 ]
 
 export default function MasterDataScreen() {
+  const { currentWarehouseId: warehouseId } = useWarehouse()
   const [entity, setEntity] = useState<EntityKey>('warehouses')
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
-  const [warehouseId, setWarehouseId] = useState('')
   const [whError, setWhError] = useState<string | null>(null)
 
   const loadWarehouses = useCallback(async () => {
     try {
       setWhError(null)
-      const list = await listWarehouses()
-      setWarehouses(list)
-      setWarehouseId((cur) => cur || (list[0]?.id ?? ''))
+      setWarehouses(await listWarehouses())
     } catch (e) {
       setWhError(errMsg(e))
     }
@@ -98,20 +97,7 @@ export default function MasterDataScreen() {
 
       {active.scoped && (
         <div className="toolbar">
-          <label style={{ margin: 0 }}>Warehouse</label>
-          <select
-            className="form-control"
-            style={{ maxWidth: 280 }}
-            value={warehouseId}
-            onChange={(e) => setWarehouseId(e.target.value)}
-          >
-            <option value="">Select a warehouse…</option>
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.code} — {w.name}
-              </option>
-            ))}
-          </select>
+          <span className="muted">Scoped to the warehouse selected in the top bar.</span>
           {whError && <span className="muted">{whError}</span>}
         </div>
       )}

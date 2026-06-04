@@ -5,6 +5,7 @@ import Login from './auth/Login'
 import AppShell from './shell/AppShell'
 import ComingSoon from './shell/ComingSoon'
 import Dashboard from './Dashboard'
+import { WarehouseProvider } from './warehouse/WarehouseContext'
 
 // Existing feature screens (re-homed into the shell).
 import TopologyEditor from './topology/TopologyEditor'
@@ -23,6 +24,7 @@ import GtpConfigScreen from './gtpconfig/GtpConfigScreen'
 import SettingsScreen from './settings/SettingsScreen'
 import UsersScreen from './users/UsersScreen'
 import AccessControlScreen from './access/AccessControlScreen'
+import WarehouseAccessScreen from './warehouseaccess/WarehouseAccessScreen'
 
 const COMPONENTS: Record<string, JSX.Element> = {
   dashboard: <Dashboard />,
@@ -40,6 +42,7 @@ const COMPONENTS: Record<string, JSX.Element> = {
   settings: <SettingsScreen />,
   users: <UsersScreen />,
   'access-control': <AccessControlScreen />,
+  'warehouse-access': <WarehouseAccessScreen />,
 }
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -72,7 +75,9 @@ export default function App() {
           <Route
             element={
               <RequireAuth>
-                <AppShell />
+                <WarehouseProvider>
+                  <AppShell />
+                </WarehouseProvider>
               </RequireAuth>
             }
           >

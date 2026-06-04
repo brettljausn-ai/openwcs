@@ -1,6 +1,8 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { SCREENS, SECTION_ORDER, ScreenDef } from '../auth/screens'
+import { SCREENS, SECTION_ORDER, ScreenDef, Section } from '../auth/screens'
+import WarehouseSwitcher from '../warehouse/WarehouseSwitcher'
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/)
@@ -10,12 +12,28 @@ function initials(name: string): string {
 
 export default function AppShell() {
   const { can, session, logout, roles } = useAuth()
+  const { pathname } = useLocation()
 
   const dashboard = SCREENS.find((s) => s.key === 'dashboard')!
   const bySection = SECTION_ORDER.map((section) => ({
     section,
     items: SCREENS.filter((s) => s.section === section && can(s)),
   })).filter((g) => g.items.length > 0)
+
+  // Which section holds the screen we're currently on (so we can reveal it).
+  const activeSection = SCREENS.find(
+    (s) => s.section && (s.path === pathname || (s.path !== '/' && pathname.startsWith(s.path))),
+  )?.section
+
+  // Categories are folded by default; only the active section starts open.
+  const [open, setOpen] = useState<Section[]>(activeSection ? [activeSection] : [])
+  const toggle = (section: Section) =>
+    setOpen((o) => (o.includes(section) ? o.filter((x) => x !== section) : [...o, section]))
+
+  // Keep the section containing the current screen revealed on navigation.
+  useEffect(() => {
+    if (activeSection) setOpen((o) => (o.includes(activeSection) ? o : [...o, activeSection]))
+  }, [activeSection])
 
   const link = (s: ScreenDef) => (
     <NavLink key={s.key} to={s.path} end={s.path === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>
@@ -29,20 +47,29 @@ export default function AppShell() {
       <aside className="sidebar">
         <div className="sidebar-brand">
           <img src="/Logo_white_solo.png" alt="" />
-          openWCS
+          <span className="sidebar-wordmark">open<span className="accent">WCS</span></span>
         </div>
 
         <nav className="sidebar-nav">
           {can(dashboard) && link(dashboard)}
-          {bySection.map((g) => (
-            <div key={g.section}>
-              <div className="sidebar-section">{g.section}</div>
-              {g.items.map(link)}
-            </div>
-          ))}
+          {bySection.map((g) => {
+            const isOpen = open.includes(g.section)
+            return (
+              <div key={g.section} className="sidebar-group">
+                <button
+                  type="button"
+                  className={`sidebar-section${isOpen ? ' is-open' : ''}`}
+                  aria-expanded={isOpen}
+                  onClick={() => toggle(g.section)}
+                >
+                  <span className="sidebar-section-chev" aria-hidden="true">▸</span>
+                  {g.section}
+                </button>
+                {isOpen && g.items.map(link)}
+              </div>
+            )
+          })}
         </nav>
-
-        <div className="sidebar-spacer" />
 
         <div className="sidebar-user">
           <span className="avatar">{initials(session?.name || 'U')}</span>
@@ -55,7 +82,9 @@ export default function AppShell() {
       </aside>
 
       <main className="app-main">
-        <div className="app-topbar" />
+        <div className="app-topbar">
+          <WarehouseSwitcher />
+        </div>
         <div className="app-body">
           <Outlet />
         </div>

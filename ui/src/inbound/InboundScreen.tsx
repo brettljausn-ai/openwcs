@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import { useWarehouse } from '../warehouse/WarehouseContext'
 
 // ---------------------------------------------------------------- API types
 type OrderStatus =
@@ -136,8 +137,7 @@ export default function InboundScreen() {
   const { roles } = useAuth()
   const canReceive = roles.includes('ADMIN') || roles.includes('SUPERVISOR') || roles.includes('OPERATOR')
 
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
-  const [warehouseId, setWarehouseId] = useState<string>('')
+  const { currentWarehouseId: warehouseId, current: currentWarehouse } = useWarehouse()
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(false)
@@ -156,25 +156,6 @@ export default function InboundScreen() {
     },
     [skus],
   )
-
-  // --- load warehouses once
-  useEffect(() => {
-    let alive = true
-    fetch('/api/master-data/warehouses?size=200')
-      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((page) => {
-        if (!alive) return
-        const list: Warehouse[] = page.content ?? []
-        setWarehouses(list)
-        if (list.length) setWarehouseId((cur) => cur || list[0].id)
-      })
-      .catch(() => {
-        /* warehouse selector just stays empty; listing is then blocked with a hint */
-      })
-    return () => {
-      alive = false
-    }
-  }, [])
 
   // --- load SKUs once (for line labels + create form)
   useEffect(() => {
@@ -250,10 +231,7 @@ export default function InboundScreen() {
     return fresh
   }, [])
 
-  const warehouseLabel = useMemo(() => {
-    const w = warehouses.find((x) => x.id === warehouseId)
-    return w ? `${w.code} — ${w.name}` : warehouseId
-  }, [warehouses, warehouseId])
+  const warehouseLabel = currentWarehouse ? `${currentWarehouse.code} — ${currentWarehouse.name}` : warehouseId
 
   return (
     <div className="app-content">
@@ -265,21 +243,6 @@ export default function InboundScreen() {
 
       {/* Filters + actions */}
       <div className="toolbar">
-        <select
-          className="form-control"
-          style={{ maxWidth: 280 }}
-          value={warehouseId}
-          onChange={(e) => setWarehouseId(e.target.value)}
-          aria-label="Warehouse"
-        >
-          {warehouses.length === 0 && <option value="">No warehouses</option>}
-          {warehouses.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.code} — {w.name}
-            </option>
-          ))}
-        </select>
-
         <select
           className="form-control"
           style={{ maxWidth: 220 }}

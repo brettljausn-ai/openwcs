@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useWarehouse } from '../warehouse/WarehouseContext'
 
 // Stock counting (cycle counting) — drives the /api/counting service: ad-hoc + scheduled
 // (ABC-cadence) count tasks, a count-capture form (counted qty per line), variance vs the
@@ -185,7 +186,7 @@ function num(v: number | null | undefined): string {
 }
 
 export default function CountingScreen() {
-  const [warehouseId, setWarehouseId] = useState('')
+  const { currentWarehouseId: warehouseId } = useWarehouse()
   const [statusFilter, setStatusFilter] = useState('')
   const [tasks, setTasks] = useState<CountTask[]>([])
   const [schedules, setSchedules] = useState<CountSchedule[]>([])
@@ -198,7 +199,7 @@ export default function CountingScreen() {
 
   const loadTasks = useCallback(async () => {
     if (!warehouseId.trim()) {
-      setError('Enter a warehouse ID to load count tasks.')
+      setError('No warehouse selected.')
       return
     }
     setLoading(true)
@@ -217,11 +218,11 @@ export default function CountingScreen() {
     }
   }, [warehouseId, statusFilter])
 
-  // Re-query when the status filter changes (only once a warehouse is loaded).
+  // Reload when the selected warehouse (top bar) or status filter changes.
   useEffect(() => {
     if (warehouseId.trim()) loadTasks()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter])
+  }, [statusFilter, warehouseId])
 
   function flash(msg: string) {
     setNotice(msg)
@@ -267,16 +268,6 @@ export default function CountingScreen() {
       </div>
 
       <div className="toolbar">
-        <input
-          className="form-control"
-          style={{ width: 320 }}
-          placeholder="Warehouse ID (UUID)"
-          value={warehouseId}
-          onChange={(e) => setWarehouseId(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') loadTasks()
-          }}
-        />
         <select
           className="form-control"
           style={{ width: 170 }}

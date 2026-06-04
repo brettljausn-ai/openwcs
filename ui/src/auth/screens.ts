@@ -47,6 +47,7 @@ export const SCREENS: ScreenDef[] = [
   // Administration — users & access
   { key: 'users', label: 'User management', path: '/users', section: 'Administration', icon: '☻', defaultRoles: ['ADMIN'], description: 'Manage Keycloak users, roles and credentials.' },
   { key: 'access-control', label: 'Access control', path: '/access-control', section: 'Administration', icon: '⚿', defaultRoles: ['ADMIN'], description: 'Map screens to roles and users.' },
+  { key: 'warehouse-access', label: 'Warehouse access', path: '/warehouse-access', section: 'Administration', icon: '⌂', defaultRoles: ['ADMIN'], description: 'Map users to the warehouses they may work in and set each user\'s default.' },
 ]
 
 export const SECTION_ORDER: Section[] = ['Operations', 'Engineering', 'Configuration', 'Administration']
