@@ -27,6 +27,11 @@ export interface AutomationEquipment {
   widthM: number
   heightM: number
   status: string
+  // Conveyor centreline waypoints in world XZ metres on the level: [[x, z], ...]. When present
+  // (>= 2 points) the conveyor renders as a polyline of segments instead of a single straight box.
+  path?: number[][] | null
+  // When true the path loops back from the last waypoint to the first.
+  closed?: boolean
 }
 
 // Opaque round-tripped payloads — this slice doesn't edit connections or function points,

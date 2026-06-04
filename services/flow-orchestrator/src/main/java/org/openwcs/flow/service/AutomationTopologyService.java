@@ -58,7 +58,7 @@ public class AutomationTopologyService {
         for (PlacedEquipment p : equipment.findByWarehouseId(warehouseId)) {
             equipmentDtos.add(new PlacedEquipmentDto(p.getId(), p.getLevelId(), p.getEquipmentId(), p.getCode(),
                     p.getPosXM(), p.getPosYM(), p.getPosZM(), p.getRotationDeg(), p.getTiltDeg(),
-                    p.getLengthM(), p.getWidthM(), p.getHeightM(), p.getStatus()));
+                    p.getLengthM(), p.getWidthM(), p.getHeightM(), p.getPath(), p.isClosed(), p.getStatus()));
         }
         List<ConnectionDto> connectionDtos = new ArrayList<>();
         for (EquipmentConnection c : connections.findByWarehouseId(warehouseId)) {
@@ -115,6 +115,8 @@ public class AutomationTopologyService {
                 placed.setLengthM(p.lengthM());
                 placed.setWidthM(p.widthM());
                 placed.setHeightM(p.heightM());
+                placed.setPath(p.path());
+                placed.setClosed(p.closed());
                 placed.setStatus(p.status() == null ? "ACTIVE" : p.status());
                 UUID newId = equipment.save(placed).getId();
                 if (p.id() != null) {
