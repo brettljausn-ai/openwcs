@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title data-i18n="doc.title">Living documentation — openWCS</title>
+  <meta name="description" content="openWCS keeps your docs current automatically: in-app help on every screen, plus a docs agent that runs on every merge to main, reviews the change, and keeps the README, architecture docs, the GitHub wiki and the marketing site in sync." />
+  <meta name="theme-color" content="#061812" />
+  <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/living-docs.html" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta property="og:title" content="Living documentation — openWCS" />
+  <meta property="og:description" content="In-app help on every screen, and a docs agent that runs on every merge to keep the README, architecture docs, wiki and marketing site always current." />
+  <meta property="og:type" content="article" />
+  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script defer src="i18n.js"></script>
+</head>
+<body id="top">
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
+      <nav class="nav-links">
+        <a href="index.html" data-i18n="doc.nav1">← Overview</a>
+        <a href="functions.html" data-i18n="doc.nav2">Functions</a>
+        <a href="automation.html" data-i18n="doc.nav3">Automation</a>
+      </nav>
+      <div class="nav-right">
+        <div class="lang" id="lang">
+          <button class="lang-toggle" id="lang-toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Select language">
+            <svg class="globe" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg>
+            <span class="lang-code" id="lang-code">EN</span>
+            <svg class="chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <ul class="lang-menu" id="lang-menu" role="listbox" aria-label="Language">
+            <li role="option" data-lang="en"><span>English</span></li>
+            <li role="option" data-lang="de"><span>Deutsch</span></li>
+            <li role="option" data-lang="fr"><span>Français</span></li>
+            <li role="option" data-lang="es"><span>Español</span></li>
+          </ul>
+        </div>
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="doc.eyebrow1">Function · Documentation <span class="pill pill-built" data-i18n="doc.pill1">Built</span></p>
+      <h1 data-i18n="doc.h1">Living documentation — <span class="lime">always current, automatically.</span></h1>
+      <p class="lead" data-i18n="doc.lead1">
+        Every screen carries its own help, and a docs agent runs on every merge to main — it reviews the
+        change and keeps the README, the architecture docs, the GitHub wiki and this very site in sync.
+        Your team's documentation is never the thing that fell behind.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="doc.eyebrow2">How it works</p>
+        <h2 data-i18n="doc.h2">Write the code, the docs follow.</h2>
+        <p data-i18n="doc.p1">
+          Help where you work and an agent that watches the merge queue: when a change lands, the docs are
+          read, reviewed and brought back into line — from one source of truth, in the open.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag" data-i18n="doc.tag1">In-app help</div>
+          <h3 data-i18n="doc.h5">A "?" on every screen</h3>
+          <p data-i18n="doc.p2">Every screen has a help button that opens a guidance drawer: a summary, getting started, the key actions, the fields &amp; filters, and tips. Answers sit next to the work — no tab-switching, no out-of-date PDF.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="doc.tag2">Docs agent</div>
+          <h3 data-i18n="doc.h6">Runs on every merge</h3>
+          <p data-i18n="doc.p3">On every merge to main an automated docs agent reviews exactly what changed and updates the documentation to match. Docs are part of the pipeline, not an afterthought someone remembers a release later.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="doc.tag3">One source of truth</div>
+          <h3 data-i18n="doc.h7">Everything stays in sync</h3>
+          <p data-i18n="doc.p4">The README, the architecture &amp; as-built docs, the GitHub wiki and the marketing site all track the same change — so there are no stale wikis contradicting the code and no two pages telling a different story.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="doc.tag4">Reviewed via PR</div>
+          <h3 data-i18n="doc.h8">Open &amp; auditable</h3>
+          <p data-i18n="doc.p5">In-repo docs are updated by a pull request, so every change to the documentation is diffed, reviewed and recorded in git history. The docs are open and auditable — exactly like the code they describe.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="doc.tag5">Four languages</div>
+          <h3 data-i18n="doc.h9">Marketing parity, kept</h3>
+          <p data-i18n="doc.p6">This site ships in English, German, French and Spanish, and the agent keeps all four in parity — a parity check fails the build if any key is missing in any language. No half-translated pages slip through.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="doc.tag6">Always current</div>
+          <h3 data-i18n="doc.h10">Docs you can trust</h3>
+          <p data-i18n="doc.p7">Because the docs move with every merge, what you read is what the system actually does today. Onboarding, support and audits all start from documentation that is current by construction — not by good intentions.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="doc.eyebrow3">At a glance</p>
+        <h2 data-i18n="doc.h3">Merge → review → docs in sync.</h2>
+      </div>
+      <div class="arch">
+<pre>  merge to <b>main</b> ─► <b>docs agent</b> reads the diff · understands what changed
+                                       │
+                                       ├─► README · architecture &amp; as-built  ── opens a <b>PR</b> (reviewed)
+                                       ├─► GitHub <b>wiki</b>                       ── kept in sync
+                                       └─► marketing <b>site</b> (en · de · fr · es) ── parity-checked
+                                       │
+            in-app <b>help drawer</b>  ── summary · getting started · key actions · fields &amp; filters · tips</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow" data-i18n="doc.eyebrow4">Open &amp; auditable</p>
+        <h2 data-i18n="doc.h4">Documentation that keeps its promises.</h2>
+        <p data-i18n="doc.p8">The help drawers, the docs agent and every page it maintains are open source — so you can see how the docs are produced, read the PRs that change them, and trust that current really means current.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+          <a class="btn btn-ghost" href="functions.html" data-i18n="doc.btn1">Browse the functions</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span data-i18n="doc.foot5">openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span><a href="functions.html">Functions</a> · <a href="security.html">Security</a> · <a href="inventory.html">Inventory</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a></span>
+    </div>
+  </footer>
+</body>
+</html>

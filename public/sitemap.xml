@@ -73,6 +73,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://brettljausn-ai.github.io/openwcs/living-docs.html</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://brettljausn-ai.github.io/openwcs/slotting.html</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
