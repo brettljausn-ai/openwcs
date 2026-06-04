@@ -6,11 +6,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.openwcs.common.security.AccessControl;
 import org.openwcs.common.security.Permission;
 import org.openwcs.orders.domain.OrderStatus;
 import org.openwcs.orders.service.OrderService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Outbound order management (build.md §4.6). Each endpoint requires a coded permission
@@ -31,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrderController {
 
     private static final String ROLES = "X-Auth-Roles";
+    private static final String WAREHOUSES = "X-Auth-Warehouses";
 
     private final OrderService service;
     private final AccessGuard guard;
@@ -40,11 +44,20 @@ public class OrderController {
         this.guard = guard;
     }
 
+    /** 403 if the caller is warehouse-scoped and the body targets a warehouse outside their set. */
+    private static void requireWarehouse(String warehouses, UUID warehouseId) {
+        if (!AccessControl.warehouseAllowed(warehouses, warehouseId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not permitted for this warehouse.");
+        }
+    }
+
     @PostMapping
     public ResponseEntity<OrderView> create(
             @RequestHeader(name = ROLES, required = false) String roles,
+            @RequestHeader(name = WAREHOUSES, required = false) String warehouses,
             @Valid @RequestBody CreateOrderRequest request) {
         guard.require(roles, Permission.ORDER_CREATE);
+        requireWarehouse(warehouses, request.warehouseId());
         OrderView order = service.create(request);
         return ResponseEntity.created(URI.create("/api/orders/" + order.id())).body(order);
     }

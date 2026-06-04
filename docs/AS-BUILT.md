@@ -195,8 +195,11 @@ default) and passes the dispatch context to allocation.
   versions (anti-spoofing). For non-admins it resolves the user's allowed warehouses from IAM
   (short-TTL cache; fails open if IAM is unavailable) and **rejects with 403** any request naming a
   `warehouseId` (query param or `/warehouses/{id}` path) outside that set. Admins are never scoped.
-  Writes that carry the warehouse only in a JSON body are a known follow-up — guarded per-endpoint
-  downstream via the forwarded `X-Auth-Warehouses` header. The **compose `--profile apps` demo enables it on the gateway** (validating
+  Writes that carry the warehouse only in a JSON **body** are guarded per-endpoint downstream:
+  `AccessControl.warehouseAllowed(header, warehouseId)` (libs/common; null header = unscoped/admin →
+  allowed) is enforced in the user-facing write controllers — order create; master-data
+  location/storage-block/equipment create+update; slotting pick-slot/storage-profile create+update,
+  block-policy upsert, put-away; counting schedule/task create — returning 403 on a mismatch. The **compose `--profile apps` demo enables it on the gateway** (validating
   by `jwk-set-uri` so tokens minted through the UI's nginx proxy verify regardless of public
   hostname); downstream services keep their per-service toggle off so internal calls are
   unaffected (the gateway is the trust boundary). It remains off by default for bare host-run dev.

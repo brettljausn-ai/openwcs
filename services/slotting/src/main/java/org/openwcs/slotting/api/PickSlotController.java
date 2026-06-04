@@ -3,8 +3,10 @@ package org.openwcs.slotting.api;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
+import org.openwcs.common.security.AccessControl;
 import org.openwcs.slotting.domain.PickSlot;
 import org.openwcs.slotting.repo.PickSlotRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,9 +14,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /** Pick-face slotting CRUD — the slotting UI assigns SKU+UoM to a location with min/max. */
 @RestController
@@ -36,7 +40,9 @@ public class PickSlotController {
     }
 
     @PostMapping
-    public ResponseEntity<PickSlot> create(@RequestBody PickSlot body) {
+    public ResponseEntity<PickSlot> create(@RequestHeader(name = "X-Auth-Warehouses", required = false) String warehouses,
+                                           @RequestBody PickSlot body) {
+        requireWarehouse(warehouses, body.getWarehouseId());
         body.setId(null);
         PickSlot saved = slots.save(body);
         return ResponseEntity.created(URI.create("/api/slotting/pick-slots/" + saved.getId())).body(saved);
@@ -48,8 +54,11 @@ public class PickSlotController {
     }
 
     @PutMapping("/{id}")
-    public PickSlot update(@PathVariable UUID id, @RequestBody PickSlot body) {
+    public PickSlot update(@PathVariable UUID id,
+                           @RequestHeader(name = "X-Auth-Warehouses", required = false) String warehouses,
+                           @RequestBody PickSlot body) {
         PickSlot existing = slots.findById(id).orElseThrow(() -> new NotFoundException("PickSlot", id));
+        requireWarehouse(warehouses, body.getWarehouseId());
         body.setId(id);
         body.setVersion(existing.getVersion());
         return slots.save(body);
@@ -59,5 +68,12 @@ public class PickSlotController {
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         slots.deleteById(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /** 403 if the caller is warehouse-scoped and the body targets a warehouse outside their set. */
+    private static void requireWarehouse(String warehouses, UUID warehouseId) {
+        if (!AccessControl.warehouseAllowed(warehouses, warehouseId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not permitted for this warehouse.");
+        }
     }
 }

@@ -4,11 +4,13 @@ import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
+import org.openwcs.common.security.AccessControl;
 import org.openwcs.counting.domain.CountTask;
 import org.openwcs.counting.repo.CountTaskRepository;
 import org.openwcs.counting.service.CountLineView;
 import org.openwcs.counting.service.CountingService;
 import org.openwcs.counting.service.ReconciliationResult;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Cycle-count task API: create/list/claim count tasks, submit counts, reconcile (approve →
@@ -38,11 +41,21 @@ public class CountTaskController {
     }
 
     @PostMapping
-    public ResponseEntity<CountTaskView> create(@Valid @RequestBody CreateCountTaskRequest request) {
+    public ResponseEntity<CountTaskView> create(
+            @Valid @RequestBody CreateCountTaskRequest request,
+            @RequestHeader(name = "X-Auth-Warehouses", required = false) String warehouses) {
+        requireWarehouse(warehouses, request.warehouseId());
         CountTask task = counting.generate(request.toCommand());
         return ResponseEntity
                 .created(URI.create("/api/counting/tasks/" + task.getId()))
                 .body(CountTaskView.from(task));
+    }
+
+    /** 403 if the caller is warehouse-scoped and the body targets a warehouse outside their set. */
+    private static void requireWarehouse(String warehouses, UUID warehouseId) {
+        if (!AccessControl.warehouseAllowed(warehouses, warehouseId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not permitted for this warehouse.");
+        }
     }
 
     @GetMapping
