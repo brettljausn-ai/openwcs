@@ -14,6 +14,7 @@ import { useAuth } from '../auth/AuthContext'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
+import InfoTip from '../ui/InfoTip'
 
 // ---------------------------------------------------------------- API types
 type OrderStatus =
@@ -558,7 +559,7 @@ function ReceiveDialog({
         {err && <div className="alert alert-danger">{err}</div>}
 
         <label className="muted" style={{ display: 'block', marginBottom: '.25rem' }}>
-          Quantity
+          Quantity <InfoTip text="Number of units actually received for this line, in EACH. Posted as a receipt; can be less than expected for a partial receipt." example="12" />
         </label>
         <input
           className="form-control"
@@ -570,7 +571,7 @@ function ReceiveDialog({
         />
 
         <label className="muted" style={{ display: 'block', margin: '.75rem 0 .25rem' }}>
-          Receiving location
+          Receiving location <InfoTip text="The bin/location in the current warehouse where the received goods are put away. Stock is credited here on receipt." example="RCV-DOCK-01" />
         </label>
         <Select
           value={locationId}

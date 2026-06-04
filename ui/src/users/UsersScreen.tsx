@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import InfoTip from '../ui/InfoTip'
 import Select from '../ui/Select'
 import { Warehouse, getAccess, listWarehouses, setAccess } from '../warehouseaccess/api'
 import {
@@ -311,7 +312,7 @@ function UserDialog({
         {error && <div className="alert alert-danger">{error}</div>}
 
         <div style={{ marginBottom: '.9rem' }}>
-          <label>Username</label>
+          <label>Username <InfoTip text="The unique login name for this Keycloak account. Cannot be changed after the user is created." example="jdoe" /></label>
           <input
             className="form-control"
             value={form.username}
@@ -321,7 +322,7 @@ function UserDialog({
           />
         </div>
         <div style={{ marginBottom: '.9rem' }}>
-          <label>Email</label>
+          <label>Email <InfoTip text="The user's email address, used for notifications and account-recovery flows. Optional." example="jane.doe@example.com" /></label>
           <input
             className="form-control"
             type="email"
@@ -331,22 +332,22 @@ function UserDialog({
         </div>
         <div style={{ display: 'flex', gap: '.9rem', marginBottom: '.9rem' }}>
           <div style={{ flex: 1 }}>
-            <label>First name</label>
+            <label>First name <InfoTip text="The user's given name, shown in the user list and across the app. Optional." example="Jane" /></label>
             <input className="form-control" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />
           </div>
           <div style={{ flex: 1 }}>
-            <label>Last name</label>
+            <label>Last name <InfoTip text="The user's family name, shown in the user list and across the app. Optional." example="Doe" /></label>
             <input className="form-control" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
           </div>
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: 'pointer' }}>
           <input type="checkbox" checked={form.enabled} onChange={(e) => set('enabled', e.target.checked)} />
-          Enabled
+          Enabled <InfoTip text="When on, the user can sign in. Turn off to disable the account without deleting it." example="On" />
         </label>
 
         {isEdit && (
           <div style={{ marginTop: '.9rem' }}>
-            <label>Default warehouse</label>
+            <label>Default warehouse <InfoTip text="The warehouse pre-selected for this user after login; choosing one also grants them access to it. Leave as none for no default." example="WH01 — Main DC" /></label>
             <Select
               value={defaultWarehouse}
               onChange={setDefaultWarehouse}
@@ -418,7 +419,7 @@ function PasswordDialog({
         {done && <div className="alert" style={{ background: 'rgba(141,198,63,.12)', color: '#8DC63F' }}>Password updated.</div>}
 
         <div style={{ marginBottom: '.9rem' }}>
-          <label>New password</label>
+          <label>New password <InfoTip text="The new credential to set for this user. Should meet the realm's password policy (length, complexity)." example="Wcs!Spring2026" /></label>
           <input
             className="form-control"
             type="password"
@@ -428,7 +429,7 @@ function PasswordDialog({
           />
         </div>
         <div style={{ marginBottom: '.9rem' }}>
-          <label>Confirm password</label>
+          <label>Confirm password <InfoTip text="Re-enter the new password exactly to confirm there were no typos." example="Wcs!Spring2026" /></label>
           <input
             className="form-control"
             type="password"
@@ -440,7 +441,7 @@ function PasswordDialog({
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: 'pointer' }}>
           <input type="checkbox" checked={temporary} onChange={(e) => setTemporary(e.target.checked)} />
-          Temporary (user must change at next login)
+          Temporary (user must change at next login) <InfoTip text="When on, this password is one-time only and the user is forced to set their own at next sign-in." example="On" />
         </label>
 
         <div className="dialog-actions">

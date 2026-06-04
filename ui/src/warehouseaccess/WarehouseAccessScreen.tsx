@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import InfoTip from '../ui/InfoTip'
 import Select from '../ui/Select'
 import { countUsers, searchUsers, KcUser } from '../users/api'
 import { getAllAccess, listWarehouses, setAccess, Warehouse } from './api'
@@ -167,6 +168,10 @@ export default function WarehouseAccessScreen() {
               setQuery(e.target.value)
             }}
           />
+          <InfoTip
+            text="Filter the user list by username, first or last name. Search runs server-side across all users, not just the current page."
+            example="amaier"
+          />
           <span className="muted" style={{ fontSize: '.82rem', whiteSpace: 'nowrap' }}>
             {total} users · {warehouses.length} warehouses · {dirty.length} unsaved
           </span>
@@ -188,10 +193,20 @@ export default function WarehouseAccessScreen() {
                     <th style={{ minWidth: 200 }}>User</th>
                     {warehouses.map((w) => (
                       <th key={w.id} style={{ textAlign: 'center' }} title={w.name}>
-                        {w.code}
+                        {w.code}{' '}
+                        <InfoTip
+                          text={`Toggle on to let the user work in warehouse ${w.name}; toggle off to revoke it. Removing a user's default also clears their default.`}
+                          example={`${w.code} on`}
+                        />
                       </th>
                     ))}
-                    <th style={{ minWidth: 220 }}>Default</th>
+                    <th style={{ minWidth: 220 }}>
+                      Default{' '}
+                      <InfoTip
+                        text="The warehouse auto-selected when the user signs in. Must be one of their allowed warehouses; leave as none to make them pick on login."
+                        example="WH01 — Central DC"
+                      />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>

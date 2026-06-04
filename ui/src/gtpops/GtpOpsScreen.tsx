@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Select from '../ui/Select'
+import InfoTip from '../ui/InfoTip'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import {
   Workplace,
@@ -321,7 +322,7 @@ function PresentPanel({ workplace, onStarted }: { workplace: Workplace; onStarte
       </p>
       <div style={{ display: 'grid', gap: '.9rem', marginTop: '1rem' }}>
         {stockNodes.length > 1 && (
-          <Field label="Stock node">
+          <Field label={<>Stock node <InfoTip text="The station feed location where the presented stock handling unit sits. Only shown when the workplace has more than one stock node." example="STOCK-IN-1" /></>}>
             <Select
               ariaLabel="Stock node"
               value={stockNodeId}
@@ -330,13 +331,13 @@ function PresentPanel({ workplace, onStarted }: { workplace: Workplace; onStarte
             />
           </Field>
         )}
-        <Field label="Stock HU">
+        <Field label={<>Stock HU <InfoTip text="Identifier of the stock handling unit (carton/tote/pallet) presented at the station to be distributed across the open destinations." example="a1b2c3d4-5e6f-7890-abcd-ef1234567890" /></>}>
           <input className="form-control" value={stockHuId} onChange={(e) => setStockHuId(e.target.value)} placeholder="HU UUID" />
         </Field>
-        <Field label="SKU">
+        <Field label={<>SKU <InfoTip text="The article contained in the presented stock HU. Its open demand drives which put-to-light tasks are generated." example="3f9a7c2b-1d4e-4a6f-8b3c-0e5d2f1a9c8b" /></>}>
           <input className="form-control" value={skuId} onChange={(e) => setSkuId(e.target.value)} placeholder="SKU UUID" />
         </Field>
-        <Field label="Quantity">
+        <Field label={<>Quantity <InfoTip text="How many units of this SKU are available in the presented stock HU to distribute across the puts." example="24" /></>}>
           <input className="form-control" type="number" min="0" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="0" />
         </Field>
       </div>
@@ -439,7 +440,7 @@ function PutCard({ put, onConfirm }: { put: PutInstruction; onConfirm: (p: PutIn
           <button className="btn btn-primary btn-lg btn-block" onClick={() => onConfirm(put)}>
             Confirm put ({put.qty})
           </button>
-          <div style={{ display: 'flex', gap: '.4rem' }}>
+          <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
             <input
               className="form-control"
               type="number"
@@ -449,6 +450,7 @@ function PutCard({ put, onConfirm }: { put: PutInstruction; onConfirm: (p: PutIn
               placeholder="short qty"
               onChange={(e) => setShort(e.target.value)}
             />
+            <InfoTip text="Enter the actual quantity put when you cannot complete the full amount — confirms a short put for the remaining units. Must be less than the requested quantity." example="2" />
             <button
               className="btn btn-ghost"
               disabled={!(Number(short) > 0 && Number(short) < put.qty)}
@@ -465,7 +467,7 @@ function PutCard({ put, onConfirm }: { put: PutInstruction; onConfirm: (p: PutIn
 
 // --- small helpers --------------------------------------------------------------------------------
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
       <span style={{ fontSize: '.8rem', color: 'var(--text-dim)' }}>{label}</span>

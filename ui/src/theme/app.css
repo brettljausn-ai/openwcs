@@ -677,6 +677,28 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
   box-shadow: 0 0 12px var(--herbal-glow);
 }
 .dialog-lg { max-width: 820px; }
+
+/* Field help tooltip (InfoTip) — a "?" next to a label revealing an explanation + example. */
+.info-tip {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; margin-left: .35rem; padding: 0;
+  border-radius: 50%; border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, .04); color: rgba(214, 228, 220, .55);
+  font-size: .68rem; font-weight: 700; line-height: 1; cursor: help;
+  vertical-align: middle; transition: color .15s, border-color .15s;
+}
+.info-tip:hover, .info-tip:focus-visible { color: var(--herbal-lime); border-color: var(--herbal-lime); outline: none; }
+.info-tip-pop {
+  position: fixed; z-index: 4000; width: 280px; max-width: calc(100vw - 16px);
+  padding: .6rem .7rem; border-radius: 10px;
+  background: var(--forest-deep); border: 1px solid var(--glass-border);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .55), 0 0 24px -12px var(--herbal-glow);
+  color: var(--text); font-size: .8rem; line-height: 1.45;
+  animation: info-tip-in .12s ease-out;
+}
+@keyframes info-tip-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.info-tip-example { margin-top: .4rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .75rem; color: rgba(214, 228, 220, .8); }
+.info-tip-eg { color: var(--herbal-lime); font-family: inherit; }
 .dialog h2 { margin-bottom: 1rem; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1.5rem; }
 
