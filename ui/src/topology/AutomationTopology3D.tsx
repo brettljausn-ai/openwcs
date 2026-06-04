@@ -1731,7 +1731,9 @@ function EquipmentMesh({
         activeAxes={[true, false, true]}
         onDragStart={() => {
           dragBase.current = { x: eq.posXM, z: eq.posZM, rotDeg: eq.rotationDeg }
+          onHandleDragChange(true) // disable OrbitControls so the gizmo (not the camera) gets the drag
         }}
+        onDragEnd={() => onHandleDragChange(false)}
         onDrag={(l) => {
           const base = dragBase.current
           if (!base) return
