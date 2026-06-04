@@ -152,6 +152,51 @@ function hasPath(eq: AutomationEquipment): boolean {
   return Array.isArray(eq.path) && eq.path.length >= 2
 }
 
+// The directed sections of a conveyor, as `[fromIdx, toIdx]` pairs into `eq.path`. When the
+// equipment carries explicit `sections` we use them; otherwise (legacy / freshly-seeded path) we
+// derive implicit sequential sections from the path (i → i+1, plus last → first when closed),
+// so old path-only conveyors keep rendering exactly as before — now with travel arrows.
+function effectiveSections(eq: AutomationEquipment): number[][] {
+  const path = Array.isArray(eq.path) ? eq.path : []
+  if (path.length < 2) return []
+  if (Array.isArray(eq.sections) && eq.sections.length > 0) {
+    // Keep only sections whose endpoints are valid, distinct path indices.
+    return eq.sections.filter(
+      (s) =>
+        Array.isArray(s) &&
+        s.length === 2 &&
+        s[0] >= 0 &&
+        s[1] >= 0 &&
+        s[0] < path.length &&
+        s[1] < path.length &&
+        s[0] !== s[1],
+    )
+  }
+  const seq: number[][] = []
+  const pairCount = eq.closed ? path.length : path.length - 1
+  for (let i = 0; i < pairCount; i++) seq.push([i, (i + 1) % path.length])
+  return seq
+}
+
+// Indices of path points that are the `from` of 2+ sections — automatic decision / divert points.
+function decisionPoints(sections: number[][]): Set<number> {
+  const fromCount = new Map<number, number>()
+  for (const [f] of sections) fromCount.set(f, (fromCount.get(f) ?? 0) + 1)
+  const out = new Set<number>()
+  for (const [idx, n] of fromCount) if (n >= 2) out.add(idx)
+  return out
+}
+
+// Indices of path points that take part in at least one section (the junction/node markers).
+function junctionPoints(sections: number[][]): Set<number> {
+  const out = new Set<number>()
+  for (const [f, t] of sections) {
+    out.add(f)
+    out.add(t)
+  }
+  return out
+}
+
 function num(v: string, fallback = 0): number {
   const n = Number(v)
   return Number.isFinite(n) ? n : fallback
@@ -190,8 +235,12 @@ export default function AutomationTopology3D() {
   const [activeLevelId, setActiveLevelId] = useState<string>('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  // When ON, clicking the ground plane appends a waypoint to the selected conveyor's path.
+  // When ON, clicking the ground plane draws conveyor sections on the selected conveyor: each
+  // click resolves (or appends) a path point and, when an anchor is set, pushes a directed section
+  // from the anchor to that point. Clicking an existing waypoint re-anchors (to branch/divert).
   const [drawPath, setDrawPath] = useState(false)
+  // The anchor path index for the next section while drawing (null = next click just adds a point).
+  const [activeFromIdx, setActiveFromIdx] = useState<number | null>(null)
   // While a waypoint handle is being dragged we disable OrbitControls so the camera stays put.
   const [orbitEnabled, setOrbitEnabled] = useState(true)
 
@@ -356,6 +405,11 @@ export default function AutomationTopology3D() {
     if (!selected || !selectedIsConveyor) setDrawPath(false)
   }, [selected, selectedIsConveyor])
 
+  // Reset the section anchor whenever draw mode turns off or the selection changes.
+  useEffect(() => {
+    if (!drawPath) setActiveFromIdx(null)
+  }, [drawPath, selectedId])
+
   const patchEquipment = useCallback((id: string, patch: Partial<AutomationEquipment>) => {
     setEquipment((es) => es.map((e) => (e.id === id ? { ...e, ...patch } : e)))
     setDirty(true)
@@ -372,15 +426,80 @@ export default function AutomationTopology3D() {
     setDirty(true)
   }, [])
 
-  // Append a waypoint to an equipment's path (creating one if needed). Used by draw mode.
-  const appendWaypoint = useCallback((id: string, x: number, z: number) => {
+  // Snap radius (metres): a ground click this close to an existing path point reuses that point
+  // (so junctions form) rather than creating a near-duplicate vertex.
+  const SNAP_M = 0.5
+
+  // A ground-plane click in draw mode. Resolve the click to a path index (snapping to an existing
+  // point within SNAP_M, else appending a new one), then — if we have an anchor and it differs —
+  // push a directed section from the anchor to the resolved point. Re-anchor to the resolved point
+  // so consecutive clicks chain into a connected run. Returns nothing; updates state.
+  const drawSectionAt = useCallback(
+    (id: string, x: number, z: number) => {
+      const px = +x.toFixed(3)
+      const pz = +z.toFixed(3)
+      let resolved: number | null = null
+      setEquipment((es) =>
+        es.map((e) => {
+          if (e.id !== id) return e
+          const path = Array.isArray(e.path) ? e.path.map((p) => [p[0], p[1]]) : []
+          // Find the nearest existing point within the snap radius (reuse it → forms junctions).
+          let nearIdx = -1
+          let nearDist = SNAP_M
+          for (let i = 0; i < path.length; i++) {
+            const d = Math.hypot(path[i][0] - px, path[i][1] - pz)
+            if (d <= nearDist) {
+              nearDist = d
+              nearIdx = i
+            }
+          }
+          let resolvedIdx: number
+          if (nearIdx >= 0) {
+            resolvedIdx = nearIdx
+          } else {
+            path.push([px, pz])
+            resolvedIdx = path.length - 1
+          }
+          resolved = resolvedIdx
+          const sections = Array.isArray(e.sections) ? e.sections.map((s) => [s[0], s[1]]) : []
+          // With an anchor that isn't the resolved point, add a directed section — unless an
+          // identical one already exists.
+          if (
+            activeFromIdx != null &&
+            activeFromIdx !== resolvedIdx &&
+            activeFromIdx < path.length &&
+            !sections.some((s) => s[0] === activeFromIdx && s[1] === resolvedIdx)
+          ) {
+            sections.push([activeFromIdx, resolvedIdx])
+          }
+          return { ...e, path, sections }
+        }),
+      )
+      // Re-anchor to the resolved point so consecutive clicks chain into a connected run.
+      if (resolved != null) setActiveFromIdx(resolved)
+      setDirty(true)
+    },
+    [activeFromIdx],
+  )
+
+  // Clicking an existing waypoint handle while drawing re-anchors WITHOUT creating a section — this
+  // is how a branch / divert starts (anchor at a junction, then click a new direction).
+  const anchorWaypoint = useCallback((idx: number) => {
+    setActiveFromIdx(idx)
+  }, [])
+
+  // Remove the most recently added section (no-op when there are none). Leaves any now-orphan path
+  // points in place (harmless; Clear resets everything).
+  const removeLastSection = useCallback((id: string) => {
     setEquipment((es) =>
       es.map((e) => {
         if (e.id !== id) return e
-        const prev = Array.isArray(e.path) ? e.path : []
-        return { ...e, path: [...prev, [+x.toFixed(3), +z.toFixed(3)]] }
+        const sections = Array.isArray(e.sections) ? e.sections : []
+        if (sections.length === 0) return e
+        return { ...e, sections: sections.slice(0, -1) }
       }),
     )
+    setActiveFromIdx(null)
     setDirty(true)
   }, [])
 
@@ -683,12 +802,14 @@ export default function AutomationTopology3D() {
                 lib={libById}
                 selectedId={selectedId}
                 drawPath={drawPath}
+                activeFromIdx={activeFromIdx}
                 onSelect={setSelectedId}
                 onConnectPick={handleConnectPick}
                 onMove={(id, x, z, rotDeg) =>
                   patchEquipment(id, { posXM: x, posZM: z, rotationDeg: rotDeg })
                 }
-                onAppendWaypoint={appendWaypoint}
+                onDrawSectionAt={drawSectionAt}
+                onAnchorWaypoint={anchorWaypoint}
                 onMoveWaypoint={moveWaypoint}
                 onHandleDragChange={(active) => setOrbitEnabled(!active)}
               />
@@ -714,7 +835,7 @@ export default function AutomationTopology3D() {
                   ? `Connect: from ${equipmentById.get(connectFrom)?.code ?? '?'} — click a target (or the source again to cancel)`
                   : 'Connect: click a source piece of equipment'
                 : drawPath
-                  ? 'Draw mode: click the floor to add conveyor waypoints'
+                  ? 'Draw mode: click to add sections; click a point to branch from it'
                   : 'Drag to orbit · right-drag to pan · scroll to zoom'}
             </div>
             </>
@@ -764,8 +885,11 @@ export default function AutomationTopology3D() {
                 <ConveyorPathTools
                   eq={selected}
                   drawPath={drawPath}
+                  activeFromIdx={activeFromIdx}
                   onToggleDraw={() => setDrawPath((d) => !d)}
                   onPatch={(patch) => patchEquipment(selected.id, patch)}
+                  onRemoveLastSection={() => removeLastSection(selected.id)}
+                  onClearAnchor={() => setActiveFromIdx(null)}
                 />
               )}
 
@@ -828,23 +952,34 @@ function NumField({
   )
 }
 
-// Path-editing tools shown in the properties panel for a selected conveyor.
+// Section-graph editing tools shown in the properties panel for a selected conveyor. A conveyor is
+// a DIRECTED section graph: `path` holds the waypoints, `sections` the one-way runs `[from,to]`
+// between them. A point that is the `from` of 2+ sections is an automatic decision/divert point.
 function ConveyorPathTools({
   eq,
   drawPath,
+  activeFromIdx,
   onToggleDraw,
   onPatch,
+  onRemoveLastSection,
+  onClearAnchor,
 }: {
   eq: AutomationEquipment
   drawPath: boolean
+  activeFromIdx: number | null
   onToggleDraw: () => void
   onPatch: (patch: Partial<AutomationEquipment>) => void
+  onRemoveLastSection: () => void
+  onClearAnchor: () => void
 }) {
   const path = Array.isArray(eq.path) ? eq.path : []
   const count = path.length
+  const sections = effectiveSections(eq)
+  const explicitSections = Array.isArray(eq.sections) ? eq.sections.length : 0
+  const decisions = decisionPoints(sections)
 
-  // Seed a two-point path from the current straight box: the two centreline endpoints,
-  // posX/posZ ± length/2 projected along the box rotation (yaw about Y).
+  // Seed a two-point path from the current straight box plus a single forward section: the two
+  // centreline endpoints, posX/posZ ± length/2 projected along the box rotation (yaw about Y).
   const startFromBox = () => {
     const yaw = eq.rotationDeg * DEG
     const hx = (Math.cos(yaw) * eq.lengthM) / 2
@@ -854,40 +989,53 @@ function ConveyorPathTools({
         [+(eq.posXM - hx).toFixed(3), +(eq.posZM - hz).toFixed(3)],
         [+(eq.posXM + hx).toFixed(3), +(eq.posZM + hz).toFixed(3)],
       ],
+      sections: [[0, 1]],
     })
-  }
-
-  const removeLast = () => {
-    if (count === 0) return
-    onPatch({ path: count <= 1 ? null : path.slice(0, -1) })
   }
 
   return (
     <div className="atopo-pathtools">
       <div className="atopo-pathtools-head">
-        Conveyor path{' '}
+        Conveyor sections{' '}
         <InfoTip
-          text="Draw a centreline of waypoints so this conveyor renders as a polyline (corners, turns, loops) instead of a single straight box."
-          example="add corners to route around a column"
+          text="Draw this conveyor section by section as a directed graph: each section is a one-way run with a travel-direction arrow. Click a waypoint to branch from it — a point with 2+ outgoing sections becomes an automatic decision/divert point."
+          example="a main line that diverts at a junction"
         />
       </div>
       <div className="atopo-pathcount">
         {count === 0
           ? 'No path — rendering as a straight box.'
-          : `${count} waypoint${count === 1 ? '' : 's'}${count < 2 ? ' (need ≥ 2 to draw segments)' : ''}`}
+          : `${count} point${count === 1 ? '' : 's'} · ${sections.length} section${sections.length === 1 ? '' : 's'}${
+              explicitSections === 0 && count >= 2 ? ' (implicit sequential)' : ''
+            }${decisions.size > 0 ? ` · ${decisions.size} decision point${decisions.size === 1 ? '' : 's'}` : ''}`}
       </div>
 
       <button
         type="button"
         className={`btn btn-sm ${drawPath ? 'btn-primary' : 'btn-outline'} atopo-pathbtn`}
         onClick={onToggleDraw}
+        disabled={count === 0}
+        title={count === 0 ? 'Seed a path first with “Start from box”.' : undefined}
       >
-        {drawPath ? 'Drawing… click floor to add (stop)' : 'Draw path'}
+        {drawPath ? 'Drawing sections… (click to stop)' : 'Draw sections'}
       </button>
+
+      {drawPath && (
+        <div className="atopo-drawhint">
+          {activeFromIdx == null
+            ? 'Click the floor to place the first point, then keep clicking to chain sections. Click an existing point to branch from it.'
+            : `Anchored at point ${activeFromIdx + 1}. Click to draw a section to a new/snapped point, or click another point to re-anchor (branch).`}
+          {activeFromIdx != null && (
+            <button type="button" className="atopo-linkbtn" onClick={onClearAnchor}>
+              clear anchor
+            </button>
+          )}
+        </div>
+      )}
 
       {count === 0 && (
         <button type="button" className="btn btn-outline btn-sm atopo-pathbtn" onClick={startFromBox}>
-          Start path from box
+          Start from box
         </button>
       )}
 
@@ -898,25 +1046,28 @@ function ConveyorPathTools({
           onChange={(e) => onPatch({ closed: e.target.checked })}
         />
         Closed loop{' '}
-        <InfoTip text="When on, the path loops back from the last waypoint to the first." example="a recirculating sorter loop" />
+        <InfoTip
+          text="Only affects implicit sequential paths (no explicit sections): when on, the path loops back from the last waypoint to the first."
+          example="a recirculating sorter loop"
+        />
       </label>
 
       <div className="atopo-pathrow">
         <button
           type="button"
           className="btn btn-outline btn-sm"
-          onClick={removeLast}
-          disabled={count === 0}
+          onClick={onRemoveLastSection}
+          disabled={explicitSections === 0}
         >
-          Remove last point
+          Remove last section
         </button>
         <button
           type="button"
           className="btn btn-outline btn-sm"
-          onClick={() => onPatch({ path: null })}
+          onClick={() => onPatch({ path: null, sections: null })}
           disabled={count === 0}
         >
-          Clear path
+          Clear
         </button>
       </div>
     </div>
@@ -1258,10 +1409,15 @@ interface SceneContentProps {
   lib: Map<string, Equipment>
   selectedId: string | null
   drawPath: boolean
+  // The current section-draw anchor index on the selected conveyor (highlighted), or null.
+  activeFromIdx: number | null
   onSelect: (id: string | null) => void
   onConnectPick: (id: string) => void
   onMove: (id: string, x: number, z: number, rotationDeg: number) => void
-  onAppendWaypoint: (id: string, x: number, z: number) => void
+  // A ground-plane click while drawing: resolve/append a point and (with an anchor) add a section.
+  onDrawSectionAt: (id: string, x: number, z: number) => void
+  // Click an existing waypoint while drawing: re-anchor to it (branch) without adding a section.
+  onAnchorWaypoint: (index: number) => void
   onMoveWaypoint: (id: string, index: number, x: number, z: number) => void
   onHandleDragChange: (active: boolean) => void
 }
@@ -1278,10 +1434,12 @@ function SceneContent({
   lib,
   selectedId,
   drawPath,
+  activeFromIdx,
   onSelect,
   onConnectPick,
   onMove,
-  onAppendWaypoint,
+  onDrawSectionAt,
+  onAnchorWaypoint,
   onMoveWaypoint,
   onHandleDragChange,
 }: SceneContentProps) {
@@ -1307,9 +1465,9 @@ function SceneContent({
             return
           }
           if (drawPath && selectedId) {
-            // Suppress deselect while drawing; append the clicked floor point as a waypoint.
+            // Suppress deselect while drawing; draw a section to the clicked floor point.
             e.stopPropagation()
-            onAppendWaypoint(selectedId, e.point.x, e.point.z)
+            onDrawSectionAt(selectedId, e.point.x, e.point.z)
             return
           }
           onSelect(null)
@@ -1334,22 +1492,31 @@ function SceneContent({
         )
       })}
 
-      {items.map((eq) => (
-        <EquipmentMesh
-          key={eq.id}
-          eq={eq}
-          conveyor={isConveyor(eq, lib)}
-          color={colorFor(eq, lib)}
-          selected={eq.id === selectedId}
-          // In connect mode highlight the chosen source and route clicks to the connect picker.
-          connectMode={connectMode}
-          connectSource={eq.id === connectFrom}
-          onSelect={() => (connectMode ? onConnectPick(eq.id) : onSelect(eq.id))}
-          onMove={(x, z, rot) => onMove(eq.id, x, z, rot)}
-          onMoveWaypoint={(index, x, z) => onMoveWaypoint(eq.id, index, x, z)}
-          onHandleDragChange={onHandleDragChange}
-        />
-      ))}
+      {items.map((eq) => {
+        const isSel = eq.id === selectedId
+        // Draw mode applies only to the selected conveyor; it suppresses the move gizmo and routes
+        // waypoint clicks to re-anchoring (branch) instead of dragging.
+        const drawing = drawPath && isSel
+        return (
+          <EquipmentMesh
+            key={eq.id}
+            eq={eq}
+            conveyor={isConveyor(eq, lib)}
+            color={colorFor(eq, lib)}
+            selected={isSel}
+            // In connect mode highlight the chosen source and route clicks to the connect picker.
+            connectMode={connectMode}
+            connectSource={eq.id === connectFrom}
+            drawing={drawing}
+            activeFromIdx={drawing ? activeFromIdx : null}
+            onSelect={() => (connectMode ? onConnectPick(eq.id) : onSelect(eq.id))}
+            onMove={(x, z, rot) => onMove(eq.id, x, z, rot)}
+            onMoveWaypoint={(index, x, z) => onMoveWaypoint(eq.id, index, x, z)}
+            onAnchorWaypoint={onAnchorWaypoint}
+            onHandleDragChange={onHandleDragChange}
+          />
+        )
+      })}
 
       {/* Function-point markers — one per point on an equipment visible on the active level.
           Clicking a marker selects its equipment (or, in connect mode, picks it as an endpoint). */}
@@ -1465,9 +1632,14 @@ interface EquipmentMeshProps {
   // Connect mode on → clicks pick connection endpoints; the chosen source is highlighted.
   connectMode: boolean
   connectSource: boolean
+  // Section-draw mode is active on this (selected) conveyor: suppress the move gizmo and route
+  // waypoint clicks to re-anchoring. activeFromIdx is the current anchor (highlighted), or null.
+  drawing: boolean
+  activeFromIdx: number | null
   onSelect: () => void
   onMove: (x: number, z: number, rotationDeg: number) => void
   onMoveWaypoint: (index: number, x: number, z: number) => void
+  onAnchorWaypoint: (index: number) => void
   onHandleDragChange: (active: boolean) => void
 }
 
@@ -1478,17 +1650,21 @@ function EquipmentMesh({
   selected,
   connectMode,
   connectSource,
+  drawing,
+  activeFromIdx,
   onSelect,
   onMove,
   onMoveWaypoint,
+  onAnchorWaypoint,
   onHandleDragChange,
 }: EquipmentMeshProps) {
   // Highlight either the editor selection or (in connect mode) the chosen source.
   const highlight = connectMode ? connectSource : selected
   const highlightColor = connectMode ? '#f0a85a' : '#8DC63F'
 
-  // Conveyor with a usable polyline → render as connected segments + (when selected) handles.
-  // While connecting we suppress waypoint handles so clicks register as connect picks.
+  // Conveyor with a usable section graph → render directed sections + arrows + junction/decision
+  // markers + (when editable) draggable handles. While connecting we suppress handles so clicks
+  // register as connect picks.
   if (conveyor && hasPath(eq)) {
     return (
       <ConveyorPath
@@ -1496,8 +1672,11 @@ function EquipmentMesh({
         color={color}
         selected={highlight}
         editable={selected && !connectMode}
+        drawing={drawing}
+        activeFromIdx={activeFromIdx}
         onSelect={onSelect}
         onMoveWaypoint={onMoveWaypoint}
+        onAnchorWaypoint={onAnchorWaypoint}
         onHandleDragChange={onHandleDragChange}
       />
     )
@@ -1535,8 +1714,8 @@ function EquipmentMesh({
     </mesh>
   )
 
-  // When selected (and not connecting), wrap in PivotControls for drag-move + rotate.
-  if (selected && !connectMode) {
+  // When selected (and not connecting / drawing), wrap in PivotControls for drag-move + rotate.
+  if (selected && !connectMode && !drawing) {
     return (
       <PivotControls
         anchor={[0, 0, 0]}
@@ -1601,74 +1780,125 @@ interface ConveyorPathProps {
   selected: boolean
   // When true, draggable waypoint handles are shown (suppressed while in connect mode).
   editable: boolean
+  // Section-draw mode active on this conveyor: waypoint clicks re-anchor (branch) instead of drag.
+  drawing: boolean
+  activeFromIdx: number | null
   onSelect: () => void
   onMoveWaypoint: (index: number, x: number, z: number) => void
+  onAnchorWaypoint: (index: number) => void
   onHandleDragChange: (active: boolean) => void
 }
 
-// Renders a conveyor as a chain of box segments following its centreline waypoints, plus
-// (when editable) draggable sphere handles to edit each waypoint on the XZ ground plane.
+// Renders a conveyor as a DIRECTED section graph: one box per section `[i,j]` (length = |path[i]
+// path[j]|, oriented from→to) with a green travel-direction arrow at its midpoint, plus markers at
+// each junction point (red for decision/divert points — the `from` of 2+ sections). When no
+// explicit sections exist it falls back to implicit sequential sections (i → i+1). When editable,
+// draggable sphere handles move each waypoint (all sections referencing it follow).
 function ConveyorPath({
   eq,
   color,
   selected,
   editable,
+  drawing,
+  activeFromIdx,
   onSelect,
   onMoveWaypoint,
+  onAnchorWaypoint,
   onHandleDragChange,
 }: ConveyorPathProps) {
   const path = (eq.path ?? []) as number[][]
   const y = eq.heightM / 2 + eq.posYM
+  const sections = effectiveSections(eq)
+  const decisions = decisionPoints(sections)
+  const junctions = junctionPoints(sections)
 
-  // Build the list of segments (consecutive pairs; plus last→first when closed).
-  const segments: { mx: number; mz: number; len: number; yaw: number }[] = []
-  const pairCount = eq.closed ? path.length : path.length - 1
-  for (let i = 0; i < pairCount; i++) {
-    const a = path[i]
-    const b = path[(i + 1) % path.length]
-    if (!a || !b) continue
-    const dx = b[0] - a[0]
-    const dz = b[1] - a[1]
-    const len = Math.hypot(dx, dz)
-    if (len < 1e-4) continue
-    segments.push({
-      mx: (a[0] + b[0]) / 2,
-      mz: (a[1] + b[1]) / 2,
-      len,
-      // z maps to world Z: yaw about Y rotates the box's X length into the segment direction.
-      yaw: Math.atan2(dz, dx),
+  // One box + arrow per directed section.
+  const segs = sections
+    .map(([i, j]) => {
+      const a = path[i]
+      const b = path[j]
+      if (!a || !b) return null
+      const dx = b[0] - a[0]
+      const dz = b[1] - a[1]
+      const len = Math.hypot(dx, dz)
+      if (len < 1e-4) return null
+      return {
+        i,
+        j,
+        ax: a[0],
+        az: a[1],
+        bx: b[0],
+        bz: b[1],
+        mx: (a[0] + b[0]) / 2,
+        mz: (a[1] + b[1]) / 2,
+        len,
+        // z maps to world Z: yaw about Y rotates the box's X length into the segment direction.
+        yaw: Math.atan2(dz, dx),
+        ux: dx / len,
+        uz: dz / len,
+      }
     })
-  }
+    .filter((s): s is NonNullable<typeof s> => s !== null)
 
+  const top = y + eq.heightM / 2
   const first = path[0]
 
   return (
     <group>
-      {segments.map((s, i) => (
-        <group key={i} position={[s.mx, y, s.mz]} rotation={[0, -s.yaw, 0]}>
-          <mesh
-            castShadow
-            onPointerDown={(e: ThreeEvent<PointerEvent>) => {
-              e.stopPropagation()
-              onSelect()
-            }}
-          >
-            <boxGeometry args={[s.len, eq.heightM, eq.widthM]} />
-            <meshStandardMaterial
-              color={color}
-              emissive={selected ? '#8DC63F' : '#000000'}
-              emissiveIntensity={selected ? 0.5 : 0}
-              metalness={0.1}
-              roughness={0.7}
-            />
-          </mesh>
+      {segs.map((s, k) => (
+        <group key={`seg-${k}`}>
+          <group position={[s.mx, y, s.mz]} rotation={[0, -s.yaw, 0]}>
+            <mesh
+              castShadow
+              onPointerDown={(e: ThreeEvent<PointerEvent>) => {
+                e.stopPropagation()
+                onSelect()
+              }}
+            >
+              <boxGeometry args={[s.len, eq.heightM, eq.widthM]} />
+              <meshStandardMaterial
+                color={color}
+                emissive={selected ? '#8DC63F' : '#000000'}
+                emissiveIntensity={selected ? 0.5 : 0}
+                metalness={0.1}
+                roughness={0.7}
+              />
+            </mesh>
+          </group>
+          {/* Green travel-direction arrow at the section midpoint, pointing from → to. */}
+          <DirectionArrow
+            mx={s.mx}
+            mz={s.mz}
+            y={top + 0.18}
+            ux={s.ux}
+            uz={s.uz}
+            size={Math.max(0.18, Math.min(0.45, eq.widthM * 0.4))}
+          />
         </group>
       ))}
+
+      {/* Junction / decision markers — one per path point used by a section. */}
+      {path.map((p, i) => {
+        if (!junctions.has(i)) return null
+        const isDecision = decisions.has(i)
+        const isAnchor = drawing && activeFromIdx === i
+        return (
+          <JunctionMarker
+            key={`jn-${i}`}
+            x={p[0]}
+            z={p[1]}
+            y={top + 0.06}
+            decision={isDecision}
+            anchor={isAnchor}
+            radius={Math.max(0.14, eq.widthM * 0.28)}
+          />
+        )
+      })}
 
       {/* Code label near the first waypoint. */}
       {first && (
         <Html
-          position={[first[0], y + eq.heightM / 2 + 0.4, first[1]]}
+          position={[first[0], top + 0.4, first[1]]}
           center
           distanceFactor={18}
           occlude={false}
@@ -1677,20 +1907,88 @@ function ConveyorPath({
         </Html>
       )}
 
-      {/* Editable waypoint handles, only when this conveyor is the editable selection. */}
-      {editable &&
+      {/* Waypoint handles. When editable but not drawing: drag to move the junction. When drawing:
+          a click re-anchors (branch) without moving. */}
+      {(editable || drawing) &&
         path.map((p, i) => (
           <WaypointHandle
-            key={i}
+            key={`wp-${i}`}
             x={p[0]}
             z={p[1]}
             y={y}
             radius={Math.max(0.2, eq.widthM * 0.35)}
+            drawing={drawing}
+            anchor={drawing && activeFromIdx === i}
             onDrag={(x, z) => onMoveWaypoint(i, x, z)}
+            onAnchor={() => onAnchorWaypoint(i)}
             onDragChange={onHandleDragChange}
           />
         ))}
     </group>
+  )
+}
+
+// A flat chevron-style arrow (two short lines meeting at a point) on the ground plane, marking
+// travel direction at a section midpoint. (u x,uz) is the unit travel direction in world XZ.
+function DirectionArrow({
+  mx,
+  mz,
+  y,
+  ux,
+  uz,
+  size,
+}: {
+  mx: number
+  mz: number
+  y: number
+  ux: number
+  uz: number
+  size: number
+}) {
+  // Tip ahead of the midpoint; two barbs swept back from it.
+  const tip: [number, number, number] = [mx + ux * size, y, mz + uz * size]
+  // Right-hand normal on the ground plane to (ux,uz) is (uz,-ux).
+  const nx = uz
+  const nz = -ux
+  const back = size * 0.9
+  const spread = size * 0.7
+  const left: [number, number, number] = [
+    mx - ux * back + nx * spread,
+    y,
+    mz - uz * back + nz * spread,
+  ]
+  const right: [number, number, number] = [
+    mx - ux * back - nx * spread,
+    y,
+    mz - uz * back - nz * spread,
+  ]
+  return <Line points={[left, tip, right]} color="#8DC63F" lineWidth={3} />
+}
+
+// A flat marker disc at a junction point. Decision/divert points (the `from` of 2+ sections) are
+// red and slightly larger; plain junctions are a subtle neutral. The draw anchor pulses lime.
+function JunctionMarker({
+  x,
+  z,
+  y,
+  decision,
+  anchor,
+  radius,
+}: {
+  x: number
+  z: number
+  y: number
+  decision: boolean
+  anchor: boolean
+  radius: number
+}) {
+  const color = anchor ? '#8DC63F' : decision ? '#e0563f' : '#9fb2a8'
+  const r = decision ? radius * 1.15 : radius * 0.85
+  return (
+    <mesh position={[x, y, z]} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[r * 0.55, r, 24]} />
+      <meshBasicMaterial color={color} transparent opacity={anchor ? 0.95 : decision ? 0.9 : 0.6} side={THREE.DoubleSide} depthTest={false} />
+    </mesh>
   )
 }
 
@@ -1701,14 +1999,21 @@ function WaypointHandle({
   z,
   y,
   radius,
+  drawing,
+  anchor,
   onDrag,
+  onAnchor,
   onDragChange,
 }: {
   x: number
   z: number
   y: number
   radius: number
+  // In drawing mode the handle is a click target: clicking re-anchors (branch) instead of dragging.
+  drawing: boolean
+  anchor: boolean
   onDrag: (x: number, z: number) => void
+  onAnchor: () => void
   onDragChange: (active: boolean) => void
 }) {
   const dragging = useRef(false)
@@ -1716,12 +2021,21 @@ function WaypointHandle({
   const plane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y))
   const hit = useRef(new THREE.Vector3())
 
+  const color = anchor ? '#f4b860' : '#8DC63F'
+  const emissive = anchor ? '#b07a10' : '#3a6'
+
   return (
     <mesh
       position={[x, y, z]}
       onPointerDown={(e: ThreeEvent<PointerEvent>) => {
         if (e.button !== 0) return
         e.stopPropagation()
+        // In drawing mode a click on a handle re-anchors to this point (start a branch); it must NOT
+        // also fall through to the ground-plane handler (which would add a section/point).
+        if (drawing) {
+          onAnchor()
+          return
+        }
         dragging.current = true
         onDragChange(true)
         ;(e.target as Element).setPointerCapture?.(e.pointerId)
@@ -1743,7 +2057,7 @@ function WaypointHandle({
       }}
     >
       <sphereGeometry args={[radius, 16, 16]} />
-      <meshStandardMaterial color="#8DC63F" emissive="#3a6" emissiveIntensity={0.4} depthTest={false} />
+      <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={anchor ? 0.6 : 0.4} depthTest={false} />
     </mesh>
   )
 }
@@ -1844,6 +2158,16 @@ function Styles() {
       .atopo-pathbtn { width: 100%; }
       .atopo-pathcheck { margin: .1rem 0; }
       .atopo-pathrow { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+      .atopo-drawhint {
+        font-size: .72rem; line-height: 1.35; color: var(--text-dim);
+        padding: .4rem .5rem; border-radius: 8px;
+        border: 1px dashed rgba(141, 198, 63, .4); background: rgba(141, 198, 63, .06);
+      }
+      .atopo-linkbtn {
+        display: inline; margin-left: .4rem; padding: 0; background: none; border: none;
+        color: var(--herbal-lime); cursor: pointer; font-size: .72rem; text-decoration: underline;
+        font-family: var(--font-body);
+      }
       .atopo-label {
         font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-radius: 6px;
         background: rgba(8, 30, 22, .85); color: var(--text); border: 1px solid var(--glass-border-bright);
