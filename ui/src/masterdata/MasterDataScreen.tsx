@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useParams } from 'react-router-dom'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
@@ -53,7 +55,9 @@ const ENTITIES: { key: EntityKey; label: string; scoped: boolean }[] = [
 
 export default function MasterDataScreen() {
   const { currentWarehouseId: warehouseId } = useWarehouse()
-  const [entity, setEntity] = useState<EntityKey>('warehouses')
+  // The active entity is the URL sub-page (/master-data/:entity); the sidebar submenu drives it.
+  const { entity: entityParam } = useParams()
+  const entity: EntityKey = ENTITIES.find((e) => e.key === entityParam)?.key ?? 'warehouses'
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [whError, setWhError] = useState<string | null>(null)
 
@@ -77,24 +81,14 @@ export default function MasterDataScreen() {
     <div className="app-content">
       <div className="page-head">
         <span className="eyebrow">Master data</span>
-        <h1>Master data</h1>
+        <h1>{active.label}</h1>
         <p>
-          Manage warehouses, storage blocks, locations, equipment and label templates. Blocks, locations
-          and equipment are scoped to the selected warehouse. SKUs (with their units of measure and barcodes)
-          are owned by the host system and shown read-only.
+          {active.scoped
+            ? 'Scoped to the warehouse selected in the top bar.'
+            : entity === 'skus'
+              ? 'SKUs, with their units of measure and barcodes, are owned by the host system and shown read-only.'
+              : 'Manage this master-data catalog.'}
         </p>
-      </div>
-
-      <div className="md-tabs">
-        {ENTITIES.map((e) => (
-          <button
-            key={e.key}
-            className={`btn btn-sm ${entity === e.key ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setEntity(e.key)}
-          >
-            {e.label}
-          </button>
-        ))}
       </div>
 
       {active.scoped && (
@@ -132,14 +126,27 @@ function StatusBadge({ status }: { status?: string }) {
   return <span className={`badge ${cls}`}>{status ?? '—'}</span>
 }
 
-function Dialog({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  return (
+function Dialog({
+  title,
+  children,
+  onClose,
+  size,
+}: {
+  title: string
+  children: React.ReactNode
+  onClose: () => void
+  size?: 'lg'
+}) {
+  // Portal to <body> so the fixed backdrop isn't trapped inside a card's backdrop-filter
+  // containing block (which left the dialog off-centre inside the table card).
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="dialog glass" onClick={(e) => e.stopPropagation()}>
+      <div className={`dialog glass${size === 'lg' ? ' dialog-lg' : ''}`} onClick={(e) => e.stopPropagation()}>
         <h2>{title}</h2>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -567,7 +574,7 @@ function SkuDetailDialog({ sku, onClose }: { sku: Sku; onClose: () => void }) {
       .join(', ') || 'None'
 
   return (
-    <Dialog title={`SKU ${sku.code}`} onClose={onClose}>
+    <Dialog title={`SKU ${sku.code}`} onClose={onClose} size="lg">
       <HostManagedNote />
       {error && <div className="alert alert-danger">{error}</div>}
       <div className="md-detail">
