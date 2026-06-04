@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { SCREENS, SECTION_ORDER, ScreenDef, Section } from '../auth/screens'
 import WarehouseSwitcher from '../warehouse/WarehouseSwitcher'
+import HelpButton from '../help/HelpButton'
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/)
@@ -83,6 +84,7 @@ export default function AppShell() {
 
       <main className="app-main">
         <div className="app-topbar">
+          <HelpButton />
           <WarehouseSwitcher />
         </div>
         <div className="app-body">
