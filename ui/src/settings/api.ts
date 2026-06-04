@@ -197,6 +197,45 @@ export interface HealthStatus {
   error?: string
 }
 
+// ---- demo mode (master-data) ----
+export interface DemoStatus {
+  enabled: boolean
+  canEnable: boolean // true only when the catalog is empty (no host data)
+  skuCount: number
+}
+export interface DemoResult {
+  skus: number
+  unitsOfMeasure: number
+  barcodes: number
+  shippers: number
+  handlingUnitTypes: number
+}
+
+export async function getDemoStatus(): Promise<DemoStatus> {
+  return ok(await fetch('/api/master-data/demo'))
+}
+
+/** Seed the demo catalog (admin-only; rejected unless the system is empty). */
+export async function enableDemo(warehouseId: string): Promise<DemoResult> {
+  const q = warehouseId ? `?warehouseId=${encodeURIComponent(warehouseId)}` : ''
+  const res = await fetch(`/api/master-data/demo/enable${q}`, { method: 'POST' })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { detail?: string }
+    throw new Error(body.detail || `${res.status} ${res.statusText}`)
+  }
+  return res.json()
+}
+
+/** Remove all demo data (admin-only). */
+export async function disableDemo(): Promise<DemoResult> {
+  const res = await fetch('/api/master-data/demo/disable', { method: 'POST' })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { detail?: string }
+    throw new Error(body.detail || `${res.status} ${res.statusText}`)
+  }
+  return res.json()
+}
+
 /** Reads the gateway's own actuator health (not proxied; permitted under edge security). */
 export async function getGatewayHealth(): Promise<HealthStatus> {
   try {
