@@ -2,10 +2,12 @@ package org.openwcs.masterdata.api;
 
 import java.net.URI;
 import java.util.UUID;
+import org.openwcs.common.security.AccessControl;
 import org.openwcs.masterdata.domain.Location;
 import org.openwcs.masterdata.repo.LocationRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,8 +16,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /** Location / topology CRUD (build.md §6). */
 @RestController
@@ -42,7 +46,10 @@ public class LocationController {
     }
 
     @PostMapping
-    public ResponseEntity<Location> create(@RequestBody Location body) {
+    public ResponseEntity<Location> create(
+            @RequestHeader(name = "X-Auth-Warehouses", required = false) String warehouses,
+            @RequestBody Location body) {
+        requireWarehouse(warehouses, body.getWarehouseId());
         body.setId(null);
         Location saved = locations.save(body);
         return ResponseEntity.created(URI.create("/api/master-data/locations/" + saved.getId())).body(saved);
@@ -54,11 +61,22 @@ public class LocationController {
     }
 
     @PutMapping("/{id}")
-    public Location update(@PathVariable UUID id, @RequestBody Location body) {
+    public Location update(
+            @PathVariable UUID id,
+            @RequestHeader(name = "X-Auth-Warehouses", required = false) String warehouses,
+            @RequestBody Location body) {
         Location existing = locations.findById(id).orElseThrow(() -> new NotFoundException("Location", id));
+        requireWarehouse(warehouses, body.getWarehouseId());
         body.setId(id);
         body.setVersion(existing.getVersion());
         return locations.save(body);
+    }
+
+    /** 403 if the caller is warehouse-scoped and the body targets a warehouse outside their set. */
+    private static void requireWarehouse(String warehouses, UUID warehouseId) {
+        if (!AccessControl.warehouseAllowed(warehouses, warehouseId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not permitted for this warehouse.");
+        }
     }
 
     @DeleteMapping("/{id}")
