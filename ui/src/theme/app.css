@@ -165,11 +165,9 @@ a { color: var(--herbal-lime); text-decoration: none; }
 .select-chevron { font-size: .7rem; color: var(--text-dim); transition: transform .15s; }
 .select.is-open .select-chevron { transform: rotate(180deg); color: var(--herbal-lime); }
 .select-menu {
-  position: absolute;
-  z-index: 40;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
+  /* Portalled to <body> with fixed positioning (top/left/width set inline) so it's never
+     clipped or painted behind a sibling glass card's stacking context. */
+  z-index: 1000;
   margin: 0;
   padding: .25rem;
   list-style: none;
@@ -199,6 +197,31 @@ a { color: var(--herbal-lime); text-decoration: none; }
 .select-option.is-disabled { opacity: .4; cursor: not-allowed; }
 .select-check { color: var(--herbal-lime); font-size: .8rem; }
 .select-empty { padding: .6rem; color: var(--text-faint); font-size: .85rem; text-align: center; }
+
+/* --- Date picker (themed calendar) --- */
+.datepicker { position: relative; display: inline-block; width: 100%; }
+.datepicker-pop { padding: .6rem; min-width: 248px; }
+.dp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .4rem; }
+.dp-month { font-size: .85rem; color: var(--text); }
+.dp-nav {
+  background: none; border: 0; color: var(--text-dim); cursor: pointer;
+  font-size: 1.2rem; line-height: 1; padding: .1rem .4rem; border-radius: 6px;
+}
+.dp-nav:hover { color: var(--herbal-lime); background: rgba(141, 198, 63, .1); }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dp-dow { text-align: center; font-family: var(--font-mono); font-size: .6rem; color: var(--text-faint); padding-bottom: .25rem; }
+.dp-day {
+  background: none; border: 0; color: var(--text); cursor: pointer;
+  aspect-ratio: 1; border-radius: 6px; font-size: .8rem;
+}
+.dp-day:hover { background: rgba(141, 198, 63, .12); }
+.dp-day.is-today { box-shadow: inset 0 0 0 1px var(--glass-border-bright); }
+.dp-day.is-selected { background: var(--herbal-lime); color: var(--forest-abyss); font-weight: 500; }
+.dp-time { display: flex; align-items: center; gap: .4rem; margin-top: .5rem; font-size: .8rem; }
+.dp-time-input { width: 54px; padding: .3rem .4rem; text-align: center; }
+.dp-foot { display: flex; justify-content: space-between; margin-top: .5rem; }
+.dp-link { background: none; border: 0; color: var(--herbal-lime); cursor: pointer; font-size: .8rem; padding: .2rem .3rem; }
+.dp-link:hover { text-decoration: underline; }
 
 /* --- Toggle switch --- */
 .switch { display: inline-flex; align-items: center; cursor: pointer; }
@@ -560,7 +583,8 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .login-brand {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  text-align: center;
   gap: .55rem;
   font-family: var(--font-heading);
   font-size: 2rem;
@@ -570,7 +594,7 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .login-brand img { height: 46px; width: auto; }
 .login-wordmark { line-height: 1; }
 .login-wordmark .accent { color: var(--herbal-lime); }
-.login-sub { color: var(--text-dim); font-size: .9rem; margin-bottom: 1.75rem; }
+.login-sub { color: var(--text-dim); font-size: .9rem; margin-bottom: 1.75rem; text-align: center; }
 .login-field { margin-bottom: 1rem; }
 .login-card .btn-primary { margin-top: .5rem; }
 .login-hint {

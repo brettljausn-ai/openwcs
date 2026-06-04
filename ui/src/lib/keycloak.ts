@@ -54,3 +54,21 @@ export async function passwordGrant(username: string, password: string): Promise
   }
   return res.json()
 }
+
+/** Exchange a refresh token for a fresh access token (silent session renewal). */
+export async function refreshTokenGrant(refreshToken: string): Promise<TokenResponse> {
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    client_id: KC_CLIENT,
+    refresh_token: refreshToken,
+  })
+  const res = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  })
+  if (!res.ok) {
+    throw new Error('Session refresh failed')
+  }
+  return res.json()
+}

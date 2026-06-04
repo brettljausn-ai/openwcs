@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import ReactFlow, {
   addEdge,
   Background,
@@ -11,6 +11,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import Select from '../ui/Select'
+import { useWarehouse } from '../warehouse/WarehouseContext'
 import { discoverTopology, loadTopology, saveTopology, type ControllerDto, type EdgeDto, type LoopDto, type NodeDto, type Topology } from './api'
 
 type NodeData = { name?: string; hardwareAddress?: string; loopCode?: string; controllerCode?: string; nodeAddress?: string; label?: string }
@@ -24,7 +25,7 @@ function nodeLabel(code: string, data: NodeData): string {
 }
 
 export default function TopologyEditor() {
-  const [warehouseId, setWarehouseId] = useState('')
+  const { currentWarehouseId: warehouseId } = useWarehouse()
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<EdgeData>([])
   const [loops, setLoops] = useState<LoopDto[]>([])
@@ -38,7 +39,7 @@ export default function TopologyEditor() {
 
   const load = useCallback(async () => {
     if (!warehouseId) {
-      setStatus('Enter a warehouse id first')
+      setStatus('No active warehouse selected')
       return
     }
     try {
@@ -69,6 +70,11 @@ export default function TopologyEditor() {
       setStatus(String(err))
     }
   }, [warehouseId, setNodes, setEdges])
+
+  // (Re)load topology for the globally-active warehouse whenever it changes.
+  useEffect(() => {
+    load()
+  }, [load])
 
   const save = useCallback(async () => {
     if (!warehouseId) {
@@ -181,8 +187,7 @@ export default function TopologyEditor() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '0.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', borderBottom: '1px solid #ddd' }}>
           <strong>Conveyor topology</strong>
-          <input placeholder="warehouse id" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} style={{ width: 320 }} />
-          <button onClick={load}>Load</button>
+          <button onClick={load}>Reload</button>
           <button onClick={addNode}>Add node</button>
           <button onClick={runDiscovery} title="Pull observed-but-unconfigured nodes/edges from learning">Discover</button>
           <button onClick={save}>Save</button>
