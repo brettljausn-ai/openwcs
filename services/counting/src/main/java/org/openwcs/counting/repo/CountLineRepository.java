@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface CountLineRepository extends JpaRepository<CountLine, UUID> {
 
     List<CountLine> findByCountTaskId(UUID countTaskId);
+
+    List<CountLine> findByWarehouseId(UUID warehouseId);
 }

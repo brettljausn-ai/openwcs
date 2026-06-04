@@ -9,4 +9,7 @@ public interface WorkCycleRepository extends JpaRepository<WorkCycle, UUID> {
     List<WorkCycle> findByStationIdOrderByCreatedAtDesc(UUID stationId);
 
     List<WorkCycle> findByStationIdAndStatus(UUID stationId, String status);
+
+    /** All work cycles for a set of stations (used by the demo full-reset clear). */
+    List<WorkCycle> findByStationIdIn(List<UUID> stationIds);
 }

@@ -11,6 +11,9 @@ public interface DestinationDemandRepository extends JpaRepository<DestinationDe
 
     List<DestinationDemand> findByStationNodeId(UUID stationNodeId);
 
+    /** All demand pinned to a set of station nodes (used by the demo full-reset clear). */
+    List<DestinationDemand> findByStationNodeIdIn(List<UUID> stationNodeIds);
+
     /**
      * Open demand for a SKU across all ORDER nodes of a station — the candidates a presented
      * stock HU is matched against. Most-needed first so the greedy put-list fills the biggest

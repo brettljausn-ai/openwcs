@@ -10,4 +10,6 @@ public interface BatchRepository extends JpaRepository<Batch, UUID> {
     Optional<Batch> findByWarehouseIdAndSkuIdAndBatchNumber(UUID warehouseId, UUID skuId, String batchNumber);
 
     List<Batch> findByWarehouseIdAndSkuId(UUID warehouseId, UUID skuId);
+
+    List<Batch> findByWarehouseId(UUID warehouseId);
 }
