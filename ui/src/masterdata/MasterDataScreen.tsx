@@ -429,7 +429,13 @@ function WarehouseDialog({
       }}
     >
       <Field label="Code" required>
-        <input className="form-control" value={d.code} onChange={(e) => setD({ ...d, code: e.target.value })} />
+        <input
+          className="form-control"
+          value={d.code}
+          readOnly={!!initial.id}
+          title={initial.id ? 'Code is fixed once set' : undefined}
+          onChange={(e) => setD({ ...d, code: e.target.value })}
+        />
       </Field>
       <Field label="Name" required>
         <input className="form-control" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />

@@ -28,8 +28,8 @@ public class DemoController {
     }
 
     @GetMapping
-    public DemoStatusView status() {
-        return demo.status();
+    public DemoStatusView status(@RequestParam(required = false) UUID warehouseId) {
+        return demo.status(warehouseId);
     }
 
     /** Seed the demo catalog (admin-only). {@code warehouseId} scopes the demo shippers. */

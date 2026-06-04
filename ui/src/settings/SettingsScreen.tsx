@@ -639,18 +639,18 @@ function DemoMode({ warehouseId }: { warehouseId: string }) {
   const [result, setResult] = useState<DemoResult | null>(null)
 
   function refresh() {
-    getDemoStatus()
+    getDemoStatus(warehouseId)
       .then(setStatus)
       .catch((e) => setError(String(e)))
   }
-  useEffect(refresh, [])
+  useEffect(refresh, [warehouseId])
 
   async function toggle(next: boolean) {
     setBusy(true)
     setError(null)
     setResult(null)
     try {
-      const res = next ? await enableDemo(warehouseId) : await disableDemo()
+      const res = next ? await enableDemo(warehouseId) : await disableDemo(warehouseId)
       setResult(res)
       refresh()
     } catch (e) {
@@ -669,8 +669,9 @@ function DemoMode({ warehouseId }: { warehouseId: string }) {
         <div>
           <h2>Demo mode</h2>
           <p>
-            Seed a sample catalog to explore openWCS without a host. Available only on a fresh
-            system with no host data. Turning it off removes everything demo mode created.
+            Seed a sample catalog — plus handling units and stock — to explore openWCS without a host.
+            Available only on a fresh system (no host data) that already has storage locations. Turning
+            it off removes everything demo mode created.
           </p>
         </div>
       </div>
@@ -683,10 +684,12 @@ function DemoMode({ warehouseId }: { warehouseId: string }) {
           <div>{busy ? 'Working…' : enabled ? 'Demo mode is ON' : 'Demo mode is OFF'}</div>
           <span className={styles.fieldHint}>
             {blocked
-              ? `Locked: the system already has ${status?.skuCount ?? 0} SKUs (host data present). Demo mode only seeds an empty system.`
+              ? (status?.skuCount ?? 0) > 0
+                ? `Locked: the system already has ${status?.skuCount} SKUs (host data present). Demo mode only seeds an empty system.`
+                : 'Locked: create storage locations for this warehouse first — demo mode places handling units and stock into existing locations.'
               : enabled
-                ? 'Switch off to delete the demo SKUs, units of measure, barcodes, shippers and storage HU type. Topology, GTP and other config are left untouched.'
-                : 'Switch on to create 100 demo SKUs (each with a base unit + a 5 or 10 pack and EAN-13 barcodes), outbound shippers (2 cartons + 1 bag), and a storage HU type for the selected warehouse.'}
+                ? 'Switch off to delete the demo catalog (SKUs, UoMs, barcodes, shippers, HU type) and the demo handling units and stock. Topology, GTP and other config are left untouched.'
+                : 'Switch on to create 100 demo SKUs (movie-merch named, with EAN-13 barcodes), shippers, a storage HU type, and handling units with stock placed into this warehouse’s locations.'}
           </span>
         </div>
       </div>
@@ -694,7 +697,11 @@ function DemoMode({ warehouseId }: { warehouseId: string }) {
       {result && (
         <div className={styles.fieldHint} style={{ marginTop: '.5rem' }}>
           {enabled ? 'Seeded' : 'Removed'}: {result.skus} SKUs · {result.unitsOfMeasure} units of measure ·{' '}
-          {result.barcodes} barcodes · {result.shippers} shippers · {result.handlingUnitTypes} HU type.
+          {result.barcodes} barcodes · {result.shippers} shippers · {result.handlingUnitTypes} HU type
+          {result.handlingUnits != null
+            ? ` · ${result.handlingUnits} handling units · ${result.stockRows ?? 0} stock rows`
+            : ''}
+          .
         </div>
       )}
     </section>

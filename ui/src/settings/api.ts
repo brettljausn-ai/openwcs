@@ -197,10 +197,10 @@ export interface HealthStatus {
   error?: string
 }
 
-// ---- demo mode (master-data) ----
+// ---- demo mode (master-data catalog + inventory handling units & stock) ----
 export interface DemoStatus {
   enabled: boolean
-  canEnable: boolean // true only when the catalog is empty (no host data)
+  canEnable: boolean // true only on a fresh system (no host data) that already has locations
   skuCount: number
 }
 export interface DemoResult {
@@ -209,31 +209,60 @@ export interface DemoResult {
   barcodes: number
   shippers: number
   handlingUnitTypes: number
+  handlingUnits?: number
+  stockRows?: number
 }
 
-export async function getDemoStatus(): Promise<DemoStatus> {
-  return ok(await fetch('/api/master-data/demo'))
+export async function getDemoStatus(warehouseId: string): Promise<DemoStatus> {
+  const q = warehouseId ? `?warehouseId=${encodeURIComponent(warehouseId)}` : ''
+  return ok(await fetch(`/api/master-data/demo${q}`))
 }
 
-/** Seed the demo catalog (admin-only; rejected unless the system is empty). */
+async function demoPost(url: string, body?: unknown): Promise<unknown> {
+  const res = await fetch(url, {
+    method: 'POST',
+    ...(body !== undefined ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
+  })
+  if (!res.ok) {
+    const b = (await res.json().catch(() => ({}))) as { detail?: string }
+    throw new Error(b.detail || `${res.status} ${res.statusText}`)
+  }
+  return res.json().catch(() => ({}))
+}
+
+async function idsFrom(url: string): Promise<string[]> {
+  const res = await fetch(url)
+  if (!res.ok) return []
+  const body = (await res.json()) as { content?: { id: string }[] } | { id: string }[]
+  const list = Array.isArray(body) ? body : body.content ?? []
+  return list.map((x) => x.id)
+}
+
+/**
+ * Enable demo mode: seed the master-data catalog, then register handling units + stock in the
+ * warehouse's existing locations. Rejected server-side unless the system is empty (no host data)
+ * AND the warehouse already has storage locations.
+ */
 export async function enableDemo(warehouseId: string): Promise<DemoResult> {
   const q = warehouseId ? `?warehouseId=${encodeURIComponent(warehouseId)}` : ''
-  const res = await fetch(`/api/master-data/demo/enable${q}`, { method: 'POST' })
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { detail?: string }
-    throw new Error(body.detail || `${res.status} ${res.statusText}`)
+  const cat = (await demoPost(`/api/master-data/demo/enable${q}`)) as DemoResult
+  const huTypes = await ok<{ id: string; name: string }[]>(await fetch('/api/master-data/handling-unit-types'))
+  const huTypeId = huTypes.find((t) => t.name === 'DEMO-STORAGE-HU')?.id ?? null
+  const locationIds = warehouseId
+    ? await idsFrom(`/api/master-data/locations?warehouseId=${encodeURIComponent(warehouseId)}&size=500`)
+    : []
+  const skuIds = await idsFrom('/api/master-data/skus?ownerClient=DEMO&size=500')
+  const inv = (await demoPost('/api/inventory/demo/seed', { warehouseId, huTypeId, locationIds, skuIds })) as {
+    handlingUnits: number
+    stockRows: number
   }
-  return res.json()
+  return { ...cat, handlingUnits: inv.handlingUnits, stockRows: inv.stockRows }
 }
 
-/** Remove all demo data (admin-only). */
-export async function disableDemo(): Promise<DemoResult> {
-  const res = await fetch('/api/master-data/demo/disable', { method: 'POST' })
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { detail?: string }
-    throw new Error(body.detail || `${res.status} ${res.statusText}`)
-  }
-  return res.json()
+/** Disable demo mode: remove demo handling units + stock, then the master-data catalog (admin-only). */
+export async function disableDemo(warehouseId: string): Promise<DemoResult> {
+  if (warehouseId) await demoPost(`/api/inventory/demo/clear?warehouseId=${encodeURIComponent(warehouseId)}`)
+  return (await demoPost('/api/master-data/demo/disable')) as DemoResult
 }
 
 /** Reads the gateway's own actuator health (not proxied; permitted under edge security). */
