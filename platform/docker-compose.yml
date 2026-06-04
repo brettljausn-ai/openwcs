@@ -9,6 +9,11 @@ services:
   postgres:
     restart: unless-stopped
     image: postgres:16
+    # The stack runs ~13 Java services, each with its own HikariCP pool (≈10 connections),
+    # which blows past Postgres's default max_connections=100 — services that start last get
+    # "FATAL: sorry, too many clients already" and crash-loop (Flyway can't connect). Raise the
+    # ceiling so the whole fleet (plus Flyway + headroom) fits; ~300 slots is well within the box.
+    command: ["postgres", "-c", "max_connections=300"]
     environment:
       POSTGRES_USER: openwcs
       POSTGRES_PASSWORD: openwcs
