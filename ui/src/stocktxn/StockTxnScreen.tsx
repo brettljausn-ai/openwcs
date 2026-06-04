@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Select from '../ui/Select'
 import DatePicker from '../ui/DatePicker'
 import DataTable, { Column } from '../ui/DataTable'
+import InfoTip from '../ui/InfoTip'
 
 // --- Transaction-log event shape (contracts/openapi/txlog.yaml → EventView) ---
 type TxEvent = {
@@ -323,7 +324,7 @@ export default function StockTxnScreen() {
           }}
         >
           <label style={{ display: 'block' }}>
-            <span className="muted" style={{ fontSize: '.75rem' }}>SKU</span>
+            <span className="muted" style={{ fontSize: '.75rem' }}>SKU <InfoTip text="Show only movements for SKUs whose code or id contains this text (case-insensitive, substring match)." example="WIDGET-001" /></span>
             <input
               className="form-control"
               placeholder="SKU code contains…"
@@ -332,7 +333,7 @@ export default function StockTxnScreen() {
             />
           </label>
           <label style={{ display: 'block' }}>
-            <span className="muted" style={{ fontSize: '.75rem' }}>Location</span>
+            <span className="muted" style={{ fontSize: '.75rem' }}>Location <InfoTip text="Show only movements whose source (From) or destination (To) location contains this text (case-insensitive)." example="A-01-02" /></span>
             <input
               className="form-control"
               placeholder="From / to location…"
@@ -341,7 +342,7 @@ export default function StockTxnScreen() {
             />
           </label>
           <label style={{ display: 'block' }}>
-            <span className="muted" style={{ fontSize: '.75rem' }}>Type</span>
+            <span className="muted" style={{ fontSize: '.75rem' }}>Type <InfoTip text="Limit the log to a single stock event type. Choose 'All types' to include every movement." example="GoodsReceived" /></span>
             <Select
               value={fType}
               onChange={(v) => setFType(v)}
@@ -353,11 +354,11 @@ export default function StockTxnScreen() {
             />
           </label>
           <label style={{ display: 'block' }}>
-            <span className="muted" style={{ fontSize: '.75rem' }}>From</span>
+            <span className="muted" style={{ fontSize: '.75rem' }}>From <InfoTip text="Earliest event time to include. Events that occurred before this date/time are hidden. Leave blank for no lower bound." example="2026-06-01 08:00" /></span>
             <DatePicker withTime value={fFrom} onChange={setFFrom} ariaLabel="From" placeholder="Any start" />
           </label>
           <label style={{ display: 'block' }}>
-            <span className="muted" style={{ fontSize: '.75rem' }}>To</span>
+            <span className="muted" style={{ fontSize: '.75rem' }}>To <InfoTip text="Latest event time to include. Events that occurred after this date/time are hidden. Leave blank for no upper bound." example="2026-06-04 18:00" /></span>
             <DatePicker withTime value={fTo} onChange={setFTo} ariaLabel="To" placeholder="Any end" />
           </label>
         </div>

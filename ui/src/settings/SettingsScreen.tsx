@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import InfoTip from '../ui/InfoTip'
 import Select from '../ui/Select'
 import styles from './settings.module.css'
 import {
@@ -84,7 +86,7 @@ export default function SettingsScreen() {
           {needsWarehouse && (
             <div className={`glass ${styles.section}`}>
               <div className={styles.field} style={{ maxWidth: 360 }}>
-                <label htmlFor="wh">Warehouse</label>
+                <label htmlFor="wh">Warehouse <InfoTip text="The warehouse the policies and schedules on this page apply to. All edits below are scoped to this selection." example="WH01 — Central DC" /></label>
                 <Select
                   ariaLabel="Warehouse"
                   value={warehouseId}
@@ -120,7 +122,7 @@ function NumberField({
   hint,
   onChange,
 }: {
-  label: string
+  label: ReactNode
   value: number
   step?: string
   hint?: string
@@ -229,7 +231,7 @@ function SlottingPolicy({ warehouseId }: { warehouseId: string }) {
       </div>
 
       <div className={styles.field} style={{ maxWidth: 360, marginBottom: '1.25rem' }}>
-        <label htmlFor="block">Storage block</label>
+        <label htmlFor="block">Storage block <InfoTip text="The storage block whose put-away scoring policy you are editing. Each block has its own weights and aisle constraints." example="RACK-A (PALLET_RACK)" /></label>
         <Select
           ariaLabel="Storage block"
           value={blockId}
@@ -250,38 +252,38 @@ function SlottingPolicy({ warehouseId }: { warehouseId: string }) {
         <>
           <h3 style={{ margin: '0 0 .5rem', fontSize: '.95rem' }}>Scorer weights</h3>
           <div className={styles.grid}>
-            <NumberField label="Velocity" value={policy.wVelocity} onChange={(v) => patch({ wVelocity: v })} hint="Velocity-to-exit weight" />
-            <NumberField label="Consolidation" value={policy.wConsolidation} onChange={(v) => patch({ wConsolidation: v })} hint="Same-SKU consolidation" />
-            <NumberField label="Redundancy" value={policy.wRedundancy} onChange={(v) => patch({ wRedundancy: v })} hint="Aisle redundancy" />
-            <NumberField label="Balance" value={policy.wBalance} onChange={(v) => patch({ wBalance: v })} hint="Fill balance" />
+            <NumberField label={<>Velocity <InfoTip text="Weight favouring fast-moving SKUs being slotted closer to the exit/dispatch point. Higher means velocity dominates the score." example="2.0" /></>} value={policy.wVelocity} onChange={(v) => patch({ wVelocity: v })} hint="Velocity-to-exit weight" />
+            <NumberField label={<>Consolidation <InfoTip text="Weight rewarding placing stock of the same SKU together to reduce fragmentation. Higher means tighter consolidation." example="1.0" /></>} value={policy.wConsolidation} onChange={(v) => patch({ wConsolidation: v })} hint="Same-SKU consolidation" />
+            <NumberField label={<>Redundancy <InfoTip text="Weight rewarding spreading a SKU across multiple aisles for picking resilience. Higher trades consolidation for redundancy." example="0.5" /></>} value={policy.wRedundancy} onChange={(v) => patch({ wRedundancy: v })} hint="Aisle redundancy" />
+            <NumberField label={<>Balance <InfoTip text="Weight rewarding even fill across locations so no single aisle or zone overflows. Higher levels out utilisation." example="0.75" /></>} value={policy.wBalance} onChange={(v) => patch({ wBalance: v })} hint="Fill balance" />
           </div>
 
           <h3 style={{ margin: '1.25rem 0 .5rem', fontSize: '.95rem' }}>Aisle constraints</h3>
           <div className={styles.grid}>
-            <NumberField label="Max aisle %" value={policy.defaultMaxAislePct} step="0.05" onChange={(v) => patch({ defaultMaxAislePct: v })} hint="Cap of one SKU per aisle (0–1)" />
-            <NumberField label="Min aisles · A" value={policy.minAislesA} step="1" onChange={(v) => patch({ minAislesA: v })} />
-            <NumberField label="Min aisles · B" value={policy.minAislesB} step="1" onChange={(v) => patch({ minAislesB: v })} />
-            <NumberField label="Min aisles · C" value={policy.minAislesC} step="1" onChange={(v) => patch({ minAislesC: v })} />
+            <NumberField label={<>Max aisle % <InfoTip text="Maximum share of a single SKU's stock allowed in one aisle, as a fraction 0–1. Caps concentration so picking stays redundant." example="0.5" /></>} value={policy.defaultMaxAislePct} step="0.05" onChange={(v) => patch({ defaultMaxAislePct: v })} hint="Cap of one SKU per aisle (0–1)" />
+            <NumberField label={<>Min aisles · A <InfoTip text="Minimum number of distinct aisles a fast-moving A-class SKU should be spread across for picking resilience." example="3" /></>} value={policy.minAislesA} step="1" onChange={(v) => patch({ minAislesA: v })} />
+            <NumberField label={<>Min aisles · B <InfoTip text="Minimum number of distinct aisles a medium-velocity B-class SKU should be spread across." example="2" /></>} value={policy.minAislesB} step="1" onChange={(v) => patch({ minAislesB: v })} />
+            <NumberField label={<>Min aisles · C <InfoTip text="Minimum number of distinct aisles a slow-moving C-class SKU should be spread across; usually 1 (consolidated)." example="1" /></>} value={policy.minAislesC} step="1" onChange={(v) => patch({ minAislesC: v })} />
           </div>
 
           <h3 style={{ margin: '1.25rem 0 .5rem', fontSize: '.95rem' }}>Re-slotting</h3>
           <div className={styles.toggleRow} style={{ marginBottom: '1rem' }}>
             <Toggle checked={policy.reslotEnabled} onChange={(v) => patch({ reslotEnabled: v })} />
             <div>
-              <div>Automatic re-slotting</div>
+              <div>Automatic re-slotting <InfoTip text="When on, the engine moves stock toward better-scoring slots during off-peak windows. When off, slotting only happens on new put-aways." example="On" /></div>
               <span className={styles.fieldHint}>Move stock toward optimal slots during off-peak windows.</span>
             </div>
           </div>
           <div className={styles.grid}>
             <NumberField
-              label="Re-slot shift %"
+              label={<>Re-slot shift % <InfoTip text="Maximum share of stock the re-slot sweep may relocate in a single run, as a fraction 0–1. Keeps moves gradual." example="0.1" /></>}
               value={policy.reslotShiftPct}
               step="0.05"
               onChange={(v) => patch({ reslotShiftPct: v })}
               hint="Max share of stock moved per run (0–1)"
             />
             <div className={styles.field}>
-              <label>Off-peak cron</label>
+              <label>Off-peak cron <InfoTip text="Cron expression (sec min hour day month weekday) setting when the re-slot sweep runs, ideally during quiet hours." example="0 0 2 * * *" /></label>
               <input
                 className="form-control"
                 value={policy.offpeakCron ?? ''}
@@ -453,11 +455,11 @@ function CountingSettings({ warehouseId }: { warehouseId: string }) {
       <h3 style={{ margin: '0 0 .5rem', fontSize: '.95rem' }}>New schedule</h3>
       <div className={styles.grid}>
         <div className={styles.field}>
-          <label>Name</label>
+          <label>Name <InfoTip text="A label for this count schedule so it's easy to recognise in the list and in generated count tasks." example="A-class weekly" /></label>
           <input className="form-control" value={form.name} placeholder="A-class weekly" onChange={(e) => setForm({ ...form, name: e.target.value })} />
         </div>
         <div className={styles.field}>
-          <label>Scope</label>
+          <label>Scope <InfoTip text="What this schedule counts: an ABC velocity class, or a specific zone, block, location or SKU. Defines which stock the cadence applies to." example="ABC class" /></label>
           <Select
             ariaLabel="Scope"
             value={form.scopeType}
@@ -473,7 +475,7 @@ function CountingSettings({ warehouseId }: { warehouseId: string }) {
         </div>
         {form.scopeType === 'ABC_CLASS' && (
           <div className={styles.field}>
-            <label>ABC class</label>
+            <label>ABC class <InfoTip text="Which velocity class to count: A = fast movers (count often), B = medium, C = slow movers (count rarely)." example="A" /></label>
             <Select
               ariaLabel="ABC class"
               value={form.abcClass}
@@ -487,7 +489,7 @@ function CountingSettings({ warehouseId }: { warehouseId: string }) {
           </div>
         )}
         <div className={styles.field}>
-          <label>Count type</label>
+          <label>Count type <InfoTip text="Blind = counter never sees the expected quantity (most accurate). Variance = counter sees expected qty and confirms or corrects it." example="Blind" /></label>
           <Select
             ariaLabel="Count type"
             value={form.countType}
@@ -498,8 +500,8 @@ function CountingSettings({ warehouseId }: { warehouseId: string }) {
             ]}
           />
         </div>
-        <NumberField label="Cadence (days)" value={form.cadenceDays} step="1" onChange={(v) => setForm({ ...form, cadenceDays: v })} />
-        <NumberField label="Tolerance" value={form.tolerance} step="0.01" onChange={(v) => setForm({ ...form, tolerance: v })} hint="Accepted variance" />
+        <NumberField label={<>Cadence (days) <InfoTip text="How many days between counts for this scope. After a count is emitted the next due date advances by this many days." example="30" /></>} value={form.cadenceDays} step="1" onChange={(v) => setForm({ ...form, cadenceDays: v })} />
+        <NumberField label={<>Tolerance <InfoTip text="Accepted variance between counted and expected quantity before a discrepancy is flagged. 0 means any difference counts as a variance." example="0.02" /></>} value={form.tolerance} step="0.01" onChange={(v) => setForm({ ...form, tolerance: v })} hint="Accepted variance" />
       </div>
       <div className={styles.actions}>
         <button className="btn btn-primary" type="button" onClick={add} disabled={busy || !warehouseId || !form.name || !form.cadenceDays}>
@@ -681,7 +683,7 @@ function DemoMode({ warehouseId }: { warehouseId: string }) {
       <div className={styles.toggleRow} style={{ marginBottom: '1rem' }}>
         <Toggle checked={enabled} onChange={(v) => !busy && !(!enabled && blocked) && toggle(v)} />
         <div>
-          <div>{busy ? 'Working…' : enabled ? 'Demo mode is ON' : 'Demo mode is OFF'}</div>
+          <div>{busy ? 'Working…' : enabled ? 'Demo mode is ON' : 'Demo mode is OFF'} <InfoTip text="Seeds a sample catalog, handling units and stock so you can explore openWCS without a host. Only enables on a fresh system; switching off removes all demo and operational data for this warehouse." example="Off" /></div>
           <span className={styles.fieldHint}>
             {blocked
               ? (status?.skuCount ?? 0) > 0

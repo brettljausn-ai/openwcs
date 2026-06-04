@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
+import InfoTip from '../ui/InfoTip'
 
 // Outbound Orders screen — UI-only against existing endpoints:
 //   order-management:  GET/POST /api/orders, /api/orders/{id}, /api/orders/{id}/{release|cancel|ship}
@@ -154,7 +155,7 @@ export default function OutboundScreen() {
       <div className="glass" style={{ padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ minWidth: 200 }}>
-            <label>Status</label>
+            <label>Status <InfoTip text="Filter the outbound order list by fulfilment status. Leave on 'All statuses' to see every order in this warehouse." example="RELEASED" /></label>
             <Select
               value={statusFilter}
               onChange={(v) => setStatusFilter(v)}

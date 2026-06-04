@@ -5,6 +5,7 @@ import { useWarehouse } from '../warehouse/WarehouseContext'
 import { useAuth } from '../auth/AuthContext'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
+import InfoTip from '../ui/InfoTip'
 import { checkOccupancy, countActiveHandlingUnits } from '../inventory/api'
 import {
   Barcode,
@@ -176,7 +177,7 @@ function Field({
   children,
   required,
 }: {
-  label: string
+  label: React.ReactNode
   children: React.ReactNode
   required?: boolean
 }) {
@@ -437,7 +438,7 @@ function WarehouseDialog({
         onSaved()
       }}
     >
-      <Field label="Code" required>
+      <Field label={<>Code <InfoTip text="Short unique identifier for this warehouse; fixed once saved." example="DC-01" /></>} required>
         <input
           className="form-control"
           value={d.code}
@@ -446,31 +447,31 @@ function WarehouseDialog({
           onChange={(e) => setD({ ...d, code: e.target.value })}
         />
       </Field>
-      <Field label="Name" required>
+      <Field label={<>Name <InfoTip text="Human-readable name of the warehouse site." example="Vienna Distribution Centre" /></>} required>
         <input className="form-control" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
       </Field>
-      <Field label="Timezone" required>
+      <Field label={<>Timezone <InfoTip text="Local timezone of the site, used for timestamps and operational reporting." example="UTC+1" /></>} required>
         <Select ariaLabel="Timezone" value={d.timezone} onChange={(v) => setD({ ...d, timezone: v })} options={TZ_OPTIONS} />
       </Field>
-      <Field label="Address line 1">
+      <Field label={<>Address line 1 <InfoTip text="Street and number of the warehouse address." example="Industriestrasse 12" /></>}>
         <input className="form-control" value={d.addressLine1 ?? ''} onChange={(e) => setD({ ...d, addressLine1: e.target.value })} />
       </Field>
-      <Field label="Address line 2">
+      <Field label={<>Address line 2 <InfoTip text="Optional second address line (building, unit, dock)." example="Building C, Gate 4" /></>}>
         <input className="form-control" value={d.addressLine2 ?? ''} onChange={(e) => setD({ ...d, addressLine2: e.target.value })} />
       </Field>
-      <Field label="City">
+      <Field label={<>City <InfoTip text="City the warehouse is located in." example="Vienna" /></>}>
         <input className="form-control" value={d.city ?? ''} onChange={(e) => setD({ ...d, city: e.target.value })} />
       </Field>
-      <Field label="Region / State">
+      <Field label={<>Region / State <InfoTip text="State, province or region of the site." example="Lower Austria" /></>}>
         <input className="form-control" value={d.region ?? ''} onChange={(e) => setD({ ...d, region: e.target.value })} />
       </Field>
-      <Field label="Postal code">
+      <Field label={<>Postal code <InfoTip text="Postal / ZIP code of the address." example="1010" /></>}>
         <input className="form-control" value={d.postalCode ?? ''} onChange={(e) => setD({ ...d, postalCode: e.target.value })} />
       </Field>
-      <Field label="Country">
+      <Field label={<>Country <InfoTip text="Country the warehouse is in." example="Austria" /></>}>
         <input className="form-control" value={d.country ?? ''} onChange={(e) => setD({ ...d, country: e.target.value })} />
       </Field>
-      <Field label="Status">
+      <Field label={<>Status <InfoTip text="Lifecycle state: ACTIVE is in use, INACTIVE is paused, ARCHIVED is retired." example="ACTIVE" /></>}>
         <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
       </Field>
     </EditDialog>
@@ -1052,10 +1053,10 @@ function StorageBlockDialog({
         onSaved()
       }}
     >
-      <Field label="Code" required>
+      <Field label={<>Code <InfoTip text="Unique code for this storage block within the warehouse." example="ASRS-A01" /></>} required>
         <input className="form-control" value={d.code} onChange={(e) => setD({ ...d, code: e.target.value })} />
       </Field>
-      <Field label="Storage type" required>
+      <Field label={<>Storage type <InfoTip text="The kind of storage/automation this block represents; drives slotting and GTP behaviour." example="SHUTTLE_ASRS" /></>} required>
         <Select
           value={d.storageType}
           onChange={(val) => setD({ ...d, storageType: val, gtp: derivedGtp(val, d.gtp) })}
@@ -1063,7 +1064,7 @@ function StorageBlockDialog({
           ariaLabel="Storage type"
         />
       </Field>
-      <Field label="Slotting granularity">
+      <Field label={<>Slotting granularity <InfoTip text="BLOCK = WCS slots to the pool and the system holds the exact bin; LOCATION = one fixed SKU per location." example="BLOCK" /></>}>
         <Select
           value={d.slottingGranularity}
           onChange={(val) => setD({ ...d, slottingGranularity: val })}
@@ -1074,20 +1075,21 @@ function StorageBlockDialog({
       {isGtpEditable(d.storageType) ? (
         <label className="md-check">
           <input type="checkbox" checked={d.gtp} onChange={(e) => setD({ ...d, gtp: e.target.checked })} />
-          Goods-to-person (GTP) — picked at a manned station
+          Goods-to-person (GTP) — picked at a manned station{' '}
+          <InfoTip text="When on, stock from this block is picked at a manned goods-to-person station rather than in the aisle." example="on for a manual GTP pick block" />
         </label>
       ) : GTP_AUTOMATED.includes(d.storageType) ? (
         <p className="md-explain" style={{ margin: '.15rem 0 0', fontSize: '.78rem', lineHeight: 1.4 }}>
           Goods-to-person — implied by {d.storageType}.
         </p>
       ) : null}
-      <Field label="Allowed HU types (blank = any)">
+      <Field label={<>Allowed HU types (blank = any) <InfoTip text="Restrict which handling-unit types may be stored in this block. Leave none selected to allow any." example="TOTE for an automated tote aisle" /></>}>
         <AllowedHuTypesPicker
           value={d.allowedHuTypes ?? []}
           onChange={(next) => setD({ ...d, allowedHuTypes: next })}
         />
       </Field>
-      <Field label="Status">
+      <Field label={<>Status <InfoTip text="Lifecycle state: ACTIVE is in use, INACTIVE is paused, ARCHIVED is retired." example="ACTIVE" /></>}>
         <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
       </Field>
     </EditDialog>
@@ -1246,7 +1248,7 @@ function GuidedBlockBuilder({
             Step 1 of 3 — describe the storage block.
           </p>
           <div className="md-form">
-            <Field label="Code" required>
+            <Field label={<>Code <InfoTip text="Unique code for this storage block / aisle within the warehouse." example="ASRS-A01" /></>} required>
               <input
                 className="form-control"
                 value={block.code}
@@ -1259,7 +1261,7 @@ function GuidedBlockBuilder({
               </GuidedExplain>
             </Field>
 
-            <Field label="Storage type" required>
+            <Field label={<>Storage type <InfoTip text="The kind of storage/automation this block represents; drives slotting and goods-to-person behaviour." example="SHUTTLE_ASRS" /></>} required>
               <Select
                 value={block.storageType}
                 onChange={setStorageType}
@@ -1269,7 +1271,7 @@ function GuidedBlockBuilder({
               <GuidedExplain>{STORAGE_TYPE_DESCRIPTIONS[block.storageType]}</GuidedExplain>
             </Field>
 
-            <Field label="Slotting granularity">
+            <Field label={<>Slotting granularity <InfoTip text="BLOCK = automated pool, system holds the exact bin; LOCATION = fixed pick face, one SKU per location." example="BLOCK" /></>}>
               <Select
                 value={block.slottingGranularity}
                 onChange={(val) => {
@@ -1287,7 +1289,7 @@ function GuidedBlockBuilder({
             </Field>
 
             {isGtpEditable(block.storageType) ? (
-              <Field label="Goods-to-person (GTP)">
+              <Field label={<>Goods-to-person (GTP) <InfoTip text="When on, stock from this block is picked at a manned station rather than walked to in the aisle." example="on for a manual GTP pick block" /></>}>
                 <label className="md-check">
                   <input
                     type="checkbox"
@@ -1304,7 +1306,7 @@ function GuidedBlockBuilder({
               </Field>
             ) : null}
 
-            <Field label="Allowed HU types (blank = any)">
+            <Field label={<>Allowed HU types (blank = any) <InfoTip text="Restrict which handling-unit types may be stored in this block. Select none to allow any." example="TOTE for an automated tote aisle" /></>}>
               <AllowedHuTypesPicker
                 value={block.allowedHuTypes ?? []}
                 onChange={(next) => setBlock({ ...block, allowedHuTypes: next })}
@@ -1315,7 +1317,7 @@ function GuidedBlockBuilder({
               </GuidedExplain>
             </Field>
 
-            <Field label="Status">
+            <Field label={<>Status <InfoTip text="Lifecycle state of the new block: ACTIVE is in use, INACTIVE is paused." example="ACTIVE" /></>}>
               <Select
                 value={block.status}
                 onChange={(v) => setBlock({ ...block, status: v })}
@@ -1358,7 +1360,7 @@ function GuidedBlockBuilder({
           </p>
           {info && <div className="alert alert-success">{info}</div>}
           <div className="md-form">
-            <Field label="Aisle">
+            <Field label={<>Aisle <InfoTip text="Aisle identifier; becomes part of every generated location code." example="A01" /></>}>
               <input
                 className="form-control"
                 value={aisle}
@@ -1372,7 +1374,7 @@ function GuidedBlockBuilder({
               <GuidedExplain>The aisle identifier, e.g. <code>A01</code>.</GuidedExplain>
             </Field>
             <div className="md-grid-2">
-              <Field label="Rack levels">
+              <Field label={<>Rack levels <InfoTip text="Number of vertical tiers in the rack; generates L01..Lnn." example="10" /></>}>
                 <input
                   className="form-control"
                   type="number"
@@ -1387,7 +1389,7 @@ function GuidedBlockBuilder({
                   Tiers high, e.g. <code>10</code> → L01..L10.
                 </GuidedExplain>
               </Field>
-              <Field label="Positions per level">
+              <Field label={<>Positions per level <InfoTip text="Number of bin positions along the aisle on each level; generates P01..Pnn." example="40" /></>}>
                 <input
                   className="form-control"
                   type="number"
@@ -1403,7 +1405,7 @@ function GuidedBlockBuilder({
                 </GuidedExplain>
               </Field>
             </div>
-            <Field label="Lane depth">
+            <Field label={<>Lane depth <InfoTip text="How many handling units deep each lane is: 1 = single-deep, 2 = double-deep, more for shuttle/satellite lanes." example="2" /></>}>
               <input
                 className="form-control"
                 type="number"
@@ -1419,7 +1421,7 @@ function GuidedBlockBuilder({
                 shuttle/satellite lanes. e.g. <code>2</code>.
               </GuidedExplain>
             </Field>
-            <Field label="Sides">
+            <Field label={<>Sides <InfoTip text="Generate locations for one or both sides of the aisle; sets each location's LEFT/RIGHT side." example="Both" /></>}>
               <Select
                 value={side}
                 onChange={(v) => {
@@ -1436,7 +1438,7 @@ function GuidedBlockBuilder({
               <GuidedExplain>Generate one or both sides of the aisle.</GuidedExplain>
             </Field>
             <div className="md-grid-2">
-              <Field label="Location type">
+              <Field label={<>Location type <InfoTip text="Physical kind of each generated location; ASRS slots/bins for automation, shelves/pallets for manual." example="ASRS_SLOT" /></>}>
                 <Select
                   value={locType}
                   onChange={setLocType}
@@ -1444,7 +1446,7 @@ function GuidedBlockBuilder({
                   ariaLabel="Location type"
                 />
               </Field>
-              <Field label="Purpose">
+              <Field label={<>Purpose <InfoTip text="What the generated locations are used for in the flow (storage, picking, staging, etc.)." example="STORAGE" /></>}>
                 <Select
                   value={purpose}
                   onChange={setPurpose}
@@ -1720,11 +1722,11 @@ function LocationDialog({
         onSaved()
       }}
     >
-      <Field label="Code" required>
+      <Field label={<>Code <InfoTip text="Unique code identifying this individual location within the warehouse." example="ASRS-A01-L03-P12-L" /></>} required>
         <input className="form-control" value={d.code} onChange={(e) => setD({ ...d, code: e.target.value })} />
       </Field>
       <div className="md-grid-2">
-        <Field label="Location type" required>
+        <Field label={<>Location type <InfoTip text="Physical kind of location; drives how it can be used and which devices serve it." example="ASRS_SLOT" /></>} required>
           <Select
             value={d.locationType}
             onChange={(val) => setD({ ...d, locationType: val })}
@@ -1732,7 +1734,7 @@ function LocationDialog({
             ariaLabel="Location type"
           />
         </Field>
-        <Field label="Purpose" required>
+        <Field label={<>Purpose <InfoTip text="What this location is used for in the flow (storage, picking, staging, etc.)." example="STORAGE" /></>} required>
           <Select
             value={d.purpose}
             onChange={(val) => setD({ ...d, purpose: val })}
@@ -1741,7 +1743,7 @@ function LocationDialog({
           />
         </Field>
       </div>
-      <Field label="Storage block">
+      <Field label={<>Storage block <InfoTip text="The storage block this location belongs to; leave as None for a standalone location." example="ASRS-A01 (SHUTTLE_ASRS)" /></>}>
         <Select
           value={d.blockId ?? ''}
           onChange={(val) => setD({ ...d, blockId: val || null })}
@@ -1753,14 +1755,14 @@ function LocationDialog({
         />
       </Field>
       <div className="md-grid-2">
-        <Field label="Aisle">
+        <Field label={<>Aisle <InfoTip text="Aisle this location sits in; used for routing and grouping." example="A01" /></>}>
           <input
             className="form-control"
             value={d.aisle ?? ''}
             onChange={(e) => setD({ ...d, aisle: e.target.value || null })}
           />
         </Field>
-        <Field label="Side">
+        <Field label={<>Side <InfoTip text="Which side of the aisle the location is on." example="LEFT" /></>}>
           <input
             className="form-control"
             value={d.side ?? ''}
@@ -1770,7 +1772,7 @@ function LocationDialog({
         </Field>
       </div>
       <div className="md-grid-3">
-        <Field label="Pos X">
+        <Field label={<>Pos X <InfoTip text="Horizontal position along the aisle (column/bay index)." example="12" /></>}>
           <input
             className="form-control"
             type="number"
@@ -1778,7 +1780,7 @@ function LocationDialog({
             onChange={(e) => setD({ ...d, posX: num(e.target.value) })}
           />
         </Field>
-        <Field label="Pos Y">
+        <Field label={<>Pos Y <InfoTip text="Vertical position / rack level index." example="3" /></>}>
           <input
             className="form-control"
             type="number"
@@ -1786,7 +1788,7 @@ function LocationDialog({
             onChange={(e) => setD({ ...d, posY: num(e.target.value) })}
           />
         </Field>
-        <Field label="Pos Z">
+        <Field label={<>Pos Z <InfoTip text="Depth position into the lane (for multi-deep storage)." example="1" /></>}>
           <input
             className="form-control"
             type="number"
@@ -1796,7 +1798,7 @@ function LocationDialog({
         </Field>
       </div>
       <div className="md-grid-2">
-        <Field label="Distance to exit">
+        <Field label={<>Distance to exit <InfoTip text="Relative travel distance from this location to the aisle exit; used to prioritise faster locations during slotting." example="45" /></>}>
           <input
             className="form-control"
             type="number"
@@ -1804,7 +1806,7 @@ function LocationDialog({
             onChange={(e) => setD({ ...d, distanceToExit: num(e.target.value) })}
           />
         </Field>
-        <Field label="Lane depth">
+        <Field label={<>Lane depth <InfoTip text="How many handling units deep this location's lane is: 1 = single-deep, 2 = double-deep." example="2" /></>}>
           <input
             className="form-control"
             type="number"
@@ -1819,9 +1821,10 @@ function LocationDialog({
           checked={d.mixedAllowed}
           onChange={(e) => setD({ ...d, mixedAllowed: e.target.checked })}
         />
-        Mixed SKUs allowed
+        Mixed SKUs allowed{' '}
+        <InfoTip text="When on, this location may hold more than one SKU at a time; off restricts it to a single SKU." example="off for a fixed pick face" />
       </label>
-      <Field label="Status">
+      <Field label={<>Status <InfoTip text="Lifecycle state: ACTIVE is in use, INACTIVE is blocked, ARCHIVED is retired." example="ACTIVE" /></>}>
         <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
       </Field>
     </EditDialog>
@@ -1970,7 +1973,7 @@ function EquipmentDialog({
         onSaved()
       }}
     >
-      <Field label="Family" required>
+      <Field label={<>Family <InfoTip text="The class of automation equipment this device belongs to." example="ASRS" /></>} required>
         <Select
           value={d.family}
           onChange={(val) => setD({ ...d, family: val })}
@@ -1978,21 +1981,21 @@ function EquipmentDialog({
           ariaLabel="Family"
         />
       </Field>
-      <Field label="Vendor">
+      <Field label={<>Vendor <InfoTip text="Manufacturer or supplier of the equipment." example="Dematic" /></>}>
         <input
           className="form-control"
           value={d.vendor ?? ''}
           onChange={(e) => setD({ ...d, vendor: e.target.value })}
         />
       </Field>
-      <Field label="Model">
+      <Field label={<>Model <InfoTip text="Vendor's model name or number for this equipment." example="Multishuttle 2" /></>}>
         <input
           className="form-control"
           value={d.model ?? ''}
           onChange={(e) => setD({ ...d, model: e.target.value })}
         />
       </Field>
-      <Field label="Adapter endpoint">
+      <Field label={<>Adapter endpoint <InfoTip text="URL the WCS device adapter uses to talk to this equipment's controller." example="http://device-adapter:8080" /></>}>
         <input
           className="form-control"
           value={d.adapterEndpoint ?? ''}
@@ -2000,7 +2003,7 @@ function EquipmentDialog({
           onChange={(e) => setD({ ...d, adapterEndpoint: e.target.value })}
         />
       </Field>
-      <Field label="Status">
+      <Field label={<>Status <InfoTip text="Lifecycle state: ACTIVE is online, INACTIVE is offline, ARCHIVED is retired." example="ACTIVE" /></>}>
         <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
       </Field>
     </EditDialog>
@@ -2215,11 +2218,11 @@ function HandlingUnitTypeDialog({
         onSaved()
       }}
     >
-      <Field label="Name" required>
+      <Field label={<>Name <InfoTip text="Unique name of this handling-unit type (carrier/container kind)." example="TOTE" /></>} required>
         <input className="form-control" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
       </Field>
       <div className="md-grid-3">
-        <Field label="Length (mm)">
+        <Field label={<>Length (mm) <InfoTip text="External length of the handling unit in millimetres." example="600" /></>}>
           <input
             className="form-control"
             type="number"
@@ -2227,7 +2230,7 @@ function HandlingUnitTypeDialog({
             onChange={(e) => setD({ ...d, lengthMm: num(e.target.value) ?? undefined })}
           />
         </Field>
-        <Field label="Width (mm)">
+        <Field label={<>Width (mm) <InfoTip text="External width of the handling unit in millimetres." example="400" /></>}>
           <input
             className="form-control"
             type="number"
@@ -2235,7 +2238,7 @@ function HandlingUnitTypeDialog({
             onChange={(e) => setD({ ...d, widthMm: num(e.target.value) ?? undefined })}
           />
         </Field>
-        <Field label="Height (mm)">
+        <Field label={<>Height (mm) <InfoTip text="External height of the handling unit in millimetres." example="320" /></>}>
           <input
             className="form-control"
             type="number"
@@ -2245,7 +2248,7 @@ function HandlingUnitTypeDialog({
         </Field>
       </div>
       <div className="md-grid-2">
-        <Field label="Weight limit (g)">
+        <Field label={<>Weight limit (g) <InfoTip text="Maximum gross weight this handling unit may carry, in grams." example="30000" /></>}>
           <input
             className="form-control"
             type="number"
@@ -2253,7 +2256,7 @@ function HandlingUnitTypeDialog({
             onChange={(e) => setD({ ...d, weightLimitG: num(e.target.value) ?? undefined })}
           />
         </Field>
-        <Field label="Compartments (1–8)">
+        <Field label={<>Compartments (1–8) <InfoTip text="Number of separate compartments/cells the handling unit is divided into." example="4" /></>}>
           <input
             className="form-control"
             type="number"
@@ -2267,7 +2270,8 @@ function HandlingUnitTypeDialog({
       <div className="md-checks">
         <label className="md-check">
           <input type="checkbox" checked={d.nestable} onChange={(e) => setD({ ...d, nestable: e.target.checked })} />
-          Nestable
+          Nestable{' '}
+          <InfoTip text="When on, empty units of this type can stack inside each other to save space." example="on for stackable totes" />
         </label>
         <label className="md-check">
           <input
@@ -2275,7 +2279,8 @@ function HandlingUnitTypeDialog({
             checked={d.storableInAutomation}
             onChange={(e) => setD({ ...d, storableInAutomation: e.target.checked })}
           />
-          Storable in automation
+          Storable in automation{' '}
+          <InfoTip text="When on, this type may be stored inside automated systems (ASRS, AutoStore, shuttle grids)." example="on for a tote, off for a pallet" />
         </label>
         <label className="md-check">
           <input
@@ -2283,7 +2288,8 @@ function HandlingUnitTypeDialog({
             checked={d.transportableOnConveyor}
             onChange={(e) => setD({ ...d, transportableOnConveyor: e.target.checked })}
           />
-          Transportable on conveyor
+          Transportable on conveyor{' '}
+          <InfoTip text="When on, this type can be moved on the conveyor network." example="on for a tote or carton" />
         </label>
       </div>
     </EditDialog>
@@ -2429,10 +2435,10 @@ function LabelTemplateDialog({
         onSaved()
       }}
     >
-      <Field label="Code" required>
+      <Field label={<>Code <InfoTip text="Unique code identifying this label template." example="HU-LABEL-100x150" /></>} required>
         <input className="form-control" value={d.code} onChange={(e) => setD({ ...d, code: e.target.value })} />
       </Field>
-      <Field label="Name">
+      <Field label={<>Name <InfoTip text="Human-readable name for the label template." example="Tote label 100×150" /></>}>
         <input
           className="form-control"
           value={d.name ?? ''}
@@ -2440,7 +2446,7 @@ function LabelTemplateDialog({
         />
       </Field>
       <div className="md-grid-3">
-        <Field label="Width (mm)" required>
+        <Field label={<>Width (mm) <InfoTip text="Printed label width in millimetres." example="100" /></>} required>
           <input
             className="form-control"
             type="number"
@@ -2448,7 +2454,7 @@ function LabelTemplateDialog({
             onChange={(e) => setD({ ...d, widthMm: num(e.target.value) ?? 0 })}
           />
         </Field>
-        <Field label="Height (mm)" required>
+        <Field label={<>Height (mm) <InfoTip text="Printed label height in millimetres." example="150" /></>} required>
           <input
             className="form-control"
             type="number"
@@ -2456,7 +2462,7 @@ function LabelTemplateDialog({
             onChange={(e) => setD({ ...d, heightMm: num(e.target.value) ?? 0 })}
           />
         </Field>
-        <Field label="DPI" required>
+        <Field label={<>DPI <InfoTip text="Printer resolution in dots per inch the template is designed for." example="203" /></>} required>
           <input
             className="form-control"
             type="number"
@@ -2469,7 +2475,7 @@ function LabelTemplateDialog({
         {d.elements?.length ?? 0} element(s). The visual element designer lives in a future iteration; element data is
         preserved on save.
       </p>
-      <Field label="Status">
+      <Field label={<>Status <InfoTip text="Lifecycle state: ACTIVE is selectable for printing, INACTIVE is hidden, ARCHIVED is retired." example="ACTIVE" /></>}>
         <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
       </Field>
     </EditDialog>

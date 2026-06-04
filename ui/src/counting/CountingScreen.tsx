@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import Select from '../ui/Select'
+import InfoTip from '../ui/InfoTip'
 
 // Stock counting (cycle counting) — drives the /api/counting service: ad-hoc + scheduled
 // (ABC-cadence) count tasks, a count-capture form (counted qty per line), variance vs the
@@ -556,7 +557,13 @@ function CaptureDialog({
                   <th>Batch</th>
                   <th>UoM</th>
                   <th>Expected</th>
-                  <th>Counted</th>
+                  <th>
+                    Counted{' '}
+                    <InfoTip
+                      text="The physical quantity you actually counted at this location/SKU/batch, in the shown UoM. Compared to the system snapshot to derive variance."
+                      example="48"
+                    />
+                  </th>
                   <th>Variance</th>
                   <th>Status</th>
                 </tr>
@@ -694,7 +701,11 @@ function ScheduleDialog({
 
         <div style={{ display: 'grid', gap: '.75rem' }}>
           <label style={fieldLabel}>
-            Name
+            Name{' '}
+            <InfoTip
+              text="A human-readable name for this count schedule, shown in the schedules list. Pick something that identifies its scope and cadence."
+              example="A-class weekly"
+            />
             <input
               className="form-control"
               value={form.name}
@@ -704,7 +715,11 @@ function ScheduleDialog({
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
             <label style={fieldLabel}>
-              Scope
+              Scope{' '}
+              <InfoTip
+                text="What this schedule sweeps: an ABC class, or a specific zone, block, location, or SKU. Non-ABC scopes use the Scope ref below to target an entity."
+                example="ABC_CLASS"
+              />
               <Select
                 ariaLabel="Scope"
                 value={form.scopeType}
@@ -717,7 +732,11 @@ function ScheduleDialog({
             </label>
             {needsAbc ? (
               <label style={fieldLabel}>
-                ABC class
+                ABC class{' '}
+                <InfoTip
+                  text="Which ABC velocity class to count. A items move fastest and are counted most often; C items are slow movers counted least often."
+                  example="A"
+                />
                 <Select
                   ariaLabel="ABC class"
                   value={form.abcClass}
@@ -727,7 +746,11 @@ function ScheduleDialog({
               </label>
             ) : (
               <label style={fieldLabel}>
-                Scope ref (UUID)
+                Scope ref (UUID){' '}
+                <InfoTip
+                  text="The UUID of the specific zone, block, location, or SKU to count for the chosen scope. Leave blank to count all entities of that scope type."
+                  example="3f2a9c10-7b4e-4d21-9f88-12ab34cd56ef"
+                />
                 <input
                   className="form-control"
                   value={form.scopeRef}
@@ -739,7 +762,11 @@ function ScheduleDialog({
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
             <label style={fieldLabel}>
-              Count type
+              Count type{' '}
+              <InfoTip
+                text="BLIND hides the expected quantity from the counter (more accurate); VARIANCE shows the system quantity alongside the count for quick reconciliation."
+                example="VARIANCE"
+              />
               <Select
                 ariaLabel="Count type"
                 value={form.countType}
@@ -748,7 +775,11 @@ function ScheduleDialog({
               />
             </label>
             <label style={fieldLabel}>
-              Cadence (days)
+              Cadence (days){' '}
+              <InfoTip
+                text="How often (in days) this schedule comes due and emits a new count task. Shorter cadences mean more frequent counts. Must be at least 1."
+                example="30"
+              />
               <input
                 className="form-control"
                 type="number"
@@ -760,7 +791,11 @@ function ScheduleDialog({
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
             <label style={fieldLabel}>
-              Tolerance
+              Tolerance{' '}
+              <InfoTip
+                text="Allowed count-vs-system variance. Lines within tolerance auto-post a stock adjustment on reconcile; out-of-tolerance lines spawn a recount. Blank = exact match required."
+                example="2"
+              />
               <input
                 className="form-control"
                 type="number"
@@ -771,7 +806,11 @@ function ScheduleDialog({
               />
             </label>
             <label style={fieldLabel}>
-              Next due (optional)
+              Next due (optional){' '}
+              <InfoTip
+                text="When this schedule should first come due. Leave blank to start the cadence clock from now; set a date/time to delay the first sweep."
+                example="2026-06-15 08:00"
+              />
               <input
                 className="form-control"
                 type="datetime-local"

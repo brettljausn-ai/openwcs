@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import ReactFlow, {
   addEdge,
   Background,
@@ -11,6 +11,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import Select from '../ui/Select'
+import InfoTip from '../ui/InfoTip'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import { discoverTopology, loadTopology, saveTopology, type ControllerDto, type EdgeDto, type LoopDto, type NodeDto, type Topology } from './api'
 
@@ -214,19 +215,19 @@ export default function TopologyEditor() {
         {selNode && (
           <section>
             <h3>Node {selNode.id}</h3>
-            <Field label="Name" value={selNode.data.name ?? ''} onChange={(v) => patchNode({ name: v })} />
-            <Field label="Controller (PLC) code" value={selNode.data.controllerCode ?? ''} onChange={(v) => patchNode({ controllerCode: v || undefined })} />
-            <Field label="Node-local address" value={selNode.data.nodeAddress ?? ''} onChange={(v) => patchNode({ nodeAddress: v || undefined })} />
-            <Field label="Hardware address (legacy)" value={selNode.data.hardwareAddress ?? ''} onChange={(v) => patchNode({ hardwareAddress: v })} />
-            <Field label="Loop code" value={selNode.data.loopCode ?? ''} onChange={(v) => patchNode({ loopCode: v || undefined })} />
+            <Field label={<>Name <InfoTip text="Human-readable label for this node, shown on the canvas next to its code. Optional and free-text." example="Infeed scanner 1" /></>} value={selNode.data.name ?? ''} onChange={(v) => patchNode({ name: v })} />
+            <Field label={<>Controller (PLC) code <InfoTip text="Code of the controller (PLC) that drives this node. Links the node to one of the controllers defined below." example="PLC-01" /></>} value={selNode.data.controllerCode ?? ''} onChange={(v) => patchNode({ controllerCode: v || undefined })} />
+            <Field label={<>Node-local address <InfoTip text="The node's address within its controller — how the PLC identifies this point internally (e.g. a scanner or divert index)." example="3" /></>} value={selNode.data.nodeAddress ?? ''} onChange={(v) => patchNode({ nodeAddress: v || undefined })} />
+            <Field label={<>Hardware address (legacy) <InfoTip text="Older single-field hardware identifier, kept for backward compatibility. Prefer controller code + node-local address for new nodes." example="192.168.10.21:5001" /></>} value={selNode.data.hardwareAddress ?? ''} onChange={(v) => patchNode({ hardwareAddress: v })} />
+            <Field label={<>Loop code <InfoTip text="Code of the recirculation loop this node belongs to, if any. Leave blank for nodes not on a loop." example="LOOP-A" /></>} value={selNode.data.loopCode ?? ''} onChange={(v) => patchNode({ loopCode: v || undefined })} />
           </section>
         )}
         {selEdge && (
           <section>
             <h3>Edge</h3>
             <div style={{ color: 'var(--text-dim,#666)' }}>{selEdge.source} → {selEdge.target}</div>
-            <Field label="Exit code" value={selEdge.data?.exitCode ?? ''} onChange={(v) => patchEdge({ exitCode: v })} />
-            <Field label="Cost" value={String(selEdge.data?.cost ?? 1)} onChange={(v) => patchEdge({ cost: Number(v) || 1 })} />
+            <Field label={<>Exit code <InfoTip text="The decision/exit code the controller emits to route a load along this segment — chooses which outgoing path a HU takes at the source node." example="straight" /></>} value={selEdge.data?.exitCode ?? ''} onChange={(v) => patchEdge({ exitCode: v })} />
+            <Field label={<>Cost <InfoTip text="Routing weight for this segment; lower-cost paths are preferred when the WCS computes a route. Use higher values to discourage a path." example="1" /></>} value={String(selEdge.data?.cost ?? 1)} onChange={(v) => patchEdge({ cost: Number(v) || 1 })} />
           </section>
         )}
         <section>
@@ -254,10 +255,10 @@ function ControllersEditor(props: { controllers: ControllerDto[]; setControllers
       </p>
       {controllers.map((c, i) => (
         <div key={i} style={{ border: '1px solid #eee', padding: '0.4rem', marginBottom: '0.4rem', fontSize: 13 }}>
-          <Field label="Code" value={c.code} onChange={(v) => update(i, { code: v })} />
-          <Field label="Name" value={c.name ?? ''} onChange={(v) => update(i, { name: v || null })} />
-          <Field label="IP address" value={c.ipAddress} onChange={(v) => update(i, { ipAddress: v })} />
-          <Field label="Port" value={String(c.port ?? '')} onChange={(v) => update(i, { port: v ? Number(v) : null })} />
+          <Field label={<>Code <InfoTip text="Unique identifier for this controller (PLC). Nodes reference it via their Controller (PLC) code field." example="PLC-01" /></>} value={c.code} onChange={(v) => update(i, { code: v })} />
+          <Field label={<>Name <InfoTip text="Optional human-readable name for the controller, for display only." example="Sorter PLC east" /></>} value={c.name ?? ''} onChange={(v) => update(i, { name: v || null })} />
+          <Field label={<>IP address <InfoTip text="Network address the WCS uses to reach this controller's listener." example="192.168.10.21" /></>} value={c.ipAddress} onChange={(v) => update(i, { ipAddress: v })} />
+          <Field label={<>Port <InfoTip text="TCP port on the controller for the WCS connection. Leave blank to use the listener's default." example="5001" /></>} value={String(c.port ?? '')} onChange={(v) => update(i, { port: v ? Number(v) : null })} />
           <button onClick={() => setControllers(controllers.filter((_, idx) => idx !== i))}>Remove</button>
         </div>
       ))}
@@ -268,7 +269,7 @@ function ControllersEditor(props: { controllers: ControllerDto[]; setControllers
   )
 }
 
-function Field(props: { label: string; value: string; onChange: (v: string) => void }) {
+function Field(props: { label: ReactNode; value: string; onChange: (v: string) => void }) {
   return (
     <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: 13 }}>
       <div style={{ color: 'var(--text-dim,#666)' }}>{props.label}</div>
@@ -285,10 +286,10 @@ function LoopsEditor(props: { loops: LoopDto[]; setLoops: (l: LoopDto[]) => void
     <div>
       {loops.map((l, i) => (
         <div key={i} style={{ border: '1px solid #eee', padding: '0.4rem', marginBottom: '0.4rem', fontSize: 13 }}>
-          <Field label="Code" value={l.code} onChange={(v) => update(i, { code: v })} />
-          <Field label="Max HUs" value={String(l.maxHus)} onChange={(v) => update(i, { maxHus: Number(v) || 0 })} />
+          <Field label={<>Code <InfoTip text="Unique identifier for this recirculation loop. Nodes join it via their Loop code field." example="LOOP-A" /></>} value={l.code} onChange={(v) => update(i, { code: v })} />
+          <Field label={<>Max HUs <InfoTip text="Maximum number of handling units (loads/totes) allowed circulating on this loop before it counts as full." example="10" /></>} value={String(l.maxHus)} onChange={(v) => update(i, { maxHus: Number(v) || 0 })} />
           <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-            <div style={{ color: 'var(--text-dim,#666)' }}>When full</div>
+            <div style={{ color: 'var(--text-dim,#666)' }}>When full <InfoTip text="What happens when the loop reaches Max HUs: HOLD stops feeding new loads upstream; OVERFLOW diverts them to the overflow target node." example="OVERFLOW" /></div>
             <Select
               ariaLabel="When full"
               value={l.whenFull}
@@ -300,7 +301,7 @@ function LoopsEditor(props: { loops: LoopDto[]; setLoops: (l: LoopDto[]) => void
             />
           </label>
           {l.whenFull === 'OVERFLOW' && (
-            <Field label="Overflow target node" value={l.overflowTarget ?? ''} onChange={(v) => update(i, { overflowTarget: v || null })} />
+            <Field label={<>Overflow target node <InfoTip text="Node code that loads are diverted to when the loop is full and When-full is OVERFLOW." example="N-BUFFER" /></>} value={l.overflowTarget ?? ''} onChange={(v) => update(i, { overflowTarget: v || null })} />
           )}
           <button onClick={() => setLoops(loops.filter((_, idx) => idx !== i))}>Remove</button>
         </div>

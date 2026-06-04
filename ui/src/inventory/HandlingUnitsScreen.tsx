@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
+import InfoTip from '../ui/InfoTip'
 import { HandlingUnitType, Location, listHandlingUnitTypes, listLocations } from '../masterdata/api'
 import {
   HandlingUnit,
@@ -204,7 +205,11 @@ function HandlingUnitDialog({
         <div className="hu-form">
           <div className="hu-field">
             <label>
-              Code<span style={{ color: '#ff8a80' }}> *</span>
+              Code<span style={{ color: '#ff8a80' }}> *</span>{' '}
+              <InfoTip
+                text="Unique barcode / identifier for this handling unit. Scanned to track the physical container as it moves through the warehouse."
+                example="HU-PLT-000123"
+              />
             </label>
             <input
               className="form-control"
@@ -214,7 +219,13 @@ function HandlingUnitDialog({
             />
           </div>
           <div className="hu-field">
-            <label>Type</label>
+            <label>
+              Type{' '}
+              <InfoTip
+                text="The kind of physical container this HU is, drawn from the handling-unit type master data. Determines size/capacity defaults."
+                example="Euro Pallet"
+              />
+            </label>
             <Select
               ariaLabel="Handling unit type"
               value={d.huTypeId ?? ''}
@@ -230,7 +241,13 @@ function HandlingUnitDialog({
             />
           </div>
           <div className="hu-field">
-            <label>Location</label>
+            <label>
+              Location{' '}
+              <InfoTip
+                text="Where this handling unit currently sits in the warehouse, chosen from the location master data. Leave blank if not yet placed."
+                example="A-01-02-03"
+              />
+            </label>
             <Select
               ariaLabel="Location"
               value={d.locationId ?? ''}
@@ -242,7 +259,13 @@ function HandlingUnitDialog({
             />
           </div>
           <div className="hu-field">
-            <label>Status</label>
+            <label>
+              Status{' '}
+              <InfoTip
+                text="Lifecycle state of the HU: ACTIVE (in use, holding stock), EMPTY (available container), IN_TRANSIT (being moved), RETIRED (out of service)."
+                example="ACTIVE"
+              />
+            </label>
             <Select
               ariaLabel="Status"
               value={d.status}

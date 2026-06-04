@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
+import InfoTip from '../ui/InfoTip'
 import { DeviceTask, listDeviceTasks } from './api'
 
 // Transport overview (build.md §8): a live view of the device tasks the flow-orchestrator
@@ -172,7 +173,7 @@ export default function TransportScreen() {
           )}
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', fontSize: '.85rem' }}>
             <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-            Auto-refresh
+            Auto-refresh <InfoTip text={`When on, the task list automatically reloads from the flow orchestrator every ${REFRESH_MS / 1000} seconds; turn off to freeze the view.`} example="on" />
           </label>
           <button className="btn btn-outline btn-sm" onClick={refresh} disabled={loading}>
             {loading ? 'Refreshing…' : 'Refresh'}
@@ -194,7 +195,7 @@ export default function TransportScreen() {
 
       {/* Filters */}
       <div className="glass" style={{ padding: '1rem 1.25rem', marginBottom: '1.25rem', display: 'flex', flexWrap: 'wrap', gap: '.75rem', alignItems: 'flex-end' }}>
-        <Field label="Status">
+        <Field label={<>Status <InfoTip text="Filter device tasks by lifecycle state: REQUESTED → DISPATCHED → COMPLETED or FAILED. Leave on 'All statuses' to see every task." example="DISPATCHED" /></>}>
           <Select
             ariaLabel="Status"
             value={status}
@@ -202,7 +203,7 @@ export default function TransportScreen() {
             options={[{ value: '', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s }))]}
           />
         </Field>
-        <Field label="Equipment family">
+        <Field label={<>Equipment family <InfoTip text="Filter by the type of transport equipment handling the task. Each family maps to its own adapter." example="ASRS" /></>}>
           <Select
             ariaLabel="Equipment family"
             value={family}
@@ -210,7 +211,7 @@ export default function TransportScreen() {
             options={[{ value: '', label: 'All families' }, ...FAMILIES.map((f) => ({ value: f, label: f }))]}
           />
         </Field>
-        <Field label="Equipment">
+        <Field label={<>Equipment <InfoTip text="Filter to a single piece of equipment in the active warehouse, picked by its code/name. Choose 'Any equipment' for all." example="CONV-01 — Inbound conveyor" /></>}>
           <Select
             ariaLabel="Equipment"
             value={equipmentId}
@@ -330,7 +331,7 @@ export default function TransportScreen() {
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
       <span className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.65rem', letterSpacing: '.12em', textTransform: 'uppercase' }}>{label}</span>

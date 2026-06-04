@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import Select from '../ui/Select'
+import InfoTip from '../ui/InfoTip'
 import {
   PickSlot,
   StorageBlock,
@@ -81,8 +82,8 @@ function PickFaces({ warehouseId, slots, onChange }: { warehouseId: string; slot
       <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: 8 }}>
         <thead>
           <tr style={{ textAlign: 'left', fontSize: 12, color: '#888' }}>
-            <th style={cell}>Location</th><th style={cell}>SKU</th><th style={cell}>UoM</th>
-            <th style={cell}>Min</th><th style={cell}>Max</th><th style={cell}>Direct</th><th style={cell}></th>
+            <th style={cell}>Location <InfoTip text="The fixed pick location (rack/bin face) this SKU is slotted to. Pickers always go here for this item." example="A-01-03-2" /></th><th style={cell}>SKU <InfoTip text="The stock item assigned to this pick face." example="SKU-100423" /></th><th style={cell}>UoM <InfoTip text="Unit of measure picked from this face — the pick quantity is counted in these units." example="EA" /></th>
+            <th style={cell}>Min <InfoTip text="Replenishment trigger: when on-hand at the face drops to or below this, a top-up task is raised." example="12" /></th><th style={cell}>Max <InfoTip text="Target fill level. Replenishment tops the face back up to this quantity." example="48" /></th><th style={cell}>Direct <InfoTip text="When on, inbound stock for this SKU can be put away straight to the pick face instead of to reserve storage." example="on" /></th><th style={cell}></th>
           </tr>
         </thead>
         <tbody>
@@ -101,7 +102,7 @@ function PickFaces({ warehouseId, slots, onChange }: { warehouseId: string; slot
         <input style={input} placeholder="uom" value={form.uomId} onChange={(e) => setForm({ ...form, uomId: e.target.value })} />
         <input style={{ ...input, width: 60 }} type="number" placeholder="min" value={form.minQty} onChange={(e) => setForm({ ...form, minQty: Number(e.target.value) })} />
         <input style={{ ...input, width: 60 }} type="number" placeholder="max" value={form.maxQty} onChange={(e) => setForm({ ...form, maxQty: Number(e.target.value) })} />
-        <label style={{ fontSize: 13 }}><input type="checkbox" checked={form.directToPick} onChange={(e) => setForm({ ...form, directToPick: e.target.checked })} /> direct-to-pick</label>
+        <label style={{ fontSize: 13 }}><input type="checkbox" checked={form.directToPick} onChange={(e) => setForm({ ...form, directToPick: e.target.checked })} /> direct-to-pick <InfoTip text="When on, inbound stock for this SKU can be put away straight to the pick face instead of to reserve storage." example="on" /></label>
         <button onClick={add} disabled={!warehouseId || !form.locationId || !form.skuId || !form.uomId}>Add pick face</button>
       </div>
     </section>
@@ -134,8 +135,8 @@ function BlockSlotting({
       <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: 8 }}>
         <thead>
           <tr style={{ textAlign: 'left', fontSize: 12, color: '#888' }}>
-            <th style={cell}>SKU</th><th style={cell}>Block</th><th style={cell}>Velocity</th>
-            <th style={cell}>Consolidate</th><th style={cell}>Min aisles</th><th style={cell}>Max aisle %</th><th style={cell}></th>
+            <th style={cell}>SKU <InfoTip text="The stock item being assigned to an automated storage block (ASRS / AutoStore / AMR-GTP pool)." example="SKU-100423" /></th><th style={cell}>Block <InfoTip text="The storage block (whole pool, all aisles) this SKU may be stored in. The put-away engine picks the exact location per HU." example="ASRS-1 (asrs)" /></th><th style={cell}>Velocity <InfoTip text="Movement class driving how close to the exit/pick the SKU is stored. A = fast mover, C = slow mover." example="A" /></th>
+            <th style={cell}>Consolidate <InfoTip text="When on, the engine prefers placing the same SKU together (fewer, denser locations) rather than spreading it out." example="on" /></th><th style={cell}>Min aisles <InfoTip text="Minimum number of distinct aisles this SKU must be spread across, for redundancy if an aisle goes offline." example="2" /></th><th style={cell}>Max aisle % <InfoTip text="Cap on the fraction of one aisle a single SKU may occupy, to keep aisles balanced (0–1)." example="0.5" /></th><th style={cell}></th>
           </tr>
         </thead>
         <tbody>
@@ -168,7 +169,7 @@ function BlockSlotting({
           onChange={(v) => setForm({ ...form, velocityClass: v })}
           options={['A', 'B', 'C'].map((c) => ({ value: c, label: c }))}
         />
-        <label style={{ fontSize: 13 }}><input type="checkbox" checked={form.consolidate} onChange={(e) => setForm({ ...form, consolidate: e.target.checked })} /> consolidate</label>
+        <label style={{ fontSize: 13 }}><input type="checkbox" checked={form.consolidate} onChange={(e) => setForm({ ...form, consolidate: e.target.checked })} /> consolidate <InfoTip text="When on, the engine prefers placing the same SKU together (fewer, denser locations) rather than spreading it out." example="on" /></label>
         <input style={{ ...input, width: 70 }} type="number" placeholder="min aisles" value={form.minAisles} onChange={(e) => setForm({ ...form, minAisles: Number(e.target.value) })} />
         <input style={{ ...input, width: 80 }} type="number" step="0.1" placeholder="max aisle %" value={form.maxAislePct} onChange={(e) => setForm({ ...form, maxAislePct: Number(e.target.value) })} />
         <button onClick={add} disabled={!warehouseId || !form.skuId || !form.blockId}>Add block slotting</button>

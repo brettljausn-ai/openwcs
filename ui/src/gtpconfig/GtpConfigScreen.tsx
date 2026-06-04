@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import Select from '../ui/Select'
+import InfoTip from '../ui/InfoTip'
 import { listWarehouses, Warehouse } from '../masterdata/api'
 import {
   CreateStationBody,
@@ -60,7 +61,13 @@ export default function GtpConfigScreen() {
       </div>
 
       <div className="toolbar">
-        <label style={{ margin: 0 }}>Warehouse</label>
+        <label style={{ margin: 0 }}>
+          Warehouse{' '}
+          <InfoTip
+            text="The warehouse whose GTP workplaces you are configuring. All workplaces and nodes below are scoped to this site."
+            example="WH-01 — Central DC"
+          />
+        </label>
         <Select
           ariaLabel="Warehouse"
           style={{ maxWidth: 320 }}
@@ -127,7 +134,7 @@ function Dialog({ title, children, onClose }: { title: string; children: React.R
   )
 }
 
-function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
+function Field({ label, children, required }: { label: React.ReactNode; children: React.ReactNode; required?: boolean }) {
   return (
     <div className="gtp-field">
       <label>
@@ -445,10 +452,31 @@ function StationDialog({
       }}
     >
       <div className="gtp-grid-2">
-        <Field label="Code" required>
+        <Field
+          label={
+            <>
+              Code{' '}
+              <InfoTip
+                text="Short unique identifier for this workplace within the warehouse. Used in operator screens and on the device."
+                example="GTP-03"
+              />
+            </>
+          }
+          required
+        >
           <input className="form-control" value={code} onChange={(e) => setCode(e.target.value)} />
         </Field>
-        <Field label="Name">
+        <Field
+          label={
+            <>
+              Name{' '}
+              <InfoTip
+                text="Optional human-friendly description of the workplace, shown alongside the code to help operators recognise it."
+                example="Aisle 3 Put-wall"
+              />
+            </>
+          }
+        >
           <input
             className="form-control"
             value={name}
@@ -458,7 +486,18 @@ function StationDialog({
         </Field>
       </div>
       <div className="gtp-grid-2">
-        <Field label="Destination topology" required>
+        <Field
+          label={
+            <>
+              Destination topology{' '}
+              <InfoTip
+                text="How order destinations are arranged: ORDER_LOCATION = one fixed/conveyor target per order; PUT_WALL = many cubbies the operator distributes into."
+                example="PUT_WALL"
+              />
+            </>
+          }
+          required
+        >
           <Select
             ariaLabel="Destination topology"
             value={mode}
@@ -467,7 +506,17 @@ function StationDialog({
           />
         </Field>
         {initial && (
-          <Field label="Status">
+          <Field
+            label={
+              <>
+                Status{' '}
+                <InfoTip
+                  text="Lifecycle state of the workplace. Only ACTIVE workplaces accept work; ARCHIVED hides it from operational use."
+                  example="ACTIVE"
+                />
+              </>
+            }
+          >
             <Select
               ariaLabel="Status"
               value={status}
@@ -477,7 +526,17 @@ function StationDialog({
           </Field>
         )}
       </div>
-      <Field label="Supported operating modes">
+      <Field
+        label={
+          <>
+            Supported operating modes{' '}
+            <InfoTip
+              text="Which task types the operator may perform here when an HU is presented. PICKING is always enabled; tick others to allow them."
+              example="PICKING, PUTAWAY"
+            />
+          </>
+        }
+      >
         <ModeCheckboxes value={modes} onChange={setModes} />
       </Field>
     </EditDialog>
@@ -634,7 +693,18 @@ function NodeDialog({
       }}
     >
       <div className="gtp-grid-2">
-        <Field label="Role" required>
+        <Field
+          label={
+            <>
+              Role{' '}
+              <InfoTip
+                text="STOCK node presents a source stock HU to the operator; ORDER node is an order destination (fixed location or put-wall cubby)."
+                example="ORDER"
+              />
+            </>
+          }
+          required
+        >
           <Select
             ariaLabel="Role"
             value={role}
@@ -642,13 +712,34 @@ function NodeDialog({
             options={NODE_ROLES.map((r) => ({ value: r, label: r }))}
           />
         </Field>
-        <Field label="Code" required>
+        <Field
+          label={
+            <>
+              Code{' '}
+              <InfoTip
+                text="Short unique identifier for this node within the workplace. Shown to the operator and used to address the position."
+                example="ORD-A"
+              />
+            </>
+          }
+          required
+        >
           <input className="form-control" value={code} onChange={(e) => setCode(e.target.value)} />
         </Field>
       </div>
       {isOrder && (
         <div className="gtp-grid-2">
-          <Field label="Put-light id">
+          <Field
+            label={
+              <>
+                Put-light id{' '}
+                <InfoTip
+                  text="Identifier of the physical pick/put-to-light or display device at this destination, used to guide the operator. Leave blank if none."
+                  example="PTL-0307"
+                />
+              </>
+            }
+          >
             <input
               className="form-control"
               value={putLightId}
@@ -656,7 +747,17 @@ function NodeDialog({
               onChange={(e) => setPutLightId(e.target.value)}
             />
           </Field>
-          <Field label="Order HU id">
+          <Field
+            label={
+              <>
+                Order HU id{' '}
+                <InfoTip
+                  text="UUID of the order handling unit (carton/tote) currently bound to this destination. Usually set by the system; leave blank if none."
+                  example="3f1c2a90-7e1b-4d6a-9c2f-2b8f0a1d4e57"
+                />
+              </>
+            }
+          >
             <input
               className="form-control gtp-mono"
               value={orderHuId}
@@ -667,7 +768,17 @@ function NodeDialog({
         </div>
       )}
       <div className="gtp-grid-2">
-        <Field label="Location id (master-data)">
+        <Field
+          label={
+            <>
+              Location id (master-data){' '}
+              <InfoTip
+                text="UUID of the master-data location this node maps to, when it is a fixed/conveyor position. Leave blank for dynamic put-wall cubbies."
+                example="9a4b1d22-0c3e-4f88-b1aa-77e2c5d9f013"
+              />
+            </>
+          }
+        >
           <input
             className="form-control gtp-mono"
             value={locationId}
@@ -675,7 +786,17 @@ function NodeDialog({
             onChange={(e) => setLocationId(e.target.value)}
           />
         </Field>
-        <Field label="Position">
+        <Field
+          label={
+            <>
+              Position{' '}
+              <InfoTip
+                text="Ordering index that determines where this node appears in the workplace layout and node list (lower numbers first)."
+                example="1"
+              />
+            </>
+          }
+        >
           <input
             className="form-control"
             type="number"
@@ -684,7 +805,17 @@ function NodeDialog({
           />
         </Field>
       </div>
-      <Field label="Status">
+      <Field
+        label={
+          <>
+            Status{' '}
+            <InfoTip
+              text="Whether this node is in operational use. INACTIVE nodes are kept on the workplace but skipped during work."
+              example="ACTIVE"
+            />
+          </>
+        }
+      >
         <Select
           ariaLabel="Status"
           value={status}
