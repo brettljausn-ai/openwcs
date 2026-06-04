@@ -5,7 +5,13 @@ import * as THREE from 'three'
 import Select from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
 import { useWarehouse } from '../warehouse/WarehouseContext'
-import { listEquipment, type Equipment } from '../masterdata/api'
+import {
+  listEquipment,
+  listStorageBlocks,
+  updateStorageBlock,
+  type Equipment,
+  type StorageBlock,
+} from '../masterdata/api'
 import {
   loadAutomationTopology,
   saveAutomationTopology,
@@ -16,6 +22,107 @@ import {
 } from './automationApi'
 
 const DEG = Math.PI / 180
+
+// The process types a function point can carry. Used as the default Select options when the
+// placed equipment's library entry doesn't declare its own `processTypes`.
+const FUNCTION_TYPES = [
+  'SCAN',
+  'LABEL_APPLICATOR',
+  'DIVERT_LEFT',
+  'DIVERT_RIGHT',
+  'DWS',
+  'QUERY_POINT',
+  'WRAPPER',
+  'INDUCT',
+  'DISCHARGE',
+] as const
+
+// Short marker labels per function type for the 3D <Html> tag. Falls back to the raw type.
+const FUNCTION_SHORT: Record<string, string> = {
+  SCAN: 'SCAN',
+  LABEL_APPLICATOR: 'LBL',
+  DIVERT_LEFT: '◀ DIV',
+  DIVERT_RIGHT: 'DIV ▶',
+  DWS: 'DWS',
+  QUERY_POINT: 'QRY',
+  WRAPPER: 'WRAP',
+  INDUCT: 'IN',
+  DISCHARGE: 'OUT',
+}
+
+// Distinct marker colour per function type, so points read at a glance in the scene.
+function functionColor(type: string): string {
+  switch (type) {
+    case 'SCAN':
+      return '#5ec8e0'
+    case 'LABEL_APPLICATOR':
+      return '#e0c45e'
+    case 'DIVERT_LEFT':
+    case 'DIVERT_RIGHT':
+      return '#e07a5e'
+    case 'DWS':
+      return '#b65ee0'
+    case 'QUERY_POINT':
+      return '#5ee08a'
+    case 'WRAPPER':
+      return '#e05e9c'
+    case 'INDUCT':
+      return '#8DC63F'
+    case 'DISCHARGE':
+      return '#f0a85a'
+    default:
+      return '#cfd8d2'
+  }
+}
+
+// True when a placed item's library entry marks it as an ASRS-style storage system that a
+// storage block can be bound to (so we offer the storage-area linking panel).
+function isAsrs(eq: AutomationEquipment, lib: Map<string, Equipment>): boolean {
+  const meta = eq.equipmentId ? lib.get(eq.equipmentId) : undefined
+  const family = (meta?.family ?? '').toUpperCase()
+  const type = (meta?.type ?? '').toUpperCase()
+  return family === 'ASRS' || family === 'AUTOSTORE' || family === 'AMR' || type === 'ASRS'
+}
+
+// Position of a point at `offsetM` along an equipment, returned in level-local world XZ plus the
+// unit direction (dx,dz) of travel at that offset (used to push the marker to a side). For a
+// polyline conveyor this walks the path by arc-length; for a box it projects along the box length
+// from its start endpoint (posX/posZ − length/2 rotated by yaw).
+function pointAlong(
+  eq: AutomationEquipment,
+  offsetM: number,
+): { x: number; z: number; dx: number; dz: number } {
+  if (Array.isArray(eq.path) && eq.path.length >= 2) {
+    const path = eq.path
+    const pairCount = eq.closed ? path.length : path.length - 1
+    let remaining = Math.max(0, offsetM)
+    let last = { x: path[0][0], z: path[0][1], dx: 1, dz: 0 }
+    for (let i = 0; i < pairCount; i++) {
+      const a = path[i]
+      const b = path[(i + 1) % path.length]
+      const dx = b[0] - a[0]
+      const dz = b[1] - a[1]
+      const segLen = Math.hypot(dx, dz)
+      if (segLen < 1e-6) continue
+      const ux = dx / segLen
+      const uz = dz / segLen
+      if (remaining <= segLen) {
+        return { x: a[0] + ux * remaining, z: a[1] + uz * remaining, dx: ux, dz: uz }
+      }
+      remaining -= segLen
+      last = { x: b[0], z: b[1], dx: ux, dz: uz }
+    }
+    return last
+  }
+  // Straight box: start endpoint is posX/posZ − (length/2) along yaw; walk forward by offset.
+  const yaw = eq.rotationDeg * DEG
+  const ux = Math.cos(yaw)
+  const uz = Math.sin(yaw)
+  const startX = eq.posXM - (ux * eq.lengthM) / 2
+  const startZ = eq.posZM - (uz * eq.lengthM) / 2
+  const t = Math.min(Math.max(offsetM, 0), eq.lengthM)
+  return { x: startX + ux * t, z: startZ + uz * t, dx: ux, dz: uz }
+}
 
 // Three muted, distinct colours keyed off the equipment family/type. Anything that isn't a
 // recognisable conveyor / storage(ASRS) / sorter falls back to a neutral slate.
@@ -235,6 +342,14 @@ export default function AutomationTopology3D() {
   )
 
   const selectedIsConveyor = selected ? isConveyor(selected, libById) : false
+  const selectedMeta = selected?.equipmentId ? libById.get(selected.equipmentId) : undefined
+  const selectedIsAsrs = selected ? isAsrs(selected, libById) : false
+
+  // Function points belonging to the currently-selected placed equipment.
+  const selectedFunctionPoints = useMemo(
+    () => (selected ? functionPoints.filter((f) => f.placedId === selected.id) : []),
+    [functionPoints, selected],
+  )
 
   // Draw mode only makes sense for a selected conveyor — drop it otherwise.
   useEffect(() => {
@@ -243,6 +358,17 @@ export default function AutomationTopology3D() {
 
   const patchEquipment = useCallback((id: string, patch: Partial<AutomationEquipment>) => {
     setEquipment((es) => es.map((e) => (e.id === id ? { ...e, ...patch } : e)))
+    setDirty(true)
+  }, [])
+
+  // ---- function-point helpers --------------------------------------------
+  const addFunctionPoint = useCallback((fp: AutomationFunctionPoint) => {
+    setFunctionPoints((fps) => [...fps, fp])
+    setDirty(true)
+  }, [])
+
+  const deleteFunctionPoint = useCallback((id: string) => {
+    setFunctionPoints((fps) => fps.filter((f) => f.id !== id))
     setDirty(true)
   }, [])
 
@@ -307,6 +433,8 @@ export default function AutomationTopology3D() {
     setConnections((cs) =>
       cs.filter((c) => c.fromPlacedId !== selectedId && c.toPlacedId !== selectedId),
     )
+    // Drop function points that lived on the removed item.
+    setFunctionPoints((fps) => fps.filter((f) => f.placedId !== selectedId))
     if (connectFrom === selectedId) setConnectFrom(null)
     setSelectedId(null)
     setDirty(true)
@@ -548,6 +676,7 @@ export default function AutomationTopology3D() {
                 allItems={equipment}
                 levels={levels}
                 connections={connections}
+                functionPoints={functionPoints}
                 selectedConnId={selectedConnId}
                 connectMode={connectMode}
                 connectFrom={connectFrom}
@@ -637,6 +766,21 @@ export default function AutomationTopology3D() {
                   drawPath={drawPath}
                   onToggleDraw={() => setDrawPath((d) => !d)}
                   onPatch={(patch) => patchEquipment(selected.id, patch)}
+                />
+              )}
+
+              <FunctionPointsPanel
+                placedId={selected.id}
+                points={selectedFunctionPoints}
+                processTypes={selectedMeta?.processTypes ?? null}
+                onAdd={addFunctionPoint}
+                onDelete={deleteFunctionPoint}
+              />
+
+              {selectedIsAsrs && warehouseId && (
+                <StorageAreasPanel
+                  warehouseId={warehouseId}
+                  equipmentId={selected.equipmentId ?? null}
                 />
               )}
 
@@ -846,6 +990,256 @@ function ConnectionsPanel({
   )
 }
 
+// Function points (process points) on the selected placed equipment: list + add form.
+function FunctionPointsPanel({
+  placedId,
+  points,
+  processTypes,
+  onAdd,
+  onDelete,
+}: {
+  placedId: string
+  points: AutomationFunctionPoint[]
+  // The library equipment's declared process types (preferred Select options), or null.
+  processTypes: string[] | null
+  onAdd: (fp: AutomationFunctionPoint) => void
+  onDelete: (id: string) => void
+}) {
+  const typeOptions = processTypes && processTypes.length > 0 ? processTypes : [...FUNCTION_TYPES]
+  const [functionType, setFunctionType] = useState<string>(typeOptions[0] ?? FUNCTION_TYPES[0])
+  const [name, setName] = useState('')
+  const [offsetM, setOffsetM] = useState('0')
+  const [side, setSide] = useState('')
+  const [nodeCode, setNodeCode] = useState('')
+
+  // Keep the selected functionType valid if the options change (e.g. selecting a different item).
+  useEffect(() => {
+    if (!typeOptions.includes(functionType)) setFunctionType(typeOptions[0] ?? FUNCTION_TYPES[0])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placedId])
+
+  const add = () => {
+    onAdd({
+      id: crypto.randomUUID(),
+      placedId,
+      functionType,
+      name: name.trim() || null,
+      offsetM: num(offsetM),
+      side: side || null,
+      nodeCode: nodeCode.trim() || null,
+      status: 'ACTIVE',
+    })
+    setName('')
+    setOffsetM('0')
+    setSide('')
+    setNodeCode('')
+  }
+
+  return (
+    <div className="atopo-fps">
+      <div className="atopo-fps-head">
+        Function points{' '}
+        <InfoTip
+          text="Process points on this equipment — scanners, label applicators, diverts, DWS, query points, wrappers, induct/discharge. Each sits at an offset along the equipment."
+          example="a scanner 1.5 m in on the left"
+        />
+      </div>
+
+      {points.length === 0 ? (
+        <p className="atopo-muted atopo-fps-empty">None yet.</p>
+      ) : (
+        <ul className="atopo-fps-list">
+          {points.map((fp) => (
+            <li key={fp.id} className="atopo-fps-row">
+              <span className="atopo-fps-label">
+                <span className="atopo-fps-type" style={{ color: functionColor(fp.functionType) }}>
+                  {fp.functionType}
+                </span>
+                {fp.name ? <span> · {fp.name}</span> : null}
+                <span className="atopo-muted">
+                  {' '}
+                  @ {fp.offsetM} m{fp.side ? ` · ${fp.side}` : ''}
+                </span>
+              </span>
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                onClick={() => onDelete(fp.id)}
+              >
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="atopo-fps-form">
+        <label className="atopo-field">
+          <span>Function type</span>
+          <Select
+            ariaLabel="Function type"
+            value={functionType}
+            onChange={setFunctionType}
+            options={typeOptions.map((t) => ({ value: t, label: t }))}
+          />
+        </label>
+        <label className="atopo-field">
+          <span>Name</span>
+          <input
+            className="form-control"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="optional"
+          />
+        </label>
+        <div className="atopo-grid2">
+          <label className="atopo-field">
+            <span>Offset (m)</span>
+            <input
+              className="form-control"
+              type="number"
+              step={0.1}
+              value={offsetM}
+              onChange={(e) => setOffsetM(e.target.value)}
+            />
+          </label>
+          <label className="atopo-field">
+            <span>Side</span>
+            <Select
+              ariaLabel="Side"
+              value={side}
+              onChange={setSide}
+              options={[
+                { value: '', label: '—' },
+                { value: 'LEFT', label: 'LEFT' },
+                { value: 'RIGHT', label: 'RIGHT' },
+              ]}
+            />
+          </label>
+        </div>
+        <label className="atopo-field">
+          <span>
+            Node code{' '}
+            <InfoTip
+              text="Optional — maps this point to a conveyor routing node so material-flow routes can reference it."
+              example="DIV-12"
+            />
+          </span>
+          <input
+            className="form-control"
+            value={nodeCode}
+            onChange={(e) => setNodeCode(e.target.value)}
+            placeholder="optional"
+          />
+        </label>
+        <button type="button" className="btn btn-outline btn-sm" onClick={add}>
+          + Add function point
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ASRS → storage-area linking. Lists the warehouse's storage blocks with a checkbox that binds
+// each block's master-data `equipmentId` to this placed equipment's library equipment id. Persists
+// immediately to master-data (independent of the topology Save).
+function StorageAreasPanel({
+  warehouseId,
+  equipmentId,
+}: {
+  warehouseId: string
+  // The selected placed equipment's master-data (library) equipment id.
+  equipmentId: string | null
+}) {
+  const [blocks, setBlocks] = useState<StorageBlock[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const refresh = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      setBlocks(await listStorageBlocks(warehouseId))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(false)
+    }
+  }, [warehouseId])
+
+  useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  const toggle = async (block: StorageBlock, checked: boolean) => {
+    if (!block.id) return
+    setBusyId(block.id)
+    setError(null)
+    try {
+      await updateStorageBlock(block.id, {
+        ...block,
+        equipmentId: checked ? equipmentId : null,
+      })
+      await refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <div className="atopo-areas">
+      <div className="atopo-areas-head">
+        Storage areas{' '}
+        <InfoTip
+          text="Bind master-data storage blocks to this ASRS so stock in those blocks is handled by this system. Saves immediately — independent of the topology Save."
+          example="link the AutoStore grid's block"
+        />
+      </div>
+
+      {!equipmentId && (
+        <p className="atopo-muted atopo-areas-empty">
+          This placement isn't linked to a master-data equipment, so it can't own a storage area.
+        </p>
+      )}
+      {error && <div className="alert alert-danger atopo-areas-error">{error}</div>}
+      {loading ? (
+        <p className="atopo-muted atopo-areas-empty">Loading storage blocks…</p>
+      ) : blocks.length === 0 ? (
+        <p className="atopo-muted atopo-areas-empty">
+          No storage blocks — create some in Master data → Storage blocks.
+        </p>
+      ) : (
+        <ul className="atopo-areas-list">
+          {blocks.map((b) => {
+            const linkedHere = !!equipmentId && b.equipmentId === equipmentId
+            const linkedElsewhere = !!b.equipmentId && b.equipmentId !== equipmentId
+            return (
+              <li key={b.id} className="atopo-areas-row">
+                <label className={`md-check atopo-areas-check${linkedElsewhere ? ' is-disabled' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={linkedHere}
+                    disabled={!equipmentId || linkedElsewhere || busyId === b.id}
+                    onChange={(e) => toggle(b, e.target.checked)}
+                  />
+                  <span className="atopo-areas-code">{b.code}</span>
+                  <span className="atopo-muted"> · {b.storageType}</span>
+                </label>
+                {linkedElsewhere && (
+                  <span className="atopo-muted atopo-areas-note">linked to another equipment</span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 // =========================================================================
 // 3D scene
 // =========================================================================
@@ -856,6 +1250,8 @@ interface SceneContentProps {
   allItems: AutomationEquipment[]
   levels: AutomationLevel[]
   connections: AutomationConnection[]
+  // All function points; we render the ones whose placedId is on the active level.
+  functionPoints: AutomationFunctionPoint[]
   selectedConnId: string | null
   connectMode: boolean
   connectFrom: string | null
@@ -875,6 +1271,7 @@ function SceneContent({
   allItems,
   levels,
   connections,
+  functionPoints,
   selectedConnId,
   connectMode,
   connectFrom,
@@ -953,6 +1350,76 @@ function SceneContent({
           onHandleDragChange={onHandleDragChange}
         />
       ))}
+
+      {/* Function-point markers — one per point on an equipment visible on the active level.
+          Clicking a marker selects its equipment (or, in connect mode, picks it as an endpoint). */}
+      {functionPoints.map((fp) => {
+        const eq = byId.get(fp.placedId)
+        if (!eq) return null
+        // Only render markers for equipment shown on the active level.
+        if (!items.some((it) => it.id === eq.id)) return null
+        return (
+          <FunctionPointMarker
+            key={fp.id}
+            fp={fp}
+            eq={eq}
+            levels={levels}
+            onSelect={() => (connectMode ? onConnectPick(eq.id) : onSelect(eq.id))}
+          />
+        )
+      })}
+    </group>
+  )
+}
+
+// A small marker (cone) with a short type label, placed at the function point's offset along its
+// equipment, nudged to the requested side, and sitting at the top of the equipment. It rides along
+// with the equipment because its position is recomputed from the live equipment each render.
+function FunctionPointMarker({
+  fp,
+  eq,
+  levels,
+  onSelect,
+}: {
+  fp: AutomationFunctionPoint
+  eq: AutomationEquipment
+  levels: AutomationLevel[]
+  onSelect: () => void
+}) {
+  const elev = levels.find((l) => l.id === eq.levelId)?.elevationM ?? 0
+  const at = pointAlong(eq, fp.offsetM)
+  // Left/right is perpendicular to travel direction on the ground plane. With dir (dx,dz),
+  // the right-hand normal is (dz, -dx); left is the negation.
+  const half = eq.widthM / 2
+  let ox = 0
+  let oz = 0
+  if (fp.side === 'LEFT') {
+    ox = -at.dz * half
+    oz = at.dx * half
+  } else if (fp.side === 'RIGHT') {
+    ox = at.dz * half
+    oz = -at.dx * half
+  }
+  const top = elev + eq.heightM + eq.posYM
+  const color = functionColor(fp.functionType)
+  const short = FUNCTION_SHORT[fp.functionType] ?? fp.functionType
+  return (
+    <group position={[at.x + ox, top, at.z + oz]}>
+      <mesh
+        position={[0, 0.25, 0]}
+        onPointerDown={(e: ThreeEvent<PointerEvent>) => {
+          e.stopPropagation()
+          onSelect()
+        }}
+      >
+        <coneGeometry args={[0.16, 0.5, 16]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.45} />
+      </mesh>
+      <Html position={[0, 0.7, 0]} center distanceFactor={16} occlude={false}>
+        <div className="atopo-fpmarker" style={{ borderColor: color, color }}>
+          {short}
+        </div>
+      </Html>
     </group>
   )
 }
@@ -1382,6 +1849,50 @@ function Styles() {
         background: rgba(8, 30, 22, .85); color: var(--text); border: 1px solid var(--glass-border-bright);
         white-space: nowrap; pointer-events: none; transform: translateY(-2px);
       }
+      .atopo-fpmarker {
+        font-family: var(--font-mono); font-size: 9px; line-height: 1; letter-spacing: .04em;
+        padding: 1px 5px; border-radius: 999px; white-space: nowrap; pointer-events: none;
+        background: rgba(8, 30, 22, .85); border: 1px solid currentColor; transform: translateY(-2px);
+      }
+      .atopo-fps {
+        display: flex; flex-direction: column; gap: .5rem; margin-top: .4rem;
+        padding: .6rem .7rem; border-radius: 10px;
+        border: 1px solid var(--glass-border); background: rgba(94, 200, 224, .05);
+      }
+      .atopo-fps-head {
+        font-family: var(--font-mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .1em;
+        color: #5ec8e0;
+      }
+      .atopo-fps-empty { margin: 0; }
+      .atopo-fps-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+      .atopo-fps-row {
+        display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+        padding: .3rem .45rem; border-radius: 8px; border: 1px solid var(--glass-border);
+      }
+      .atopo-fps-label {
+        flex: 1; font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .atopo-fps-type { font-family: var(--font-mono); font-size: .72rem; font-weight: 600; }
+      .atopo-fps-form { display: flex; flex-direction: column; gap: .5rem; margin-top: .2rem; }
+      .atopo-areas {
+        display: flex; flex-direction: column; gap: .5rem; margin-top: .4rem;
+        padding: .6rem .7rem; border-radius: 10px;
+        border: 1px solid var(--glass-border); background: rgba(122, 108, 192, .06);
+      }
+      .atopo-areas-head {
+        font-family: var(--font-mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .1em;
+        color: #9d8fe0;
+      }
+      .atopo-areas-empty, .atopo-areas-error { margin: 0; }
+      .atopo-areas-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .25rem; }
+      .atopo-areas-row {
+        display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+        padding: .25rem .4rem; border-radius: 8px; border: 1px solid var(--glass-border);
+      }
+      .atopo-areas-check { margin: 0; font-size: .8rem; display: flex; align-items: center; gap: .4rem; }
+      .atopo-areas-check.is-disabled { opacity: .55; }
+      .atopo-areas-code { font-family: var(--font-mono); font-size: .78rem; }
+      .atopo-areas-note { font-size: .68rem; white-space: nowrap; }
       @media (max-width: 1100px) {
         .atopo-body { grid-template-columns: 1fr; }
         .atopo-panel { max-height: none; }
