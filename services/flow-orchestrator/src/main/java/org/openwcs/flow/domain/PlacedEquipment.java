@@ -77,9 +77,16 @@ public class PlacedEquipment extends Auditable {
     @Column(name = "path")
     private List<List<Double>> path;
 
-    /** Whether the path closes back to its first point (a loop). */
+    /** Whether the path closes back to its first point (a loop). Used when {@code sections} is empty. */
     @Column(name = "closed", nullable = false)
     private boolean closed = false;
+
+    /** Directed sections over the {@code path} points: [[fromIdx, toIdx], …]. Each is a one-way
+     *  conveyor run; a point that is the {@code from} of 2+ sections is a decision/divert point.
+     *  Null/empty → the path points form a single sequential line (legacy behaviour). */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "sections")
+    private List<List<Integer>> sections;
 
     public UUID getId() {
         return id;
@@ -207,5 +214,13 @@ public class PlacedEquipment extends Auditable {
 
     public void setClosed(boolean closed) {
         this.closed = closed;
+    }
+
+    public List<List<Integer>> getSections() {
+        return sections;
+    }
+
+    public void setSections(List<List<Integer>> sections) {
+        this.sections = sections;
     }
 }

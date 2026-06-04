@@ -28,8 +28,14 @@ export interface AutomationEquipment {
   heightM: number
   status: string
   // Conveyor centreline waypoints in world XZ metres on the level: [[x, z], ...]. When present
-  // (>= 2 points) the conveyor renders as a polyline of segments instead of a single straight box.
+  // (>= 2 points) the conveyor renders as a directed section graph (or, with no `sections`, as a
+  // sequential polyline of segments) instead of a single straight box.
   path?: number[][] | null
+  // Directed edges over `path`: each `[fromIdx, toIdx]` is a ONE-WAY conveyor run from
+  // path[fromIdx] → path[toIdx] (travel direction = from→to). A path point that is the `from` of
+  // 2+ sections is a decision/divert point (automatic). When absent/empty but `path` has >= 2
+  // points, the path renders as implicit sequential sections (i → i+1).
+  sections?: number[][] | null
   // When true the path loops back from the last waypoint to the first.
   closed?: boolean
 }
