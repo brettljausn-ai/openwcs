@@ -6,13 +6,18 @@ import {
   AdapterInfo,
   BlockPolicy,
   CountSchedule,
+  DemoResult,
+  DemoStatus,
   HealthStatus,
   StorageBlock,
   Warehouse,
   createSchedule,
   defaultBlockPolicy,
+  disableDemo,
+  enableDemo,
   generateDueTasks,
   getBlockPolicy,
+  getDemoStatus,
   getGatewayHealth,
   listAdapters,
   listSchedules,
@@ -21,13 +26,14 @@ import {
   saveBlockPolicy,
 } from './api'
 
-type Tab = 'slotting' | 'counting' | 'integration' | 'system'
+type Tab = 'slotting' | 'counting' | 'integration' | 'system' | 'demo'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'slotting', label: 'Slotting policy' },
   { key: 'counting', label: 'Counting' },
   { key: 'integration', label: 'Integrations' },
   { key: 'system', label: 'System status' },
+  { key: 'demo', label: 'Demo mode' },
 ]
 
 // Settings / Configuration (ADMIN). A UI-only console over existing service endpoints:
@@ -48,7 +54,7 @@ export default function SettingsScreen() {
       .catch((e) => setWhError(String(e)))
   }, [])
 
-  const needsWarehouse = tab === 'slotting' || tab === 'counting'
+  const needsWarehouse = tab === 'slotting' || tab === 'counting' || tab === 'demo'
 
   return (
     <div className="app-content">
@@ -98,6 +104,7 @@ export default function SettingsScreen() {
           {tab === 'counting' && <CountingSettings warehouseId={warehouseId} />}
           {tab === 'integration' && <Integrations />}
           {tab === 'system' && <SystemStatus />}
+          {tab === 'demo' && <DemoMode warehouseId={warehouseId} />}
         </div>
       </div>
     </div>
@@ -619,6 +626,77 @@ function SystemStatus() {
             </div>
           ))}
       </div>
+    </section>
+  )
+}
+
+// Demo mode (ADMIN). Seeds a sample catalog onto an empty, host-free system and removes it again
+// when switched off. The toggle is locked on unless the system is empty (no host data).
+function DemoMode({ warehouseId }: { warehouseId: string }) {
+  const [status, setStatus] = useState<DemoStatus | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<DemoResult | null>(null)
+
+  function refresh() {
+    getDemoStatus()
+      .then(setStatus)
+      .catch((e) => setError(String(e)))
+  }
+  useEffect(refresh, [])
+
+  async function toggle(next: boolean) {
+    setBusy(true)
+    setError(null)
+    setResult(null)
+    try {
+      const res = next ? await enableDemo(warehouseId) : await disableDemo()
+      setResult(res)
+      refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const enabled = status?.enabled ?? false
+  const blocked = !enabled && status != null && !status.canEnable // can't enable: not a fresh system
+
+  return (
+    <section className={`glass ${styles.section}`}>
+      <div className={styles.sectionHead}>
+        <div>
+          <h2>Demo mode</h2>
+          <p>
+            Seed a sample catalog to explore openWCS without a host. Available only on a fresh
+            system with no host data. Turning it off removes everything demo mode created.
+          </p>
+        </div>
+      </div>
+
+      {error && <div className="alert-danger" style={{ marginBottom: '1rem' }}>{error}</div>}
+
+      <div className={styles.toggleRow} style={{ marginBottom: '1rem' }}>
+        <Toggle checked={enabled} onChange={(v) => !busy && !(!enabled && blocked) && toggle(v)} />
+        <div>
+          <div>{busy ? 'Working…' : enabled ? 'Demo mode is ON' : 'Demo mode is OFF'}</div>
+          <span className={styles.fieldHint}>
+            {blocked
+              ? `Locked: the system already has ${status?.skuCount ?? 0} SKUs (host data present). Demo mode only seeds an empty system.`
+              : enabled
+                ? 'Switch off to delete the demo SKUs, units of measure, barcodes, shippers and storage HU type. Topology, GTP and other config are left untouched.'
+                : 'Switch on to create 100 demo SKUs (each with a base unit + a 5 or 10 pack and EAN-13 barcodes), outbound shippers (2 cartons + 1 bag), and a storage HU type for the selected warehouse.'}
+          </span>
+        </div>
+      </div>
+
+      {result && (
+        <div className={styles.fieldHint} style={{ marginTop: '.5rem' }}>
+          {enabled ? 'Seeded' : 'Removed'}: {result.skus} SKUs · {result.unitsOfMeasure} units of measure ·{' '}
+          {result.barcodes} barcodes · {result.shippers} shippers · {result.handlingUnitTypes} HU type.
+        </div>
+      )}
     </section>
   )
 }
