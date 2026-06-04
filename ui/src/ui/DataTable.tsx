@@ -27,6 +27,7 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void
   renderExpanded?: (row: T) => ReactNode
   toolbarExtra?: ReactNode
+  rowClassName?: (row: T) => string | undefined
 }
 
 export default function DataTable<T>({
@@ -41,6 +42,7 @@ export default function DataTable<T>({
   onRowClick,
   renderExpanded,
   toolbarExtra,
+  rowClassName,
 }: DataTableProps<T>) {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(initialSort ?? null)
@@ -152,7 +154,7 @@ export default function DataTable<T>({
                 return (
                   <Fragment key={key}>
                     <tr
-                      className={clickable ? 'is-clickable' : undefined}
+                      className={[clickable ? 'is-clickable' : '', rowClassName?.(r) ?? ''].filter(Boolean).join(' ') || undefined}
                       onClick={renderExpanded ? () => toggleExpand(key) : onRowClick ? () => onRowClick(r) : undefined}
                     >
                       {renderExpanded && (

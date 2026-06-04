@@ -11,7 +11,9 @@ import org.openwcs.masterdata.domain.HandlingUnitType;
 import org.openwcs.masterdata.repo.AttributeSchemaRepository;
 import org.openwcs.masterdata.repo.BarcodeRepository;
 import org.openwcs.masterdata.repo.BarcodeTypeRepository;
+import org.openwcs.common.security.AccessControl;
 import org.openwcs.masterdata.repo.HandlingUnitTypeRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,9 +21,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Reference catalogs and barcode resolution (build.md §6): attribute schemas,
@@ -99,6 +103,35 @@ public class ReferenceDataController {
         handlingUnitTypes.findById(id).orElseThrow(() -> new NotFoundException("HandlingUnitType", id));
         body.setId(id);
         return handlingUnitTypes.save(body);
+    }
+
+    /** Archive a handling-unit type (ADMIN only). The caller must ensure no active HU still uses it. */
+    @PutMapping("/handling-unit-types/{id}/archive")
+    public HandlingUnitType archiveHandlingUnitType(
+            @PathVariable UUID id, @RequestHeader(name = "X-Auth-Roles", required = false) String roles) {
+        requireAdmin(roles);
+        return setHuTypeStatus(id, "ARCHIVED");
+    }
+
+    /** Restore an archived handling-unit type (ADMIN only). */
+    @PutMapping("/handling-unit-types/{id}/restore")
+    public HandlingUnitType restoreHandlingUnitType(
+            @PathVariable UUID id, @RequestHeader(name = "X-Auth-Roles", required = false) String roles) {
+        requireAdmin(roles);
+        return setHuTypeStatus(id, "ACTIVE");
+    }
+
+    private HandlingUnitType setHuTypeStatus(UUID id, String status) {
+        HandlingUnitType t = handlingUnitTypes.findById(id)
+                .orElseThrow(() -> new NotFoundException("HandlingUnitType", id));
+        t.setStatus(status);
+        return handlingUnitTypes.save(t);
+    }
+
+    private static void requireAdmin(String roles) {
+        if (!AccessControl.parseRoles(roles).contains("ADMIN")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Archiving handling-unit types is admin-only.");
+        }
     }
 
     // ----------------------------------------------------------- Barcode lookup

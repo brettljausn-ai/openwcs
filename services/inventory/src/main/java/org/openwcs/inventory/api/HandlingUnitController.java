@@ -33,6 +33,12 @@ public class HandlingUnitController {
         return handlingUnits.findByWarehouseId(warehouseId);
     }
 
+    /** Count of ACTIVE handling units of a given type (across warehouses) — guards HU-type archiving. */
+    @GetMapping("/active-count")
+    public long activeCount(@RequestParam UUID huTypeId) {
+        return handlingUnits.countByHuTypeIdAndStatus(huTypeId, "ACTIVE");
+    }
+
     @GetMapping("/{id}")
     public HandlingUnit get(@PathVariable UUID id) {
         return handlingUnits.findById(id)

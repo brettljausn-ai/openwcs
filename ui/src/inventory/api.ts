@@ -46,6 +46,10 @@ export async function createHandlingUnit(h: HandlingUnit): Promise<HandlingUnit>
 export async function updateHandlingUnit(id: string, h: HandlingUnit): Promise<HandlingUnit> {
   return unwrap(await fetch(`${base}/handling-units/${id}`, { method: 'PUT', headers: json, body: JSON.stringify(h) }))
 }
+// Count of ACTIVE handling units of a given type — gates archiving of the type (must be 0).
+export async function countActiveHandlingUnits(huTypeId: string): Promise<number> {
+  return unwrap(await fetch(`${base}/handling-units/active-count?huTypeId=${encodeURIComponent(huTypeId)}`))
+}
 
 // ---------------------------------------------------------------- Stock overview
 // Read-only roll-up: what is currently in stock, by handling unit. qty/reserved/available
