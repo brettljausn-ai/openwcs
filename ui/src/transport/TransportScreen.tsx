@@ -70,6 +70,7 @@ export default function TransportScreen() {
   const [status, setStatus] = useState('')
   const [family, setFamily] = useState('')
   const [equipmentId, setEquipmentId] = useState('')
+  const [equipment, setEquipment] = useState<{ id: string; code?: string; name?: string }[]>([])
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -98,6 +99,28 @@ export default function TransportScreen() {
   useEffect(() => {
     refresh()
   }, [refresh, warehouseId, status, family, equipmentId])
+
+  // Load the equipment list for the active warehouse so the filter is a pick-list, not a raw UUID.
+  useEffect(() => {
+    if (!warehouseId) {
+      setEquipment([])
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/master-data/equipment?warehouseId=${encodeURIComponent(warehouseId)}`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json()
+        if (!cancelled) setEquipment(Array.isArray(data) ? data : [])
+      } catch {
+        if (!cancelled) setEquipment([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [warehouseId])
 
   // Auto-refresh poll.
   useEffect(() => {
@@ -186,8 +209,21 @@ export default function TransportScreen() {
             options={[{ value: '', label: 'All families' }, ...FAMILIES.map((f) => ({ value: f, label: f }))]}
           />
         </Field>
-        <Field label="Equipment ID">
-          <input className="form-control" style={{ width: 280 }} placeholder="any equipment (UUID)" value={equipmentId} onChange={(e) => setEquipmentId(e.target.value)} />
+        <Field label="Equipment">
+          <Select
+            ariaLabel="Equipment"
+            value={equipmentId}
+            onChange={(v) => setEquipmentId(v)}
+            placeholder="Any equipment"
+            style={{ width: 280 }}
+            options={[
+              { value: '', label: 'Any equipment' },
+              ...equipment.map((e) => ({
+                value: e.id,
+                label: e.code ? (e.name ? `${e.code} — ${e.name}` : e.code) : e.id,
+              })),
+            ]}
+          />
         </Field>
         {(status || family || equipmentId) && (
           <button className="btn btn-ghost btn-sm" onClick={() => { setStatus(''); setFamily(''); setEquipmentId('') }}>

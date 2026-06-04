@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Select from '../ui/Select'
+import { useWarehouse } from '../warehouse/WarehouseContext'
 import {
   Workplace,
   WorkplaceSession,
@@ -52,7 +53,7 @@ export default function GtpOpsScreen() {
 // --- Launcher: pick a workplace -------------------------------------------------------------------
 
 function Launcher({ onOpen }: { onOpen: (s: WorkplaceSession) => void }) {
-  const [warehouseId, setWarehouseId] = useState('')
+  const { currentWarehouseId: warehouseId } = useWarehouse()
   const [workplaces, setWorkplaces] = useState<Workplace[]>([])
   const [loading, setLoading] = useState(false)
   const [opening, setOpening] = useState<string | null>(null)
@@ -71,6 +72,12 @@ function Launcher({ onOpen }: { onOpen: (s: WorkplaceSession) => void }) {
       setLoading(false)
     }
   }
+
+  // Auto-load workplaces whenever the active warehouse changes (load() early-returns when blank).
+  useEffect(() => {
+    if (warehouseId) load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warehouseId])
 
   async function open(w: Workplace) {
     setOpening(w.id)
@@ -93,30 +100,17 @@ function Launcher({ onOpen }: { onOpen: (s: WorkplaceSession) => void }) {
         </p>
       </div>
 
-      <div className="glass" style={{ padding: '1.25rem', marginBottom: '1.25rem' }}>
-        <div style={{ display: 'flex', gap: '.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '.35rem', flex: '1 1 340px' }}>
-            <span className="eyebrow">Warehouse</span>
-            <input
-              className="form-control"
-              value={warehouseId}
-              placeholder="warehouse UUID"
-              onChange={(e) => setWarehouseId(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') load()
-              }}
-            />
-          </label>
-          <button className="btn btn-primary" onClick={load} disabled={!warehouseId.trim() || loading}>
-            {loading ? 'Loading…' : 'Load workplaces'}
-          </button>
-        </div>
-        {error && (
-          <p className="badge badge-danger" style={{ marginTop: '.9rem' }}>
-            {error}
-          </p>
-        )}
-      </div>
+      {!warehouseId.trim() && (
+        <p style={{ color: 'var(--text-dim)', marginBottom: '1.25rem' }}>
+          Select a warehouse in the top bar to load its GTP workplaces.
+        </p>
+      )}
+
+      {error && (
+        <p className="badge badge-danger" style={{ marginBottom: '1.25rem' }}>
+          {error}
+        </p>
+      )}
 
       {workplaces.length > 0 ? (
         <div

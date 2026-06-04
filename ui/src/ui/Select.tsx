@@ -1,9 +1,12 @@
-import { CSSProperties, KeyboardEvent, useEffect, useId, useRef, useState } from 'react'
+import { CSSProperties, KeyboardEvent, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 // Styled, accessible single-select to replace the native <select> across the app. Renders a
 // button + popover listbox (role=listbox/option) with full keyboard support (↑/↓, Enter, Esc,
-// Home/End), click-outside to close, and the dark/lime theme. Keep the API close to a native
-// select: controlled `value` + `onChange(value)` over a flat `options` list.
+// Home/End), click-outside to close, and the dark/lime theme. The menu is PORTALLED to <body>
+// with fixed positioning so it's never clipped or painted behind a sibling card (glass cards'
+// backdrop-filter creates stacking contexts that would otherwise trap an absolutely-positioned
+// menu). Keep the API close to a native select: controlled `value` + `onChange(value)`.
 export interface SelectOption {
   value: string
   label: string
@@ -34,14 +37,38 @@ export default function Select({
 }: SelectProps) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
+  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLUListElement>(null)
   const listId = useId()
   const selected = options.find((o) => o.value === value) ?? null
+
+  const reposition = useCallback(() => {
+    const el = rootRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setRect({ top: r.bottom + 4, left: r.left, width: r.width })
+  }, [])
+
+  // Measure before paint when opening, and follow scroll/resize while open.
+  useLayoutEffect(() => {
+    if (!open) return
+    reposition()
+    const onScroll = () => reposition()
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [open, reposition])
 
   useEffect(() => {
     if (!open) return
     function onDoc(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (rootRef.current?.contains(t) || menuRef.current?.contains(t)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
@@ -113,8 +140,15 @@ export default function Select({
         </span>
         <span className="select-chevron" aria-hidden="true">▾</span>
       </button>
-      {open && (
-        <ul className="select-menu" role="listbox" id={listId} aria-label={ariaLabel}>
+      {open && rect && createPortal(
+        <ul
+          ref={menuRef}
+          className="select-menu"
+          role="listbox"
+          id={listId}
+          aria-label={ariaLabel}
+          style={{ position: 'fixed', top: rect.top, left: rect.left, width: rect.width }}
+        >
           {options.length === 0 && <li className="select-empty">No options</li>}
           {options.map((o, i) => (
             <li
@@ -135,7 +169,8 @@ export default function Select({
               {o.value === value && <span className="select-check" aria-hidden="true">✓</span>}
             </li>
           ))}
-        </ul>
+        </ul>,
+        document.body,
       )}
     </div>
   )

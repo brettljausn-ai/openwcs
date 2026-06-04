@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react'
-import { passwordGrant, decodeJwt } from '../lib/keycloak'
+import { passwordGrant, decodeJwt, refreshTokenGrant } from '../lib/keycloak'
 import { configureAuth, installAuthFetch } from '../lib/authFetch'
 import { AccessOverrides, ScreenDef, accessibleScreens, canAccess } from './screens'
 
@@ -86,6 +86,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
+  }, [session])
+
+  // Silently renew the access token before it expires. Keycloak access tokens are short-lived
+  // (~minutes), so without this the session "dies" after a while and API calls start 401-ing
+  // ("No warehouse access"). Refreshing reschedules itself off the new token.
+  useEffect(() => {
+    if (!session) return
+    const claims = decodeJwt(session.token)
+    if (!claims.exp) return
+    const delay = Math.max(0, claims.exp * 1000 - Date.now() - 45_000) // ~45s before expiry
+    const timer = window.setTimeout(async () => {
+      if (!session.refreshToken) return
+      try {
+        const tok = await refreshTokenGrant(session.refreshToken)
+        const next = sessionFromToken(tok.access_token, tok.refresh_token ?? session.refreshToken)
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+        setSession(next)
+      } catch {
+        // Refresh token expired/invalid → end the session (route guard sends to /login).
+        sessionStorage.removeItem(STORAGE_KEY)
+        setSession(null)
+      }
+    }, delay)
+    return () => window.clearTimeout(timer)
   }, [session])
 
   const value = useMemo<AuthContextValue>(() => {

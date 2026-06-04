@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Select from '../ui/Select'
+import DatePicker from '../ui/DatePicker'
 
 // --- Transaction-log event shape (contracts/openapi/txlog.yaml → EventView) ---
 type TxEvent = {
@@ -141,6 +142,23 @@ export default function StockTxnScreen() {
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [page, setPage] = useState(0)
+  const [skuCodes, setSkuCodes] = useState<Record<string, string>>({})
+
+  // SKU id → code, so the log shows readable codes and the filter matches by code.
+  useEffect(() => {
+    fetch('/api/master-data/skus?size=1000')
+      .then((r) => (r.ok ? r.json() : { content: [] }))
+      .then((p: { content?: { id: string; code: string }[] }) => {
+        const m: Record<string, string> = {}
+        for (const s of p.content ?? []) m[s.id] = s.code
+        setSkuCodes(m)
+      })
+      .catch(() => { /* codes fall back to short ids */ })
+  }, [])
+  const codeFor = useCallback(
+    (id: string | null): string => (id ? skuCodes[id] ?? shortId(id) : '—'),
+    [skuCodes],
+  )
 
   // Filters
   const [fSku, setFSku] = useState('')
@@ -189,7 +207,10 @@ export default function StockTxnScreen() {
     const toMs = dtToMs(fTo)
     return decorated.filter(({ e, d }) => {
       if (fType && e.eventType !== fType) return false
-      if (sku && !(d.sku ?? '').toLowerCase().includes(sku)) return false
+      if (sku) {
+        const hay = `${codeFor(d.sku)} ${d.sku ?? ''}`.toLowerCase()
+        if (!hay.includes(sku)) return false
+      }
       if (loc) {
         const hay = `${d.from ?? ''} ${d.to ?? ''}`.toLowerCase()
         if (!hay.includes(loc)) return false
@@ -202,7 +223,7 @@ export default function StockTxnScreen() {
       }
       return true
     })
-  }, [decorated, fSku, fLocation, fType, fFrom, fTo])
+  }, [decorated, fSku, fLocation, fType, fFrom, fTo, codeFor])
 
   // Reset to first page whenever the filtered set changes.
   useEffect(() => {
@@ -246,7 +267,7 @@ export default function StockTxnScreen() {
             <span className="muted" style={{ fontSize: '.75rem' }}>SKU</span>
             <input
               className="form-control"
-              placeholder="SKU id contains…"
+              placeholder="SKU code contains…"
               value={fSku}
               onChange={(ev) => setFSku(ev.target.value)}
             />
@@ -274,21 +295,11 @@ export default function StockTxnScreen() {
           </label>
           <label style={{ display: 'block' }}>
             <span className="muted" style={{ fontSize: '.75rem' }}>From</span>
-            <input
-              type="datetime-local"
-              className="form-control"
-              value={fFrom}
-              onChange={(ev) => setFFrom(ev.target.value)}
-            />
+            <DatePicker withTime value={fFrom} onChange={setFFrom} ariaLabel="From" placeholder="Any start" />
           </label>
           <label style={{ display: 'block' }}>
             <span className="muted" style={{ fontSize: '.75rem' }}>To</span>
-            <input
-              type="datetime-local"
-              className="form-control"
-              value={fTo}
-              onChange={(ev) => setFTo(ev.target.value)}
-            />
+            <DatePicker withTime value={fTo} onChange={setFTo} ariaLabel="To" placeholder="Any end" />
           </label>
         </div>
         <div className="toolbar" style={{ marginTop: '1rem', marginBottom: 0 }}>
@@ -353,6 +364,7 @@ export default function StockTxnScreen() {
                     key={e.eventId}
                     event={e}
                     decoded={d}
+                    skuCode={codeFor(d.sku)}
                     open={isOpen}
                     refLabel={ref}
                     onToggle={() => setExpanded(isOpen ? null : e.eventId)}
@@ -395,12 +407,14 @@ export default function StockTxnScreen() {
 function FragmentRow({
   event,
   decoded,
+  skuCode,
   open,
   refLabel,
   onToggle,
 }: {
   event: TxEvent
   decoded: ReturnType<typeof decode>
+  skuCode: string
   open: boolean
   refLabel: string | null
   onToggle: () => void
@@ -428,7 +442,7 @@ function FragmentRow({
           <span className={`badge ${typeBadgeClass(event.eventType)}`}>{event.eventType}</span>
         </td>
         <td title={decoded.sku ?? undefined} style={{ fontFamily: 'var(--font-mono)' }}>
-          {shortId(decoded.sku)}
+          {skuCode}
         </td>
         <td title={decoded.from ?? undefined}>{decoded.from ?? '—'}</td>
         <td title={decoded.to ?? undefined}>{decoded.to ?? '—'}</td>
