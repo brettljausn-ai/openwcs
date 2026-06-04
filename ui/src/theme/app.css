@@ -396,6 +396,8 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 
 /* ============================ App shell (§10) ============================ */
 .app-shell { display: flex; height: 100vh; overflow: hidden; }
+/* Collapsed sidebar — fold the menu away to give the page (e.g. the 3D editor) full width. */
+.app-shell.sidebar-collapsed .sidebar { display: none; }
 
 .sidebar {
   width: 248px;
@@ -513,6 +515,15 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
   background: rgba(8, 30, 22, .35);
   backdrop-filter: blur(12px);
 }
+.sidebar-toggle {
+  margin-right: auto; /* keep it on the left; Help + warehouse stay right */
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; padding: 0;
+  border-radius: 8px; border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, .03); color: var(--text);
+  font-size: 1rem; cursor: pointer; transition: color .15s, border-color .15s;
+}
+.sidebar-toggle:hover { color: var(--herbal-lime); border-color: var(--herbal-lime); }
 /* Help button + guidance drawer */
 .help-btn {
   display: inline-flex; align-items: center; justify-content: center;
