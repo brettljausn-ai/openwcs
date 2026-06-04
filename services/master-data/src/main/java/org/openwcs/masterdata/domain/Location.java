@@ -33,6 +33,10 @@ public class Location extends Auditable {
     @Column(name = "code", nullable = false)
     private String code;
 
+    /** Controller / device hardware address for this location (e.g. an ASRS bin address). Optional. */
+    @Column(name = "hardware_address")
+    private String hardwareAddress;
+
     /** BIN, PALLET, FREE_SPACE, SHELF, GRID_BIN, ASRS_SLOT, CONVEYOR_SEGMENT, ROBOT_PORT, STATION. */
     @Column(name = "location_type", nullable = false)
     private String locationType;
@@ -291,5 +295,13 @@ public class Location extends Auditable {
 
     public void setPosZ(Integer posZ) {
         this.posZ = posZ;
+    }
+
+    public String getHardwareAddress() {
+        return hardwareAddress;
+    }
+
+    public void setHardwareAddress(String hardwareAddress) {
+        this.hardwareAddress = hardwareAddress;
     }
 }
