@@ -82,6 +82,7 @@ export default function AppShell() {
 
         <nav className="sidebar-nav">
           {can(dashboard) && link(dashboard)}
+          {SCREENS.filter((s) => !s.section && s.key !== 'dashboard' && can(s)).map(renderItem)}
           {bySection.map((g) => {
             const isOpen = open.includes(g.section)
             return (

@@ -41,7 +41,8 @@ export const SCREENS: ScreenDef[] = [
   { key: 'slotting', label: 'Slotting', path: '/slotting', section: 'Engineering', icon: '▦', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Pick-face and automated-block slotting & replenishment policy.' },
 
   // Configuration — master & system config
-  { key: 'master-data', label: 'Master data', path: '/master-data', section: 'Configuration', icon: '⛁', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Warehouses, SKUs, storage blocks, locations, equipment, label templates.', children: [
+  // Master data is a top-level menu item (no section); its catalogs are nested sub-pages.
+  { key: 'master-data', label: 'Master data', path: '/master-data', icon: '⛁', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Warehouses, SKUs, storage blocks, locations, equipment, label templates.', children: [
     { label: 'Warehouses', path: '/master-data/warehouses' },
     { label: 'SKUs', path: '/master-data/skus' },
     { label: 'Storage blocks', path: '/master-data/storage-blocks' },

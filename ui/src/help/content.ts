@@ -531,5 +531,95 @@ export const HELP: Record<string, ScreenHelp> = {
       "All pending edits save together in one Save changes click, even across different pages of users.",
       "Don't look for admins here, they are never warehouse-scoped and don't need a mapping."
     ]
+  },
+  "master-data:warehouses": {
+    "summary": "Warehouses are the top-level sites (distribution centres) everything else hangs off. Define each warehouse here; storage blocks, locations, equipment, orders and stock are all scoped to one.",
+    "sections": [
+      { "heading": "Getting started", "body": "Each row is a warehouse with a unique code, a name, a timezone and a status. Create a warehouse before configuring blocks, locations or equipment — those catalogs work against the warehouse you pick in the top-bar switcher." },
+      { "heading": "Key actions", "body": "Use New to create a warehouse (code, name, timezone), View/Edit to change its details, and Archive to retire one. Sort or search the table by code or name." },
+      { "heading": "Fields", "body": "Code is the short, unique identifier used everywhere; Name is the human label; Timezone drives schedules and timestamps; Status is ACTIVE, INACTIVE or ARCHIVED." },
+      { "heading": "What happens next", "body": "Creating a warehouse makes it selectable in the top-bar switcher and assignable under Warehouse access; archiving hides it from day-to-day use without deleting its history." }
+    ],
+    "tips": [
+      "The code is hard to change later because other data references the warehouse — choose it carefully.",
+      "Set the correct timezone: counting schedules and dispatch deadlines depend on it.",
+      "Archive rather than delete to keep an audit trail.",
+      "Users are mapped to the warehouses you create here under Administration → Warehouse access."
+    ]
+  },
+  "master-data:skus": {
+    "summary": "The SKU catalog — every stock-keeping unit with its units of measure and barcodes. SKUs are owned by your host system (WMS/ERP) and are read-only here: you view and verify them, the host creates and maintains them.",
+    "sections": [
+      { "heading": "Getting started", "body": "Use the host search to pull SKUs from the catalog, or filter the already-loaded rows by code or description. Click View on a row to open the full SKU detail." },
+      { "heading": "The SKU detail", "body": "The detail dialog shows the SKU's units of measure (the base unit plus any packs/cases with their conversion factor, dimensions and weight) and its barcodes (value + symbology, e.g. EAN-13)." },
+      { "heading": "Read-only — and why", "body": "SKUs, units of measure and barcodes are kept in sync from the host and cannot be created, edited or deleted in the WCS — the host is the single source of truth. The HOST-MANAGED badge marks this." },
+      { "heading": "Fields", "body": "Code is the SKU identifier; Description its name; Owner the owning client/tenant; Tracking shows batch/serial/date control; Status is ACTIVE or INACTIVE." }
+    ],
+    "tips": [
+      "Can't edit a SKU? That's intended — change it in your host system and it syncs back.",
+      "Use the SKU detail to verify a barcode's symbology and a unit's dimensions/weight before relying on them for cubing or scanning.",
+      "Search by a partial code or description to find a SKU fast.",
+      "No host? Switch on demo mode (Settings → Demo mode) to generate sample SKUs to explore."
+    ]
+  },
+  "master-data:storage-blocks": {
+    "summary": "Storage blocks are the pools/zones the slotting and put-away engines work with — a manual pick-face area or an automated system (ASRS / AutoStore / AMR-GTP). They are scoped to the warehouse selected in the top bar.",
+    "sections": [
+      { "heading": "Getting started", "body": "Pick the warehouse in the top bar, then add the blocks that make it up. A block groups locations and tells the system how stock is stored and retrieved there." },
+      { "heading": "Key actions", "body": "Create a block (code, storage type, slotting granularity), edit it, and set which handling-unit types it accepts. Sort and search the table." },
+      { "heading": "Fields", "body": "Storage type distinguishes manual racking from automated pools; Slotting granularity is whether you slot to a location or the whole block; the GTP flag marks goods-to-person blocks; Allowed HU types limit what can be put away there." },
+      { "heading": "What happens next", "body": "Blocks drive slotting policy (Settings → Slotting policy) and put-away: the engine chooses locations within the right block by velocity, consolidation and aisle balance." }
+    ],
+    "tips": [
+      "Set the storage type correctly — it changes how put-away and replenishment behave.",
+      "Use Allowed HU types to stop oversized handling units being slotted into a block that can't take them.",
+      "Automated blocks (ASRS/AutoStore/AMR) are managed as a pool; manual pick-faces are slotted per location.",
+      "Per-block put-away weights live under Settings → Slotting policy."
+    ]
+  },
+  "master-data:locations": {
+    "summary": "Locations are the addressable places stock can live — pick faces, rack positions, automation cells, staging. They are scoped to the warehouse in the top bar and grouped into storage blocks.",
+    "sections": [
+      { "heading": "Getting started", "body": "Choose the warehouse, then add or review locations. Each has a unique code and a type/purpose that tells the system how it is used." },
+      { "heading": "Key actions", "body": "Create, edit or archive locations and sort/search by code. Set a location's block, aisle/side and coordinates so routing and distance-to-exit work." },
+      { "heading": "Fields", "body": "Type and Purpose classify the location (pick face, reserve, staging…); Block ties it to a storage block; Aisle/Side and X/Y/Z coordinates position it; Distance-to-exit feeds slotting and picking optimisation." },
+      { "heading": "What happens next", "body": "Stock is received, put away and picked against locations; their coordinates and block drive travel and slotting decisions." }
+    ],
+    "tips": [
+      "Give locations consistent, scannable codes — operators read them constantly.",
+      "Set coordinates and distance-to-exit so velocity-based slotting can put fast movers near the exit.",
+      "Assign each location to the right block so put-away rules apply.",
+      "Locations are warehouse-scoped — switch the top-bar warehouse to see another site's."
+    ]
+  },
+  "master-data:equipment": {
+    "summary": "Equipment is the registry of devices the WCS talks to — conveyors/PLCs, ASRS, AutoStore, AMR fleets — and the adapter endpoints used to reach them. Scoped to the warehouse in the top bar.",
+    "sections": [
+      { "heading": "Getting started", "body": "Pick the warehouse, then register each device with its family, vendor/model and the adapter endpoint the WCS uses to drive it." },
+      { "heading": "Key actions", "body": "Create or edit equipment and sort/search by family or vendor. Keep the adapter endpoint current so device tasks reach the right controller." },
+      { "heading": "Fields", "body": "Family is the kind of equipment (CONVEYOR/ASRS/AMR/AUTOSTORE…); Vendor/Model identify it; Adapter endpoint is the URL the device adapter listens on; Status is ACTIVE or INACTIVE." },
+      { "heading": "What happens next", "body": "Registered equipment appears in transport / device-task routing — the flow orchestrator dispatches work to it through the adapter by family." }
+    ],
+    "tips": [
+      "The adapter endpoint must match where the device adapter actually runs, or tasks won't reach the device.",
+      "Use the family consistently — routing picks adapters by family.",
+      "Model the conveyor network itself under Engineering → Conveyor topology; this screen is the device registry.",
+      "Equipment is warehouse-scoped."
+    ]
+  },
+  "master-data:label-templates": {
+    "summary": "Label templates define the dispatch / handling-unit labels the system renders — ZPL for printers or PDF — with their fields and barcodes laid out. Used when cubing produces shipper labels.",
+    "sections": [
+      { "heading": "Getting started", "body": "Add a template with a code, a physical size and a DPI, then define its elements (text, data fields, barcodes). Existing templates are listed with their size and element count." },
+      { "heading": "Key actions", "body": "Create, edit or delete templates and sort/search by code or name. Pick the size and DPI that match your label stock and printer." },
+      { "heading": "Fields", "body": "Size (mm) is the label's physical dimensions; DPI the printer resolution; Elements the laid-out content (text/fields/barcodes); Status is ACTIVE or INACTIVE." },
+      { "heading": "What happens next", "body": "When an order is cubed into shippers, each shipper gets a dispatch label rendered from the selected template, with its own barcode and fields." }
+    ],
+    "tips": [
+      "Match the size and DPI to your actual label stock and printer, or output will be misaligned.",
+      "Barcodes on labels use the system's barcode symbologies — keep them consistent with your scanners.",
+      "Use data fields (not hard-coded text) so each label fills in the right order/shipper data.",
+      "Which template prints for a dispatch is chosen by your shipping configuration."
+    ]
   }
 }
