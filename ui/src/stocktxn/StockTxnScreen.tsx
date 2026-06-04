@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Select from '../ui/Select'
 import DatePicker from '../ui/DatePicker'
+import DataTable, { Column } from '../ui/DataTable'
 
 // --- Transaction-log event shape (contracts/openapi/txlog.yaml → EventView) ---
 type TxEvent = {
@@ -34,7 +35,6 @@ const STOCK_TYPES = [
 // The feed (GET /api/txlog/events) is a global position-ordered cursor with no
 // server-side filtering, so we fetch a window and filter/paginate in-memory.
 const FETCH_LIMIT = 1000
-const PAGE_SIZE = 25
 
 // Per-event-type badge styling.
 function typeBadgeClass(type: string): string {
@@ -140,8 +140,6 @@ export default function StockTxnScreen() {
   const [events, setEvents] = useState<TxEvent[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState<string | null>(null)
-  const [page, setPage] = useState(0)
   const [skuCodes, setSkuCodes] = useState<Record<string, string>>({})
 
   // SKU id → code, so the log shows readable codes and the filter matches by code.
@@ -225,15 +223,6 @@ export default function StockTxnScreen() {
     })
   }, [decorated, fSku, fLocation, fType, fFrom, fTo, codeFor])
 
-  // Reset to first page whenever the filtered set changes.
-  useEffect(() => {
-    setPage(0)
-  }, [fSku, fLocation, fType, fFrom, fTo])
-
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, pageCount - 1)
-  const pageRows = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE)
-
   const hasFilters = !!(fSku || fLocation || fType || fFrom || fTo)
   const clearFilters = () => {
     setFSku('')
@@ -242,6 +231,76 @@ export default function StockTxnScreen() {
     setFFrom('')
     setFTo('')
   }
+
+  const columns: Column<{ e: TxEvent; d: ReturnType<typeof decode> }>[] = [
+    {
+      key: 'time',
+      header: 'Time',
+      sortable: true,
+      sortValue: ({ e }) => e.position ?? new Date(e.occurredAt).getTime(),
+      render: ({ e }) => (
+        <span style={{ whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)', fontSize: '.8125rem' }}>
+          {fmtTime(e.occurredAt)}
+        </span>
+      ),
+    },
+    {
+      key: 'type',
+      header: 'Type',
+      sortable: true,
+      sortValue: ({ e }) => e.eventType,
+      render: ({ e }) => <span className={`badge ${typeBadgeClass(e.eventType)}`}>{e.eventType}</span>,
+    },
+    {
+      key: 'sku',
+      header: 'SKU',
+      render: ({ d }) => (
+        <span title={d.sku ?? undefined} style={{ fontFamily: 'var(--font-mono)' }}>
+          {codeFor(d.sku)}
+        </span>
+      ),
+    },
+    {
+      key: 'from',
+      header: 'From',
+      render: ({ d }) => <span title={d.from ?? undefined}>{d.from ?? '—'}</span>,
+    },
+    {
+      key: 'to',
+      header: 'To',
+      render: ({ d }) => <span title={d.to ?? undefined}>{d.to ?? '—'}</span>,
+    },
+    {
+      key: 'qty',
+      header: 'Qty Δ',
+      align: 'right',
+      render: ({ d }) => {
+        const delta = d.delta
+        const deltaText =
+          delta == null ? '—' : `${delta > 0 ? '+' : ''}${delta}${d.uom ? ` ${d.uom}` : ''}`
+        const deltaColor =
+          delta == null ? undefined : delta > 0 ? '#8DC63F' : delta < 0 ? '#ff8a80' : undefined
+        return <span style={{ fontFamily: 'var(--font-mono)', color: deltaColor }}>{deltaText}</span>
+      },
+    },
+    {
+      key: 'actor',
+      header: 'Actor',
+      render: ({ e }) => <span title={e.actor ?? undefined}>{e.actor ?? '—'}</span>,
+    },
+    {
+      key: 'ref',
+      header: 'Ref',
+      render: ({ e }) => {
+        const ref = e.correlationId ?? e.streamId
+        return (
+          <span title={ref ?? undefined} style={{ fontFamily: 'var(--font-mono)' }}>
+            {shortId(ref)}
+          </span>
+        )
+      },
+    },
+  ]
 
   return (
     <div className="app-content">
@@ -333,168 +392,54 @@ export default function StockTxnScreen() {
       )}
 
       <div className="glass" style={{ overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table>
-            <thead>
-              <tr>
-                <th style={{ width: '1%' }} aria-label="Expand" />
-                <th>Time</th>
-                <th>Type</th>
-                <th>SKU</th>
-                <th>From</th>
-                <th>To</th>
-                <th style={{ textAlign: 'right' }}>Qty Δ</th>
-                <th>Actor</th>
-                <th>Ref</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!loading && pageRows.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="muted" style={{ textAlign: 'center', padding: '2rem' }}>
-                    {hasFilters ? 'No transactions match the filters.' : 'No transactions recorded yet.'}
-                  </td>
-                </tr>
-              )}
-              {pageRows.map(({ e, d }) => {
-                const isOpen = expanded === e.eventId
-                const ref = e.correlationId ?? e.streamId
-                return (
-                  <FragmentRow
-                    key={e.eventId}
-                    event={e}
-                    decoded={d}
-                    skuCode={codeFor(d.sku)}
-                    open={isOpen}
-                    refLabel={ref}
-                    onToggle={() => setExpanded(isOpen ? null : e.eventId)}
-                  />
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          rows={filtered}
+          rowKey={(row) => row.e.eventId}
+          pageSize={25}
+          initialSort={{ key: 'time', dir: 'desc' }}
+          empty={hasFilters ? 'No transactions match the filters.' : 'No transactions recorded yet.'}
+          renderExpanded={({ e }) => (
+            <>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '.5rem 1.5rem',
+                  marginBottom: '.75rem',
+                }}
+              >
+                <Meta label="Event id" value={e.eventId} />
+                <Meta label="Stream id" value={e.streamId} />
+                <Meta label="Seq" value={String(e.seq)} />
+                <Meta label="Position" value={e.position != null ? String(e.position) : '—'} />
+                <Meta label="Correlation id" value={e.correlationId ?? '—'} />
+                <Meta label="Payload version" value={String(e.payloadVersion)} />
+                <Meta label="Occurred at" value={fmtTime(e.occurredAt)} />
+                <Meta label="Recorded at" value={fmtTime(e.recordedAt)} />
+              </div>
+              <div className="muted" style={{ fontSize: '.7rem', fontFamily: 'var(--font-mono)', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: '.35rem' }}>
+                Raw payload
+              </div>
+              <pre
+                style={{
+                  margin: 0,
+                  padding: '.75rem',
+                  background: 'rgba(0, 0, 0, .25)',
+                  borderRadius: 'var(--radius)',
+                  overflowX: 'auto',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '.8rem',
+                  lineHeight: 1.5,
+                }}
+              >
+                {JSON.stringify(e.payload, null, 2)}
+              </pre>
+            </>
+          )}
+        />
       </div>
-
-      {filtered.length > PAGE_SIZE && (
-        <div className="toolbar" style={{ marginTop: '1rem' }}>
-          <span className="muted" style={{ fontSize: '.8125rem' }}>
-            Page {safePage + 1} of {pageCount}
-          </span>
-          <span className="spacer" />
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={safePage === 0}
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-            disabled={safePage >= pageCount - 1}
-          >
-            Next
-          </button>
-        </div>
-      )}
     </div>
-  )
-}
-
-function FragmentRow({
-  event,
-  decoded,
-  skuCode,
-  open,
-  refLabel,
-  onToggle,
-}: {
-  event: TxEvent
-  decoded: ReturnType<typeof decode>
-  skuCode: string
-  open: boolean
-  refLabel: string | null
-  onToggle: () => void
-}) {
-  const delta = decoded.delta
-  const deltaText =
-    delta == null ? '—' : `${delta > 0 ? '+' : ''}${delta}${decoded.uom ? ` ${decoded.uom}` : ''}`
-  const deltaColor =
-    delta == null ? undefined : delta > 0 ? '#8DC63F' : delta < 0 ? '#ff8a80' : undefined
-
-  return (
-    <>
-      <tr
-        onClick={onToggle}
-        style={{ cursor: 'pointer' }}
-        aria-expanded={open}
-      >
-        <td style={{ color: 'var(--herbal-lime)', fontFamily: 'var(--font-mono)' }}>
-          {open ? '▾' : '▸'}
-        </td>
-        <td style={{ whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)', fontSize: '.8125rem' }}>
-          {fmtTime(event.occurredAt)}
-        </td>
-        <td>
-          <span className={`badge ${typeBadgeClass(event.eventType)}`}>{event.eventType}</span>
-        </td>
-        <td title={decoded.sku ?? undefined} style={{ fontFamily: 'var(--font-mono)' }}>
-          {skuCode}
-        </td>
-        <td title={decoded.from ?? undefined}>{decoded.from ?? '—'}</td>
-        <td title={decoded.to ?? undefined}>{decoded.to ?? '—'}</td>
-        <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: deltaColor }}>
-          {deltaText}
-        </td>
-        <td title={event.actor ?? undefined}>{event.actor ?? '—'}</td>
-        <td title={refLabel ?? undefined} style={{ fontFamily: 'var(--font-mono)' }}>
-          {shortId(refLabel)}
-        </td>
-      </tr>
-      {open && (
-        <tr>
-          <td colSpan={9} style={{ background: 'rgba(8, 30, 22, .35)' }}>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '.5rem 1.5rem',
-                marginBottom: '.75rem',
-              }}
-            >
-              <Meta label="Event id" value={event.eventId} />
-              <Meta label="Stream id" value={event.streamId} />
-              <Meta label="Seq" value={String(event.seq)} />
-              <Meta label="Position" value={event.position != null ? String(event.position) : '—'} />
-              <Meta label="Correlation id" value={event.correlationId ?? '—'} />
-              <Meta label="Payload version" value={String(event.payloadVersion)} />
-              <Meta label="Occurred at" value={fmtTime(event.occurredAt)} />
-              <Meta label="Recorded at" value={fmtTime(event.recordedAt)} />
-            </div>
-            <div className="muted" style={{ fontSize: '.7rem', fontFamily: 'var(--font-mono)', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: '.35rem' }}>
-              Raw payload
-            </div>
-            <pre
-              style={{
-                margin: 0,
-                padding: '.75rem',
-                background: 'rgba(0, 0, 0, .25)',
-                borderRadius: 'var(--radius)',
-                overflowX: 'auto',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '.8rem',
-                lineHeight: 1.5,
-              }}
-            >
-              {JSON.stringify(event.payload, null, 2)}
-            </pre>
-          </td>
-        </tr>
-      )}
-    </>
   )
 }
 

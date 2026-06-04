@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import Select from '../ui/Select'
+import DataTable from '../ui/DataTable'
 import {
   Barcode,
   Equipment,
@@ -321,43 +322,34 @@ function WarehousesTab({ onWarehousesChanged }: { onWarehousesChanged: () => voi
     <div className="glass card-pad md-panel">
       <Toolbar label="warehouse" onAdd={() => setEditing(blank)} />
       {error && <div className="alert alert-danger">{error}</div>}
-      <table>
-        <thead>
-          <tr>
-            <th>Code</th>
-            <th>Name</th>
-            <th>Timezone</th>
-            <th>Status</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            <Empty text="Loading…" />
-          ) : rows.length === 0 ? (
-            <Empty text="No warehouses yet." />
-          ) : (
-            rows.map((w) => (
-              <tr key={w.id}>
-                <td>{w.code}</td>
-                <td>{w.name}</td>
-                <td>{w.timezone}</td>
-                <td>
-                  <StatusBadge status={w.status} />
-                </td>
-                <td className="md-row-actions">
-                  <button className="btn btn-ghost btn-sm" onClick={() => setEditing(w)}>
-                    Edit
-                  </button>
-                  <button className="btn btn-danger btn-sm" onClick={() => setDeleting(w)}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+      <DataTable
+        rows={rows}
+        rowKey={(w) => w.id ?? w.code}
+        search={(w) => `${w.code} ${w.name} ${w.timezone} ${w.status}`}
+        searchPlaceholder="Search warehouses…"
+        initialSort={{ key: 'code', dir: 'asc' }}
+        empty={loading ? 'Loading…' : 'No warehouses yet.'}
+        columns={[
+          { key: 'code', header: 'Code', sortable: true, sortValue: (w) => w.code ?? '', render: (w) => w.code },
+          { key: 'name', header: 'Name', sortable: true, sortValue: (w) => w.name ?? '', render: (w) => w.name },
+          { key: 'timezone', header: 'Timezone', sortable: true, sortValue: (w) => w.timezone ?? '', render: (w) => w.timezone },
+          { key: 'status', header: 'Status', sortable: true, sortValue: (w) => w.status ?? '', render: (w) => <StatusBadge status={w.status} /> },
+          {
+            key: 'actions',
+            header: '',
+            render: (w) => (
+              <div className="md-row-actions">
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(w)}>
+                  Edit
+                </button>
+                <button className="btn btn-danger btn-sm" onClick={() => setDeleting(w)}>
+                  Delete
+                </button>
+              </div>
+            ),
+          },
+        ]}
+      />
 
       {editing && (
         <WarehouseDialog
@@ -486,50 +478,57 @@ function SkusTab() {
         <div className="spacer" />
       </div>
       {error && <div className="alert alert-danger">{error}</div>}
-      <table>
-        <thead>
-          <tr>
-            <th>Code</th>
-            <th>Description</th>
-            <th>Owner</th>
-            <th>Tracking</th>
-            <th>Status</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            <Empty text="Loading…" />
-          ) : rows.length === 0 ? (
-            <Empty text="No SKUs found." />
-          ) : (
-            rows.map((s) => (
-              <tr key={s.id}>
-                <td>{s.code}</td>
-                <td>{s.description || '—'}</td>
-                <td>{s.ownerClient || '—'}</td>
-                <td>
-                  {[
-                    s.batchTracked && 'Batch',
-                    s.serialTracked && 'Serial',
-                    s.dateTracked && 'Date',
-                  ]
-                    .filter(Boolean)
-                    .join(', ') || '—'}
-                </td>
-                <td>
-                  <StatusBadge status={s.status} />
-                </td>
-                <td className="md-row-actions">
-                  <button className="btn btn-ghost btn-sm" onClick={() => setViewing(s)}>
-                    View
-                  </button>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+      <DataTable
+        rows={rows}
+        rowKey={(s) => s.id ?? s.code}
+        search={(s) => `${s.code} ${s.description ?? ''} ${s.ownerClient ?? ''} ${s.status ?? ''}`}
+        searchPlaceholder="Filter loaded SKUs…"
+        initialSort={{ key: 'code', dir: 'asc' }}
+        empty={loading ? 'Loading…' : 'No SKUs found.'}
+        columns={[
+          { key: 'code', header: 'Code', sortable: true, sortValue: (s) => s.code ?? '', render: (s) => s.code },
+          {
+            key: 'description',
+            header: 'Description',
+            sortable: true,
+            sortValue: (s) => s.description ?? '',
+            render: (s) => s.description || '—',
+          },
+          {
+            key: 'ownerClient',
+            header: 'Owner',
+            sortable: true,
+            sortValue: (s) => s.ownerClient ?? '',
+            render: (s) => s.ownerClient || '—',
+          },
+          {
+            key: 'tracking',
+            header: 'Tracking',
+            render: (s) =>
+              [s.batchTracked && 'Batch', s.serialTracked && 'Serial', s.dateTracked && 'Date']
+                .filter(Boolean)
+                .join(', ') || '—',
+          },
+          {
+            key: 'status',
+            header: 'Status',
+            sortable: true,
+            sortValue: (s) => s.status ?? '',
+            render: (s) => <StatusBadge status={s.status} />,
+          },
+          {
+            key: 'actions',
+            header: '',
+            render: (s) => (
+              <div className="md-row-actions">
+                <button className="btn btn-ghost btn-sm" onClick={() => setViewing(s)}>
+                  View
+                </button>
+              </div>
+            ),
+          },
+        ]}
+      />
 
       {viewing && <SkuDetailDialog sku={viewing} onClose={() => setViewing(null)} />}
     </div>
@@ -715,44 +714,61 @@ function StorageBlocksTab({
     <div className="glass card-pad md-panel">
       <Toolbar label="storage block" onAdd={() => setEditing(blank)} />
       {error && <div className="alert alert-danger">{error}</div>}
-      <table>
-        <thead>
-          <tr>
-            <th>Code</th>
-            <th>Storage type</th>
-            <th>Granularity</th>
-            <th>GTP</th>
-            <th>Allowed HU types</th>
-            <th>Status</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            <Empty text="Loading…" />
-          ) : rows.length === 0 ? (
-            <Empty text="No storage blocks for this warehouse." />
-          ) : (
-            rows.map((b) => (
-              <tr key={b.id}>
-                <td>{b.code}</td>
-                <td>{b.storageType}</td>
-                <td>{b.slottingGranularity}</td>
-                <td>{b.gtp ? 'Yes' : 'No'}</td>
-                <td>{b.allowedHuTypes && b.allowedHuTypes.length ? b.allowedHuTypes.join(', ') : 'Any'}</td>
-                <td>
-                  <StatusBadge status={b.status} />
-                </td>
-                <td className="md-row-actions">
-                  <button className="btn btn-ghost btn-sm" onClick={() => setEditing(b)}>
-                    Edit
-                  </button>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+      <DataTable
+        rows={rows}
+        rowKey={(b) => b.id ?? b.code}
+        search={(b) => `${b.code} ${b.storageType} ${b.slottingGranularity} ${(b.allowedHuTypes ?? []).join(' ')} ${b.status ?? ''}`}
+        searchPlaceholder="Search storage blocks…"
+        initialSort={{ key: 'code', dir: 'asc' }}
+        empty={loading ? 'Loading…' : 'No storage blocks for this warehouse.'}
+        columns={[
+          { key: 'code', header: 'Code', sortable: true, sortValue: (b) => b.code ?? '', render: (b) => b.code },
+          {
+            key: 'storageType',
+            header: 'Storage type',
+            sortable: true,
+            sortValue: (b) => b.storageType ?? '',
+            render: (b) => b.storageType,
+          },
+          {
+            key: 'slottingGranularity',
+            header: 'Granularity',
+            sortable: true,
+            sortValue: (b) => b.slottingGranularity ?? '',
+            render: (b) => b.slottingGranularity,
+          },
+          {
+            key: 'gtp',
+            header: 'GTP',
+            sortable: true,
+            sortValue: (b) => (b.gtp ? 1 : 0),
+            render: (b) => (b.gtp ? 'Yes' : 'No'),
+          },
+          {
+            key: 'allowedHuTypes',
+            header: 'Allowed HU types',
+            render: (b) => (b.allowedHuTypes && b.allowedHuTypes.length ? b.allowedHuTypes.join(', ') : 'Any'),
+          },
+          {
+            key: 'status',
+            header: 'Status',
+            sortable: true,
+            sortValue: (b) => b.status ?? '',
+            render: (b) => <StatusBadge status={b.status} />,
+          },
+          {
+            key: 'actions',
+            header: '',
+            render: (b) => (
+              <div className="md-row-actions">
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(b)}>
+                  Edit
+                </button>
+              </div>
+            ),
+          },
+        ]}
+      />
       <p className="muted" style={{ fontSize: '.8rem', marginTop: '.75rem' }}>
         Warehouse: {warehouseName(warehouseId)}. Storage blocks have no archive endpoint; set status to ARCHIVED via
         Edit.
@@ -914,57 +930,85 @@ function LocationsTab({
     <div className="glass card-pad md-panel">
       <Toolbar label="location" onAdd={() => setEditing(blank)} />
       {error && <div className="alert alert-danger">{error}</div>}
-      <div className="md-scroll-x">
-        <table>
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Type</th>
-              <th>Purpose</th>
-              <th>Block</th>
-              <th>Aisle</th>
-              <th>Side</th>
-              <th>X/Y/Z</th>
-              <th>Dist→exit</th>
-              <th>Status</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <Empty text="Loading…" />
-            ) : rows.length === 0 ? (
-              <Empty text="No locations for this warehouse." />
-            ) : (
-              rows.map((l) => (
-                <tr key={l.id}>
-                  <td>{l.code}</td>
-                  <td>{l.locationType}</td>
-                  <td>{l.purpose}</td>
-                  <td>{blockCode(l.blockId)}</td>
-                  <td>{l.aisle || '—'}</td>
-                  <td>{l.side || '—'}</td>
-                  <td>
-                    {[l.posX, l.posY, l.posZ].map((v) => (v ?? '·')).join('/')}
-                  </td>
-                  <td>{l.distanceToExit ?? '—'}</td>
-                  <td>
-                    <StatusBadge status={l.status} />
-                  </td>
-                  <td className="md-row-actions">
-                    <button className="btn btn-ghost btn-sm" onClick={() => setEditing(l)}>
-                      Edit
-                    </button>
-                    <button className="btn btn-danger btn-sm" onClick={() => setDeleting(l)}>
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        rows={rows}
+        rowKey={(l) => l.id ?? l.code}
+        search={(l) => `${l.code} ${l.locationType} ${l.purpose} ${blockCode(l.blockId)} ${l.aisle ?? ''} ${l.side ?? ''} ${l.status ?? ''}`}
+        searchPlaceholder="Search locations…"
+        initialSort={{ key: 'code', dir: 'asc' }}
+        empty={loading ? 'Loading…' : 'No locations for this warehouse.'}
+        columns={[
+          { key: 'code', header: 'Code', sortable: true, sortValue: (l) => l.code ?? '', render: (l) => l.code },
+          {
+            key: 'locationType',
+            header: 'Type',
+            sortable: true,
+            sortValue: (l) => l.locationType ?? '',
+            render: (l) => l.locationType,
+          },
+          {
+            key: 'purpose',
+            header: 'Purpose',
+            sortable: true,
+            sortValue: (l) => l.purpose ?? '',
+            render: (l) => l.purpose,
+          },
+          {
+            key: 'block',
+            header: 'Block',
+            sortable: true,
+            sortValue: (l) => blockCode(l.blockId),
+            render: (l) => blockCode(l.blockId),
+          },
+          {
+            key: 'aisle',
+            header: 'Aisle',
+            sortable: true,
+            sortValue: (l) => l.aisle ?? '',
+            render: (l) => l.aisle || '—',
+          },
+          {
+            key: 'side',
+            header: 'Side',
+            sortable: true,
+            sortValue: (l) => l.side ?? '',
+            render: (l) => l.side || '—',
+          },
+          {
+            key: 'pos',
+            header: 'X/Y/Z',
+            render: (l) => [l.posX, l.posY, l.posZ].map((v) => v ?? '·').join('/'),
+          },
+          {
+            key: 'distanceToExit',
+            header: 'Dist→exit',
+            sortable: true,
+            sortValue: (l) => l.distanceToExit ?? 0,
+            render: (l) => l.distanceToExit ?? '—',
+          },
+          {
+            key: 'status',
+            header: 'Status',
+            sortable: true,
+            sortValue: (l) => l.status ?? '',
+            render: (l) => <StatusBadge status={l.status} />,
+          },
+          {
+            key: 'actions',
+            header: '',
+            render: (l) => (
+              <div className="md-row-actions">
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(l)}>
+                  Edit
+                </button>
+                <button className="btn btn-danger btn-sm" onClick={() => setDeleting(l)}>
+                  Delete
+                </button>
+              </div>
+            ),
+          },
+        ]}
+      />
       <p className="muted" style={{ fontSize: '.8rem', marginTop: '.75rem' }}>
         Warehouse: {warehouseName(warehouseId)}.
       </p>
@@ -1176,42 +1220,62 @@ function EquipmentTab({
     <div className="glass card-pad md-panel">
       <Toolbar label="equipment" onAdd={() => setEditing(blank)} />
       {error && <div className="alert alert-danger">{error}</div>}
-      <table>
-        <thead>
-          <tr>
-            <th>Family</th>
-            <th>Vendor</th>
-            <th>Model</th>
-            <th>Adapter endpoint</th>
-            <th>Status</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            <Empty text="Loading…" />
-          ) : rows.length === 0 ? (
-            <Empty text="No equipment for this warehouse." />
-          ) : (
-            rows.map((e) => (
-              <tr key={e.id}>
-                <td>{e.family}</td>
-                <td>{e.vendor || '—'}</td>
-                <td>{e.model || '—'}</td>
-                <td>{e.adapterEndpoint || '—'}</td>
-                <td>
-                  <StatusBadge status={e.status} />
-                </td>
-                <td className="md-row-actions">
-                  <button className="btn btn-ghost btn-sm" onClick={() => setEditing(e)}>
-                    Edit
-                  </button>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+      <DataTable
+        rows={rows}
+        rowKey={(e) => e.id ?? `${e.family}-${e.vendor}-${e.model}`}
+        search={(e) => `${e.family} ${e.vendor ?? ''} ${e.model ?? ''} ${e.adapterEndpoint ?? ''} ${e.status ?? ''}`}
+        searchPlaceholder="Search equipment…"
+        initialSort={{ key: 'family', dir: 'asc' }}
+        empty={loading ? 'Loading…' : 'No equipment for this warehouse.'}
+        columns={[
+          {
+            key: 'family',
+            header: 'Family',
+            sortable: true,
+            sortValue: (e) => e.family ?? '',
+            render: (e) => e.family,
+          },
+          {
+            key: 'vendor',
+            header: 'Vendor',
+            sortable: true,
+            sortValue: (e) => e.vendor ?? '',
+            render: (e) => e.vendor || '—',
+          },
+          {
+            key: 'model',
+            header: 'Model',
+            sortable: true,
+            sortValue: (e) => e.model ?? '',
+            render: (e) => e.model || '—',
+          },
+          {
+            key: 'adapterEndpoint',
+            header: 'Adapter endpoint',
+            sortable: true,
+            sortValue: (e) => e.adapterEndpoint ?? '',
+            render: (e) => e.adapterEndpoint || '—',
+          },
+          {
+            key: 'status',
+            header: 'Status',
+            sortable: true,
+            sortValue: (e) => e.status ?? '',
+            render: (e) => <StatusBadge status={e.status} />,
+          },
+          {
+            key: 'actions',
+            header: '',
+            render: (e) => (
+              <div className="md-row-actions">
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(e)}>
+                  Edit
+                </button>
+              </div>
+            ),
+          },
+        ]}
+      />
       <p className="muted" style={{ fontSize: '.8rem', marginTop: '.75rem' }}>
         Warehouse: {warehouseName(warehouseId)}. Equipment has no archive endpoint; set status to ARCHIVED via Edit.
       </p>
@@ -1323,49 +1387,64 @@ function LabelTemplatesTab() {
     <div className="glass card-pad md-panel">
       <Toolbar label="template" onAdd={() => setEditing(blank)} />
       {error && <div className="alert alert-danger">{error}</div>}
-      <table>
-        <thead>
-          <tr>
-            <th>Code</th>
-            <th>Name</th>
-            <th>Size (mm)</th>
-            <th>DPI</th>
-            <th>Elements</th>
-            <th>Status</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            <Empty text="Loading…" />
-          ) : rows.length === 0 ? (
-            <Empty text="No label templates yet." />
-          ) : (
-            rows.map((t) => (
-              <tr key={t.id}>
-                <td>{t.code}</td>
-                <td>{t.name || '—'}</td>
-                <td>
-                  {t.widthMm} × {t.heightMm}
-                </td>
-                <td>{t.dpi}</td>
-                <td>{t.elements?.length ?? 0}</td>
-                <td>
-                  <StatusBadge status={t.status} />
-                </td>
-                <td className="md-row-actions">
-                  <button className="btn btn-ghost btn-sm" onClick={() => setEditing(t)}>
-                    Edit
-                  </button>
-                  <button className="btn btn-danger btn-sm" onClick={() => setDeleting(t)}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+      <DataTable
+        rows={rows}
+        rowKey={(t) => t.id ?? t.code}
+        search={(t) => `${t.code} ${t.name ?? ''} ${t.status ?? ''}`}
+        searchPlaceholder="Search label templates…"
+        initialSort={{ key: 'code', dir: 'asc' }}
+        empty={loading ? 'Loading…' : 'No label templates yet.'}
+        columns={[
+          { key: 'code', header: 'Code', sortable: true, sortValue: (t) => t.code ?? '', render: (t) => t.code },
+          {
+            key: 'name',
+            header: 'Name',
+            sortable: true,
+            sortValue: (t) => t.name ?? '',
+            render: (t) => t.name || '—',
+          },
+          {
+            key: 'size',
+            header: 'Size (mm)',
+            render: (t) => `${t.widthMm} × ${t.heightMm}`,
+          },
+          {
+            key: 'dpi',
+            header: 'DPI',
+            sortable: true,
+            sortValue: (t) => t.dpi ?? 0,
+            render: (t) => t.dpi,
+          },
+          {
+            key: 'elements',
+            header: 'Elements',
+            sortable: true,
+            sortValue: (t) => t.elements?.length ?? 0,
+            render: (t) => t.elements?.length ?? 0,
+          },
+          {
+            key: 'status',
+            header: 'Status',
+            sortable: true,
+            sortValue: (t) => t.status ?? '',
+            render: (t) => <StatusBadge status={t.status} />,
+          },
+          {
+            key: 'actions',
+            header: '',
+            render: (t) => (
+              <div className="md-row-actions">
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(t)}>
+                  Edit
+                </button>
+                <button className="btn btn-danger btn-sm" onClick={() => setDeleting(t)}>
+                  Delete
+                </button>
+              </div>
+            ),
+          },
+        ]}
+      />
 
       {editing && (
         <LabelTemplateDialog initial={editing} onClose={() => setEditing(null)} onSaved={load} />

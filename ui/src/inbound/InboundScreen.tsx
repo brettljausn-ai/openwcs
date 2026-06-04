@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import Select from '../ui/Select'
+import DataTable from '../ui/DataTable'
 
 // ---------------------------------------------------------------- API types
 type OrderStatus =
@@ -276,71 +277,96 @@ export default function InboundScreen() {
       )}
 
       {/* Orders table */}
-      {warehouseId && (
+      {warehouseId && loading && (
+        <div className="glass card-pad" style={{ textAlign: 'center', padding: '1.5rem' }}>
+          <span className="spin" />
+        </div>
+      )}
+
+      {warehouseId && !loading && (
         <div className="glass" style={{ overflow: 'auto' }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Reference</th>
-                <th>Status</th>
-                <th>Supplier / Cust.</th>
-                <th style={{ textAlign: 'right' }}>Lines</th>
-                <th style={{ textAlign: 'right' }}>Expected</th>
-                <th style={{ textAlign: 'right' }}>Received</th>
-                <th>Created</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '1.5rem' }}>
-                    <span className="spin" />
-                  </td>
-                </tr>
-              )}
-              {!loading && orders.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="muted" style={{ textAlign: 'center', padding: '1.5rem' }}>
-                    No inbound orders for {warehouseLabel}.
-                  </td>
-                </tr>
-              )}
-              {!loading &&
-                orders.map((o) => {
-                  const lines = o.lines ?? []
-                  const expected = lines.reduce((s, l) => s + (l.qty || 0), 0)
-                  const received = lines.reduce((s, l) => s + receivedQty(l), 0)
-                  return (
-                    <tr key={o.id} style={{ cursor: 'pointer' }} onClick={() => setDetail(o)}>
-                      <td>
-                        <strong>{o.orderRef}</strong>
-                      </td>
-                      <td>
-                        <span className={statusBadgeClass(o.status)}>{o.status.replace(/_/g, ' ')}</span>
-                      </td>
-                      <td className="muted">{o.customerRef || '—'}</td>
-                      <td style={{ textAlign: 'right' }}>{lines.length}</td>
-                      <td style={{ textAlign: 'right' }}>{expected}</td>
-                      <td style={{ textAlign: 'right' }}>{received}</td>
-                      <td className="muted">{fmtDate(o.createdAt)}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setDetail(o)
-                          }}
-                        >
-                          View
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-            </tbody>
-          </table>
+          <DataTable
+            rows={orders}
+            rowKey={(o) => o.id}
+            onRowClick={(o) => setDetail(o)}
+            search={(o) => `${o.orderRef} ${o.customerRef ?? ''} ${o.status}`}
+            searchPlaceholder="Search inbound orders…"
+            initialSort={{ key: 'createdAt', dir: 'desc' }}
+            empty={`No inbound orders for ${warehouseLabel}.`}
+            columns={[
+              {
+                key: 'orderRef',
+                header: 'Reference',
+                sortable: true,
+                sortValue: (o) => o.orderRef ?? '',
+                render: (o) => <strong>{o.orderRef}</strong>,
+              },
+              {
+                key: 'status',
+                header: 'Status',
+                sortable: true,
+                sortValue: (o) => o.status,
+                render: (o) => (
+                  <span className={statusBadgeClass(o.status)}>{o.status.replace(/_/g, ' ')}</span>
+                ),
+              },
+              {
+                key: 'customerRef',
+                header: 'Supplier / Cust.',
+                sortable: true,
+                sortValue: (o) => o.customerRef ?? '',
+                render: (o) => <span className="muted">{o.customerRef || '—'}</span>,
+              },
+              {
+                key: 'lines',
+                header: 'Lines',
+                align: 'right',
+                sortable: true,
+                sortValue: (o) => (o.lines ?? []).length,
+                render: (o) => (o.lines ?? []).length,
+              },
+              {
+                key: 'expected',
+                header: 'Expected',
+                align: 'right',
+                sortable: true,
+                sortValue: (o) => (o.lines ?? []).reduce((s, l) => s + (l.qty || 0), 0),
+                render: (o) => (o.lines ?? []).reduce((s, l) => s + (l.qty || 0), 0),
+              },
+              {
+                key: 'received',
+                header: 'Received',
+                align: 'right',
+                sortable: true,
+                sortValue: (o) => (o.lines ?? []).reduce((s, l) => s + receivedQty(l), 0),
+                render: (o) => (o.lines ?? []).reduce((s, l) => s + receivedQty(l), 0),
+              },
+              {
+                key: 'createdAt',
+                header: 'Created',
+                sortable: true,
+                sortValue: (o) => o.createdAt ?? '',
+                render: (o) => <span className="muted">{fmtDate(o.createdAt)}</span>,
+              },
+              {
+                key: 'actions',
+                header: '',
+                align: 'right',
+                render: (o) => (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setDetail(o)
+                    }}
+                  >
+                    View
+                  </button>
+                ),
+              },
+            ]}
+          />
         </div>
       )}
 

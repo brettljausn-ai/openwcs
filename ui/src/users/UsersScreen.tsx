@@ -263,7 +263,7 @@ function UserDialog({
   const warehouseOptions = useMemo(
     () => [
       { value: '', label: '— none —' },
-      ...warehouses.map((w) => ({ value: w.code, label: `${w.code} — ${w.name}` })),
+      ...warehouses.map((w) => ({ value: w.id, label: `${w.code} — ${w.name}` })),
     ],
     [warehouses],
   )

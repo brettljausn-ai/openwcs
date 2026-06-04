@@ -1,9 +1,10 @@
-import { ReactNode, useEffect, useMemo, useState } from 'react'
+import { Fragment, ReactNode, useEffect, useMemo, useState } from 'react'
 
 // Reusable table with client-side search, column sort and pagination — for any list that fits in
 // memory (a loaded page of rows). Lists that can reach thousands of rows should paginate/search
 // server-side instead (see the Warehouse access screen). Columns are declarative; `render`
-// customises a cell, `sortValue` drives sorting, `search` builds the per-row haystack.
+// customises a cell, `sortValue` drives sorting, `search` builds the per-row haystack. Pass
+// `renderExpanded` to make rows expandable (a detail row toggled by a leading chevron).
 export interface Column<T> {
   key: string
   header: string
@@ -24,6 +25,7 @@ interface DataTableProps<T> {
   initialSort?: { key: string; dir: 'asc' | 'desc' }
   empty?: ReactNode
   onRowClick?: (row: T) => void
+  renderExpanded?: (row: T) => ReactNode
   toolbarExtra?: ReactNode
 }
 
@@ -37,11 +39,13 @@ export default function DataTable<T>({
   initialSort,
   empty = 'No rows.',
   onRowClick,
+  renderExpanded,
   toolbarExtra,
 }: DataTableProps<T>) {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(initialSort ?? null)
   const [page, setPage] = useState(0)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   const filtered = useMemo(() => {
     if (!search || !query.trim()) return rows
@@ -71,6 +75,7 @@ export default function DataTable<T>({
   const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 1
   const current = Math.min(page, pageCount - 1)
   const pageRows = pageSize > 0 ? sorted.slice(current * pageSize, current * pageSize + pageSize) : sorted
+  const colSpan = columns.length + (renderExpanded ? 1 : 0)
 
   // Snap back to the first page whenever the filtered set changes underneath us.
   useEffect(() => setPage(0), [query, total])
@@ -80,6 +85,15 @@ export default function DataTable<T>({
       if (!prev || prev.key !== key) return { key, dir: 'asc' }
       if (prev.dir === 'asc') return { key, dir: 'desc' }
       return null
+    })
+  }
+
+  function toggleExpand(key: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
     })
   }
 
@@ -105,6 +119,7 @@ export default function DataTable<T>({
         <table>
           <thead>
             <tr>
+              {renderExpanded && <th style={{ width: '1%' }} aria-label="Expand" />}
               {columns.map((c) => (
                 <th
                   key={c.key}
@@ -125,24 +140,42 @@ export default function DataTable<T>({
           <tbody>
             {pageRows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="muted" style={{ textAlign: 'center', padding: '1.5rem' }}>
+                <td colSpan={colSpan} className="muted" style={{ textAlign: 'center', padding: '1.5rem' }}>
                   {empty}
                 </td>
               </tr>
             ) : (
-              pageRows.map((r) => (
-                <tr
-                  key={rowKey(r)}
-                  className={onRowClick ? 'is-clickable' : undefined}
-                  onClick={onRowClick ? () => onRowClick(r) : undefined}
-                >
-                  {columns.map((c) => (
-                    <td key={c.key} style={{ textAlign: c.align ?? 'left' }}>
-                      {c.render ? c.render(r) : String((r as Record<string, unknown>)[c.key] ?? '')}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              pageRows.map((r) => {
+                const key = rowKey(r)
+                const isOpen = expanded.has(key)
+                const clickable = !!renderExpanded || !!onRowClick
+                return (
+                  <Fragment key={key}>
+                    <tr
+                      className={clickable ? 'is-clickable' : undefined}
+                      onClick={renderExpanded ? () => toggleExpand(key) : onRowClick ? () => onRowClick(r) : undefined}
+                    >
+                      {renderExpanded && (
+                        <td style={{ color: 'var(--herbal-lime)', fontFamily: 'var(--font-mono)' }}>
+                          {isOpen ? '▾' : '▸'}
+                        </td>
+                      )}
+                      {columns.map((c) => (
+                        <td key={c.key} style={{ textAlign: c.align ?? 'left' }}>
+                          {c.render ? c.render(r) : String((r as Record<string, unknown>)[c.key] ?? '')}
+                        </td>
+                      ))}
+                    </tr>
+                    {renderExpanded && isOpen && (
+                      <tr>
+                        <td colSpan={colSpan} style={{ background: 'rgba(8, 30, 22, .35)' }}>
+                          {renderExpanded(r)}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })
             )}
           </tbody>
         </table>
