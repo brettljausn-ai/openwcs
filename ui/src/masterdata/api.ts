@@ -112,6 +112,19 @@ export interface LabelTemplate {
   status: string
 }
 
+export interface HandlingUnitType {
+  id?: string
+  name: string
+  lengthMm?: number
+  widthMm?: number
+  heightMm?: number
+  weightLimitG?: number
+  nestable: boolean
+  compartments: number
+  storableInAutomation: boolean
+  transportableOnConveyor: boolean
+}
+
 const json = { 'Content-Type': 'application/json' }
 
 async function unwrap<T>(res: Response): Promise<T> {
@@ -226,4 +239,15 @@ export async function updateLabelTemplate(id: string, t: LabelTemplate): Promise
 }
 export async function deleteLabelTemplate(id: string): Promise<void> {
   return expectOk(await fetch(`${base}/label-templates/${id}`, { method: 'DELETE' }))
+}
+
+// -------------------------------------------------------- Handling unit types
+export async function listHandlingUnitTypes(): Promise<HandlingUnitType[]> {
+  return unwrap(await fetch(`${base}/handling-unit-types`))
+}
+export async function createHandlingUnitType(h: HandlingUnitType): Promise<HandlingUnitType> {
+  return unwrap(await fetch(`${base}/handling-unit-types`, { method: 'POST', headers: json, body: JSON.stringify(h) }))
+}
+export async function updateHandlingUnitType(id: string, h: HandlingUnitType): Promise<HandlingUnitType> {
+  return unwrap(await fetch(`${base}/handling-unit-types/${id}`, { method: 'PUT', headers: json, body: JSON.stringify(h) }))
 }

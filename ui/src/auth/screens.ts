@@ -48,6 +48,7 @@ export const SCREENS: ScreenDef[] = [
     { label: 'Storage blocks', path: '/master-data/storage-blocks' },
     { label: 'Locations', path: '/master-data/locations' },
     { label: 'Equipment', path: '/master-data/equipment' },
+    { label: 'Handling unit types', path: '/master-data/handling-unit-types' },
     { label: 'Label templates', path: '/master-data/label-templates' },
   ] },
   { key: 'gtp-config', label: 'GTP workplaces', path: '/gtp-config', section: 'Configuration', icon: '⚙', defaultRoles: ['ADMIN'], description: 'Configure GTP workplaces, nodes and operating modes.' },
