@@ -38,50 +38,12 @@ export default function AppShell() {
     if (activeSection) setOpen((o) => (o.includes(activeSection) ? o : [...o, activeSection]))
   }, [activeSection])
 
-  // A top-level item with children (e.g. Master data) is its own collapsible section.
-  const activeItem = SCREENS.find(
-    (s) => s.children?.length && (pathname === s.path || pathname.startsWith(`${s.path}/`)),
-  )?.key
-  const [itemOpen, setItemOpen] = useState<string[]>(activeItem ? [activeItem] : [])
-  const toggleItem = (key: string) =>
-    setItemOpen((o) => (o.includes(key) ? o.filter((x) => x !== key) : [...o, key]))
-  useEffect(() => {
-    if (activeItem) setItemOpen((o) => (o.includes(activeItem) ? o : [...o, activeItem]))
-  }, [activeItem])
-
   const link = (s: ScreenDef) => (
     <NavLink key={s.key} to={s.path} end={s.path === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>
       <span className="nav-ico" aria-hidden="true">{s.icon}</span>
       {s.label}
     </NavLink>
   )
-
-  // A top-level item with children (e.g. Master data) renders as its own collapsible section —
-  // same behaviour as Operations/Engineering: a small-caps header that expands to its sub-pages.
-  const renderItem = (s: ScreenDef) => {
-    if (!s.children?.length) return link(s)
-    const isOpen = itemOpen.includes(s.key)
-    return (
-      <div key={s.key} className="sidebar-group">
-        <button
-          type="button"
-          className={`sidebar-section${isOpen ? ' is-open' : ''}`}
-          aria-expanded={isOpen}
-          onClick={() => toggleItem(s.key)}
-        >
-          <span className="sidebar-section-chev" aria-hidden="true">▸</span>
-          {s.label}
-        </button>
-        {isOpen &&
-          s.children.map((c) => (
-            <NavLink key={c.path} to={c.path} className={({ isActive }) => (isActive ? 'active' : '')}>
-              <span className="nav-ico" aria-hidden="true" />
-              {c.label}
-            </NavLink>
-          ))}
-      </div>
-    )
-  }
 
   return (
     <div className="app-shell">
@@ -93,7 +55,6 @@ export default function AppShell() {
 
         <nav className="sidebar-nav">
           {can(dashboard) && link(dashboard)}
-          {SCREENS.filter((s) => !s.section && s.key !== 'dashboard' && can(s)).map(renderItem)}
           {bySection.map((g) => {
             const isOpen = open.includes(g.section)
             return (
@@ -107,7 +68,7 @@ export default function AppShell() {
                   <span className="sidebar-section-chev" aria-hidden="true">▸</span>
                   {g.section}
                 </button>
-                {isOpen && g.items.map(renderItem)}
+                {isOpen && g.items.map(link)}
               </div>
             )
           })}

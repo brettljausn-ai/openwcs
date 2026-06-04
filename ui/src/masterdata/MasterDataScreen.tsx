@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useParams } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import { useAuth } from '../auth/AuthContext'
 import Select from '../ui/Select'
@@ -72,9 +72,9 @@ const ENTITIES: { key: EntityKey; label: string; scoped: boolean }[] = [
 
 export default function MasterDataScreen() {
   const { currentWarehouseId: warehouseId } = useWarehouse()
-  // The active entity is the URL sub-page (/master-data/:entity); the sidebar submenu drives it.
-  const { entity: entityParam } = useParams()
-  const entity: EntityKey = ENTITIES.find((e) => e.key === entityParam)?.key ?? 'warehouses'
+  // The active entity is the last segment of /master-data/<entity> — each catalog is its own route.
+  const { pathname } = useLocation()
+  const entity: EntityKey = ENTITIES.find((e) => e.key === pathname.split('/')[2])?.key ?? 'warehouses'
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [whError, setWhError] = useState<string | null>(null)
 

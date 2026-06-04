@@ -41,7 +41,13 @@ const COMPONENTS: Record<string, JSX.Element> = {
   'stock-transactions': <StockTxnScreen />,
   'stock-overview': <StockOverviewScreen />,
   'handling-units': <HandlingUnitsScreen />,
-  'master-data': <MasterDataScreen />,
+  'master-data:warehouses': <MasterDataScreen />,
+  'master-data:skus': <MasterDataScreen />,
+  'master-data:storage-blocks': <MasterDataScreen />,
+  'master-data:locations': <MasterDataScreen />,
+  'master-data:equipment': <MasterDataScreen />,
+  'master-data:handling-unit-types': <MasterDataScreen />,
+  'master-data:label-templates': <MasterDataScreen />,
   'gtp-config': <GtpConfigScreen />,
   settings: <SettingsScreen />,
   users: <UsersScreen />,
@@ -92,12 +98,8 @@ export default function App() {
                 <Route key={s.key} path={s.path} element={<Guarded screen={s} />} />
               ),
             )}
-            {/* Master-data sub-pages (a second menu level) reuse the master-data screen, which
-                reads the active entity from the :entity route param. */}
-            <Route
-              path="/master-data/:entity"
-              element={<Guarded screen={SCREENS.find((s) => s.key === 'master-data')!} />}
-            />
+            {/* /master-data → first catalog (old links / nav land on Warehouses). */}
+            <Route path="/master-data" element={<Navigate to="/master-data/warehouses" replace />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
