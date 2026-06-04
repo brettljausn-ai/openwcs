@@ -221,7 +221,11 @@ function HandlingUnitDialog({
               onChange={(v) => setD({ ...d, huTypeId: v || null })}
               options={[
                 { value: '', label: '— None —' },
-                ...types.map((t) => ({ value: t.id ?? '', label: t.name })),
+                // Hide archived types from new/edit selection. If the current HU still
+                // references an archived type, keep that option so the value stays visible.
+                ...types
+                  .filter((t) => t.status !== 'ARCHIVED' || t.id === d.huTypeId)
+                  .map((t) => ({ value: t.id ?? '', label: t.name })),
               ]}
             />
           </div>

@@ -11,4 +11,7 @@ public interface HandlingUnitRepository extends JpaRepository<HandlingUnit, UUID
     List<HandlingUnit> findByWarehouseId(UUID warehouseId);
 
     Optional<HandlingUnit> findByWarehouseIdAndCode(UUID warehouseId, String code);
+
+    /** Active handling units of a given type, across all warehouses (guards HU-type archiving). */
+    long countByHuTypeIdAndStatus(UUID huTypeId, String status);
 }

@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import { useAuth } from '../auth/AuthContext'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
+import { countActiveHandlingUnits } from '../inventory/api'
 import {
   Barcode,
   Equipment,
@@ -14,6 +16,7 @@ import {
   StorageBlock,
   UnitOfMeasure,
   Warehouse,
+  archiveHandlingUnitType,
   createEquipment,
   createHandlingUnitType,
   createLabelTemplate,
@@ -32,6 +35,7 @@ import {
   listSkus,
   listStorageBlocks,
   listWarehouses,
+  restoreHandlingUnitType,
   updateEquipment,
   updateHandlingUnitType,
   updateLabelTemplate,
@@ -1400,10 +1404,15 @@ function EquipmentDialog({
 // =========================================================================
 
 function HandlingUnitTypesTab() {
+  const { roles } = useAuth()
+  const isAdmin = roles.includes('ADMIN')
   const [rows, setRows] = useState<HandlingUnitType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<HandlingUnitType | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
+  // Per-row busy flag (archive/restore in flight), keyed by type id.
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1420,22 +1429,70 @@ function HandlingUnitTypesTab() {
     load()
   }, [load])
 
+  const isArchived = (h: HandlingUnitType) => h.status === 'ARCHIVED'
+  // Treat a missing status as ACTIVE. By default only show active types.
+  const visible = showArchived ? rows : rows.filter((h) => !isArchived(h))
+
+  async function archive(h: HandlingUnitType) {
+    if (!h.id) return
+    setError(null)
+    setBusyId(h.id)
+    try {
+      const active = await countActiveHandlingUnits(h.id)
+      if (active > 0) {
+        setError(`Cannot archive — ${active} active handling unit${active === 1 ? '' : 's'} still use this type.`)
+        return
+      }
+      await archiveHandlingUnitType(h.id)
+      await load()
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function restore(h: HandlingUnitType) {
+    if (!h.id) return
+    setError(null)
+    setBusyId(h.id)
+    try {
+      await restoreHandlingUnitType(h.id)
+      await load()
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const blank: HandlingUnitType = {
     name: '',
     nestable: false,
     compartments: 1,
     storableInAutomation: false,
     transportableOnConveyor: false,
+    status: 'ACTIVE',
   }
 
   return (
     <div className="glass card-pad md-panel">
-      <Toolbar label="handling unit type" onAdd={() => setEditing(blank)} />
+      <Toolbar label="handling unit type" onAdd={() => setEditing(blank)}>
+        <label className="md-check">
+          <input
+            type="checkbox"
+            checked={showArchived}
+            onChange={(e) => setShowArchived(e.target.checked)}
+          />
+          Show archived
+        </label>
+      </Toolbar>
       {error && <div className="alert alert-danger">{error}</div>}
       <DataTable
-        rows={rows}
+        rows={visible}
         rowKey={(h) => h.id ?? h.name}
-        search={(h) => `${h.name}`}
+        rowClassName={(h) => (isArchived(h) ? 'md-row-archived' : '')}
+        search={(h) => `${h.name} ${h.status ?? ''}`}
         searchPlaceholder="Search handling unit types…"
         initialSort={{ key: 'name', dir: 'asc' }}
         empty={loading ? 'Loading…' : 'No handling unit types yet.'}
@@ -1482,6 +1539,13 @@ function HandlingUnitTypesTab() {
             render: (h) => (h.transportableOnConveyor ? 'Yes' : 'No'),
           },
           {
+            key: 'status',
+            header: 'Status',
+            sortable: true,
+            sortValue: (h) => h.status ?? 'ACTIVE',
+            render: (h) => <StatusBadge status={h.status ?? 'ACTIVE'} />,
+          },
+          {
             key: 'actions',
             header: '',
             render: (h) => (
@@ -1489,6 +1553,24 @@ function HandlingUnitTypesTab() {
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(h)}>
                   Edit
                 </button>
+                {isAdmin &&
+                  (isArchived(h) ? (
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      disabled={busyId === h.id}
+                      onClick={() => restore(h)}
+                    >
+                      {busyId === h.id ? <span className="spin" /> : 'Restore'}
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-danger btn-sm"
+                      disabled={busyId === h.id}
+                      onClick={() => archive(h)}
+                    >
+                      {busyId === h.id ? <span className="spin" /> : 'Archive'}
+                    </button>
+                  ))}
               </div>
             ),
           },
@@ -1796,6 +1878,7 @@ function Styles() {
       .md-tabs { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.25rem; }
       .md-panel { margin-bottom: 1rem; }
       .md-row-actions { display: flex; gap: .4rem; justify-content: flex-end; white-space: nowrap; }
+      .md-row-archived td { opacity: .55; }
       .md-scroll-x { overflow-x: auto; }
       .md-form { display: flex; flex-direction: column; gap: .85rem; }
       .md-form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem 1rem; }

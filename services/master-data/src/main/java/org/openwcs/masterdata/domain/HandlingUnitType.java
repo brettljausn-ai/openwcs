@@ -49,6 +49,10 @@ public class HandlingUnitType extends Auditable {
     @Column(name = "transportable_on_conveyor", nullable = false)
     private boolean transportableOnConveyor = true;
 
+    /** Lifecycle status: ACTIVE or ARCHIVED. Archived types are kept for history but no longer used. */
+    @Column(name = "status", nullable = false)
+    private String status = "ACTIVE";
+
     public UUID getId() {
         return id;
     }
@@ -127,5 +131,13 @@ public class HandlingUnitType extends Auditable {
 
     public void setTransportableOnConveyor(boolean transportableOnConveyor) {
         this.transportableOnConveyor = transportableOnConveyor;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 }

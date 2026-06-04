@@ -123,6 +123,7 @@ export interface HandlingUnitType {
   compartments: number
   storableInAutomation: boolean
   transportableOnConveyor: boolean
+  status?: 'ACTIVE' | 'ARCHIVED'
 }
 
 const json = { 'Content-Type': 'application/json' }
@@ -250,4 +251,10 @@ export async function createHandlingUnitType(h: HandlingUnitType): Promise<Handl
 }
 export async function updateHandlingUnitType(id: string, h: HandlingUnitType): Promise<HandlingUnitType> {
   return unwrap(await fetch(`${base}/handling-unit-types/${id}`, { method: 'PUT', headers: json, body: JSON.stringify(h) }))
+}
+export async function archiveHandlingUnitType(id: string): Promise<void> {
+  return expectOk(await fetch(`${base}/handling-unit-types/${id}/archive`, { method: 'PUT' }))
+}
+export async function restoreHandlingUnitType(id: string): Promise<void> {
+  return expectOk(await fetch(`${base}/handling-unit-types/${id}/restore`, { method: 'PUT' }))
 }
