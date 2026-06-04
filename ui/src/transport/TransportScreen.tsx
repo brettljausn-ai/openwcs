@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useWarehouse } from '../warehouse/WarehouseContext'
 import { DeviceTask, listDeviceTasks } from './api'
 
 // Transport overview (build.md §8): a live view of the device tasks the flow-orchestrator
@@ -63,8 +64,8 @@ function formatTime(iso: string): string {
 }
 
 export default function TransportScreen() {
+  const { currentWarehouseId: warehouseId } = useWarehouse()
   const [tasks, setTasks] = useState<DeviceTask[]>([])
-  const [warehouseId, setWarehouseId] = useState('')
   const [status, setStatus] = useState('')
   const [family, setFamily] = useState('')
   const [equipmentId, setEquipmentId] = useState('')
@@ -148,7 +149,7 @@ export default function TransportScreen() {
             <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
             Auto-refresh
           </label>
-          <button className="btn-outline btn-sm" onClick={refresh} disabled={loading}>
+          <button className="btn btn-outline btn-sm" onClick={refresh} disabled={loading}>
             {loading ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
@@ -168,9 +169,6 @@ export default function TransportScreen() {
 
       {/* Filters */}
       <div className="glass" style={{ padding: '1rem 1.25rem', marginBottom: '1.25rem', display: 'flex', flexWrap: 'wrap', gap: '.75rem', alignItems: 'flex-end' }}>
-        <Field label="Warehouse ID">
-          <input className="form-control" style={{ width: 280 }} placeholder="any warehouse (UUID)" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} />
-        </Field>
         <Field label="Status">
           <select className="form-control" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">All statuses</option>
@@ -186,8 +184,8 @@ export default function TransportScreen() {
         <Field label="Equipment ID">
           <input className="form-control" style={{ width: 280 }} placeholder="any equipment (UUID)" value={equipmentId} onChange={(e) => setEquipmentId(e.target.value)} />
         </Field>
-        {(warehouseId || status || family || equipmentId) && (
-          <button className="btn-ghost btn-sm" onClick={() => { setWarehouseId(''); setStatus(''); setFamily(''); setEquipmentId('') }}>
+        {(status || family || equipmentId) && (
+          <button className="btn btn-ghost btn-sm" onClick={() => { setStatus(''); setFamily(''); setEquipmentId('') }}>
             Clear filters
           </button>
         )}
@@ -230,7 +228,7 @@ export default function TransportScreen() {
             {tasks.length === 0 && !loading && (
               <tr>
                 <td colSpan={10} className="muted" style={{ textAlign: 'center', padding: '2rem' }}>
-                  No device tasks{(warehouseId || status || family || equipmentId) ? ' match the current filters' : ' yet'}.
+                  No device tasks{(status || family || equipmentId) ? ' match the current filters' : ' yet'}.
                 </td>
               </tr>
             )}

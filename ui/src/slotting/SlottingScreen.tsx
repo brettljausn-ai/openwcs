@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useWarehouse } from '../warehouse/WarehouseContext'
 import {
   PickSlot,
   StorageBlock,
@@ -18,7 +19,7 @@ const cell: React.CSSProperties = { padding: '4px 8px', borderBottom: '1px solid
 const input: React.CSSProperties = { padding: '4px 6px', width: 120 }
 
 export default function SlottingScreen() {
-  const [warehouseId, setWarehouseId] = useState('')
+  const { currentWarehouseId: warehouseId } = useWarehouse()
   const [pickSlots, setPickSlots] = useState<PickSlot[]>([])
   const [profiles, setProfiles] = useState<StorageProfile[]>([])
   const [blocks, setBlocks] = useState<StorageBlock[]>([])
@@ -44,16 +45,15 @@ export default function SlottingScreen() {
   useEffect(() => {
     refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [warehouseId])
 
   return (
     <div style={{ padding: '1rem', overflow: 'auto', height: '100%' }}>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
-        <label>Warehouse ID:</label>
-        <input style={{ ...input, width: 320 }} value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} placeholder="warehouse UUID" />
-        <button onClick={refresh} disabled={!warehouseId}>Load</button>
-        {error && <span style={{ color: '#c0392b' }}>{error}</span>}
-      </div>
+      {error && (
+        <div style={{ marginBottom: 16 }}>
+          <span style={{ color: '#c0392b' }}>{error}</span>
+        </div>
+      )}
 
       <PickFaces warehouseId={warehouseId} slots={pickSlots} onChange={refresh} />
       <BlockSlotting warehouseId={warehouseId} profiles={profiles} blocks={blocks} onChange={refresh} />

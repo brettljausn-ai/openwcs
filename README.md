@@ -77,7 +77,7 @@ openwcs/
 | `services/counting` | Java | 8095 | Cycle / stock counting: count tasks (location/SKU/zone/block scope, blind or variance), ABC-cadence scheduling, capture → variance vs inventory → reconcile (auto-approve within tolerance / recount) → `StockAdjusted` |
 | `services/flow-orchestrator` | Java | 8085 | Dispatches device tasks to adapters over the uniform device contract; vendor-neutral conveyor routing (topology graph + HU route plans + shortest-path next-hop on scan) |
 | `services/txlog` | Java | 8086 | Append-only transaction log (shared Postgres) |
-| `services/iam` | Java | 8087 | Authorization model: users → roles → coded permissions (Keycloak does auth) |
+| `services/iam` | Java | 8087 | Authorization model: users → roles → coded permissions; per-user warehouse access (allowed warehouses + default; gateway-enforced scope) (Keycloak does auth) |
 | `services/notification` | Java | 8088 | Operator alerts, exceptions, andon |
 | `services/integration-sap` | Java | 8089 | Host gateway: SAP S/4HANA / HANA (OData/BAPI/RFC/IDoc) |
 | `services/integration-manhattan` | Java | 8090 | Host gateway: Manhattan Active (REST) |
@@ -87,7 +87,7 @@ openwcs/
 | `services/adapters/amr-geekplus` | Go | 9093 | Geek+ RCS adapter (REST + WebSocket) |
 | `services/adapters/autostore` | Go | 9094 | AutoStore grid adapter (REST) |
 | `services/adapters/conveyor-sniffer` | Go | 9095 | Captures scan telegrams from defined IPs → posts observations to the WCS for conveyor topology learning |
-| `ui` | React/TS | 5173 dev / 443 prod | Operator + management SPA: Keycloak login, dashboard, and role/user-gated screens — orders (inbound/outbound), counting, GTP operator + config, transport, stock transactions, topology, processes, slotting, master data, settings, users, access control. In compose served by nginx on host `:443` (HTTPS forced). |
+| `ui` | React/TS | 5173 dev / 443 prod | Operator + management SPA: Keycloak login, dashboard, and role/user-gated screens — orders (inbound/outbound), counting, GTP operator + config, transport, stock transactions, topology, processes, slotting, master data, settings, users, access control, warehouse access. A global top-bar warehouse switcher auto-selects each user's default warehouse on login and scopes every warehouse-related screen (no UUID entry). In compose served by nginx on host `:443` (HTTPS forced). |
 
 ---
 

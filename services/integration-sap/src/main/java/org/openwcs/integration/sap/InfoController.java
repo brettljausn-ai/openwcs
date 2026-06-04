@@ -7,7 +7,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class InfoController {
 
-    @GetMapping("/")
+    // "/" for direct hits; "/api/integration/sap/" is the gateway-forwarded path (no
+    // prefix strip) the UI's adapter status probe calls.
+    @GetMapping({"/", "/api/integration/sap/"})
     public Map<String, String> info() {
         return Map.of(
             "service", "integration-sap",

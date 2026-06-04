@@ -11,46 +11,66 @@ interface CatalogEntry {
   key: string
   label: string
   section: string
+  // The screen's built-in default roles (mirror of defaultRoles in ui/src/auth/screens.ts).
+  // When a screen has no override, the toggles reflect these so an admin sees who can
+  // already open it before deciding to override.
+  defaultRoles: Role[]
 }
 const CATALOG: CatalogEntry[] = [
-  { key: 'dashboard', label: 'Dashboard', section: 'General' },
-  { key: 'inbound', label: 'Inbound orders', section: 'Operations' },
-  { key: 'outbound', label: 'Outbound orders', section: 'Operations' },
-  { key: 'counting', label: 'Stock counting', section: 'Operations' },
-  { key: 'gtp-ops', label: 'GTP workplaces', section: 'Operations' },
-  { key: 'transport', label: 'Transport', section: 'Operations' },
-  { key: 'stock-transactions', label: 'Stock transactions', section: 'Operations' },
-  { key: 'topology', label: 'Conveyor topology', section: 'Engineering' },
-  { key: 'processes', label: 'Processes', section: 'Engineering' },
-  { key: 'slotting', label: 'Slotting', section: 'Engineering' },
-  { key: 'master-data', label: 'Master data', section: 'Configuration' },
-  { key: 'gtp-config', label: 'GTP workplaces', section: 'Configuration' },
-  { key: 'settings', label: 'Settings', section: 'Configuration' },
-  { key: 'users', label: 'User management', section: 'Administration' },
-  { key: 'access-control', label: 'Access control', section: 'Administration' },
+  { key: 'dashboard', label: 'Dashboard', section: 'General', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'VIEWER'] },
+  { key: 'inbound', label: 'Inbound orders', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'] },
+  { key: 'outbound', label: 'Outbound orders', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'] },
+  { key: 'counting', label: 'Stock counting', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'] },
+  { key: 'gtp-ops', label: 'GTP workplaces', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'] },
+  { key: 'transport', label: 'Transport', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
+  { key: 'stock-transactions', label: 'Stock transactions', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
+  { key: 'topology', label: 'Conveyor topology', section: 'Engineering', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
+  { key: 'processes', label: 'Processes', section: 'Engineering', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
+  { key: 'slotting', label: 'Slotting', section: 'Engineering', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
+  { key: 'master-data', label: 'Master data', section: 'Configuration', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
+  { key: 'gtp-config', label: 'GTP workplaces', section: 'Configuration', defaultRoles: ['ADMIN'] },
+  { key: 'settings', label: 'Settings', section: 'Configuration', defaultRoles: ['ADMIN'] },
+  { key: 'users', label: 'User management', section: 'Administration', defaultRoles: ['ADMIN'] },
+  { key: 'access-control', label: 'Access control', section: 'Administration', defaultRoles: ['ADMIN'] },
+  { key: 'warehouse-access', label: 'Warehouse access', section: 'Administration', defaultRoles: ['ADMIN'] },
 ]
+const CATALOG_BY_KEY: Record<string, CatalogEntry> = Object.fromEntries(CATALOG.map((e) => [e.key, e]))
 
 // The backend/AuthContext shape: { "<screenKey>": { roles?: string[], users?: string[] } }.
 type Override = { roles?: string[]; users?: string[] }
 type AccessMap = Record<string, Override>
 
-// Per-screen editable state: a role->checked map plus the raw user-allow-list text.
+// Per-screen editable state. `overridden` distinguishes an explicit override from a row
+// that's merely *showing* the built-in defaults (so toggling the latter reflects reality
+// without counting as an override until the admin actually changes something).
 interface RowState {
+  overridden: boolean
   roles: Record<Role, boolean>
   usersText: string
 }
 
-function emptyRow(): RowState {
-  return { roles: { ADMIN: false, SUPERVISOR: false, OPERATOR: false, VIEWER: false }, usersText: '' }
+function rolesRecord(active: readonly string[]): Record<Role, boolean> {
+  return {
+    ADMIN: active.includes('ADMIN'),
+    SUPERVISOR: active.includes('SUPERVISOR'),
+    OPERATOR: active.includes('OPERATOR'),
+    VIEWER: active.includes('VIEWER'),
+  }
 }
 
-function rowFromOverride(o: Override | undefined): RowState {
-  const row = emptyRow()
-  for (const r of o?.roles ?? []) {
-    if ((ROLES as readonly string[]).includes(r)) row.roles[r as Role] = true
+// A non-overridden row that mirrors the screen's built-in default roles.
+function defaultRow(entry: CatalogEntry): RowState {
+  return { overridden: false, roles: rolesRecord(entry.defaultRoles), usersText: '' }
+}
+
+function rowFromOverride(entry: CatalogEntry, o: Override | undefined): RowState {
+  const hasOverride = !!(o && ((o.roles?.length ?? 0) > 0 || (o.users?.length ?? 0) > 0))
+  if (!hasOverride) return defaultRow(entry)
+  return {
+    overridden: true,
+    roles: rolesRecord((o?.roles ?? []).filter((r) => (ROLES as readonly string[]).includes(r))),
+    usersText: (o?.users ?? []).join(', '),
   }
-  row.usersText = (o?.users ?? []).join(', ')
-  return row
 }
 
 function parseUsers(text: string): string[] {
@@ -58,10 +78,6 @@ function parseUsers(text: string): string[] {
     .split(/[,\n]/)
     .map((u) => u.trim())
     .filter((u) => u.length > 0)
-}
-
-function rowIsOverridden(row: RowState): boolean {
-  return ROLES.some((r) => row.roles[r]) || parseUsers(row.usersText).length > 0
 }
 
 export default function AccessControlScreen() {
@@ -73,7 +89,7 @@ export default function AccessControlScreen() {
 
   function applyMap(map: AccessMap) {
     const next: Record<string, RowState> = {}
-    for (const entry of CATALOG) next[entry.key] = rowFromOverride(map[entry.key])
+    for (const entry of CATALOG) next[entry.key] = rowFromOverride(entry, map[entry.key])
     setRows(next)
   }
 
@@ -106,36 +122,43 @@ export default function AccessControlScreen() {
   }, [])
 
   const overriddenCount = useMemo(
-    () => Object.values(rows).filter(rowIsOverridden).length,
+    () => Object.values(rows).filter((r) => r.overridden).length,
     [rows],
   )
 
+  // Changing any toggle (or the user list) on a default row "takes control" of it: the
+  // reflected defaults become the starting point of an explicit override.
   function toggleRole(key: string, role: Role) {
     setSavedAt(null)
-    setRows((prev) => ({
-      ...prev,
-      [key]: { ...prev[key], roles: { ...prev[key].roles, [role]: !prev[key].roles[role] } },
-    }))
+    setRows((prev) => {
+      const row = prev[key]
+      return { ...prev, [key]: { ...row, overridden: true, roles: { ...row.roles, [role]: !row.roles[role] } } }
+    })
   }
 
   function setUsers(key: string, text: string) {
     setSavedAt(null)
-    setRows((prev) => ({ ...prev, [key]: { ...prev[key], usersText: text } }))
+    setRows((prev) => {
+      const row = prev[key]
+      // Keep it a default row only while the field is being cleared back to empty.
+      const overridden = row.overridden || text.trim().length > 0
+      return { ...prev, [key]: { ...row, overridden, usersText: text } }
+    })
   }
 
   function clearRow(key: string) {
     setSavedAt(null)
-    setRows((prev) => ({ ...prev, [key]: emptyRow() }))
+    setRows((prev) => ({ ...prev, [key]: defaultRow(CATALOG_BY_KEY[key]) }))
   }
 
   function buildMap(): AccessMap {
     const map: AccessMap = {}
     for (const entry of CATALOG) {
       const row = rows[entry.key]
-      if (!row) continue
+      if (!row || !row.overridden) continue // default row → UI defaults apply
       const roles = ROLES.filter((r) => row.roles[r])
       const users = parseUsers(row.usersText)
-      if (roles.length === 0 && users.length === 0) continue // no override → UI defaults apply
+      if (roles.length === 0 && users.length === 0) continue // emptied override → back to defaults
       map[entry.key] = { roles, users }
     }
     return map
@@ -200,7 +223,7 @@ export default function AccessControlScreen() {
           </div>
           <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
             {savedAt && <span className="badge badge-success">Saved</span>}
-            <button className="btn-primary" onClick={save} disabled={loading || saving}>
+            <button className="btn btn-primary" onClick={save} disabled={loading || saving}>
               {saving ? 'Saving…' : 'Save changes'}
             </button>
           </div>
@@ -262,8 +285,8 @@ function SectionRows({
         </td>
       </tr>
       {entries.map((entry) => {
-        const row = rows[entry.key] ?? emptyRow()
-        const overridden = rowIsOverridden(row)
+        const row = rows[entry.key] ?? defaultRow(entry)
+        const overridden = row.overridden
         return (
           <tr key={entry.key}>
             <td>
@@ -279,10 +302,10 @@ function SectionRows({
             </td>
             {ROLES.map((r) => (
               <td key={r} style={{ textAlign: 'center' }}>
-                <input
-                  type="checkbox"
-                  aria-label={`${entry.label}: ${r}`}
+                <Toggle
+                  label={`${entry.label}: ${r}`}
                   checked={row.roles[r]}
+                  muted={!overridden}
                   disabled={loading}
                   onChange={() => onToggleRole(entry.key, r)}
                 />
@@ -300,7 +323,7 @@ function SectionRows({
             </td>
             <td>
               <button
-                className="btn-ghost"
+                className="btn btn-ghost btn-sm"
                 onClick={() => onClear(entry.key)}
                 disabled={loading || !overridden}
                 title="Clear override (revert to defaults)"
@@ -312,5 +335,29 @@ function SectionRows({
         )
       })}
     </>
+  )
+}
+
+// Toggle switch. `muted` renders the dimmed "this is just reflecting the default" state.
+function Toggle({
+  label,
+  checked,
+  muted,
+  disabled,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  muted?: boolean
+  disabled?: boolean
+  onChange: () => void
+}) {
+  return (
+    <label className={`switch${muted ? ' switch-muted' : ''}`}>
+      <input type="checkbox" aria-label={label} checked={checked} disabled={disabled} onChange={onChange} />
+      <span className="switch-track">
+        <span className="switch-thumb" />
+      </span>
+    </label>
   )
 }
