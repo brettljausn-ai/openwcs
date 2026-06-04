@@ -5,6 +5,8 @@ import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import org.openwcs.inventory.domain.Reservation;
+import org.openwcs.inventory.repo.HandlingUnitRepository;
+import org.openwcs.inventory.repo.StockRepository;
 import org.openwcs.inventory.service.Availability;
 import org.openwcs.inventory.service.InventoryService;
 import org.springframework.http.ResponseEntity;
@@ -22,9 +24,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class InventoryController {
 
     private final InventoryService service;
+    private final StockRepository stock;
+    private final HandlingUnitRepository handlingUnits;
 
-    public InventoryController(InventoryService service) {
+    public InventoryController(
+            InventoryService service, StockRepository stock, HandlingUnitRepository handlingUnits) {
         this.service = service;
+        this.stock = stock;
+        this.handlingUnits = handlingUnits;
     }
 
     /** Current stock buckets for a SKU in a warehouse. */
@@ -48,6 +55,21 @@ public class InventoryController {
         return locationId != null
                 ? service.availabilityAtLocation(warehouseId, skuId, locationId)
                 : service.availability(warehouseId, skuId);
+    }
+
+    /**
+     * Occupancy check for a set of locations — counts stock rows and handling units that sit at
+     * them. The UI uses this to confirm a storage block is empty before requesting its deletion.
+     */
+    @PostMapping("/occupancy")
+    public OccupancyResult occupancy(@RequestBody OccupancyRequest request) {
+        List<UUID> locationIds = request.locationIds();
+        if (locationIds == null || locationIds.isEmpty()) {
+            return new OccupancyResult(0, 0);
+        }
+        return new OccupancyResult(
+                stock.countByLocationIdIn(locationIds),
+                handlingUnits.countByLocationIdIn(locationIds));
     }
 
     @PostMapping("/reservations")

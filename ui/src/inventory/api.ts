@@ -68,3 +68,13 @@ export interface StockOverviewRow {
 export async function listStockOverview(warehouseId: string): Promise<StockOverviewRow[]> {
   return unwrap(await fetch(`${base}/stock/overview?warehouseId=${encodeURIComponent(warehouseId)}`))
 }
+
+// Occupancy gate: how many stock rows / handling units occupy the given locations. Used to block
+// deleting a storage block whose locations still hold stock or handling units.
+export async function checkOccupancy(
+  locationIds: string[],
+): Promise<{ stockRows: number; handlingUnits: number }> {
+  return unwrap(
+    await fetch(`${base}/occupancy`, { method: 'POST', headers: json, body: JSON.stringify({ locationIds }) }),
+  )
+}

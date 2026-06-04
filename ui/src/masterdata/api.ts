@@ -199,6 +199,26 @@ export async function createStorageBlock(b: StorageBlock): Promise<StorageBlock>
 export async function updateStorageBlock(id: string, b: StorageBlock): Promise<StorageBlock> {
   return unwrap(await fetch(`${base}/storage-blocks/${id}`, { method: 'PUT', headers: json, body: JSON.stringify(b) }))
 }
+export async function archiveStorageBlock(id: string): Promise<StorageBlock> {
+  return unwrap(await fetch(`${base}/storage-blocks/${id}/archive`, { method: 'PUT' }))
+}
+export async function restoreStorageBlock(id: string): Promise<StorageBlock> {
+  return unwrap(await fetch(`${base}/storage-blocks/${id}/restore`, { method: 'PUT' }))
+}
+export async function deleteStorageBlock(id: string): Promise<void> {
+  return expectOk(await fetch(`${base}/storage-blocks/${id}`, { method: 'DELETE' }))
+}
+// IDs of the locations belonging to a block — used to gate deletion (must hold no stock/HUs).
+// Tolerates either a plain array or a paged {content:[…]} response shape.
+export async function listBlockLocationIds(warehouseId: string, blockId: string): Promise<string[]> {
+  const res = await unwrap<Location[] | Page<Location>>(
+    await fetch(
+      `${base}/locations?warehouseId=${encodeURIComponent(warehouseId)}&blockId=${encodeURIComponent(blockId)}&size=1000`,
+    ),
+  )
+  const list = Array.isArray(res) ? res : res.content
+  return list.map((l) => l.id).filter((id): id is string => !!id)
+}
 
 // ------------------------------------------------------------------ Locations
 export async function listLocations(warehouseId: string): Promise<Location[]> {
