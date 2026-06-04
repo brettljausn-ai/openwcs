@@ -88,6 +88,12 @@ export default function App() {
                 <Route key={s.key} path={s.path} element={<Guarded screen={s} />} />
               ),
             )}
+            {/* Master-data sub-pages (a second menu level) reuse the master-data screen, which
+                reads the active entity from the :entity route param. */}
+            <Route
+              path="/master-data/:entity"
+              element={<Guarded screen={SCREENS.find((s) => s.key === 'master-data')!} />}
+            />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

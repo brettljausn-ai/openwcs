@@ -43,6 +43,35 @@ export default function AppShell() {
     </NavLink>
   )
 
+  // An item with children renders a second menu level (e.g. Master data → its catalogs),
+  // expanded while the user is on one of its sub-pages.
+  const renderItem = (s: ScreenDef) => {
+    if (!s.children?.length) return link(s)
+    const expanded = pathname === s.path || pathname.startsWith(`${s.path}/`)
+    return (
+      <div key={s.key} className="sidebar-item-group">
+        <NavLink to={s.children[0].path} className={`sidebar-parent${expanded ? ' active' : ''}`}>
+          <span className="nav-ico" aria-hidden="true">{s.icon}</span>
+          {s.label}
+          <span className="sidebar-subchev" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+        </NavLink>
+        {expanded && (
+          <div className="sidebar-subnav">
+            {s.children.map((c) => (
+              <NavLink
+                key={c.path}
+                to={c.path}
+                className={({ isActive }) => `sidebar-subitem${isActive ? ' active' : ''}`}
+              >
+                {c.label}
+              </NavLink>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -66,7 +95,7 @@ export default function AppShell() {
                   <span className="sidebar-section-chev" aria-hidden="true">▸</span>
                   {g.section}
                 </button>
-                {isOpen && g.items.map(link)}
+                {isOpen && g.items.map(renderItem)}
               </div>
             )
           })}

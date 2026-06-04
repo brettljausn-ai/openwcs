@@ -21,6 +21,7 @@ export interface ScreenDef {
   icon: string
   defaultRoles: Role[]
   description: string
+  children?: { label: string; path: string }[] // optional nested sub-pages (a second menu level)
 }
 
 export const SCREENS: ScreenDef[] = [
@@ -40,7 +41,14 @@ export const SCREENS: ScreenDef[] = [
   { key: 'slotting', label: 'Slotting', path: '/slotting', section: 'Engineering', icon: '▦', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Pick-face and automated-block slotting & replenishment policy.' },
 
   // Configuration — master & system config
-  { key: 'master-data', label: 'Master data', path: '/master-data', section: 'Configuration', icon: '⛁', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Warehouses, SKUs, storage blocks, locations, equipment, label templates.' },
+  { key: 'master-data', label: 'Master data', path: '/master-data', section: 'Configuration', icon: '⛁', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Warehouses, SKUs, storage blocks, locations, equipment, label templates.', children: [
+    { label: 'Warehouses', path: '/master-data/warehouses' },
+    { label: 'SKUs', path: '/master-data/skus' },
+    { label: 'Storage blocks', path: '/master-data/storage-blocks' },
+    { label: 'Locations', path: '/master-data/locations' },
+    { label: 'Equipment', path: '/master-data/equipment' },
+    { label: 'Label templates', path: '/master-data/label-templates' },
+  ] },
   { key: 'gtp-config', label: 'GTP workplaces', path: '/gtp-config', section: 'Configuration', icon: '⚙', defaultRoles: ['ADMIN'], description: 'Configure GTP workplaces, nodes and operating modes.' },
   { key: 'settings', label: 'Settings', path: '/settings', section: 'Configuration', icon: '⚙', defaultRoles: ['ADMIN'], description: 'System settings, policies and integration endpoints.' },
 
