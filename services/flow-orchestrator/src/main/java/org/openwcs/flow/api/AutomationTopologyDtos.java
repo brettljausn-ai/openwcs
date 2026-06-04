@@ -33,6 +33,7 @@ public final class AutomationTopologyDtos {
                                      BigDecimal posXM, BigDecimal posYM, BigDecimal posZM,
                                      BigDecimal rotationDeg, BigDecimal tiltDeg,
                                      BigDecimal lengthM, BigDecimal widthM, BigDecimal heightM,
+                                     List<List<Double>> path, boolean closed,
                                      String status) {
     }
 

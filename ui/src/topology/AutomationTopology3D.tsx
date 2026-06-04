@@ -33,6 +33,18 @@ function equipmentTypeLabel(meta?: Equipment): string {
   return meta.type || meta.subtype || meta.family || 'Equipment'
 }
 
+// A placement is a conveyor (polyline-capable) when its library family is CONVEYOR. That family
+// covers straight conveyors, curves, and sorters. Everything else stays a single box.
+function isConveyor(eq: AutomationEquipment, lib: Map<string, Equipment>): boolean {
+  const meta = eq.equipmentId ? lib.get(eq.equipmentId) : undefined
+  return (meta?.family ?? '').toUpperCase() === 'CONVEYOR'
+}
+
+// A usable polyline needs at least two waypoints.
+function hasPath(eq: AutomationEquipment): boolean {
+  return Array.isArray(eq.path) && eq.path.length >= 2
+}
+
 function num(v: string, fallback = 0): number {
   const n = Number(v)
   return Number.isFinite(n) ? n : fallback
@@ -50,6 +62,11 @@ export default function AutomationTopology3D() {
   const [library, setLibrary] = useState<Equipment[]>([])
   const [activeLevelId, setActiveLevelId] = useState<string>('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  // When ON, clicking the ground plane appends a waypoint to the selected conveyor's path.
+  const [drawPath, setDrawPath] = useState(false)
+  // While a waypoint handle is being dragged we disable OrbitControls so the camera stays put.
+  const [orbitEnabled, setOrbitEnabled] = useState(true)
 
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -178,8 +195,39 @@ export default function AutomationTopology3D() {
     [equipment, selectedId],
   )
 
+  const selectedIsConveyor = selected ? isConveyor(selected, libById) : false
+
+  // Draw mode only makes sense for a selected conveyor — drop it otherwise.
+  useEffect(() => {
+    if (!selected || !selectedIsConveyor) setDrawPath(false)
+  }, [selected, selectedIsConveyor])
+
   const patchEquipment = useCallback((id: string, patch: Partial<AutomationEquipment>) => {
     setEquipment((es) => es.map((e) => (e.id === id ? { ...e, ...patch } : e)))
+    setDirty(true)
+  }, [])
+
+  // Append a waypoint to an equipment's path (creating one if needed). Used by draw mode.
+  const appendWaypoint = useCallback((id: string, x: number, z: number) => {
+    setEquipment((es) =>
+      es.map((e) => {
+        if (e.id !== id) return e
+        const prev = Array.isArray(e.path) ? e.path : []
+        return { ...e, path: [...prev, [+x.toFixed(3), +z.toFixed(3)]] }
+      }),
+    )
+    setDirty(true)
+  }, [])
+
+  // Move a single waypoint (live, during a handle drag).
+  const moveWaypoint = useCallback((id: string, index: number, x: number, z: number) => {
+    setEquipment((es) =>
+      es.map((e) => {
+        if (e.id !== id || !Array.isArray(e.path) || index < 0 || index >= e.path.length) return e
+        const next = e.path.map((p, i) => (i === index ? [+x.toFixed(3), +z.toFixed(3)] : p))
+        return { ...e, path: next }
+      }),
+    )
     setDirty(true)
   }, [])
 
@@ -372,13 +420,18 @@ export default function AutomationTopology3D() {
                 items={levelEquipment}
                 lib={libById}
                 selectedId={selectedId}
+                drawPath={drawPath}
                 onSelect={setSelectedId}
                 onMove={(id, x, z, rotDeg) =>
                   patchEquipment(id, { posXM: x, posZM: z, rotationDeg: rotDeg })
                 }
+                onAppendWaypoint={appendWaypoint}
+                onMoveWaypoint={moveWaypoint}
+                onHandleDragChange={(active) => setOrbitEnabled(!active)}
               />
               <OrbitControls
                 makeDefault
+                enabled={orbitEnabled}
                 enableDamping
                 enablePan
                 enableZoom
@@ -392,7 +445,11 @@ export default function AutomationTopology3D() {
                 mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
               />
             </Canvas>
-            <div className="atopo-hint">Drag to orbit · right-drag to pan · scroll to zoom</div>
+            <div className="atopo-hint">
+              {drawPath
+                ? 'Draw mode: click the floor to add conveyor waypoints'
+                : 'Drag to orbit · right-drag to pan · scroll to zoom'}
+            </div>
             </>
           )}
         </div>
@@ -429,10 +486,22 @@ export default function AutomationTopology3D() {
                 <NumField label="Tilt (°)" value={selected.tiltDeg} onChange={(v) => patchEquipment(selected.id, { tiltDeg: v })} />
               </div>
               <div className="atopo-grid2">
-                <NumField label="Length (m)" value={selected.lengthM} onChange={(v) => patchEquipment(selected.id, { lengthM: v })} />
+                {!hasPath(selected) && (
+                  <NumField label="Length (m)" value={selected.lengthM} onChange={(v) => patchEquipment(selected.id, { lengthM: v })} />
+                )}
                 <NumField label="Width (m)" value={selected.widthM} onChange={(v) => patchEquipment(selected.id, { widthM: v })} />
                 <NumField label="Height (m)" value={selected.heightM} onChange={(v) => patchEquipment(selected.id, { heightM: v })} />
               </div>
+
+              {selectedIsConveyor && (
+                <ConveyorPathTools
+                  eq={selected}
+                  drawPath={drawPath}
+                  onToggleDraw={() => setDrawPath((d) => !d)}
+                  onPatch={(patch) => patchEquipment(selected.id, patch)}
+                />
+              )}
+
               <button type="button" className="btn btn-danger btn-sm atopo-delete" onClick={deleteSelected}>
                 Delete equipment
               </button>
@@ -469,6 +538,101 @@ function NumField({
   )
 }
 
+// Path-editing tools shown in the properties panel for a selected conveyor.
+function ConveyorPathTools({
+  eq,
+  drawPath,
+  onToggleDraw,
+  onPatch,
+}: {
+  eq: AutomationEquipment
+  drawPath: boolean
+  onToggleDraw: () => void
+  onPatch: (patch: Partial<AutomationEquipment>) => void
+}) {
+  const path = Array.isArray(eq.path) ? eq.path : []
+  const count = path.length
+
+  // Seed a two-point path from the current straight box: the two centreline endpoints,
+  // posX/posZ ± length/2 projected along the box rotation (yaw about Y).
+  const startFromBox = () => {
+    const yaw = eq.rotationDeg * DEG
+    const hx = (Math.cos(yaw) * eq.lengthM) / 2
+    const hz = (Math.sin(yaw) * eq.lengthM) / 2
+    onPatch({
+      path: [
+        [+(eq.posXM - hx).toFixed(3), +(eq.posZM - hz).toFixed(3)],
+        [+(eq.posXM + hx).toFixed(3), +(eq.posZM + hz).toFixed(3)],
+      ],
+    })
+  }
+
+  const removeLast = () => {
+    if (count === 0) return
+    onPatch({ path: count <= 1 ? null : path.slice(0, -1) })
+  }
+
+  return (
+    <div className="atopo-pathtools">
+      <div className="atopo-pathtools-head">
+        Conveyor path{' '}
+        <InfoTip
+          text="Draw a centreline of waypoints so this conveyor renders as a polyline (corners, turns, loops) instead of a single straight box."
+          example="add corners to route around a column"
+        />
+      </div>
+      <div className="atopo-pathcount">
+        {count === 0
+          ? 'No path — rendering as a straight box.'
+          : `${count} waypoint${count === 1 ? '' : 's'}${count < 2 ? ' (need ≥ 2 to draw segments)' : ''}`}
+      </div>
+
+      <button
+        type="button"
+        className={`btn btn-sm ${drawPath ? 'btn-primary' : 'btn-outline'} atopo-pathbtn`}
+        onClick={onToggleDraw}
+      >
+        {drawPath ? 'Drawing… click floor to add (stop)' : 'Draw path'}
+      </button>
+
+      {count === 0 && (
+        <button type="button" className="btn btn-outline btn-sm atopo-pathbtn" onClick={startFromBox}>
+          Start path from box
+        </button>
+      )}
+
+      <label className="md-check atopo-pathcheck">
+        <input
+          type="checkbox"
+          checked={!!eq.closed}
+          onChange={(e) => onPatch({ closed: e.target.checked })}
+        />
+        Closed loop{' '}
+        <InfoTip text="When on, the path loops back from the last waypoint to the first." example="a recirculating sorter loop" />
+      </label>
+
+      <div className="atopo-pathrow">
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          onClick={removeLast}
+          disabled={count === 0}
+        >
+          Remove last point
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          onClick={() => onPatch({ path: null })}
+          disabled={count === 0}
+        >
+          Clear path
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // =========================================================================
 // 3D scene
 // =========================================================================
@@ -477,20 +641,41 @@ interface SceneContentProps {
   items: AutomationEquipment[]
   lib: Map<string, Equipment>
   selectedId: string | null
+  drawPath: boolean
   onSelect: (id: string | null) => void
   onMove: (id: string, x: number, z: number, rotationDeg: number) => void
+  onAppendWaypoint: (id: string, x: number, z: number) => void
+  onMoveWaypoint: (id: string, index: number, x: number, z: number) => void
+  onHandleDragChange: (active: boolean) => void
 }
 
-function SceneContent({ items, lib, selectedId, onSelect, onMove }: SceneContentProps) {
+function SceneContent({
+  items,
+  lib,
+  selectedId,
+  drawPath,
+  onSelect,
+  onMove,
+  onAppendWaypoint,
+  onMoveWaypoint,
+  onHandleDragChange,
+}: SceneContentProps) {
   return (
     <group>
-      {/* Click the (invisible) ground plane to deselect. */}
+      {/* The (invisible) ground plane. In draw mode it appends a waypoint to the selected
+          conveyor; otherwise a plain left-click deselects. */}
       <mesh
         rotation-x={-Math.PI / 2}
         position={[0, -0.001, 0]}
         onPointerDown={(e: ThreeEvent<PointerEvent>) => {
-          // Only deselect on a plain click on empty floor (not a drag of controls).
-          if (e.button === 0) onSelect(null)
+          if (e.button !== 0) return
+          if (drawPath && selectedId) {
+            // Suppress deselect while drawing; append the clicked floor point as a waypoint.
+            e.stopPropagation()
+            onAppendWaypoint(selectedId, e.point.x, e.point.z)
+            return
+          }
+          onSelect(null)
         }}
       >
         <planeGeometry args={[200, 200]} />
@@ -501,10 +686,13 @@ function SceneContent({ items, lib, selectedId, onSelect, onMove }: SceneContent
         <EquipmentMesh
           key={eq.id}
           eq={eq}
+          conveyor={isConveyor(eq, lib)}
           color={colorFor(eq, lib)}
           selected={eq.id === selectedId}
           onSelect={() => onSelect(eq.id)}
           onMove={(x, z, rot) => onMove(eq.id, x, z, rot)}
+          onMoveWaypoint={(index, x, z) => onMoveWaypoint(eq.id, index, x, z)}
+          onHandleDragChange={onHandleDragChange}
         />
       ))}
     </group>
@@ -513,13 +701,39 @@ function SceneContent({ items, lib, selectedId, onSelect, onMove }: SceneContent
 
 interface EquipmentMeshProps {
   eq: AutomationEquipment
+  conveyor: boolean
   color: string
   selected: boolean
   onSelect: () => void
   onMove: (x: number, z: number, rotationDeg: number) => void
+  onMoveWaypoint: (index: number, x: number, z: number) => void
+  onHandleDragChange: (active: boolean) => void
 }
 
-function EquipmentMesh({ eq, color, selected, onSelect, onMove }: EquipmentMeshProps) {
+function EquipmentMesh({
+  eq,
+  conveyor,
+  color,
+  selected,
+  onSelect,
+  onMove,
+  onMoveWaypoint,
+  onHandleDragChange,
+}: EquipmentMeshProps) {
+  // Conveyor with a usable polyline → render as connected segments + (when selected) handles.
+  if (conveyor && hasPath(eq)) {
+    return (
+      <ConveyorPath
+        eq={eq}
+        color={color}
+        selected={selected}
+        onSelect={onSelect}
+        onMoveWaypoint={onMoveWaypoint}
+        onHandleDragChange={onHandleDragChange}
+      />
+    )
+  }
+
   // Captured at drag start so cumulative gizmo deltas apply to a fixed base, not live state.
   const dragBase = useRef<{ x: number; z: number; rotDeg: number } | null>(null)
   const y = eq.heightM / 2 + eq.posYM
@@ -609,6 +823,160 @@ function EquipmentMesh({ eq, color, selected, onSelect, onMove }: EquipmentMeshP
 }
 
 // =========================================================================
+// Conveyor polyline (corners / turns / loops)
+// =========================================================================
+
+interface ConveyorPathProps {
+  eq: AutomationEquipment
+  color: string
+  selected: boolean
+  onSelect: () => void
+  onMoveWaypoint: (index: number, x: number, z: number) => void
+  onHandleDragChange: (active: boolean) => void
+}
+
+// Renders a conveyor as a chain of box segments following its centreline waypoints, plus
+// (when selected) draggable sphere handles to edit each waypoint on the XZ ground plane.
+function ConveyorPath({
+  eq,
+  color,
+  selected,
+  onSelect,
+  onMoveWaypoint,
+  onHandleDragChange,
+}: ConveyorPathProps) {
+  const path = (eq.path ?? []) as number[][]
+  const y = eq.heightM / 2 + eq.posYM
+
+  // Build the list of segments (consecutive pairs; plus last→first when closed).
+  const segments: { mx: number; mz: number; len: number; yaw: number }[] = []
+  const pairCount = eq.closed ? path.length : path.length - 1
+  for (let i = 0; i < pairCount; i++) {
+    const a = path[i]
+    const b = path[(i + 1) % path.length]
+    if (!a || !b) continue
+    const dx = b[0] - a[0]
+    const dz = b[1] - a[1]
+    const len = Math.hypot(dx, dz)
+    if (len < 1e-4) continue
+    segments.push({
+      mx: (a[0] + b[0]) / 2,
+      mz: (a[1] + b[1]) / 2,
+      len,
+      // z maps to world Z: yaw about Y rotates the box's X length into the segment direction.
+      yaw: Math.atan2(dz, dx),
+    })
+  }
+
+  const first = path[0]
+
+  return (
+    <group>
+      {segments.map((s, i) => (
+        <group key={i} position={[s.mx, y, s.mz]} rotation={[0, -s.yaw, 0]}>
+          <mesh
+            castShadow
+            onPointerDown={(e: ThreeEvent<PointerEvent>) => {
+              e.stopPropagation()
+              onSelect()
+            }}
+          >
+            <boxGeometry args={[s.len, eq.heightM, eq.widthM]} />
+            <meshStandardMaterial
+              color={color}
+              emissive={selected ? '#8DC63F' : '#000000'}
+              emissiveIntensity={selected ? 0.5 : 0}
+              metalness={0.1}
+              roughness={0.7}
+            />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Code label near the first waypoint. */}
+      {first && (
+        <Html
+          position={[first[0], y + eq.heightM / 2 + 0.4, first[1]]}
+          center
+          distanceFactor={18}
+          occlude={false}
+        >
+          <div className="atopo-label">{eq.code}</div>
+        </Html>
+      )}
+
+      {/* Editable waypoint handles, only for the selected conveyor. */}
+      {selected &&
+        path.map((p, i) => (
+          <WaypointHandle
+            key={i}
+            x={p[0]}
+            z={p[1]}
+            y={y}
+            radius={Math.max(0.2, eq.widthM * 0.35)}
+            onDrag={(x, z) => onMoveWaypoint(i, x, z)}
+            onDragChange={onHandleDragChange}
+          />
+        ))}
+    </group>
+  )
+}
+
+// A draggable sphere at a single waypoint. Dragging raycasts against a horizontal plane at the
+// waypoint's y and updates the point live. Disables OrbitControls for the duration of the drag.
+function WaypointHandle({
+  x,
+  z,
+  y,
+  radius,
+  onDrag,
+  onDragChange,
+}: {
+  x: number
+  z: number
+  y: number
+  radius: number
+  onDrag: (x: number, z: number) => void
+  onDragChange: (active: boolean) => void
+}) {
+  const dragging = useRef(false)
+  // Horizontal plane at the handle's height; we intersect the pointer ray with it each move.
+  const plane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y))
+  const hit = useRef(new THREE.Vector3())
+
+  return (
+    <mesh
+      position={[x, y, z]}
+      onPointerDown={(e: ThreeEvent<PointerEvent>) => {
+        if (e.button !== 0) return
+        e.stopPropagation()
+        dragging.current = true
+        onDragChange(true)
+        ;(e.target as Element).setPointerCapture?.(e.pointerId)
+      }}
+      onPointerMove={(e: ThreeEvent<PointerEvent>) => {
+        if (!dragging.current) return
+        e.stopPropagation()
+        // Keep the plane in sync with the current y, then intersect the pointer ray.
+        plane.current.set(new THREE.Vector3(0, 1, 0), -y)
+        const p = e.ray.intersectPlane(plane.current, hit.current)
+        if (p) onDrag(p.x, p.z)
+      }}
+      onPointerUp={(e: ThreeEvent<PointerEvent>) => {
+        if (!dragging.current) return
+        e.stopPropagation()
+        dragging.current = false
+        onDragChange(false)
+        ;(e.target as Element).releasePointerCapture?.(e.pointerId)
+      }}
+    >
+      <sphereGeometry args={[radius, 16, 16]} />
+      <meshStandardMaterial color="#8DC63F" emissive="#3a6" emissiveIntensity={0.4} depthTest={false} />
+    </mesh>
+  )
+}
+
+// =========================================================================
 // Scoped styles
 // =========================================================================
 
@@ -665,6 +1033,19 @@ function Styles() {
       .atopo-field > span { font-size: .8125rem; color: var(--text-dim); }
       .atopo-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
       .atopo-delete { margin-top: .4rem; }
+      .atopo-pathtools {
+        display: flex; flex-direction: column; gap: .5rem; margin-top: .4rem;
+        padding: .6rem .7rem; border-radius: 10px;
+        border: 1px solid var(--glass-border); background: rgba(141, 198, 63, .05);
+      }
+      .atopo-pathtools-head {
+        font-family: var(--font-mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .1em;
+        color: var(--herbal-lime);
+      }
+      .atopo-pathcount { font-size: .8rem; color: var(--text-dim); }
+      .atopo-pathbtn { width: 100%; }
+      .atopo-pathcheck { margin: .1rem 0; }
+      .atopo-pathrow { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
       .atopo-label {
         font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-radius: 6px;
         background: rgba(8, 30, 22, .85); color: var(--text); border: 1px solid var(--glass-border-bright);

@@ -7,7 +7,10 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * An instance of master-data equipment placed on a warehouse level in the automation topology /
@@ -67,6 +70,16 @@ public class PlacedEquipment extends Auditable {
 
     @Column(name = "status", nullable = false)
     private String status = "ACTIVE";
+
+    /** For conveyors: centreline waypoints [[x,z], …] in metres (corners / turns / loops). Null or
+     *  fewer than 2 points → render as a single straight box of lengthM. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "path")
+    private List<List<Double>> path;
+
+    /** Whether the path closes back to its first point (a loop). */
+    @Column(name = "closed", nullable = false)
+    private boolean closed = false;
 
     public UUID getId() {
         return id;
@@ -178,5 +191,21 @@ public class PlacedEquipment extends Auditable {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public List<List<Double>> getPath() {
+        return path;
+    }
+
+    public void setPath(List<List<Double>> path) {
+        this.path = path;
+    }
+
+    public boolean isClosed() {
+        return closed;
+    }
+
+    public void setClosed(boolean closed) {
+        this.closed = closed;
     }
 }
