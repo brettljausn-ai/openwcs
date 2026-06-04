@@ -5,7 +5,7 @@ import { useWarehouse } from '../warehouse/WarehouseContext'
 import { useAuth } from '../auth/AuthContext'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
-import { countActiveHandlingUnits } from '../inventory/api'
+import { checkOccupancy, countActiveHandlingUnits } from '../inventory/api'
 import {
   Barcode,
   Equipment,
@@ -17,6 +17,7 @@ import {
   UnitOfMeasure,
   Warehouse,
   archiveHandlingUnitType,
+  archiveStorageBlock,
   bulkCreateLocations,
   createEquipment,
   createHandlingUnitType,
@@ -26,7 +27,9 @@ import {
   createWarehouse,
   deleteLabelTemplate,
   deleteLocation,
+  deleteStorageBlock,
   deleteWarehouse,
+  listBlockLocationIds,
   listEquipment,
   listHandlingUnitTypes,
   listLabelTemplates,
@@ -37,6 +40,7 @@ import {
   listStorageBlocks,
   listWarehouses,
   restoreHandlingUnitType,
+  restoreStorageBlock,
   updateEquipment,
   updateHandlingUnitType,
   updateLabelTemplate,
@@ -728,6 +732,16 @@ const STORAGE_TYPE_DESCRIPTIONS: Record<string, string> = {
 // Storage types whose locations are automation slots/bins by default.
 const AUTOMATION_STORAGE_TYPES = ['SHUTTLE_ASRS', 'CRANE_ASRS', 'AUTOSTORE', 'AMR_GTP']
 
+// Automated storage types are always goods-to-person; manual pick is a genuine
+// choice; everything else (reserve) is not goods-to-person.
+const GTP_AUTOMATED = ['SHUTTLE_ASRS', 'CRANE_ASRS', 'AUTOSTORE', 'AMR_GTP']
+const isGtpEditable = (type: string) => type === 'MANUAL_PICK'
+function derivedGtp(type: string, current = false): boolean {
+  if (GTP_AUTOMATED.includes(type)) return true
+  if (type === 'MANUAL_PICK') return current
+  return false
+}
+
 /**
  * Safeguarded multi-select for "Allowed HU types" — no free text. Renders the ACTIVE
  * handling-unit type names as toggleable chips; selected names populate the string[].
@@ -800,11 +814,16 @@ function StorageBlocksTab({
   warehouseId: string
   warehouseName: (id?: string | null) => string
 }) {
+  const { roles } = useAuth()
+  const isAdmin = roles.includes('ADMIN')
   const [rows, setRows] = useState<StorageBlock[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<StorageBlock | null>(null)
   const [guided, setGuided] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+  // Per-row busy flag (archive/restore/delete in flight), keyed by block id.
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!warehouseId) {
@@ -825,6 +844,68 @@ function StorageBlocksTab({
     load()
   }, [load])
 
+  const isArchived = (b: StorageBlock) => b.status === 'ARCHIVED'
+  // Treat a missing status as ACTIVE. By default only show non-archived blocks.
+  const visible = showArchived ? rows : rows.filter((b) => !isArchived(b))
+
+  async function archive(b: StorageBlock) {
+    if (!b.id) return
+    setError(null)
+    setBusyId(b.id)
+    try {
+      await archiveStorageBlock(b.id)
+      await load()
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function restore(b: StorageBlock) {
+    if (!b.id) return
+    setError(null)
+    setBusyId(b.id)
+    try {
+      await restoreStorageBlock(b.id)
+      await load()
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function remove(b: StorageBlock) {
+    if (!b.id) return
+    setError(null)
+    setBusyId(b.id)
+    try {
+      // Gate: a block may only be deleted when its locations hold no stock / handling units.
+      const ids = await listBlockLocationIds(warehouseId, b.id)
+      if (ids.length > 0) {
+        const { stockRows, handlingUnits } = await checkOccupancy(ids)
+        if (stockRows > 0 || handlingUnits > 0) {
+          setError(
+            `Cannot delete — ${stockRows} stock row${stockRows === 1 ? '' : 's'} and ${handlingUnits} handling unit${
+              handlingUnits === 1 ? '' : 's'
+            } occupy this block's locations.`,
+          )
+          return
+        }
+      }
+      if (!window.confirm(`Delete block ${b.code} and its ${ids.length} location${ids.length === 1 ? '' : 's'}?`)) {
+        return
+      }
+      await deleteStorageBlock(b.id)
+      await load()
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const blank: StorageBlock = {
     warehouseId,
     code: '',
@@ -843,11 +924,16 @@ function StorageBlocksTab({
         <button className="btn btn-ghost btn-sm" onClick={() => setGuided(true)}>
           Guided builder
         </button>
+        <label className="md-check">
+          <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+          Show archived
+        </label>
       </Toolbar>
       {error && <div className="alert alert-danger">{error}</div>}
       <DataTable
-        rows={rows}
+        rows={visible}
         rowKey={(b) => b.id ?? b.code}
+        rowClassName={(b) => (isArchived(b) ? 'md-row-archived' : '')}
         search={(b) => `${b.code} ${b.storageType} ${b.slottingGranularity} ${(b.allowedHuTypes ?? []).join(' ')} ${b.status ?? ''}`}
         searchPlaceholder="Search storage blocks…"
         initialSort={{ key: 'code', dir: 'asc' }}
@@ -895,14 +981,30 @@ function StorageBlocksTab({
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(b)}>
                   Edit
                 </button>
+                {isAdmin && (
+                  <>
+                    {isArchived(b) ? (
+                      <button className="btn btn-ghost btn-sm" disabled={busyId === b.id} onClick={() => restore(b)}>
+                        {busyId === b.id ? <span className="spin" /> : 'Restore'}
+                      </button>
+                    ) : (
+                      <button className="btn btn-ghost btn-sm" disabled={busyId === b.id} onClick={() => archive(b)}>
+                        {busyId === b.id ? <span className="spin" /> : 'Archive'}
+                      </button>
+                    )}
+                    <button className="btn btn-danger btn-sm" disabled={busyId === b.id} onClick={() => remove(b)}>
+                      {busyId === b.id ? <span className="spin" /> : 'Delete'}
+                    </button>
+                  </>
+                )}
               </div>
             ),
           },
         ]}
       />
       <p className="muted" style={{ fontSize: '.8rem', marginTop: '.75rem' }}>
-        Warehouse: {warehouseName(warehouseId)}. Storage blocks have no archive endpoint; set status to ARCHIVED via
-        Edit.
+        Warehouse: {warehouseName(warehouseId)}. A block can only be deleted when its locations hold no stock or
+        handling units.
       </p>
 
       {editing && (
@@ -956,7 +1058,7 @@ function StorageBlockDialog({
       <Field label="Storage type" required>
         <Select
           value={d.storageType}
-          onChange={(val) => setD({ ...d, storageType: val })}
+          onChange={(val) => setD({ ...d, storageType: val, gtp: derivedGtp(val, d.gtp) })}
           options={STORAGE_TYPES.map((t) => ({ value: t, label: t }))}
           ariaLabel="Storage type"
         />
@@ -969,10 +1071,16 @@ function StorageBlockDialog({
           ariaLabel="Slotting granularity"
         />
       </Field>
-      <label className="md-check">
-        <input type="checkbox" checked={d.gtp} onChange={(e) => setD({ ...d, gtp: e.target.checked })} />
-        Goods-to-person (GTP)
-      </label>
+      {isGtpEditable(d.storageType) ? (
+        <label className="md-check">
+          <input type="checkbox" checked={d.gtp} onChange={(e) => setD({ ...d, gtp: e.target.checked })} />
+          Goods-to-person (GTP) — picked at a manned station
+        </label>
+      ) : GTP_AUTOMATED.includes(d.storageType) ? (
+        <p className="md-explain" style={{ margin: '.15rem 0 0', fontSize: '.78rem', lineHeight: 1.4 }}>
+          Goods-to-person — implied by {d.storageType}.
+        </p>
+      ) : null}
       <Field label="Allowed HU types (blank = any)">
         <AllowedHuTypesPicker
           value={d.allowedHuTypes ?? []}
@@ -1041,6 +1149,7 @@ function GuidedBlockBuilder({
       ...b,
       storageType: t,
       slottingGranularity: granTouched ? b.slottingGranularity : t === 'MANUAL_PICK' ? 'LOCATION' : 'BLOCK',
+      gtp: derivedGtp(t, b.gtp),
     }))
   }
 
@@ -1066,6 +1175,7 @@ function GuidedBlockBuilder({
   const [aisle, setAisle] = useState('A01')
   const [levels, setLevels] = useState(10)
   const [positions, setPositions] = useState(40)
+  const [laneDepth, setLaneDepth] = useState(1)
   const [side, setSide] = useState<SideMode>('BOTH')
   const [locType, setLocType] = useState(defaultLocType)
   const [purpose, setPurpose] = useState('STORAGE')
@@ -1098,7 +1208,7 @@ function GuidedBlockBuilder({
             posX: pos,
             posY: level,
             mixedAllowed: false,
-            laneDepth: 1,
+            laneDepth,
           })
         }
       }
@@ -1176,17 +1286,23 @@ function GuidedBlockBuilder({
               </GuidedExplain>
             </Field>
 
-            <Field label="Goods-to-person (GTP)">
-              <label className="md-check">
-                <input
-                  type="checkbox"
-                  checked={block.gtp}
-                  onChange={(e) => setBlock({ ...block, gtp: e.target.checked })}
-                />
-                Picked at a manned station
-              </label>
-              <GuidedExplain>Stock is picked at a manned station, not in the aisle.</GuidedExplain>
-            </Field>
+            {isGtpEditable(block.storageType) ? (
+              <Field label="Goods-to-person (GTP)">
+                <label className="md-check">
+                  <input
+                    type="checkbox"
+                    checked={block.gtp}
+                    onChange={(e) => setBlock({ ...block, gtp: e.target.checked })}
+                  />
+                  Picked at a manned station
+                </label>
+                <GuidedExplain>Stock is picked at a manned station, not in the aisle.</GuidedExplain>
+              </Field>
+            ) : GTP_AUTOMATED.includes(block.storageType) ? (
+              <Field label="Goods-to-person (GTP)">
+                <GuidedExplain>Goods-to-person — implied by {block.storageType}.</GuidedExplain>
+              </Field>
+            ) : null}
 
             <Field label="Allowed HU types (blank = any)">
               <AllowedHuTypesPicker
@@ -1287,6 +1403,22 @@ function GuidedBlockBuilder({
                 </GuidedExplain>
               </Field>
             </div>
+            <Field label="Lane depth">
+              <input
+                className="form-control"
+                type="number"
+                min={1}
+                value={laneDepth}
+                onChange={(e) => {
+                  setLaneDepth(num(e.target.value) ?? 1)
+                  setConfirmBig(false)
+                }}
+              />
+              <GuidedExplain>
+                How many handling units deep each lane is — 1 = single-deep, 2 = double-deep, more for
+                shuttle/satellite lanes. e.g. <code>2</code>.
+              </GuidedExplain>
+            </Field>
             <Field label="Sides">
               <Select
                 value={side}

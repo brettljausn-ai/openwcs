@@ -14,4 +14,7 @@ public interface HandlingUnitRepository extends JpaRepository<HandlingUnit, UUID
 
     /** Active handling units of a given type, across all warehouses (guards HU-type archiving). */
     long countByHuTypeIdAndStatus(UUID huTypeId, String status);
+
+    /** Count of handling units parked at any of the given locations (occupancy check for block deletion). */
+    long countByLocationIdIn(java.util.Collection<UUID> locationIds);
 }

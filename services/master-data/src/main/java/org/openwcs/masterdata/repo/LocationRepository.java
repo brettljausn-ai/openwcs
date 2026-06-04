@@ -20,6 +20,9 @@ public interface LocationRepository extends JpaRepository<Location, UUID> {
     /** Storage locations in a block (the slotting candidate pool). */
     List<Location> findByWarehouseIdAndBlockId(UUID warehouseId, UUID blockId);
 
+    /** All locations belonging to a block (used for cascade-delete when a block is removed). */
+    List<Location> findByBlockId(UUID blockId);
+
     /** Paged search within a warehouse with optional purpose / type / parent / block filters. */
     @Query("""
         select l from Location l

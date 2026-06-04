@@ -19,6 +19,9 @@ public interface StockRepository extends JpaRepository<Stock, UUID> {
 
     List<Stock> findByLocationId(UUID locationId);
 
+    /** Count of stock rows sitting at any of the given locations (occupancy check for block deletion). */
+    long countByLocationIdIn(java.util.Collection<UUID> locationIds);
+
     /**
      * Resolve the exact physical bucket (null-safe on the nullable batch/hu keys),
      * mirroring the {@code stock_bucket_uniq} constraint. Used by the projection to
