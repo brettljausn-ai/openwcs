@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import ReactFlow, {
   addEdge,
   Background,
@@ -14,9 +14,69 @@ import Select from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import { discoverTopology, loadTopology, saveTopology, type ControllerDto, type EdgeDto, type LoopDto, type NodeDto, type Topology } from './api'
+// Lazy so three.js / r3f are code-split and only fetched when the 3D layout tab is opened.
+const AutomationTopology3D = lazy(() => import('./AutomationTopology3D'))
 
 type NodeData = { name?: string; hardwareAddress?: string; loopCode?: string; controllerCode?: string; nodeAddress?: string; label?: string }
 type EdgeData = { exitCode: string; cost: number }
+
+type TopologyTab = '3d' | 'routing'
+
+// Tabbed shell around the two topology views: the 3D physical automation layout (default) and the
+// routing graph (the original node/edge editor, unchanged below in RoutingGraphEditor).
+export default function TopologyEditor() {
+  const [tab, setTab] = useState<TopologyTab>('3d')
+  return (
+    <div className="app-content">
+      <div className="page-head">
+        <span className="eyebrow">Configuration</span>
+        <h1>Automation topology</h1>
+      </div>
+      <div className="topo-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === '3d'}
+          className={`topo-tab${tab === '3d' ? ' is-active' : ''}`}
+          onClick={() => setTab('3d')}
+        >
+          3D layout
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'routing'}
+          className={`topo-tab${tab === 'routing' ? ' is-active' : ''}`}
+          onClick={() => setTab('routing')}
+        >
+          Routing graph
+        </button>
+      </div>
+      {tab === '3d' ? (
+        <Suspense fallback={<div className="glass card-pad">Loading 3D editor…</div>}>
+          <AutomationTopology3D />
+        </Suspense>
+      ) : (
+        <div className="topo-routing-wrap">
+          <RoutingGraphEditor />
+        </div>
+      )}
+      <style>{`
+        .topo-tabs { display: flex; gap: .4rem; margin-bottom: .8rem; }
+        .topo-tab {
+          padding: .45rem 1rem; border-radius: 999px; cursor: pointer; font-size: .875rem;
+          background: var(--glass-bg); color: var(--text); border: 1px solid var(--glass-border);
+          font-family: var(--font-body); transition: all .15s;
+        }
+        .topo-tab:hover { border-color: var(--glass-border-bright); }
+        .topo-tab.is-active {
+          background: rgba(141, 198, 63, .15); color: var(--herbal-lime); border-color: var(--glass-border-bright);
+        }
+        .topo-routing-wrap { height: 72vh; border: 1px solid var(--glass-border); border-radius: 12px; overflow: hidden; }
+      `}</style>
+    </div>
+  )
+}
 
 function nodeLabel(code: string, data: NodeData): string {
   const parts = [code]
@@ -25,7 +85,7 @@ function nodeLabel(code: string, data: NodeData): string {
   return parts.join(' · ')
 }
 
-export default function TopologyEditor() {
+function RoutingGraphEditor() {
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<EdgeData>([])
