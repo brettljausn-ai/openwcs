@@ -1835,7 +1835,115 @@ function LocationDialog({
 // Equipment (warehouse-scoped)
 // =========================================================================
 
-const EQUIPMENT_FAMILIES = ['CONVEYOR', 'ASRS', 'AMR', 'AUTOSTORE']
+// Routing families the derivation can produce; family still drives routing/adapters.
+const EQUIPMENT_FAMILIES = ['CONVEYOR', 'ASRS', 'AMR', 'AUTOSTORE'] as const
+void EQUIPMENT_FAMILIES
+
+// ---------------------------------------------------------------------------
+// Automation-topology taxonomy. The user picks a Type (and Subtype for ASRS /
+// SORTER); the routing `family` (CONVEYOR | ASRS | AMR | AUTOSTORE) is derived
+// from that and kept set silently, because it still drives routing/adapters.
+// ---------------------------------------------------------------------------
+
+const EQUIPMENT_TYPES: { value: string; label: string }[] = [
+  { value: 'BIN_CONVEYOR', label: 'Bin conveyor' },
+  { value: 'PALLET_CONVEYOR', label: 'Pallet conveyor' },
+  { value: 'LONGREACH_CONVEYOR', label: 'Longreach conveyor (load/unload)' },
+  { value: 'ASRS', label: 'ASRS' },
+  { value: 'SORTER', label: 'Sorter' },
+]
+
+const CONVEYOR_TYPES = ['BIN_CONVEYOR', 'PALLET_CONVEYOR', 'LONGREACH_CONVEYOR']
+
+const EQUIPMENT_SUBTYPES: Record<string, { value: string; label: string }[]> = {
+  ASRS: [
+    { value: 'SHUTTLE', label: 'SHUTTLE' },
+    { value: 'CRANE', label: 'CRANE' },
+    { value: 'AMR', label: 'AMR' },
+    { value: 'CUBE', label: 'CUBE (AutoStore)' },
+  ],
+  SORTER: [
+    { value: 'CROSSBELT', label: 'CROSSBELT' },
+    { value: 'TILTTRAY', label: 'TILTTRAY' },
+    { value: 'SHOE', label: 'SHOE' },
+  ],
+}
+
+// Process types that can sit on a conveyor / sorter segment.
+const PROCESS_TYPES: { value: string; label: string }[] = [
+  { value: 'SCAN', label: 'SCAN' },
+  { value: 'LABEL_APPLICATOR', label: 'LABEL_APPLICATOR' },
+  { value: 'DIVERT_LEFT', label: 'DIVERT_LEFT' },
+  { value: 'DIVERT_RIGHT', label: 'DIVERT_RIGHT' },
+  { value: 'DWS', label: 'DWS (Dimension/Weight Scan)' },
+  { value: 'QUERY_POINT', label: 'QUERY_POINT (hold HU till release)' },
+  { value: 'WRAPPER', label: 'WRAPPER' },
+]
+
+// Types that may carry inline process types (the 3 conveyors + SORTER).
+const PROCESS_CAPABLE_TYPES = [...CONVEYOR_TYPES, 'SORTER']
+
+/**
+ * Derive the routing family from the chosen Type/Subtype. Family still drives
+ * routing/adapters, so it must always stay set.
+ * BIN/PALLET/LONGREACH conveyor + SORTER → CONVEYOR; ASRS+SHUTTLE/CRANE → ASRS;
+ * ASRS+AMR → AMR; ASRS+CUBE → AUTOSTORE.
+ */
+function deriveFamily(type: string, subtype?: string | null): string {
+  if (CONVEYOR_TYPES.includes(type) || type === 'SORTER') return 'CONVEYOR'
+  if (type === 'ASRS') {
+    switch (subtype) {
+      case 'AMR':
+        return 'AMR'
+      case 'CUBE':
+        return 'AUTOSTORE'
+      default:
+        return 'ASRS' // SHUTTLE, CRANE (and unset) route as ASRS
+    }
+  }
+  return 'CONVEYOR'
+}
+
+const equipmentTypeLabel = (type?: string | null) =>
+  EQUIPMENT_TYPES.find((t) => t.value === type)?.label ?? null
+
+/**
+ * Safeguarded multi-select for equipment process types — no free text. Renders
+ * the known process types as toggleable chips; selected values populate the
+ * string[]. Matches the storage-block "Allowed HU types" picker styling.
+ */
+function ProcessTypesPicker({
+  value,
+  onChange,
+}: {
+  value: string[]
+  onChange: (next: string[]) => void
+}) {
+  function toggle(name: string) {
+    onChange(value.includes(name) ? value.filter((n) => n !== name) : [...value, name])
+  }
+  return (
+    <div className="md-chips">
+      {PROCESS_TYPES.map((p) => {
+        const on = value.includes(p.value)
+        return (
+          <button
+            key={p.value}
+            type="button"
+            className={`md-chip${on ? ' is-on' : ''}`}
+            aria-pressed={on}
+            onClick={() => toggle(p.value)}
+          >
+            <span className="md-chip-box" aria-hidden="true">
+              {on ? '✓' : ''}
+            </span>
+            {p.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 function EquipmentTab({
   warehouseId,
@@ -1870,7 +1978,13 @@ function EquipmentTab({
 
   const blank: Equipment = {
     warehouseId,
-    family: EQUIPMENT_FAMILIES[0],
+    type: EQUIPMENT_TYPES[0].value,
+    subtype: null,
+    family: deriveFamily(EQUIPMENT_TYPES[0].value, null),
+    defaultWidthM: null,
+    defaultHeightM: null,
+    defaultLengthM: null,
+    processTypes: [],
     vendor: '',
     model: '',
     adapterEndpoint: '',
@@ -1886,17 +2000,25 @@ function EquipmentTab({
       <DataTable
         rows={rows}
         rowKey={(e) => e.id ?? `${e.family}-${e.vendor}-${e.model}`}
-        search={(e) => `${e.family} ${e.vendor ?? ''} ${e.model ?? ''} ${e.adapterEndpoint ?? ''} ${e.status ?? ''}`}
+        search={(e) =>
+          `${equipmentTypeLabel(e.type) ?? ''} ${e.type ?? ''} ${e.subtype ?? ''} ${e.family} ${e.vendor ?? ''} ${
+            e.model ?? ''
+          } ${e.adapterEndpoint ?? ''} ${(e.processTypes ?? []).join(' ')} ${e.status ?? ''}`
+        }
         searchPlaceholder="Search equipment…"
-        initialSort={{ key: 'family', dir: 'asc' }}
+        initialSort={{ key: 'type', dir: 'asc' }}
         empty={loading ? 'Loading…' : 'No equipment for this warehouse.'}
         columns={[
           {
-            key: 'family',
-            header: 'Family',
+            key: 'type',
+            header: 'Type',
             sortable: true,
-            sortValue: (e) => e.family ?? '',
-            render: (e) => e.family,
+            // Legacy rows without a type fall back to the routing family.
+            sortValue: (e) => equipmentTypeLabel(e.type) ?? e.family ?? '',
+            render: (e) => {
+              const label = equipmentTypeLabel(e.type) ?? e.family ?? '—'
+              return e.subtype ? `${label} · ${e.subtype}` : label
+            },
           },
           {
             key: 'vendor',
@@ -1959,13 +2081,35 @@ function EquipmentDialog({
   onClose: () => void
   onSaved: () => void
 }) {
-  const [d, setD] = useState<Equipment>(initial)
-  const valid = d.family.trim() !== ''
+  // Derive a sensible Type for legacy rows that only have a routing family.
+  const [d, setD] = useState<Equipment>(() => {
+    const type = initial.type ?? (initial.family === 'CONVEYOR' ? 'BIN_CONVEYOR' : 'ASRS')
+    return { ...initial, type, family: deriveFamily(type, initial.subtype ?? null) }
+  })
+  const valid = !!d.type && d.type.trim() !== ''
+  const subtypeOptions = d.type ? EQUIPMENT_SUBTYPES[d.type] : undefined
+  const showProcessTypes = !!d.type && PROCESS_CAPABLE_TYPES.includes(d.type)
+  const isConveyor = !!d.type && CONVEYOR_TYPES.includes(d.type)
+
+  // When Type changes: reset/initialise subtype, clear process types if the new
+  // type can't carry them, and re-derive the routing family.
+  function changeType(type: string) {
+    const opts = EQUIPMENT_SUBTYPES[type]
+    const subtype = opts ? (opts.some((o) => o.value === d.subtype) ? d.subtype : opts[0].value) : null
+    const processTypes = PROCESS_CAPABLE_TYPES.includes(type) ? d.processTypes ?? [] : []
+    setD({ ...d, type, subtype, processTypes, family: deriveFamily(type, subtype) })
+  }
+
+  function changeSubtype(subtype: string) {
+    setD({ ...d, subtype, family: deriveFamily(d.type ?? '', subtype) })
+  }
+
   return (
     <EditDialog
       title={initial.id ? 'Edit equipment' : 'New equipment'}
       draft={d}
       canSave={valid}
+      wide
       onClose={onClose}
       onSave={async (e) => {
         if (e.id) await updateEquipment(e.id, e)
@@ -1973,14 +2117,144 @@ function EquipmentDialog({
         onSaved()
       }}
     >
-      <Field label={<>Family <InfoTip text="The class of automation equipment this device belongs to." example="ASRS" /></>} required>
+      <Field
+        label={
+          <>
+            Type{' '}
+            <InfoTip
+              text="What kind of automation this device is. Drives the editor below and the routing family. e.g. a bin conveyor segment, an ASRS aisle or a sorter."
+              example="Bin conveyor"
+            />
+          </>
+        }
+        required
+      >
         <Select
-          value={d.family}
-          onChange={(val) => setD({ ...d, family: val })}
-          options={EQUIPMENT_FAMILIES.map((f) => ({ value: f, label: f }))}
-          ariaLabel="Family"
+          value={d.type ?? ''}
+          onChange={changeType}
+          options={EQUIPMENT_TYPES}
+          ariaLabel="Type"
         />
       </Field>
+
+      {subtypeOptions && (
+        <Field
+          label={
+            <>
+              Subtype{' '}
+              <InfoTip
+                text="The specific technology within the type. ASRS: SHUTTLE, CRANE, AMR or CUBE (AutoStore). SORTER: CROSSBELT, TILTTRAY or SHOE."
+                example="SHUTTLE"
+              />
+            </>
+          }
+          required
+        >
+          <Select
+            value={d.subtype ?? ''}
+            onChange={changeSubtype}
+            options={subtypeOptions}
+            ariaLabel="Subtype"
+          />
+        </Field>
+      )}
+
+      <Field
+        label={
+          <>
+            Routing family{' '}
+            <InfoTip
+              text="Derived automatically from Type/Subtype; it drives routing and which device adapter is used. ASRS+CUBE → AUTOSTORE, ASRS+AMR → AMR, conveyors/sorters → CONVEYOR."
+              example="CONVEYOR"
+            />
+          </>
+        }
+      >
+        <div className="md-read-value">{d.family}</div>
+      </Field>
+
+      <Field
+        label={
+          <>
+            Default size — width (m){' '}
+            <InfoTip
+              text="Default footprint width in metres, used when this equipment is first placed in the automation topology."
+              example="0.6"
+            />
+          </>
+        }
+      >
+        <input
+          className="form-control"
+          type="number"
+          step={0.1}
+          value={d.defaultWidthM ?? ''}
+          onChange={(e) => setD({ ...d, defaultWidthM: num(e.target.value) })}
+        />
+      </Field>
+      <Field
+        label={
+          <>
+            Default size — height (m){' '}
+            <InfoTip
+              text="Default height in metres (deck / pick height), used when placed in the automation topology."
+              example="0.9"
+            />
+          </>
+        }
+      >
+        <input
+          className="form-control"
+          type="number"
+          step={0.1}
+          value={d.defaultHeightM ?? ''}
+          onChange={(e) => setD({ ...d, defaultHeightM: num(e.target.value) })}
+        />
+      </Field>
+      <Field
+        label={
+          <>
+            Default size — length (m){' '}
+            <InfoTip
+              text="Default length in metres. For conveyors the real length is set later when the segment is placed/sized in the automation topology."
+              example="2.0"
+            />
+          </>
+        }
+      >
+        <input
+          className="form-control"
+          type="number"
+          step={0.1}
+          value={d.defaultLengthM ?? ''}
+          onChange={(e) => setD({ ...d, defaultLengthM: num(e.target.value) })}
+        />
+        {isConveyor && (
+          <p className="md-explain" style={{ margin: '.15rem 0 0', fontSize: '.78rem', lineHeight: 1.4 }}>
+            For conveyors the length is set later when the segment is placed in the automation topology.
+          </p>
+        )}
+      </Field>
+
+      {showProcessTypes && (
+        <Field
+          label={
+            <>
+              Process types{' '}
+              <InfoTip
+                text="In-line processing this conveyor/sorter performs. e.g. DIVERT_LEFT to push HUs off to the left, DWS to capture dimensions/weight, QUERY_POINT to hold an HU until released. Leave none selected for plain transport."
+                example="DIVERT_LEFT"
+              />
+            </>
+          }
+        >
+          <ProcessTypesPicker
+            value={d.processTypes ?? []}
+            onChange={(next) => setD({ ...d, processTypes: next })}
+          />
+        </Field>
+      )}
+
       <Field label={<>Vendor <InfoTip text="Manufacturer or supplier of the equipment." example="Dematic" /></>}>
         <input
           className="form-control"

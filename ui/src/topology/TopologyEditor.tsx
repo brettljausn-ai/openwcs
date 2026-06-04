@@ -187,7 +187,7 @@ export default function TopologyEditor() {
     <div style={{ display: 'flex', height: '100%', fontFamily: 'var(--font-body, sans-serif)' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '0.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', borderBottom: '1px solid #ddd' }}>
-          <strong>Conveyor topology</strong>
+          <strong>Automation topology</strong>
           <button onClick={load}>Reload</button>
           <button onClick={addNode}>Add node</button>
           <button onClick={runDiscovery} title="Pull observed-but-unconfigured nodes/edges from learning">Discover</button>

@@ -25,7 +25,7 @@ const CATALOG: CatalogEntry[] = [
   { key: 'gtp-ops', label: 'GTP workplaces', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'] },
   { key: 'transport', label: 'Transport', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
   { key: 'stock-transactions', label: 'Stock transactions', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
-  { key: 'topology', label: 'Conveyor topology', section: 'Engineering', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
+  { key: 'topology', label: 'Automation topology', section: 'Engineering', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
   { key: 'processes', label: 'Processes', section: 'Engineering', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
   { key: 'slotting', label: 'Slotting', section: 'Engineering', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
   { key: 'master-data:warehouses', label: 'Warehouses', section: 'Master data', defaultRoles: ['ADMIN', 'SUPERVISOR'] },

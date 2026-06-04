@@ -6,6 +6,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -39,6 +41,30 @@ public class Equipment extends Auditable {
 
     @Column(name = "adapter_endpoint")
     private String adapterEndpoint;
+
+    /** Automation-topology type: BIN_CONVEYOR | PALLET_CONVEYOR | LONGREACH_CONVEYOR | ASRS | SORTER. */
+    @Column(name = "type")
+    private String type;
+
+    /** Subtype: ASRS -> SHUTTLE|CRANE|AMR|CUBE; SORTER -> CROSSBELT|TILTTRAY|SHOE; conveyors -> null. */
+    @Column(name = "subtype")
+    private String subtype;
+
+    /** Default physical envelope (metres). For conveyors the length is set when placed in the topology. */
+    @Column(name = "default_width_m")
+    private BigDecimal defaultWidthM;
+
+    @Column(name = "default_height_m")
+    private BigDecimal defaultHeightM;
+
+    @Column(name = "default_length_m")
+    private BigDecimal defaultLengthM;
+
+    /** Process / function types this equipment can carry: SCAN, LABEL_APPLICATOR, DIVERT_LEFT,
+     *  DIVERT_RIGHT, DWS, QUERY_POINT, WRAPPER (mainly for conveyor sections). */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "process_types")
+    private List<String> processTypes;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "capabilities")
@@ -101,6 +127,54 @@ public class Equipment extends Auditable {
 
     public void setCapabilities(Map<String, Object> capabilities) {
         this.capabilities = capabilities;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public String getSubtype() {
+        return subtype;
+    }
+
+    public void setSubtype(String subtype) {
+        this.subtype = subtype;
+    }
+
+    public BigDecimal getDefaultWidthM() {
+        return defaultWidthM;
+    }
+
+    public void setDefaultWidthM(BigDecimal defaultWidthM) {
+        this.defaultWidthM = defaultWidthM;
+    }
+
+    public BigDecimal getDefaultHeightM() {
+        return defaultHeightM;
+    }
+
+    public void setDefaultHeightM(BigDecimal defaultHeightM) {
+        this.defaultHeightM = defaultHeightM;
+    }
+
+    public BigDecimal getDefaultLengthM() {
+        return defaultLengthM;
+    }
+
+    public void setDefaultLengthM(BigDecimal defaultLengthM) {
+        this.defaultLengthM = defaultLengthM;
+    }
+
+    public List<String> getProcessTypes() {
+        return processTypes;
+    }
+
+    public void setProcessTypes(List<String> processTypes) {
+        this.processTypes = processTypes;
     }
 
     public String getStatus() {

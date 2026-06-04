@@ -297,7 +297,7 @@ export const HELP: Record<string, ScreenHelp> = {
     "sections": [
       {
         "heading": "Getting started",
-        "body": "First confirm the active warehouse in the top-bar switcher, then open this screen — the layout for that warehouse loads automatically and the status line reports how many nodes, edges, loops, and controllers were brought in. The diagram fills the main canvas; use the on-canvas controls to zoom, pan, and fit the whole graph to the window. Click any node or any segment between nodes to select it, and its details open in the panel on the right. This is an admin/setup screen — you draw and maintain the conveyor map here, you don't run day-to-day orders from it."
+        "body": "First confirm the active warehouse in the top-bar switcher, then open this screen — the layout for that warehouse loads automatically and the status line reports how many nodes, edges, loops, and controllers were brought in. The diagram fills the main canvas; use the on-canvas controls to zoom, pan, and fit the whole graph to the window. Click any node or any segment between nodes to select it, and its details open in the panel on the right. This is an admin/setup screen — you place, size, and connect automation equipment (conveyors, ASRS, sorters) on the warehouse levels here, you don't run day-to-day orders from it."
       },
       {
         "heading": "Key actions",
@@ -316,7 +316,7 @@ export const HELP: Record<string, ScreenHelp> = {
         "body": "Once saved, the topology goes live immediately and drives routing: each time a node scans a handling unit, the system finds the shortest path to that unit's required target and replies with the next hop and exit code. Because the route is recomputed on every scan, any change you save reroutes traffic automatically from then on — there is no separate deploy step. Units with several targets are walked in sequence, and loop limits apply as units move."
       }
     ],
-    "summary": "The Conveyor topology screen is where admins draw and maintain the warehouse's conveyor network as a visual map of decision nodes and the segments between them. This map is what the system uses to answer the conveyor hardware in real time, telling each scanned unit where to go next.",
+    "summary": "The Automation topology screen is where admins place, size, and connect the warehouse's automation equipment — conveyors, ASRS, and sorters — on the warehouse levels, as a visual map of decision nodes and the segments between them. This map is what the system uses to answer the automation hardware in real time, telling each scanned unit where to go next.",
     "tips": [
       "Pick the right warehouse in the top-bar switcher before editing — the map you see and save belongs only to the active warehouse.",
       "Nothing is live until you press Save; Reload throws away unsaved edits, so save before navigating away.",
