@@ -607,6 +607,21 @@ export const HELP: Record<string, ScreenHelp> = {
       "Equipment is warehouse-scoped."
     ]
   },
+  "master-data:handling-unit-types": {
+    "summary": "Handling unit types define the containers your warehouse uses — totes, trays, cartons, pallets, automation storage HUs and outbound shippers — with their dimensions, weight limit and capabilities. It is a global catalog (not per-warehouse).",
+    "sections": [
+      { "heading": "Getting started", "body": "Each row is a handling-unit type with a unique name and its physical envelope. Add the types your site actually uses so cubing, put-away and automation know what they are working with." },
+      { "heading": "Key actions", "body": "Create or edit a type and sort/search by name. Set its dimensions, weight limit, nestability, compartment count, and whether it can go into automation or onto a conveyor." },
+      { "heading": "Fields", "body": "Dimensions (L×W×H, mm) and Weight limit (g) bound what fits; Nestable means empties stack; Compartments is how many sub-positions it has; Automation and Conveyor flag whether it is allowed in an ASRS/AutoStore pool and on the conveyor network." },
+      { "heading": "What happens next", "body": "Storage blocks restrict which HU types they accept; cubing packs orders into shipper types; the put-away engine respects these envelopes and capabilities." }
+    ],
+    "tips": [
+      "Keep dimensions and weight limits accurate — cubing and put-away rely on them.",
+      "Mark a type non-automation if it physically can't enter your ASRS/AutoStore.",
+      "Nestable empties (totes/trays) save space on return flows.",
+      "Storage blocks list their Allowed HU types — keep these in sync."
+    ]
+  },
   "master-data:label-templates": {
     "summary": "Label templates define the dispatch / handling-unit labels the system renders — ZPL for printers or PDF — with their fields and barcodes laid out. Used when cubing produces shipper labels.",
     "sections": [

@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -91,6 +92,13 @@ public class ReferenceDataController {
     public ResponseEntity<HandlingUnitType> createHandlingUnitType(@RequestBody HandlingUnitType body) {
         body.setId(null);
         return ResponseEntity.status(201).body(handlingUnitTypes.save(body));
+    }
+
+    @PutMapping("/handling-unit-types/{id}")
+    public HandlingUnitType updateHandlingUnitType(@PathVariable UUID id, @RequestBody HandlingUnitType body) {
+        handlingUnitTypes.findById(id).orElseThrow(() -> new NotFoundException("HandlingUnitType", id));
+        body.setId(id);
+        return handlingUnitTypes.save(body);
     }
 
     // ----------------------------------------------------------- Barcode lookup

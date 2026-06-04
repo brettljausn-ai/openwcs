@@ -7,6 +7,7 @@ import DataTable from '../ui/DataTable'
 import {
   Barcode,
   Equipment,
+  HandlingUnitType,
   LabelTemplate,
   Location,
   Sku,
@@ -14,6 +15,7 @@ import {
   UnitOfMeasure,
   Warehouse,
   createEquipment,
+  createHandlingUnitType,
   createLabelTemplate,
   createLocation,
   createStorageBlock,
@@ -22,6 +24,7 @@ import {
   deleteLocation,
   deleteWarehouse,
   listEquipment,
+  listHandlingUnitTypes,
   listLabelTemplates,
   listLocations,
   listSkuBarcodes,
@@ -30,6 +33,7 @@ import {
   listStorageBlocks,
   listWarehouses,
   updateEquipment,
+  updateHandlingUnitType,
   updateLabelTemplate,
   updateLocation,
   updateStorageBlock,
@@ -42,7 +46,14 @@ import {
 // Storage-block, location and equipment lists are scoped to a warehouse.
 // ---------------------------------------------------------------------------
 
-type EntityKey = 'warehouses' | 'skus' | 'storage-blocks' | 'locations' | 'equipment' | 'label-templates'
+type EntityKey =
+  | 'warehouses'
+  | 'skus'
+  | 'storage-blocks'
+  | 'locations'
+  | 'equipment'
+  | 'handling-unit-types'
+  | 'label-templates'
 
 const ENTITIES: { key: EntityKey; label: string; scoped: boolean }[] = [
   { key: 'warehouses', label: 'Warehouses', scoped: false },
@@ -50,6 +61,7 @@ const ENTITIES: { key: EntityKey; label: string; scoped: boolean }[] = [
   { key: 'storage-blocks', label: 'Storage blocks', scoped: true },
   { key: 'locations', label: 'Locations', scoped: true },
   { key: 'equipment', label: 'Equipment', scoped: true },
+  { key: 'handling-unit-types', label: 'Handling unit types', scoped: false },
   { key: 'label-templates', label: 'Label templates', scoped: false },
 ]
 
@@ -104,6 +116,7 @@ export default function MasterDataScreen() {
         <LocationsTab warehouseId={warehouseId} warehouses={warehouses} warehouseName={warehouseName} />
       )}
       {entity === 'equipment' && <EquipmentTab warehouseId={warehouseId} warehouseName={warehouseName} />}
+      {entity === 'handling-unit-types' && <HandlingUnitTypesTab />}
       {entity === 'label-templates' && <LabelTemplatesTab />}
 
       <Styles />
@@ -1371,6 +1384,211 @@ function EquipmentDialog({
       <Field label="Status">
         <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
       </Field>
+    </EditDialog>
+  )
+}
+
+// =========================================================================
+// Handling unit types (global)
+// =========================================================================
+
+function HandlingUnitTypesTab() {
+  const [rows, setRows] = useState<HandlingUnitType[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState<HandlingUnitType | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      setError(null)
+      setRows(await listHandlingUnitTypes())
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const blank: HandlingUnitType = {
+    name: '',
+    nestable: false,
+    compartments: 1,
+    storableInAutomation: false,
+    transportableOnConveyor: false,
+  }
+
+  return (
+    <div className="glass card-pad md-panel">
+      <Toolbar label="handling unit type" onAdd={() => setEditing(blank)} />
+      {error && <div className="alert alert-danger">{error}</div>}
+      <DataTable
+        rows={rows}
+        rowKey={(h) => h.id ?? h.name}
+        search={(h) => `${h.name}`}
+        searchPlaceholder="Search handling unit types…"
+        initialSort={{ key: 'name', dir: 'asc' }}
+        empty={loading ? 'Loading…' : 'No handling unit types yet.'}
+        columns={[
+          { key: 'name', header: 'Name', sortable: true, sortValue: (h) => h.name ?? '', render: (h) => h.name },
+          {
+            key: 'dimensions',
+            header: 'Dimensions',
+            render: (h) => `${h.lengthMm ?? '·'}×${h.widthMm ?? '·'}×${h.heightMm ?? '·'} mm`,
+          },
+          {
+            key: 'weightLimitG',
+            header: 'Weight limit',
+            sortable: true,
+            sortValue: (h) => h.weightLimitG ?? 0,
+            render: (h) => (h.weightLimitG != null ? `${h.weightLimitG} g` : '—'),
+          },
+          {
+            key: 'nestable',
+            header: 'Nestable',
+            sortable: true,
+            sortValue: (h) => (h.nestable ? 1 : 0),
+            render: (h) => (h.nestable ? 'Yes' : 'No'),
+          },
+          {
+            key: 'compartments',
+            header: 'Compartments',
+            sortable: true,
+            sortValue: (h) => h.compartments ?? 0,
+            render: (h) => h.compartments,
+          },
+          {
+            key: 'storableInAutomation',
+            header: 'Automation',
+            sortable: true,
+            sortValue: (h) => (h.storableInAutomation ? 1 : 0),
+            render: (h) => (h.storableInAutomation ? 'Yes' : 'No'),
+          },
+          {
+            key: 'transportableOnConveyor',
+            header: 'Conveyor',
+            sortable: true,
+            sortValue: (h) => (h.transportableOnConveyor ? 1 : 0),
+            render: (h) => (h.transportableOnConveyor ? 'Yes' : 'No'),
+          },
+          {
+            key: 'actions',
+            header: '',
+            render: (h) => (
+              <div className="md-row-actions">
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(h)}>
+                  Edit
+                </button>
+              </div>
+            ),
+          },
+        ]}
+      />
+
+      {editing && (
+        <HandlingUnitTypeDialog initial={editing} onClose={() => setEditing(null)} onSaved={load} />
+      )}
+    </div>
+  )
+}
+
+function HandlingUnitTypeDialog({
+  initial,
+  onClose,
+  onSaved,
+}: {
+  initial: HandlingUnitType
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [d, setD] = useState<HandlingUnitType>(initial)
+  const valid = d.name.trim() !== '' && d.compartments >= 1 && d.compartments <= 8
+  return (
+    <EditDialog
+      title={initial.id ? 'Edit handling unit type' : 'New handling unit type'}
+      draft={d}
+      canSave={valid}
+      onClose={onClose}
+      onSave={async (h) => {
+        if (h.id) await updateHandlingUnitType(h.id, h)
+        else await createHandlingUnitType(h)
+        onSaved()
+      }}
+    >
+      <Field label="Name" required>
+        <input className="form-control" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
+      </Field>
+      <div className="md-grid-3">
+        <Field label="Length (mm)">
+          <input
+            className="form-control"
+            type="number"
+            value={d.lengthMm ?? ''}
+            onChange={(e) => setD({ ...d, lengthMm: num(e.target.value) ?? undefined })}
+          />
+        </Field>
+        <Field label="Width (mm)">
+          <input
+            className="form-control"
+            type="number"
+            value={d.widthMm ?? ''}
+            onChange={(e) => setD({ ...d, widthMm: num(e.target.value) ?? undefined })}
+          />
+        </Field>
+        <Field label="Height (mm)">
+          <input
+            className="form-control"
+            type="number"
+            value={d.heightMm ?? ''}
+            onChange={(e) => setD({ ...d, heightMm: num(e.target.value) ?? undefined })}
+          />
+        </Field>
+      </div>
+      <div className="md-grid-2">
+        <Field label="Weight limit (g)">
+          <input
+            className="form-control"
+            type="number"
+            value={d.weightLimitG ?? ''}
+            onChange={(e) => setD({ ...d, weightLimitG: num(e.target.value) ?? undefined })}
+          />
+        </Field>
+        <Field label="Compartments (1–8)">
+          <input
+            className="form-control"
+            type="number"
+            min={1}
+            max={8}
+            value={d.compartments}
+            onChange={(e) => setD({ ...d, compartments: num(e.target.value) ?? 1 })}
+          />
+        </Field>
+      </div>
+      <div className="md-checks">
+        <label className="md-check">
+          <input type="checkbox" checked={d.nestable} onChange={(e) => setD({ ...d, nestable: e.target.checked })} />
+          Nestable
+        </label>
+        <label className="md-check">
+          <input
+            type="checkbox"
+            checked={d.storableInAutomation}
+            onChange={(e) => setD({ ...d, storableInAutomation: e.target.checked })}
+          />
+          Storable in automation
+        </label>
+        <label className="md-check">
+          <input
+            type="checkbox"
+            checked={d.transportableOnConveyor}
+            onChange={(e) => setD({ ...d, transportableOnConveyor: e.target.checked })}
+          />
+          Transportable on conveyor
+        </label>
+      </div>
     </EditDialog>
   )
 }
