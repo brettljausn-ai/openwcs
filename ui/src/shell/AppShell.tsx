@@ -22,8 +22,10 @@ export default function AppShell() {
   })).filter((g) => g.items.length > 0)
 
   // Which section holds the screen we're currently on (so we can reveal it).
+  // Match on a path segment boundary so e.g. /gtp-config doesn't match the /gtp screen
+  // (which used to wrongly unfold Operations when opening Configuration → GTP workplaces).
   const activeSection = SCREENS.find(
-    (s) => s.section && (s.path === pathname || (s.path !== '/' && pathname.startsWith(s.path))),
+    (s) => s.section && (pathname === s.path || pathname.startsWith(`${s.path}/`)),
   )?.section
 
   // Categories are folded by default; only the active section starts open.
