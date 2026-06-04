@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import Select from '../ui/Select'
+import DataTable from '../ui/DataTable'
 import { DeviceTask, listDeviceTasks } from './api'
 
 // Transport overview (build.md §8): a live view of the device tasks the flow-orchestrator
@@ -236,45 +237,94 @@ export default function TransportScreen() {
 
       {/* Task table */}
       <div className="glass" style={{ padding: 0, overflow: 'auto' }}>
-        <table>
-          <thead>
-            <tr>
-              <th>Task</th>
-              <th>Status</th>
-              <th>Family</th>
-              <th>Command</th>
-              <th>Origin → Destination</th>
-              <th>Next hop</th>
-              <th>Equipment</th>
-              <th>Correlation</th>
-              <th>Detail</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tasks.map((t) => (
-              <tr key={t.id}>
-                <td style={{ fontFamily: 'var(--font-mono)' }} title={t.id}>{shortId(t.id)}</td>
-                <td><span className={badgeClass(t.status)}>{t.status}</span></td>
-                <td>{t.family}</td>
-                <td style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{t.command}</td>
-                <td><span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{origin(t)} → {destination(t)}</span></td>
-                <td style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{nextHop(t)}</td>
-                <td style={{ fontFamily: 'var(--font-mono)' }} title={t.equipmentId ?? ''}>{shortId(t.equipmentId)}</td>
-                <td style={{ fontFamily: 'var(--font-mono)' }} title={t.correlationId ?? ''}>{shortId(t.correlationId)}</td>
-                <td className="muted" style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.detail ?? ''}>{t.detail ?? '—'}</td>
-                <td className="muted" style={{ fontSize: '.8rem', whiteSpace: 'nowrap' }}>{formatTime(t.createdAt)}</td>
-              </tr>
-            ))}
-            {tasks.length === 0 && !loading && (
-              <tr>
-                <td colSpan={10} className="muted" style={{ textAlign: 'center', padding: '2rem' }}>
-                  No device tasks{(status || family || equipmentId) ? ' match the current filters' : ' yet'}.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <DataTable<DeviceTask>
+          rows={tasks}
+          rowKey={(t) => t.id}
+          search={(t) =>
+            `${t.id} ${t.status} ${t.family} ${t.command} ${origin(t)} ${destination(t)} ${nextHop(t)} ${t.equipmentId ?? ''} ${t.correlationId ?? ''} ${t.detail ?? ''}`
+          }
+          searchPlaceholder="Search tasks…"
+          initialSort={{ key: 'createdAt', dir: 'desc' }}
+          empty={`No device tasks${(status || family || equipmentId) ? ' match the current filters' : ' yet'}.`}
+          columns={[
+            {
+              key: 'id',
+              header: 'Task',
+              sortable: true,
+              sortValue: (t) => t.id,
+              render: (t) => (
+                <span style={{ fontFamily: 'var(--font-mono)' }} title={t.id}>{shortId(t.id)}</span>
+              ),
+            },
+            {
+              key: 'status',
+              header: 'Status',
+              sortable: true,
+              sortValue: (t) => t.status,
+              render: (t) => <span className={badgeClass(t.status)}>{t.status}</span>,
+            },
+            {
+              key: 'family',
+              header: 'Family',
+              sortable: true,
+              sortValue: (t) => t.family,
+              render: (t) => t.family,
+            },
+            {
+              key: 'command',
+              header: 'Command',
+              sortable: true,
+              sortValue: (t) => t.command,
+              render: (t) => (
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{t.command}</span>
+              ),
+            },
+            {
+              key: 'route',
+              header: 'Origin → Destination',
+              render: (t) => (
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{origin(t)} → {destination(t)}</span>
+              ),
+            },
+            {
+              key: 'nextHop',
+              header: 'Next hop',
+              render: (t) => (
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{nextHop(t)}</span>
+              ),
+            },
+            {
+              key: 'equipmentId',
+              header: 'Equipment',
+              render: (t) => (
+                <span style={{ fontFamily: 'var(--font-mono)' }} title={t.equipmentId ?? ''}>{shortId(t.equipmentId)}</span>
+              ),
+            },
+            {
+              key: 'correlationId',
+              header: 'Correlation',
+              render: (t) => (
+                <span style={{ fontFamily: 'var(--font-mono)' }} title={t.correlationId ?? ''}>{shortId(t.correlationId)}</span>
+              ),
+            },
+            {
+              key: 'detail',
+              header: 'Detail',
+              render: (t) => (
+                <span className="muted" style={{ display: 'inline-block', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }} title={t.detail ?? ''}>{t.detail ?? '—'}</span>
+              ),
+            },
+            {
+              key: 'createdAt',
+              header: 'Created',
+              sortable: true,
+              sortValue: (t) => t.createdAt,
+              render: (t) => (
+                <span className="muted" style={{ fontSize: '.8rem', whiteSpace: 'nowrap' }}>{formatTime(t.createdAt)}</span>
+              ),
+            },
+          ]}
+        />
       </div>
     </div>
   )
