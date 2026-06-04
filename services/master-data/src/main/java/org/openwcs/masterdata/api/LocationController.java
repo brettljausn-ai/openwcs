@@ -1,6 +1,7 @@
 package org.openwcs.masterdata.api;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 import org.openwcs.common.security.AccessControl;
 import org.openwcs.masterdata.domain.Location;
@@ -53,6 +54,18 @@ public class LocationController {
         body.setId(null);
         Location saved = locations.save(body);
         return ResponseEntity.created(URI.create("/api/master-data/locations/" + saved.getId())).body(saved);
+    }
+
+    /** Bulk-create locations (used by the guided storage-block builder to generate rack cells). */
+    @PostMapping("/bulk")
+    public ResponseEntity<List<Location>> createBulk(
+            @RequestHeader(name = "X-Auth-Warehouses", required = false) String warehouses,
+            @RequestBody List<Location> body) {
+        for (Location l : body) {
+            requireWarehouse(warehouses, l.getWarehouseId());
+            l.setId(null);
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(locations.saveAll(body));
     }
 
     @GetMapping("/{id}")

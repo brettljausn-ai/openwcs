@@ -210,6 +210,11 @@ export async function listLocations(warehouseId: string): Promise<Location[]> {
 export async function createLocation(l: Location): Promise<Location> {
   return unwrap(await fetch(`${base}/locations`, { method: 'POST', headers: json, body: JSON.stringify(l) }))
 }
+export async function bulkCreateLocations(locations: Location[]): Promise<Location[]> {
+  return unwrap(
+    await fetch(`${base}/locations/bulk`, { method: 'POST', headers: json, body: JSON.stringify(locations) }),
+  )
+}
 export async function updateLocation(id: string, l: Location): Promise<Location> {
   return unwrap(await fetch(`${base}/locations/${id}`, { method: 'PUT', headers: json, body: JSON.stringify(l) }))
 }
