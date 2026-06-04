@@ -558,13 +558,16 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 }
 .login-card { width: 100%; max-width: 400px; padding: 2.5rem; }
 .login-brand {
-  display: flex; align-items: center; gap: .7rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .55rem;
   font-family: var(--font-heading);
   font-size: 2rem;
   margin-bottom: .25rem;
   color: var(--alpine-white);
 }
-.login-brand img { height: 34px; }
+.login-brand img { height: 46px; width: auto; }
 .login-wordmark { line-height: 1; }
 .login-wordmark .accent { color: var(--herbal-lime); }
 .login-sub { color: var(--text-dim); font-size: .9rem; margin-bottom: 1.75rem; }
