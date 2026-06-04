@@ -688,7 +688,7 @@ function DemoMode({ warehouseId }: { warehouseId: string }) {
                 ? `Locked: the system already has ${status?.skuCount} SKUs (host data present). Demo mode only seeds an empty system.`
                 : 'Locked: create storage locations for this warehouse first — demo mode places handling units and stock into existing locations.'
               : enabled
-                ? 'Switch off to delete the demo catalog (SKUs, UoMs, barcodes, shippers, HU type) and the demo handling units and stock. Topology, GTP and other config are left untouched.'
+                ? 'Switch off for a full reset: deletes the demo catalog and ALL operational data for this warehouse — stock, reservations, handling units, inbound/outbound orders, transports, counts and GTP work. Warehouses, locations, topology, GTP/station config and equipment are kept.'
                 : 'Switch on to create 100 demo SKUs (movie-merch named, with EAN-13 barcodes), shippers, a storage HU type, and handling units with stock placed into this warehouse’s locations.'}
           </span>
         </div>

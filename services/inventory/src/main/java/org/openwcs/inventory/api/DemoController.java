@@ -36,9 +36,13 @@ public class DemoController {
         return demo.seed(request);
     }
 
-    /** Remove demo handling units + their stock for a warehouse (admin-only). */
+    /**
+     * Full operational reset for a warehouse (admin-only): purge all transactional inventory
+     * state (reservations, stock, handling units, serial units, batches), keeping infrastructure
+     * and master-data references. Invoked when demo mode is turned off.
+     */
     @PostMapping("/clear")
-    public DemoSeedResult clear(
+    public DemoClearResult clear(
             @RequestParam UUID warehouseId,
             @RequestHeader(name = "X-Auth-Roles", required = false) String roles) {
         requireAdmin(roles);

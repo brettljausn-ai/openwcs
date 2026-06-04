@@ -11,6 +11,9 @@ import org.springframework.data.repository.query.Param;
 public interface DeviceTaskRepository extends JpaRepository<DeviceTask, UUID> {
     List<DeviceTask> findByCorrelationIdOrderByCreatedAtAsc(UUID correlationId);
 
+    /** All device tasks for a warehouse (used by the demo full-reset clear). */
+    List<DeviceTask> findByWarehouseId(UUID warehouseId);
+
     /**
      * Recent device tasks (newest first) for the transport overview, with optional filters.
      * A null filter parameter is ignored, so the same query serves "all", "by warehouse",

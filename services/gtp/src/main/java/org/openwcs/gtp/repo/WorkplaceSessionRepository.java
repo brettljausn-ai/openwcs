@@ -13,4 +13,7 @@ public interface WorkplaceSessionRepository extends JpaRepository<WorkplaceSessi
 
     /** All active sessions across a set of workplaces — for listing which workplaces are in use. */
     List<WorkplaceSession> findByStationIdInAndStatus(List<UUID> stationIds, String status);
+
+    /** All sessions for a set of workplaces (used by the demo full-reset clear). */
+    List<WorkplaceSession> findByStationIdIn(List<UUID> stationIds);
 }

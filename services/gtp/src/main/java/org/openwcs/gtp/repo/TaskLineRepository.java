@@ -7,4 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface TaskLineRepository extends JpaRepository<TaskLine, UUID> {
     List<TaskLine> findByWorkCycleId(UUID workCycleId);
+
+    /** All task lines for a set of work cycles (used by the demo full-reset clear). */
+    List<TaskLine> findByWorkCycleIdIn(List<UUID> workCycleIds);
 }

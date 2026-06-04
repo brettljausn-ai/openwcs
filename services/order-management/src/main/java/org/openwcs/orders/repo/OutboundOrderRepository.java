@@ -18,6 +18,9 @@ public interface OutboundOrderRepository extends JpaRepository<OutboundOrder, UU
 
     Page<OutboundOrder> findByWarehouseId(UUID warehouseId, Pageable pageable);
 
+    /** All orders for a warehouse (any type/status) — used by the demo full-reset clear. */
+    List<OutboundOrder> findByWarehouseId(UUID warehouseId);
+
     Page<OutboundOrder> findByWarehouseIdAndStatus(UUID warehouseId, OrderStatus status, Pageable pageable);
 
     /** Release queue (OUTBOUND only): most urgent first — highest priority, then earliest dispatch. */

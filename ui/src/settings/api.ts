@@ -259,9 +259,24 @@ export async function enableDemo(warehouseId: string): Promise<DemoResult> {
   return { ...cat, handlingUnits: inv.handlingUnits, stockRows: inv.stockRows }
 }
 
-/** Disable demo mode: remove demo handling units + stock, then the master-data catalog (admin-only). */
+/**
+ * Disable demo mode = full operational reset for the warehouse: purge all transactional data across
+ * services (stock, reservations, handling units, orders, transports, counts, GTP work), then remove
+ * the master-data catalog. Infrastructure (warehouses, blocks, locations, topology, GTP/station
+ * config, equipment, users) is kept. Per-service clears are best-effort so one unavailable service
+ * doesn't block the reset. Admin-only.
+ */
 export async function disableDemo(warehouseId: string): Promise<DemoResult> {
-  if (warehouseId) await demoPost(`/api/inventory/demo/clear?warehouseId=${encodeURIComponent(warehouseId)}`)
+  if (warehouseId) {
+    const wh = encodeURIComponent(warehouseId)
+    await Promise.allSettled([
+      demoPost(`/api/inventory/demo/clear?warehouseId=${wh}`),
+      demoPost(`/api/orders/demo/clear?warehouseId=${wh}`),
+      demoPost(`/api/counting/demo/clear?warehouseId=${wh}`),
+      demoPost(`/api/flow/demo/clear?warehouseId=${wh}`),
+      demoPost(`/api/gtp/demo/clear?warehouseId=${wh}`),
+    ])
+  }
   return (await demoPost('/api/master-data/demo/disable')) as DemoResult
 }
 

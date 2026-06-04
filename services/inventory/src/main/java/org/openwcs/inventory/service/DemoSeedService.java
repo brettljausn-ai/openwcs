@@ -1,17 +1,21 @@
 package org.openwcs.inventory.service;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
 import java.util.UUID;
+import org.openwcs.inventory.api.DemoClearResult;
 import org.openwcs.inventory.api.DemoSeedRequest;
 import org.openwcs.inventory.api.DemoSeedResult;
+import org.openwcs.inventory.domain.Batch;
 import org.openwcs.inventory.domain.HandlingUnit;
+import org.openwcs.inventory.domain.Reservation;
+import org.openwcs.inventory.domain.SerialUnit;
 import org.openwcs.inventory.domain.Stock;
+import org.openwcs.inventory.repo.BatchRepository;
 import org.openwcs.inventory.repo.HandlingUnitRepository;
+import org.openwcs.inventory.repo.ReservationRepository;
+import org.openwcs.inventory.repo.SerialUnitRepository;
 import org.openwcs.inventory.repo.StockRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,10 +35,21 @@ public class DemoSeedService {
 
     private final HandlingUnitRepository handlingUnits;
     private final StockRepository stock;
+    private final ReservationRepository reservations;
+    private final SerialUnitRepository serialUnits;
+    private final BatchRepository batches;
 
-    public DemoSeedService(HandlingUnitRepository handlingUnits, StockRepository stock) {
+    public DemoSeedService(
+            HandlingUnitRepository handlingUnits,
+            StockRepository stock,
+            ReservationRepository reservations,
+            SerialUnitRepository serialUnits,
+            BatchRepository batches) {
         this.handlingUnits = handlingUnits;
         this.stock = stock;
+        this.reservations = reservations;
+        this.serialUnits = serialUnits;
+        this.batches = batches;
     }
 
     @Transactional
@@ -81,26 +96,35 @@ public class DemoSeedService {
         return new DemoSeedResult(huCreated, stockCreated);
     }
 
+    /**
+     * Full operational reset for a warehouse (build.md §4.8): purge ALL transactional
+     * inventory state — reservations, stock, handling units, serial units and batches —
+     * while leaving infrastructure and master-data references intact. Deleting in
+     * FK-safe order (reservations and stock reference handling units / batches, so they
+     * go first): Reservation → Stock → HandlingUnit → SerialUnit → Batch.
+     */
     @Transactional
-    public DemoSeedResult clear(UUID warehouseId) {
-        List<HandlingUnit> demoHus = new ArrayList<>();
-        Set<UUID> demoHuIds = new HashSet<>();
-        for (HandlingUnit hu : handlingUnits.findByWarehouseId(warehouseId)) {
-            if (hu.getCode() != null && hu.getCode().startsWith(DEMO_HU_PREFIX)) {
-                demoHus.add(hu);
-                demoHuIds.add(hu.getHuId());
-            }
-        }
+    public DemoClearResult clear(UUID warehouseId) {
+        List<Reservation> reservationRows = reservations.findByWarehouseId(warehouseId);
+        reservations.deleteAll(reservationRows);
 
-        int stockRemoved = 0;
-        for (Stock s : stock.findByWarehouseId(warehouseId)) {
-            if (s.getHuId() != null && demoHuIds.contains(s.getHuId())) {
-                stock.delete(s);
-                stockRemoved++;
-            }
-        }
+        List<Stock> stockRows = stock.findByWarehouseId(warehouseId);
+        stock.deleteAll(stockRows);
 
-        handlingUnits.deleteAll(demoHus);
-        return new DemoSeedResult(demoHus.size(), stockRemoved);
+        List<HandlingUnit> hus = handlingUnits.findByWarehouseId(warehouseId);
+        handlingUnits.deleteAll(hus);
+
+        List<SerialUnit> serials = serialUnits.findByWarehouseId(warehouseId);
+        serialUnits.deleteAll(serials);
+
+        List<Batch> batchRows = batches.findByWarehouseId(warehouseId);
+        batches.deleteAll(batchRows);
+
+        return new DemoClearResult(
+                reservationRows.size(),
+                stockRows.size(),
+                hus.size(),
+                serials.size(),
+                batchRows.size());
     }
 }

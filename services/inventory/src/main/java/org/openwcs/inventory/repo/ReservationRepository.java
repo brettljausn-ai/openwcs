@@ -12,6 +12,8 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
 
     List<Reservation> findByOrderRef(String orderRef);
 
+    List<Reservation> findByWarehouseId(UUID warehouseId);
+
     List<Reservation> findByWarehouseIdAndSkuIdAndStatus(UUID warehouseId, UUID skuId, String status);
 
     List<Reservation> findByWarehouseIdAndStatus(UUID warehouseId, String status);
