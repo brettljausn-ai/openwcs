@@ -7,6 +7,7 @@ name: openwcs
 
 services:
   postgres:
+    restart: unless-stopped
     image: postgres:16
     environment:
       POSTGRES_USER: openwcs
@@ -16,11 +17,13 @@ services:
     volumes: ["pgdata:/var/lib/postgresql/data"]
 
   zookeeper:
+    restart: unless-stopped
     image: confluentinc/cp-zookeeper:7.6.1
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
 
   kafka:
+    restart: unless-stopped
     image: confluentinc/cp-kafka:7.6.1
     depends_on: [zookeeper]
     ports: ["9092:9092"]
@@ -32,6 +35,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   schema-registry:
+    restart: unless-stopped
     image: confluentinc/cp-schema-registry:7.6.1
     depends_on: [kafka]
     ports: ["8181:8081"]   # 8181 on host — flow-orchestrator owns 8085
@@ -40,6 +44,7 @@ services:
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
 
   keycloak:
+    restart: unless-stopped
     image: quay.io/keycloak/keycloak:25.0
     # Imports the openWCS realm (roles ADMIN/SUPERVISOR/OPERATOR/VIEWER + demo users)
     # from keycloak/openwcs-realm.json on startup.
@@ -53,6 +58,7 @@ services:
 
 
   gateway:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../gateway
     ports: ["8080:8080"]
@@ -83,6 +89,7 @@ services:
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/openwcs/protocol/openid-connect/certs
 
   master-data:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/master-data
     ports: ["8081:8081"]
@@ -94,6 +101,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: openwcs
 
   inventory:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/inventory
     ports: ["8082:8082"]
@@ -107,6 +115,7 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
   process-engine:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/process-engine
     ports: ["8083:8083"]
@@ -123,6 +132,7 @@ services:
       OPENWCS_SLOTTING_BASE_URL: http://slotting:8093
 
   order-management:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/order-management
     ports: ["8084:8084"]
@@ -138,6 +148,7 @@ services:
       OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
 
   allocation:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/allocation
     ports: ["8091:8091"]
@@ -153,6 +164,7 @@ services:
       OPENWCS_ALLOCATION_HOST_LABEL_BASE_URL: http://integration-sap:8089
 
   slotting:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/slotting
     ports: ["8093:8093"]
@@ -167,6 +179,7 @@ services:
       OPENWCS_TXLOG_BASE_URL: http://txlog:8086
 
   gtp:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/gtp
     ports: ["8094:8094"]
@@ -179,6 +192,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: openwcs
 
   counting:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/counting
     ports: ["8095:8095"]
@@ -193,6 +207,7 @@ services:
       OPENWCS_TXLOG_BASE_URL: http://txlog:8086
 
   flow-orchestrator:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/flow-orchestrator
     ports: ["8085:8085"]
@@ -205,6 +220,7 @@ services:
       OPENWCS_ADAPTER_CONVEYOR: http://conveyor-adapter:9091
 
   txlog:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/txlog
     ports: ["8086:8086"]
@@ -217,6 +233,7 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
   iam:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/iam
     ports: ["8087:8087"]
@@ -228,12 +245,14 @@ services:
       SPRING_DATASOURCE_PASSWORD: openwcs
 
   notification:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/notification
     ports: ["8088:8088"]
     depends_on: [postgres, kafka]
 
   integration-sap:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/integration-sap
     ports: ["8089:8089"]
@@ -245,6 +264,7 @@ services:
       OPENWCS_HOST_API_BASE_URL: http://integration-host:8092
 
   integration-manhattan:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/integration-manhattan
     ports: ["8090:8090"]
@@ -255,6 +275,7 @@ services:
       OPENWCS_HOST_API_BASE_URL: http://integration-host:8092
 
   integration-host:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/integration-host
     ports: ["8092:8092"]
@@ -273,30 +294,35 @@ services:
       OPENWCS_HOST_WEBHOOK_ENABLED: "true"
 
   conveyor-adapter:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/adapters/conveyor
     ports: ["9091:9091"]
     depends_on: [postgres, kafka]
 
   asrs-adapter:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/adapters/asrs
     ports: ["9096:9096"]   # 9096, not 9092 — Kafka owns host port 9092
     depends_on: [postgres, kafka]
 
   amr-geekplus-adapter:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/adapters/amr-geekplus
     ports: ["9093:9093"]
     depends_on: [postgres, kafka]
 
   autostore-adapter:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/adapters/autostore
     ports: ["9094:9094"]
     depends_on: [postgres, kafka]
 
   conveyor-sniffer:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../services/adapters/conveyor-sniffer
     ports: ["9095:9095", "9200:9200"]   # health/info, telegram ingest
@@ -307,6 +333,7 @@ services:
       # WAREHOUSE_ID + ALLOWED_IPS are site-specific; set per deployment.
 
   ui:
+    restart: unless-stopped
     profiles: ["apps"]
     build: ../ui
     # HTTPS is forced: 443 serves the SPA + proxies; 80 301-redirects to 443.

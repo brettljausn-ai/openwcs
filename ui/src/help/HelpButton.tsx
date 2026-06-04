@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import { SCREENS } from '../auth/screens'
 import { HELP, ScreenHelp } from './content'
@@ -37,7 +38,10 @@ export default function HelpButton() {
       >
         ?
       </button>
-      {open && <HelpDrawer title={label} help={help} onClose={() => setOpen(false)} />}
+      {open && createPortal(
+        <HelpDrawer title={label} help={help} onClose={() => setOpen(false)} />,
+        document.body,
+      )}
     </>
   )
 }
