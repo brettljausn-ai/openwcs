@@ -56,10 +56,13 @@ public class HandlingUnitController {
 
     @PutMapping("/{id}")
     public HandlingUnit update(@PathVariable UUID id, @RequestBody HandlingUnit handlingUnit) {
-        if (!handlingUnits.existsById(id)) {
-            throw new HandlingUnitNotFoundException(id);
-        }
+        HandlingUnit existing = handlingUnits.findById(id)
+                .orElseThrow(() -> new HandlingUnitNotFoundException(id));
         handlingUnit.setHuId(id);
+        // The HU's type and current location are NOT editable here — they change only through a
+        // controlled process (maintenance / QA). Preserve the existing values regardless of the body.
+        handlingUnit.setHuTypeId(existing.getHuTypeId());
+        handlingUnit.setLocationId(existing.getLocationId());
         return handlingUnits.save(handlingUnit);
     }
 }

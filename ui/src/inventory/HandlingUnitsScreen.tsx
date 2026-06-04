@@ -222,13 +222,14 @@ function HandlingUnitDialog({
             <label>
               Type{' '}
               <InfoTip
-                text="The kind of physical container this HU is, drawn from the handling-unit type master data. Determines size/capacity defaults."
+                text="The kind of physical container this HU is, from the handling-unit type master data. Fixed once registered — change only via a controlled maintenance / QA process."
                 example="Euro Pallet"
               />
             </label>
             <Select
               ariaLabel="Handling unit type"
               value={d.huTypeId ?? ''}
+              disabled={!!initial.huId}
               onChange={(v) => setD({ ...d, huTypeId: v || null })}
               options={[
                 { value: '', label: '— None —' },
@@ -244,13 +245,14 @@ function HandlingUnitDialog({
             <label>
               Location{' '}
               <InfoTip
-                text="Where this handling unit currently sits in the warehouse, chosen from the location master data. Leave blank if not yet placed."
+                text="Where this handling unit currently sits. Set at registration — moving an HU is done through a controlled process (e.g. maintenance / QA), not edited here."
                 example="A-01-02-03"
               />
             </label>
             <Select
               ariaLabel="Location"
               value={d.locationId ?? ''}
+              disabled={!!initial.huId}
               onChange={(v) => setD({ ...d, locationId: v || null })}
               options={[
                 { value: '', label: '— None —' },
