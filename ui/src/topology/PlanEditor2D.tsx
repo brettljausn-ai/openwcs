@@ -427,16 +427,28 @@ export default function PlanEditor2D({
     (e: React.PointerEvent<SVGRectElement>) => {
       if (e.button !== 0) return
       if (drawing && selectedId) {
-        // Draw mode: a click on the plane draws a (snapped) section on the selected conveyor.
+        // Draw mode: a click on the plane draws a section on the selected conveyor. Prefer snapping
+        // the point onto the conveyor's own centreline (so it lands ON the conveyor and connects);
+        // only fall back to the grid when the click is away from it.
         const w = clientToWorld(e.clientX, e.clientY)
-        onDrawAt(selectedId, snap(w.x, gridStep, snapOn), snap(w.z, gridStep, snapOn))
+        let sx = snap(w.x, gridStep, snapOn)
+        let sz = snap(w.z, gridStep, snapOn)
+        const selEq = items.find((it) => it.id === selectedId)
+        if (selEq) {
+          const proj = projectToPath(selEq, w.x, w.z)
+          if (Math.hypot(proj.x - w.x, proj.z - w.z) <= SNAP_RANGE_M) {
+            sx = proj.x
+            sz = proj.z
+          }
+        }
+        onDrawAt(selectedId, sx, sz)
         return
       }
       // Otherwise begin a pan; an empty click (no drag) deselects on pointer-up.
       drag.current = { kind: 'pan', startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y }
       ;(e.target as Element).setPointerCapture?.(e.pointerId)
     },
-    [drawing, selectedId, clientToWorld, gridStep, snapOn, onDrawAt, pan],
+    [drawing, selectedId, clientToWorld, gridStep, snapOn, onDrawAt, pan, items],
   )
 
   // A single pointer-move handler at the SVG level drives pan / move / waypoint / FP-marker drags.

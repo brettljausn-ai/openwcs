@@ -747,7 +747,11 @@ export default function AutomationTopology3D({
         es.map((e) => {
           if (e.id !== id) return e
           const path = Array.isArray(e.path) ? e.path.map((p) => [p[0], p[1]]) : []
-          // Find the nearest existing point within the snap radius (reuse it → forms junctions).
+          // Materialise the conveyor's CURRENT connectivity (sequential for an implicit path) up
+          // front — we need it both to snap onto a section interior and to preserve existing
+          // sections when we append. Mirrors startBranchAt / addDivertBranch.
+          const sections = effectiveSections(e).map((s) => [s[0], s[1]])
+          // 1) Snap to the nearest existing point within the snap radius (reuse it → forms junctions).
           let nearIdx = -1
           let nearDist = SNAP_M
           for (let i = 0; i < path.length; i++) {
@@ -761,14 +765,47 @@ export default function AutomationTopology3D({
           if (nearIdx >= 0) {
             resolvedIdx = nearIdx
           } else {
-            path.push([px, pz])
-            resolvedIdx = path.length - 1
+            // 2) Else snap onto the nearest SECTION within the snap radius and INSERT a junction
+            //    (split that section) so a click ON the conveyor body connects to it instead of
+            //    dropping a disconnected point — the reported "doesn't snap to the conveyor" bug.
+            let bestSec = -1
+            let bestDist = SNAP_M
+            let bjx = 0
+            let bjz = 0
+            for (let k = 0; k < sections.length; k++) {
+              const a = path[sections[k][0]]
+              const b = path[sections[k][1]]
+              if (!a || !b) continue
+              const abx = b[0] - a[0]
+              const abz = b[1] - a[1]
+              const len2 = abx * abx + abz * abz
+              if (len2 < 1e-9) continue
+              let t = ((px - a[0]) * abx + (pz - a[1]) * abz) / len2
+              t = Math.min(1, Math.max(0, t))
+              const jx = a[0] + abx * t
+              const jz = a[1] + abz * t
+              const d = Math.hypot(jx - px, jz - pz)
+              if (d <= bestDist) {
+                bestDist = d
+                bestSec = k
+                bjx = jx
+                bjz = jz
+              }
+            }
+            if (bestSec >= 0) {
+              const [a, b] = sections[bestSec]
+              const m = path.length
+              path.push([+bjx.toFixed(3), +bjz.toFixed(3)])
+              // m is the new highest index, so no existing section index needs shifting.
+              sections.splice(bestSec, 1, [a, m], [m, b])
+              resolvedIdx = m
+            } else {
+              // 3) Nowhere near the conveyor → a free point (start/extend a fresh run).
+              path.push([px, pz])
+              resolvedIdx = path.length - 1
+            }
           }
           resolved = resolvedIdx
-          // Materialise the conveyor's CURRENT connectivity (sequential for an implicit path) before
-          // appending — otherwise the first drawn section would replace the whole implicit path with
-          // just itself, disconnecting every existing point. Mirrors startBranchAt / addDivertBranch.
-          const sections = effectiveSections(e).map((s) => [s[0], s[1]])
           // With an anchor that isn't the resolved point, add a directed section — unless an
           // identical one already exists.
           if (
