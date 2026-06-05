@@ -493,11 +493,22 @@ export default function PlanEditor2D({
         onDrawAt(selectedId, s.x, s.z)
         return
       }
+      // A pending (un-placed) function point: a click on the plane PLACES it right here — snapped to
+      // the nearest conveyor centreline (any point along a section, not just an existing node). This
+      // is the click-to-place path; the staging marker can also still be dragged onto a conveyor.
+      if (pendingRef.current) {
+        const w = clientToWorld(e.clientX, e.clientY)
+        const snap = pendingSnap(pendingRef.current.functionType, w.x, w.z)
+        pendingRef.current = { ...pendingRef.current, world: w, snap }
+        setPending(pendingRef.current)
+        commitPending()
+        return
+      }
       // Otherwise begin a pan; an empty click (no drag) deselects on pointer-up.
       drag.current = { kind: 'pan', startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y }
       ;(e.target as Element).setPointerCapture?.(e.pointerId)
     },
-    [drawing, selectedId, clientToWorld, onDrawAt, pan, drawSnapAt],
+    [drawing, selectedId, clientToWorld, onDrawAt, pan, drawSnapAt, pendingSnap, commitPending],
   )
 
   // A single pointer-move handler at the SVG level drives pan / move / waypoint / FP-marker drags.
@@ -712,11 +723,11 @@ export default function PlanEditor2D({
           </div>
           {pending && (
             <span className="plan2d-fphint">
-              Drag the new point onto{' '}
+              Click{' '}
               {pending.functionType === 'INDUCT' || pending.functionType === 'DISCHARGE'
                 ? 'an ASRS'
                 : 'a conveyor'}{' '}
-              · Esc to cancel
+              to place the new point (or drag it) · Esc to cancel
             </span>
           )}
         </div>
