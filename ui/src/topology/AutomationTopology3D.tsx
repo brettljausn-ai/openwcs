@@ -32,6 +32,9 @@ export const SNAP_M = 0.5
 // physically a piece of conveyor — it just wears the host's colour — so it draws at a conveyor width,
 // NOT the host's footprint width (a 5 m ASRS rack would otherwise render as a giant blob).
 export const STUB_WIDTH_M = 0.6
+// Render height (m) for an IN/OUT conveyor stub owned by a non-conveyor (e.g. an ASRS). A conveyor-
+// like height so the stub is a low flat piece near the floor, not a wall as tall as the rack.
+export const STUB_HEIGHT_M = 0.5
 
 // The process types a function point can carry. Used as the default Select options when the
 // placed equipment's library entry doesn't declare its own `processTypes`.
@@ -1233,26 +1236,31 @@ export default function AutomationTopology3D({
   // target (creates the connection). Clicking the same item cancels the in-progress pick.
   const handleConnectPick = useCallback(
     (placedId: string) => {
-      setConnectFrom((from) => {
-        if (!from) return placedId
-        if (from === placedId) return null // clicking the source again cancels
-        setConnections((cs) => [
-          ...cs,
-          {
-            id: crypto.randomUUID(),
-            fromPlacedId: from,
-            toPlacedId: placedId,
-            fromPointId: null,
-            toPointId: null,
-            label: null,
-            status: 'ACTIVE',
-          },
-        ])
-        setDirty(true)
-        return null // ready to chain another from-pick
-      })
+      // Side-effects OUTSIDE any state updater (an updater may run more than once → duplicate links).
+      if (!connectFrom) {
+        setConnectFrom(placedId)
+        return
+      }
+      if (connectFrom === placedId) {
+        setConnectFrom(null) // clicking the source again cancels
+        return
+      }
+      setConnections((cs) => [
+        ...cs,
+        {
+          id: crypto.randomUUID(),
+          fromPlacedId: connectFrom,
+          toPlacedId: placedId,
+          fromPointId: null,
+          toPointId: null,
+          label: null,
+          status: 'ACTIVE',
+        },
+      ])
+      setConnectFrom(null) // ready to chain another from-pick
+      setDirty(true)
     },
-    [],
+    [connectFrom],
   )
 
   const deleteConnection = useCallback((id: string) => {
@@ -1484,6 +1492,10 @@ export default function AutomationTopology3D({
               selectedId={selectedId}
               drawing={drawPath}
               activeFromIdx={activeFromIdx}
+              connectMode={connectMode}
+              connectFrom={connectFrom}
+              onConnectPick={handleConnectPick}
+              connections={connections}
               onSelect={setSelectedId}
               onPatch={patchEquipment}
               onDrawAt={drawSectionAt}
@@ -2987,7 +2999,6 @@ function ConveyorPath({
   onHandleDragChange,
 }: ConveyorPathProps) {
   const path = (eq.path ?? []) as number[][]
-  const y = eq.heightM / 2 + eq.posYM
   const sections = effectiveSections(eq)
   const decisions = decisionPoints(sections)
   const junctions = junctionPoints(sections)
@@ -2996,9 +3007,13 @@ function ConveyorPath({
   // default light-blue conveyor (which on an ASRS looks like a vague blur). A real conveyor keeps
   // the default look (tint = undefined).
   const bodyTint = cat === 'conveyor' ? undefined : categoryBodyColor(cat) ?? undefined
-  // A real conveyor uses its own width; a stub host (ASRS / manual-storage) draws its IN/OUT stubs at
-  // a conveyor width so they read as conveyor pieces, not the full rack footprint.
+  // A real conveyor uses its own envelope; a stub host (ASRS / manual-storage) draws its IN/OUT
+  // stubs at a CONVEYOR width AND height so they read as low, flat conveyor pieces — not the full
+  // rack footprint width or its (often ~10 m) rack height (which rendered the stub as a tall wall).
   const wM = cat === 'conveyor' ? eq.widthM : STUB_WIDTH_M
+  const hM = cat === 'conveyor' ? eq.heightM : STUB_HEIGHT_M
+  // Sit the stub low (near the floor, where a conveyor is) rather than at the rack's mid-height.
+  const y = hM / 2 + eq.posYM
 
   // One box + arrow per directed section.
   const segs = sections
@@ -3028,7 +3043,7 @@ function ConveyorPath({
     })
     .filter((s): s is NonNullable<typeof s> => s !== null)
 
-  const top = y + eq.heightM / 2
+  const top = y + hM / 2
   const first = path[0]
 
   return (
@@ -3046,7 +3061,7 @@ function ConveyorPath({
             {/* Two-tone rounded conveyor body for this section (shared with box-mode conveyors). */}
             <ConveyorBody
               length={s.len}
-              height={eq.heightM}
+              height={hM}
               width={wM}
               selected={selected}
               tint={bodyTint}
@@ -3091,7 +3106,7 @@ function ConveyorPath({
               onSelect()
             }}
           >
-            <ConveyorBody length={wM} height={eq.heightM} width={wM} selected={selected} tint={bodyTint} />
+            <ConveyorBody length={wM} height={hM} width={wM} selected={selected} tint={bodyTint} />
           </group>
         )
       })}
