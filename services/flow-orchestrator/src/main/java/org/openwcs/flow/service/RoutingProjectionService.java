@@ -44,6 +44,9 @@ public class RoutingProjectionService {
     private static final double MIN_BOX_LENGTH_M = 0.05;
     /** A function point within this arc-distance of an existing path point aliases it (no split). */
     private static final double ON_POINT_TOLERANCE_M = 0.05;
+    /** Two nodes of DIFFERENT equipment this close (world metres) are treated as physically connected
+     *  — an edge is inferred across the touchpoint, so connections need not be drawn by hand. */
+    private static final double ADJACENCY_M = 1.5;
 
     private final AutomationTopologyService automation;
     private final ConveyorNodeRepository nodes;
@@ -242,6 +245,50 @@ public class RoutingProjectionService {
                     continue;
                 }
                 stagedEdges.add(new StagedEdge(exit, entry, 1, entry));
+            }
+        }
+
+        // Auto-inferred connections: when a node of one equipment sits within ADJACENCY_M of a node
+        // of ANOTHER, link them (both directions — flow direction is governed by each conveyor's own
+        // sections) so material can cross the touchpoint without a hand-drawn connection (e.g. an
+        // ASRS infeed stub meeting a conveyor). Only the closest node pair per equipment pair is
+        // linked, and existing edges are never duplicated.
+        Set<String> edgePairs = new HashSet<>();
+        for (StagedEdge se : stagedEdges) {
+            edgePairs.add(se.fromCode + ">" + se.toCode);
+        }
+        List<UUID> eqIds = new ArrayList<>(pointsByEquip.keySet());
+        for (int ai = 0; ai < eqIds.size(); ai++) {
+            for (int bi = ai + 1; bi < eqIds.size(); bi++) {
+                StagedNode na = null;
+                StagedNode nb = null;
+                double best = ADJACENCY_M;
+                for (int ia : pointsByEquip.get(eqIds.get(ai))) {
+                    StagedNode sa = stagedByCode.get(codeByEquipPoint.get(key(eqIds.get(ai), ia)));
+                    if (sa == null || sa.posX == null || sa.posY == null) {
+                        continue;
+                    }
+                    for (int ib : pointsByEquip.get(eqIds.get(bi))) {
+                        StagedNode sb = stagedByCode.get(codeByEquipPoint.get(key(eqIds.get(bi), ib)));
+                        if (sb == null || sb.posX == null || sb.posY == null) {
+                            continue;
+                        }
+                        double d = Math.hypot(sa.posX - sb.posX, sa.posY - sb.posY);
+                        if (d <= best) {
+                            best = d;
+                            na = sa;
+                            nb = sb;
+                        }
+                    }
+                }
+                if (na != null && nb != null) {
+                    if (edgePairs.add(na.code + ">" + nb.code)) {
+                        stagedEdges.add(new StagedEdge(na.code, nb.code, 1, nb.code));
+                    }
+                    if (edgePairs.add(nb.code + ">" + na.code)) {
+                        stagedEdges.add(new StagedEdge(nb.code, na.code, 1, na.code));
+                    }
+                }
             }
         }
 
