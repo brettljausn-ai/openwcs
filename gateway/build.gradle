@@ -14,14 +14,13 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-gateway'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
+    // Shared logging config (libs/common/.../logback-spring.xml) so the gateway also writes a
+    // daily per-service log file like every other service.
+    implementation project(':libs:common')
+
     // JWT validation at the edge (build.md §4.8, §12). Reactive resource server; toggled on
     // via openwcs.security.enabled once a Keycloak realm exists.
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-
-    // System info → service logs: read container logs via the Docker Engine API over the mounted
-    // /var/run/docker.sock (System info screen, ADMIN-only). See SystemLogsService + docker-compose.
-    implementation 'com.github.docker-java:docker-java-core:3.4.0'
-    implementation 'com.github.docker-java:docker-java-transport-httpclient5:3.4.0'
 
     // End-to-end edge-auth test: validates real Keycloak-issued JWTs against the imported realm.
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

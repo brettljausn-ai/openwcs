@@ -13,6 +13,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -36,6 +37,12 @@ var (
 )
 
 func main() {
+	// Mirror logs to a daily-rotated file for the System info screen (kept ~14 days). Stdout is
+	// unaffected, so `docker logs` keeps working.
+	if fw := newDailyLog(serviceName); fw != nil {
+		log.SetOutput(io.MultiWriter(os.Stdout, fw))
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = defaultPort

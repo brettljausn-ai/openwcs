@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -40,6 +41,12 @@ func env(key, fallback string) string {
 }
 
 func main() {
+	// Mirror logs to a daily-rotated file for the System info screen (kept ~14 days). Stdout is
+	// unaffected, so `docker logs` keeps working.
+	if fw := newDailyLog(serviceName); fw != nil {
+		log.SetOutput(io.MultiWriter(os.Stdout, fw))
+	}
+
 	port := env("PORT", defaultPort)
 	tcpAddr := env("SNIFFER_LISTEN", defaultTcp)
 	wcsURL := env("WCS_OBSERVATIONS_URL", "http://localhost:8085/api/flow/conveyor/observations")

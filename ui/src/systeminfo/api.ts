@@ -24,13 +24,23 @@ export interface ServiceLogs {
   service: string
   tail: number
   logs: string
-  // Present when the Docker socket was unreachable or the container wasn't found.
+  // Present when the log file couldn't be read.
   error?: string
 }
 
-// Recent container logs for a service, read by the gateway via the Docker socket.
-export async function fetchServiceLogs(name: string, tail = 200): Promise<ServiceLogs> {
-  const res = await fetch(`/api/system/services/${encodeURIComponent(name)}/logs?tail=${tail}`)
+// The last `tail` lines of a service's daily log file for `date` (yyyy-MM-dd); most recent day when
+// `date` is omitted. Logs are read by the gateway from the shared per-service log volume.
+export async function fetchServiceLogs(name: string, tail = 200, date?: string): Promise<ServiceLogs> {
+  const params = new URLSearchParams({ tail: String(tail) })
+  if (date) params.set('date', date)
+  const res = await fetch(`/api/system/services/${encodeURIComponent(name)}/logs?${params.toString()}`)
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
   return (await res.json()) as ServiceLogs
+}
+
+// The days (yyyy-MM-dd, newest first) for which a service has a log file — drives the day picker.
+export async function fetchLogDays(name: string): Promise<string[]> {
+  const res = await fetch(`/api/system/services/${encodeURIComponent(name)}/log-days`)
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return (await res.json()) as string[]
 }

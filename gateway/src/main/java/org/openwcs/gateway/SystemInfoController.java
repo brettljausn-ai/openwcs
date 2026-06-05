@@ -59,19 +59,20 @@ public class SystemInfoController {
     }
 
     /**
-     * Recent container logs for a known service (Docker socket). The name MUST be one of the
-     * configured services — we never read an arbitrary container. Runs on a worker scheduler since
-     * the Docker call is blocking; an unreachable socket / missing container returns an {@code error}.
+     * The last {@code tail} lines of a known service's daily log file for {@code date} (yyyy-MM-dd;
+     * most recent day when omitted). The name MUST be one of the configured services. Runs on a
+     * worker scheduler since file I/O is blocking.
      */
     @GetMapping("/services/{name}/logs")
     public Mono<Map<String, Object>> logs(
-            @PathVariable String name, @RequestParam(defaultValue = "200") int tail) {
-        boolean known = props.getServices().stream().anyMatch(s -> s.getName().equals(name));
-        if (!known) {
+            @PathVariable String name,
+            @RequestParam(required = false) String date,
+            @RequestParam(defaultValue = "200") int tail) {
+        if (!isKnown(name)) {
             return Mono.just(Map.of("service", name, "tail", 0, "logs", "", "error", "unknown service"));
         }
         int t = Math.min(Math.max(tail, 1), MAX_TAIL);
-        return Mono.fromCallable(() -> logsService.tail(name, t))
+        return Mono.fromCallable(() -> logsService.tail(name, date, t))
                 .subscribeOn(Schedulers.boundedElastic())
                 .map(text -> Map.<String, Object>of("service", name, "tail", t, "logs", text))
                 .onErrorResume(e -> Mono.just(Map.of(
@@ -79,6 +80,19 @@ public class SystemInfoController {
                         "tail", t,
                         "logs", "",
                         "error", e.getMessage() == null ? e.toString() : e.getMessage())));
+    }
+
+    /** The days (yyyy-MM-dd) for which a known service has a log file, newest first. */
+    @GetMapping("/services/{name}/log-days")
+    public Mono<List<String>> logDays(@PathVariable String name) {
+        if (!isKnown(name)) {
+            return Mono.just(List.of());
+        }
+        return Mono.fromCallable(() -> logsService.days(name)).subscribeOn(Schedulers.boundedElastic());
+    }
+
+    private boolean isKnown(String name) {
+        return props.getServices().stream().anyMatch(s -> s.getName().equals(name));
     }
 
     private Mono<ServiceStatus> probe(SystemServicesProperties.Service svc) {
