@@ -200,14 +200,15 @@ class OperatingModesTest {
     }
 
     @Test
-    void setSupportedModesAlwaysRetainsPicking() {
+    void setSupportedModesReplacesTheExactSet() {
         GtpStation station = stationService.createStation(new CreateStationRequest(
                 UUID.randomUUID(), "GTP-" + UUID.randomUUID(), null, "PUT_WALL", List.of("PICKING"), List.of()));
 
+        // Picking is no longer forced — a station can support any combination (e.g. QC-only).
         GtpStation updated = stationService.setSupportedModes(station.getId(), List.of("QC", "MAINTENANCE"));
         assertThat(updated.supportedModeSet())
                 .extracting(Enum::name)
-                .contains("PICKING", "QC", "MAINTENANCE");
+                .containsExactlyInAnyOrder("QC", "MAINTENANCE");
     }
 
     // --- helpers ---
