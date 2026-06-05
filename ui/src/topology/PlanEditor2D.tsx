@@ -26,6 +26,7 @@ import {
   junctionPoints,
   pointAlong,
   snapToFootprintPerimeter,
+  STUB_WIDTH_M,
 } from './AutomationTopology3D'
 
 const DEG = Math.PI / 180
@@ -859,6 +860,8 @@ function PlanItem({
     const sections = effectiveSections(eq)
     const decisions = decisionPoints(sections)
     const junctions = junctionPoints(sections)
+    // A stub host (ASRS) draws its IN/OUT stubs at a conveyor width, not the rack footprint width.
+    const wM = stubHost ? STUB_WIDTH_M : eq.widthM
     const [lx, ly] = toPx(path[0][0], path[0][1])
     return (
       <g>
@@ -877,7 +880,7 @@ function PlanItem({
               x2={bx}
               y2={by}
               stroke={pathColor}
-              strokeWidth={Math.max(2, eq.widthM * pxPerM * 0.5)}
+              strokeWidth={Math.max(2, wM * pxPerM * 0.5)}
               strokeOpacity={selected ? 0.95 : 0.8}
               strokeLinecap="round"
               style={{ cursor: drawing ? 'crosshair' : 'pointer' }}
@@ -905,7 +908,7 @@ function PlanItem({
           const nx = uz
           const nz = -ux
           const count = Math.min(30, Math.max(1, Math.round(len)))
-          const sizePx = Math.max(3, Math.min(7, eq.widthM * pxPerM * 0.22)) // small
+          const sizePx = Math.max(3, Math.min(7, wM * pxPerM * 0.22)) // small
           const sizeM = sizePx / pxPerM
           const chevrons = []
           for (let c = 1; c <= count; c++) {

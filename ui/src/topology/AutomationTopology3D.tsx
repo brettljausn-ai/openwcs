@@ -28,6 +28,10 @@ const DEG = Math.PI / 180
 // Snap radius (metres): a ground/plan click this close to an existing path point reuses that point
 // (so junctions form) rather than creating a near-duplicate vertex. Shared by 3D + 2D editors.
 export const SNAP_M = 0.5
+// Render width (m) for an IN/OUT conveyor stub owned by a non-conveyor (e.g. an ASRS). The stub is
+// physically a piece of conveyor — it just wears the host's colour — so it draws at a conveyor width,
+// NOT the host's footprint width (a 5 m ASRS rack would otherwise render as a giant blob).
+export const STUB_WIDTH_M = 0.6
 
 // The process types a function point can carry. Used as the default Select options when the
 // placed equipment's library entry doesn't declare its own `processTypes`.
@@ -2808,6 +2812,9 @@ function ConveyorPath({
   // default light-blue conveyor (which on an ASRS looks like a vague blur). A real conveyor keeps
   // the default look (tint = undefined).
   const bodyTint = cat === 'conveyor' ? undefined : categoryBodyColor(cat) ?? undefined
+  // A real conveyor uses its own width; a stub host (ASRS / manual-storage) draws its IN/OUT stubs at
+  // a conveyor width so they read as conveyor pieces, not the full rack footprint.
+  const wM = cat === 'conveyor' ? eq.widthM : STUB_WIDTH_M
 
   // One box + arrow per directed section.
   const segs = sections
@@ -2856,7 +2863,7 @@ function ConveyorPath({
             <ConveyorBody
               length={s.len}
               height={eq.heightM}
-              width={eq.widthM}
+              width={wM}
               selected={selected}
               tint={bodyTint}
             />
@@ -2865,7 +2872,7 @@ function ConveyorPath({
               (capped for very long sections), each pointing from → to. */}
           {(() => {
             const count = Math.min(30, Math.max(1, Math.round(s.len)))
-            const size = Math.max(0.12, Math.min(0.28, eq.widthM * 0.28)) // small
+            const size = Math.max(0.12, Math.min(0.28, wM * 0.28)) // small
             return Array.from({ length: count }, (_, c) => {
               const dM = (c + 0.5) * (s.len / count)
               const cx = s.ax + s.ux * dM
@@ -2900,7 +2907,7 @@ function ConveyorPath({
               onSelect()
             }}
           >
-            <ConveyorBody length={eq.widthM} height={eq.heightM} width={eq.widthM} selected={selected} tint={bodyTint} />
+            <ConveyorBody length={wM} height={eq.heightM} width={wM} selected={selected} tint={bodyTint} />
           </group>
         )
       })}
@@ -2918,7 +2925,7 @@ function ConveyorPath({
             y={top + 0.06}
             decision={isDecision}
             anchor={isAnchor}
-            radius={Math.max(0.14, eq.widthM * 0.28)}
+            radius={Math.max(0.14, wM * 0.28)}
           />
         )
       })}
@@ -2944,7 +2951,7 @@ function ConveyorPath({
             x={p[0]}
             z={p[1]}
             y={y}
-            radius={Math.max(0.2, eq.widthM * 0.35)}
+            radius={Math.max(0.2, wM * 0.35)}
             drawing={drawing}
             anchor={drawing && activeFromIdx === i}
             onDrag={(x, z) => onMoveWaypoint(i, x, z)}
