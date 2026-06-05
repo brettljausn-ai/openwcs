@@ -354,9 +354,9 @@ export default function PlanEditor2D({
     [items, libById],
   )
   const nearestConveyorSnap = useCallback(
-    (wx: number, wz: number): SnapTarget | null => {
+    (wx: number, wz: number, maxDist: number = SNAP_RANGE_M): SnapTarget | null => {
       let best: SnapTarget | null = null
-      let bestDist = SNAP_RANGE_M
+      let bestDist = maxDist
       for (const eq of conveyors) {
         const proj = projectToPath(eq, wx, wz)
         const d = Math.hypot(proj.x - wx, proj.z - wz)
@@ -531,9 +531,10 @@ export default function PlanEditor2D({
         }
         // Re-positioning an already-placed marker. Project the cursor onto the nearest conveyor
         // centreline and move the point there LIVE (constrained to the centreline → new offsetM).
-        // Keep the same placedId unless the cursor snaps onto a DIFFERENT conveyor. Off any
-        // conveyor → leave the point where it is (just clear the preview).
-        const snapTarget = nearestConveyorSnap(w.x, w.z)
+        // No distance cap while actively dragging an existing point — otherwise the open middle of a
+        // loop is a dead zone and the point can't be dragged across to the far run (it would stick to
+        // whichever run happened to be within 0.75 m). The marker simply follows the nearest centreline.
+        const snapTarget = nearestConveyorSnap(w.x, w.z, Infinity)
         setFpSnap(snapTarget)
         if (snapTarget) {
           const fp = functionPoints.find((f) => f.id === d.id)
