@@ -66,6 +66,8 @@ interface PlanEditor2DProps {
   // Partial-update an existing function point — same as updateFunctionPoint in the parent. Used to
   // re-position a placed marker (its placedId / offsetM / side) after dragging it onto a conveyor.
   onUpdateFunctionPoint: (id: string, patch: Partial<AutomationFunctionPoint>) => void
+  // Open the config dialog for a function point (clicking a marker without dragging it).
+  onEditFunctionPoint: (id: string) => void
   // Materialise a junction at (x,z) on a conveyor and drop a 1 m divert STUB in the divert direction
   // (LEFT/RIGHT) — same as addDivertBranch in the parent. Does NOT enter draw mode. `snapStep` is the
   // grid step to snap the branch endpoint to (null = no snap).
@@ -170,6 +172,7 @@ export default function PlanEditor2D({
   onAddFunctionPoint,
   onDeleteFunctionPoint,
   onUpdateFunctionPoint,
+  onEditFunctionPoint,
   onAddDivertBranch,
   onAddAsrsPortStub,
 }: PlanEditor2DProps) {
@@ -224,7 +227,9 @@ export default function PlanEditor2D({
       }
     | { kind: 'waypoint'; id: string; index: number; path: number[][] }
     | { kind: 'pending' }
-    | { kind: 'fp'; id: string }
+    // FP marker: a plain click (no move past the threshold) opens its config dialog; a drag past the
+    // threshold re-positions it along the nearest conveyor. moved gates which happens on pointer-up.
+    | { kind: 'fp'; id: string; startX: number; startY: number; moved: boolean }
     | null
   >(null)
   // Live snap preview while dragging an already-PLACED marker (target conveyor + projection).
@@ -502,6 +507,12 @@ export default function PlanEditor2D({
         return
       }
       if (d.kind === 'fp') {
+        // Gate movement behind a small pixel threshold so a plain click only opens the dialog (on
+        // pointer-up) instead of nudging the point.
+        if (!d.moved) {
+          if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < DRAG_THRESHOLD_PX) return
+          d.moved = true
+        }
         // Re-positioning an already-placed marker. Project the cursor onto the nearest conveyor
         // centreline and move the point there LIVE (constrained to the centreline → new offsetM).
         // Keep the same placedId unless the cursor snaps onto a DIFFERENT conveyor. Off any
@@ -559,12 +570,17 @@ export default function PlanEditor2D({
       commitPending()
     } else if (d?.kind === 'fp') {
       setFpSnap(null)
-      const fp = functionPoints.find((f) => f.id === d.id)
-      const side = sideForSet(fp?.functionType ?? '')
-      // Keep the divert FPs' side; non-divert points keep whatever side they had.
-      if (side && fp && fp.side !== side) onUpdateFunctionPoint(d.id, { side })
+      if (!d.moved) {
+        // A click (no drag) opens this point's config dialog.
+        onEditFunctionPoint(d.id)
+      } else {
+        const fp = functionPoints.find((f) => f.id === d.id)
+        const side = sideForSet(fp?.functionType ?? '')
+        // Keep the divert FPs' side; non-divert points keep whatever side they had.
+        if (side && fp && fp.side !== side) onUpdateFunctionPoint(d.id, { side })
+      }
     }
-  }, [commitPending, functionPoints, onUpdateFunctionPoint])
+  }, [commitPending, functionPoints, onUpdateFunctionPoint, onEditFunctionPoint])
 
   // A background click that wasn't a meaningful pan deselects (only when not drawing).
   const onBackgroundPointerUp = useCallback(
@@ -837,7 +853,7 @@ export default function PlanEditor2D({
               dragging={drag.current?.kind === 'fp' && drag.current.id === fp.id}
               onSelect={() => onSelect(eq.id)}
               onDragStart={(e) => {
-                drag.current = { kind: 'fp', id: fp.id }
+                drag.current = { kind: 'fp', id: fp.id, startX: e.clientX, startY: e.clientY, moved: false }
                 setFpSnap(null)
                 ;(e.target as Element).setPointerCapture?.(e.pointerId)
               }}
