@@ -768,39 +768,9 @@ export default function PlanEditor2D({
           <line x1={grid.ox} y1={grid.oy - 8} x2={grid.ox} y2={grid.oy + 8} className="plan2d-origin" />
         </g>
 
-        {/* Equipment connections — a dashed line (arrow at the target) between linked items' centres.
-            Drawn under the equipment; both endpoints must be on this level. */}
-        {(() => {
-          const byId = new Map(items.map((it) => [it.id, it]))
-          const centre = (eq: AutomationEquipment): [number, number] => {
-            const p = Array.isArray(eq.path) ? eq.path : []
-            if (p.length >= 1) {
-              let sx = 0
-              let sz = 0
-              for (const pt of p) {
-                sx += pt[0]
-                sz += pt[1]
-              }
-              return [sx / p.length, sz / p.length]
-            }
-            return [eq.posXM, eq.posZM]
-          }
-          return connections.map((c) => {
-            const from = byId.get(c.fromPlacedId)
-            const to = byId.get(c.toPlacedId)
-            if (!from || !to) return null
-            const [ax, az] = centre(from)
-            const [bx, bz] = centre(to)
-            const [x1, y1] = toPx(ax, az)
-            const [x2, y2] = toPx(bx, bz)
-            return (
-              <g key={c.id} pointerEvents="none">
-                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#f0a85a" strokeWidth={2} strokeDasharray="6 4" strokeOpacity={0.85} />
-                <circle cx={x2} cy={y2} r={4} fill="#f0a85a" />
-              </g>
-            )
-          })
-        })()}
+        {/* Equipment connections are no longer drawn as lines: physical links are inferred from
+            geometry (adjacency) by the routing projection, and workstation role-interactions are
+            managed in the Properties panel rather than as on-canvas lines. */}
 
         {/* Equipment + conveyor paths. */}
         {items.map((eq) => (

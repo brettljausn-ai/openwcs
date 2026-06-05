@@ -1400,15 +1400,8 @@ export default function AutomationTopology3D({
             </button>
           </div>
           {dirty && <span className="atopo-dirty">Unsaved changes</span>}
-          <button
-            type="button"
-            className={`btn btn-sm ${connectMode ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={toggleConnectMode}
-            disabled={loading || saving}
-            title="Link two pieces of equipment: click a source, then a target."
-          >
-            {connectMode ? 'Connecting…' : 'Connect'}
-          </button>
+          {/* Manual Connect removed: physical connections are inferred from geometry by the routing
+              projection; GTP workstation role-interactions are set in the Properties panel. */}
           <button
             type="button"
             className="btn btn-ghost btn-sm"
@@ -2667,23 +2660,8 @@ function SceneContent({
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      {/* Connection lines — drawn for every link whose endpoints both currently exist (any level). */}
-      {connections.map((c) => {
-        const from = byId.get(c.fromPlacedId)
-        const to = byId.get(c.toPlacedId)
-        if (!from || !to) return null
-        return (
-          <ConnectionLine
-            key={c.id}
-            a={worldCenter(from)}
-            b={worldCenter(to)}
-            // Size the arrowhead to the equipment it points at so it never dwarfs a small conveyor
-            // (a fixed 0.5 m cone looked huge next to a 0.6 m-wide conveyor) nor vanishes on an ASRS.
-            headSize={Math.max(0.08, Math.min(0.18, (to.widthM || 0.6) * 0.2))}
-            active={c.id === selectedConnId}
-          />
-        )
-      })}
+      {/* Connections are no longer drawn as lines — physical links are inferred from geometry by
+          the routing projection; workstation role-interactions live in the Properties panel. */}
 
       {items.map((eq) => {
         const isSel = eq.id === selectedId
