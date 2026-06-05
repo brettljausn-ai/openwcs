@@ -28,6 +28,7 @@ import UsersScreen from './users/UsersScreen'
 import AccessControlScreen from './access/AccessControlScreen'
 import WarehouseAccessScreen from './warehouseaccess/WarehouseAccessScreen'
 import SystemInfoScreen from './systeminfo/SystemInfoScreen'
+import LogsPage from './systeminfo/LogsPage'
 
 const COMPONENTS: Record<string, JSX.Element> = {
   dashboard: <Dashboard />,
@@ -64,8 +65,10 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return children
 }
 
-/** Route element that also enforces screen-level access (catalog + role/user overrides). */
-function Guarded({ screen }: { screen: ScreenDef }) {
+/** Route element that also enforces screen-level access (catalog + role/user overrides). An optional
+ * `element` overrides the catalog lookup — used for sub-routes (e.g. the full logs page) that share
+ * a screen's access but render a different component. */
+function Guarded({ screen, element }: { screen: ScreenDef; element?: JSX.Element }) {
   const { can } = useAuth()
   if (!can(screen)) {
     return (
@@ -75,8 +78,10 @@ function Guarded({ screen }: { screen: ScreenDef }) {
       />
     )
   }
-  return COMPONENTS[screen.key] ?? <ComingSoon title={screen.label} />
+  return element ?? COMPONENTS[screen.key] ?? <ComingSoon title={screen.label} />
 }
+
+const SYSTEM_INFO_SCREEN = SCREENS.find((s) => s.key === 'system-info')!
 
 export default function App() {
   return (
@@ -100,6 +105,11 @@ export default function App() {
                 <Route key={s.key} path={s.path} element={<Guarded screen={s} />} />
               ),
             )}
+            {/* Full-page service logs (opened from the System info modal); shares its ADMIN access. */}
+            <Route
+              path="/system-info/logs/:name"
+              element={<Guarded screen={SYSTEM_INFO_SCREEN} element={<LogsPage />} />}
+            />
             {/* /master-data → first catalog (old links / nav land on Warehouses). */}
             <Route path="/master-data" element={<Navigate to="/master-data/warehouses" replace />} />
           </Route>
