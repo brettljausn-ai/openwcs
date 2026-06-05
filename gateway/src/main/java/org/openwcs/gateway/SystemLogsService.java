@@ -25,18 +25,34 @@ import org.springframework.stereotype.Component;
 public class SystemLogsService {
 
     private static final Pattern DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
+    // A service name only ever contains these; reject anything else outright (defence in depth on
+    // top of the controller's registry check — and so a path segment can never be "..", "/", etc.).
+    private static final Pattern SAFE_NAME = Pattern.compile("[A-Za-z0-9._-]+");
 
     private final Path logRoot;
 
     public SystemLogsService(
             @Value("${openwcs.system.log-dir:${OPENWCS_LOG_DIR:/var/log/openwcs}}") String logDir) {
-        this.logRoot = Paths.get(logDir);
+        this.logRoot = Paths.get(logDir).toAbsolutePath().normalize();
+    }
+
+    /** Resolve a child of the log root, returning null if the input is unsafe or escapes the root. */
+    private Path safeResolve(String first, String... more) {
+        if (first == null || !SAFE_NAME.matcher(first).matches()) {
+            return null;
+        }
+        Path p = logRoot.resolve(first);
+        for (String m : more) {
+            p = p.resolve(m);
+        }
+        p = p.normalize();
+        return p.startsWith(logRoot) ? p : null;
     }
 
     /** Available log dates (yyyy-MM-dd) for a service, newest first. */
     public List<String> days(String service) {
-        Path dir = logRoot.resolve(service);
-        if (!Files.isDirectory(dir)) {
+        Path dir = safeResolve(service);
+        if (dir == null || !Files.isDirectory(dir)) {
             return List.of();
         }
         Pattern file = Pattern.compile(Pattern.quote(service) + "\\.(\\d{4}-\\d{2}-\\d{2})\\.log");
@@ -69,8 +85,8 @@ public class SystemLogsService {
         if (!DATE.matcher(day).matches()) {
             return "";
         }
-        Path file = logRoot.resolve(service).resolve(service + "." + day + ".log");
-        if (!Files.isRegularFile(file)) {
+        Path file = safeResolve(service, service + "." + day + ".log");
+        if (file == null || !Files.isRegularFile(file)) {
             return "";
         }
         try {
