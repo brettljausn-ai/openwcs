@@ -354,8 +354,19 @@ export default function PlanEditor2D({
         return
       }
       if (d.kind === 'fp') {
-        // Re-positioning an already-placed marker: show the live snap preview onto a centreline.
-        setFpSnap(nearestConveyorSnap(w.x, w.z))
+        // Re-positioning an already-placed marker. Project the cursor onto the nearest conveyor
+        // centreline and move the point there LIVE (constrained to the centreline → new offsetM).
+        // Keep the same placedId unless the cursor snaps onto a DIFFERENT conveyor. Off any
+        // conveyor → leave the point where it is (just clear the preview).
+        const snapTarget = nearestConveyorSnap(w.x, w.z)
+        setFpSnap(snapTarget)
+        if (snapTarget) {
+          const fp = functionPoints.find((f) => f.id === d.id)
+          const patch: Partial<AutomationFunctionPoint> = { offsetM: snapTarget.offsetM }
+          // Only rebind to a new conveyor when the cursor actually moved to a different one.
+          if (fp && fp.placedId !== snapTarget.eqId) patch.placedId = snapTarget.eqId
+          onUpdateFunctionPoint(d.id, patch)
+        }
         return
       }
       const sx = snap(w.x, gridStep, snapOn)
@@ -367,29 +378,25 @@ export default function PlanEditor2D({
         onPatch(d.id, { path: next })
       }
     },
-    [clientToWorld, gridStep, snapOn, onPatch, nearestConveyorSnap],
+    [clientToWorld, gridStep, snapOn, onPatch, nearestConveyorSnap, functionPoints, onUpdateFunctionPoint],
   )
 
-  // End any drag. A 'pending' drag commits/discards the pending point; an 'fp' drag re-positions the
-  // marker onto the snapped conveyor (or leaves it untouched if dropped off any conveyor).
+  // End any drag. A 'pending' drag commits/discards the pending point. An 'fp' drag has already moved
+  // the point live during onPointerMove, so here we only finalise: re-assert the divert side (so a
+  // DIVERT_* keeps its LEFT/RIGHT after a rebind) and clear the snap preview.
   const endDrag = useCallback(() => {
     const d = drag.current
     drag.current = null
     if (d?.kind === 'pending') {
       commitPending()
     } else if (d?.kind === 'fp') {
-      const snapTarget = fpSnap
       setFpSnap(null)
-      if (snapTarget) {
-        const side = sideForType(functionPoints.find((f) => f.id === d.id)?.functionType ?? '')
-        onUpdateFunctionPoint(d.id, {
-          placedId: snapTarget.eqId,
-          offsetM: snapTarget.offsetM,
-          side,
-        })
-      }
+      const fp = functionPoints.find((f) => f.id === d.id)
+      const side = sideForType(fp?.functionType ?? '')
+      // Keep the divert FPs' side; non-divert points keep whatever side they had.
+      if (side && fp && fp.side !== side) onUpdateFunctionPoint(d.id, { side })
     }
-  }, [commitPending, fpSnap, functionPoints, onUpdateFunctionPoint])
+  }, [commitPending, functionPoints, onUpdateFunctionPoint])
 
   // A background click that wasn't a meaningful pan deselects (only when not drawing).
   const onBackgroundPointerUp = useCallback(
@@ -497,20 +504,6 @@ export default function PlanEditor2D({
         onPointerUp={endDrag}
         onPointerLeave={endDrag}
       >
-        <defs>
-          <marker
-            id="plan2d-arrow"
-            viewBox="0 0 10 10"
-            refX="7"
-            refY="5"
-            markerWidth="2.2"
-            markerHeight="2.2"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#8DC63F" />
-          </marker>
-        </defs>
-
         {/* Background — pan / deselect / draw target. */}
         <rect
           x={0}
@@ -628,7 +621,7 @@ export default function PlanEditor2D({
             : 'Drag onto a conveyor to place · drop off any conveyor (or Esc) to cancel'
           : drawing
             ? 'Draw the divert branch — click where it should go; click a point to branch from it'
-            : 'Drag an item to move (snapped) · drag a point onto a conveyor to (re)place it · drag empty space to pan · scroll to zoom'}
+            : 'Drag an item to move (snapped) · click a point to select it, drag it along the conveyor to reposition · drag empty space to pan · scroll to zoom'}
       </div>
 
       <PlanStyles />
@@ -673,7 +666,7 @@ function PlanItem({
     const [lx, ly] = toPx(path[0][0], path[0][1])
     return (
       <g>
-        {/* Directed sections with travel arrows. */}
+        {/* Directed sections — the section body, plus small per-metre travel chevrons. */}
         {sections.map(([i, j], k) => {
           const a = path[i]
           const b = path[j]
@@ -691,7 +684,6 @@ function PlanItem({
               strokeWidth={Math.max(2, eq.widthM * pxPerM * 0.5)}
               strokeOpacity={selected ? 0.9 : 0.65}
               strokeLinecap="round"
-              markerEnd="url(#plan2d-arrow)"
               style={{ cursor: drawing ? 'crosshair' : 'pointer' }}
               onPointerDown={(e) => {
                 if (drawing) return
@@ -699,6 +691,52 @@ function PlanItem({
                 onSelect(eq.id)
               }}
             />
+          )
+        })}
+
+        {/* Small, subtle travel-direction chevrons repeated every ~1 m along each section. */}
+        {sections.map(([i, j], k) => {
+          const a = path[i]
+          const b = path[j]
+          if (!a || !b) return null
+          const dx = b[0] - a[0]
+          const dz = b[1] - a[1]
+          const len = Math.hypot(dx, dz)
+          if (len < 1e-4) return null
+          const ux = dx / len
+          const uz = dz / len
+          // Right-hand normal on the plane to (ux,uz) is (uz,-ux); barbs sweep back from each tip.
+          const nx = uz
+          const nz = -ux
+          const count = Math.min(30, Math.max(1, Math.round(len)))
+          const sizePx = Math.max(3, Math.min(7, eq.widthM * pxPerM * 0.22)) // small
+          const sizeM = sizePx / pxPerM
+          const chevrons = []
+          for (let c = 1; c <= count; c++) {
+            // Place chevrons at metre-spaced fractions, biased to sit between the endpoints.
+            const dM = (c - 0.5) * (len / count)
+            const cxM = a[0] + ux * dM
+            const czM = a[1] + uz * dM
+            const [tx, ty] = toPx(cxM + ux * sizeM, czM + uz * sizeM)
+            const [lx2, ly2] = toPx(cxM - ux * sizeM + nx * sizeM, czM - uz * sizeM + nz * sizeM)
+            const [rx2, ry2] = toPx(cxM - ux * sizeM - nx * sizeM, czM - uz * sizeM - nz * sizeM)
+            chevrons.push(
+              <polyline
+                key={`ch-${k}-${c}`}
+                points={`${lx2},${ly2} ${tx},${ty} ${rx2},${ry2}`}
+                fill="none"
+                stroke="#8DC63F"
+                strokeWidth={1.2}
+                strokeOpacity={0.28}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />,
+            )
+          }
+          return (
+            <g key={`chev-${k}`} pointerEvents="none">
+              {chevrons}
+            </g>
           )
         })}
 
@@ -849,6 +887,8 @@ function PlanFunctionPoint({
       {(ox !== 0 || oz !== 0) && (
         <line x1={sx} y1={sy} x2={mx} y2={my} stroke={color} strokeWidth={1} strokeOpacity={0.6} />
       )}
+      {/* Comfortable invisible hit-target around the marker so it's easy to grab and drag. */}
+      <circle cx={mx} cy={my} r={11} fill="transparent" />
       <rect
         x={mx - 4.5}
         y={my - 4.5}
@@ -858,6 +898,7 @@ function PlanFunctionPoint({
         fill={color}
         stroke="#08120d"
         strokeWidth={1.2}
+        pointerEvents="none"
       />
       <text x={mx + 7} y={my + 3.5} className="plan2d-fplabel" style={{ fill: color }}>
         {short}
