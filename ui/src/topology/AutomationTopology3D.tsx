@@ -457,11 +457,10 @@ function num(v: string, fallback = 0): number {
 
 // World-space centre of a placed item, including its level's elevation so cross-level links
 // render at the right height. For a polyline conveyor the centre is the mean of its waypoints.
-function worldCenter(
-  eq: AutomationEquipment,
-  levels: AutomationLevel[],
-): [number, number, number] {
-  const elev = levels.find((l) => l.id === eq.levelId)?.elevationM ?? 0
+// World centre of a piece of equipment, used to anchor connection lines. Y is floor-relative
+// (heightM/2 + posYM) to match the bodies/paths — the scene does not apply level elevation, so
+// adding it here floated connection lines above the equipment they link.
+function worldCenter(eq: AutomationEquipment): [number, number, number] {
   if (Array.isArray(eq.path) && eq.path.length >= 1) {
     let sx = 0
     let sz = 0
@@ -470,9 +469,9 @@ function worldCenter(
       sz += p[1]
     }
     const n = eq.path.length
-    return [sx / n, elev + eq.heightM / 2 + eq.posYM, sz / n]
+    return [sx / n, eq.heightM / 2 + eq.posYM, sz / n]
   }
-  return [eq.posXM, elev + eq.heightM / 2 + eq.posYM, eq.posZM]
+  return [eq.posXM, eq.heightM / 2 + eq.posYM, eq.posZM]
 }
 
 export default function AutomationTopology3D({
@@ -2256,8 +2255,8 @@ function SceneContent({
         return (
           <ConnectionLine
             key={c.id}
-            a={worldCenter(from, levels)}
-            b={worldCenter(to, levels)}
+            a={worldCenter(from)}
+            b={worldCenter(to)}
             // Size the arrowhead to the equipment it points at so it never dwarfs a small conveyor
             // (a fixed 0.5 m cone looked huge next to a 0.6 m-wide conveyor) nor vanishes on an ASRS.
             headSize={Math.max(0.08, Math.min(0.18, (to.widthM || 0.6) * 0.2))}
@@ -2305,7 +2304,6 @@ function SceneContent({
             key={fp.id}
             fp={fp}
             eq={eq}
-            levels={levels}
             onSelect={() => (connectMode ? onConnectPick(eq.id) : onSelect(eq.id))}
           />
         )
@@ -2320,15 +2318,12 @@ function SceneContent({
 function FunctionPointMarker({
   fp,
   eq,
-  levels,
   onSelect,
 }: {
   fp: AutomationFunctionPoint
   eq: AutomationEquipment
-  levels: AutomationLevel[]
   onSelect: () => void
 }) {
-  const elev = levels.find((l) => l.id === eq.levelId)?.elevationM ?? 0
   const at = pointAlong(eq, fp.offsetM)
   // Left/right is perpendicular to travel direction on the ground plane. With dir (dx,dz),
   // the right-hand normal is (dz, -dx); left is the negation.
@@ -2342,7 +2337,10 @@ function FunctionPointMarker({
     ox = at.dz * half
     oz = -at.dx * half
   }
-  const top = elev + eq.heightM + eq.posYM
+  // Sit on the equipment's top surface. Matches the body/path Y (heightM/2 + posYM, centred), whose
+  // top is heightM + posYM — the scene draws everything floor-relative, so NO level elevation here
+  // (adding it floated the markers ~elev metres above the conveyor).
+  const top = eq.heightM + eq.posYM
   // The point can carry a combination of functions; pick a representative colour and show the
   // combined short labels.
   const fns = fpFunctions(fp.functionType)
