@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Select from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
+import LocationPicker from './LocationPicker'
 import { listWarehouses, Warehouse } from '../masterdata/api'
 import {
   CreateStationBody,
@@ -480,25 +481,30 @@ function StationDialog({
         </Field>
       </div>
       <div className="gtp-grid-2">
-        <Field
-          label={
-            <>
-              Destination topology{' '}
-              <InfoTip
-                text="How order destinations are arranged: ORDER_LOCATION = one fixed/conveyor target per order; PUT_WALL = many cubbies the operator distributes into."
-                example="PUT_WALL"
-              />
-            </>
-          }
-          required
-        >
-          <Select
-            ariaLabel="Destination topology"
-            value={mode}
-            onChange={(v) => setMode(v as StationMode)}
-            options={STATION_MODES.map((m) => ({ value: m, label: m }))}
-          />
-        </Field>
+        {/* Destination topology only describes where ORDER destinations sit — a PICKING/put-to-light
+            concept. A non-picking workplace (decant / count / QC) has no order destinations, so we
+            only ask for it when PICKING is one of the operating modes. */}
+        {modes.includes('PICKING') && (
+          <Field
+            label={
+              <>
+                Destination topology{' '}
+                <InfoTip
+                  text="How order destinations are arranged: ORDER_LOCATION = one fixed/conveyor target per order; PUT_WALL = many cubbies the operator distributes into. Only relevant for PICKING."
+                  example="PUT_WALL"
+                />
+              </>
+            }
+            required
+          >
+            <Select
+              ariaLabel="Destination topology"
+              value={mode}
+              onChange={(v) => setMode(v as StationMode)}
+              options={STATION_MODES.map((m) => ({ value: m, label: m }))}
+            />
+          </Field>
+        )}
         {initial && (
           <Field
             label={
@@ -616,6 +622,7 @@ function NodesPanel({ station, onChanged }: { station: Station; onChanged: () =>
       {editing && (
         <NodeDialog
           stationId={station.id}
+          warehouseId={station.warehouseId}
           initial={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
           onSaved={onChanged}
@@ -646,11 +653,13 @@ function NodesPanel({ station, onChanged }: { station: Station; onChanged: () =>
 
 function NodeDialog({
   stationId,
+  warehouseId,
   initial,
   onClose,
   onSaved,
 }: {
   stationId: string
+  warehouseId: string
   initial: StationNode | null
   onClose: () => void
   onSaved: () => void
@@ -765,19 +774,19 @@ function NodeDialog({
         <Field
           label={
             <>
-              Location id (master-data){' '}
+              Location{' '}
               <InfoTip
-                text="UUID of the master-data location this node maps to, when it is a fixed/conveyor position. Leave blank for dynamic put-wall cubbies."
-                example="9a4b1d22-0c3e-4f88-b1aa-77e2c5d9f013"
+                text="The master-data location this node maps to, when it is a fixed/conveyor position — searched by location code. Leave blank for dynamic put-wall cubbies."
+                example="A01-01-01"
               />
             </>
           }
         >
-          <input
-            className="form-control gtp-mono"
+          <LocationPicker
+            warehouseId={warehouseId}
             value={locationId}
-            placeholder="UUID, when mapped to a fixed location"
-            onChange={(e) => setLocationId(e.target.value)}
+            onChange={setLocationId}
+            placeholder="Search a location code…"
           />
         </Field>
         <Field
