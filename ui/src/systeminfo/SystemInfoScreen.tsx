@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import DataTable from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
-import { listServices, type ServiceStatus } from './api'
+import { fetchServiceLogs, listServices, type ServiceStatus } from './api'
 
 const REFRESH_MS = 10000
 
@@ -25,6 +25,7 @@ export default function SystemInfoScreen() {
   const [error, setError] = useState<string | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [logsFor, setLogsFor] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -127,6 +128,16 @@ export default function SystemInfoScreen() {
             sortValue: (s) => s.latencyMs,
             render: (s) => <span style={{ color: 'var(--text-dim)' }}>{s.latencyMs} ms</span>,
           },
+          {
+            key: 'logs',
+            header: 'Logs',
+            align: 'right',
+            render: (s) => (
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setLogsFor(s.name)}>
+                Logs
+              </button>
+            ),
+          },
         ]}
         rows={services}
         rowKey={(s) => s.name}
@@ -135,6 +146,93 @@ export default function SystemInfoScreen() {
         pageSize={50}
         empty={loading ? 'Checking services…' : 'No services reported.'}
       />
+
+      {logsFor && <LogsModal name={logsFor} onClose={() => setLogsFor(null)} />}
+    </div>
+  )
+}
+
+const TAIL_OPTIONS = [200, 500, 1000, 2000]
+
+// A modal showing the most recent container logs for one service (gateway reads them via the
+// Docker socket). Refetches on open, tail change and manual refresh.
+function LogsModal({ name, onClose }: { name: string; onClose: () => void }) {
+  const [tail, setTail] = useState(200)
+  const [text, setText] = useState('')
+  const [err, setErr] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const preRef = useRef<HTMLPreElement>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetchServiceLogs(name, tail)
+      setText(res.logs ?? '')
+      setErr(res.error ?? null)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+      setText('')
+    } finally {
+      setLoading(false)
+    }
+  }, [name, tail])
+
+  useEffect(() => {
+    load()
+  }, [load])
+  // Esc closes; scroll to the newest line after each load.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  useEffect(() => {
+    if (preRef.current) preRef.current.scrollTop = preRef.current.scrollHeight
+  }, [text])
+
+  return (
+    <div
+      onPointerDown={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(4,14,10,.6)', padding: '1.5rem',
+      }}
+    >
+      <div
+        className="glass"
+        onPointerDown={(e) => e.stopPropagation()}
+        style={{ width: 'min(900px, 100%)', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: '1rem 1.1rem', borderRadius: 14 }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.6rem', marginBottom: '.6rem' }}>
+          <h3 style={{ margin: 0, fontFamily: 'var(--font-mono)' }}>{name} · logs</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+            <label style={{ fontSize: '.78rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+              Tail
+              <select value={tail} onChange={(e) => setTail(Number(e.target.value))} className="form-control" style={{ padding: '.15rem .35rem', height: 'auto' }}>
+                {TAIL_OPTIONS.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </label>
+            <button type="button" className="btn btn-outline btn-sm" onClick={load} disabled={loading}>
+              {loading ? 'Loading…' : 'Refresh'}
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
+          </div>
+        </div>
+        {err && <div className="alert alert-danger" style={{ marginBottom: '.6rem' }}>{err}</div>}
+        <pre
+          ref={preRef}
+          style={{
+            margin: 0, flex: 1, overflow: 'auto', background: '#081e16', color: '#cfe', borderRadius: 8,
+            padding: '.7rem .8rem', fontSize: '.72rem', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          }}
+        >
+          {loading && !text ? 'Loading logs…' : text || (err ? '' : 'No log output.')}
+        </pre>
+      </div>
     </div>
   )
 }
