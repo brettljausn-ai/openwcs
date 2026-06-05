@@ -256,10 +256,10 @@ export default function PlanEditor2D({
           <marker
             id="plan2d-arrow"
             viewBox="0 0 10 10"
-            refX="8"
+            refX="7"
             refY="5"
-            markerWidth="7"
-            markerHeight="7"
+            markerWidth="2.2"
+            markerHeight="2.2"
             orient="auto-start-reverse"
           >
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#8DC63F" />
