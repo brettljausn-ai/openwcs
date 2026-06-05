@@ -40,6 +40,7 @@ export const FUNCTION_TYPES = [
   'WRAPPER',
   'INDUCT',
   'DISCHARGE',
+  'INFEED',
 ] as const
 
 // Short marker labels per function type for the 3D <Html> tag. Falls back to the raw type.
@@ -51,8 +52,9 @@ export const FUNCTION_SHORT: Record<string, string> = {
   DWS: 'DWS',
   QUERY_POINT: 'QRY',
   WRAPPER: 'WRAP',
-  INDUCT: 'IN',
-  DISCHARGE: 'OUT',
+  INDUCT: '▶ IN',
+  DISCHARGE: 'OUT ▶',
+  INFEED: '⇥ FEED',
 }
 
 // Distinct marker colour per function type, so points read at a glance in the scene.
@@ -75,6 +77,8 @@ export function functionColor(type: string): string {
       return '#8DC63F'
     case 'DISCHARGE':
       return '#f0a85a'
+    case 'INFEED':
+      return '#5ee0c8'
     default:
       return '#cfd8d2'
   }
@@ -177,6 +181,68 @@ export function category(eq: AutomationEquipment, lib: Map<string, Equipment>): 
 // A usable polyline needs at least two waypoints.
 function hasPath(eq: AutomationEquipment): boolean {
   return Array.isArray(eq.path) && eq.path.length >= 2
+}
+
+// True when a placed item carries any path waypoints at all (even one) — i.e. it already owns, or is
+// in the middle of growing, conveyor stubs. An ASRS uses this to opt into the conveyor path tools.
+export function hasAnyPath(eq: AutomationEquipment): boolean {
+  return Array.isArray(eq.path) && eq.path.length >= 1
+}
+
+// True when this placed item should be edited with the conveyor path tools: either a real conveyor,
+// or an ASRS that owns (or is being given) IN/OUT conveyor stubs. Shared by 3D + 2D gates.
+export function canEditPath(eq: AutomationEquipment, lib: Map<string, Equipment>): boolean {
+  if (isConveyor(eq, lib)) return true
+  return category(eq, lib) === 'asrs' && hasAnyPath(eq)
+}
+
+// Snap a world point (px,pz) onto the nearest point of a box-footprint perimeter for a placed item,
+// using its centre (posXM/posZM), length/width and yaw (rotationDeg). Returns the snapped world XZ
+// plus the OUTWARD unit normal at that edge (perpendicular to the edge, pointing away from centre) —
+// used to push an ASRS IN/OUT stub 1 m perpendicular out of the rack. We project the point into the
+// box's local frame, clamp to the rectangle's border (the nearer of the two axes is pinned to its
+// edge), then rotate back to world.
+export function snapToFootprintPerimeter(
+  eq: AutomationEquipment,
+  px: number,
+  pz: number,
+): { x: number; z: number; nx: number; nz: number } {
+  const yaw = eq.rotationDeg * DEG
+  const cos = Math.cos(yaw)
+  const sin = Math.sin(yaw)
+  // World → local (rotate by −yaw about the centre). Local +X is along length, +Z along width.
+  const rx = px - eq.posXM
+  const rz = pz - eq.posZM
+  let lx = rx * cos + rz * sin
+  let lz = -rx * sin + rz * cos
+  const hx = eq.lengthM / 2
+  const hz = eq.widthM / 2
+  // Clamp to the rectangle, then pin whichever axis is closest to its edge to that edge (so the
+  // result sits ON the perimeter), and record the outward local normal for that edge.
+  const cx = Math.min(hx, Math.max(-hx, lx))
+  const cz = Math.min(hz, Math.max(-hz, lz))
+  const dToXEdge = hx - Math.abs(cx)
+  const dToZEdge = hz - Math.abs(cz)
+  let nlx = 0
+  let nlz = 0
+  if (dToXEdge <= dToZEdge) {
+    const sgn = cx >= 0 ? 1 : -1
+    lx = sgn * hx
+    lz = cz
+    nlx = sgn
+  } else {
+    const sgn = cz >= 0 ? 1 : -1
+    lz = sgn * hz
+    lx = cx
+    nlz = sgn
+  }
+  // Local → world.
+  const wx = eq.posXM + lx * cos - lz * sin
+  const wz = eq.posZM + lx * sin + lz * cos
+  const nx = nlx * cos - nlz * sin
+  const nz = nlx * sin + nlz * cos
+  const nlen = Math.hypot(nx, nz) || 1
+  return { x: +wx.toFixed(3), z: +wz.toFixed(3), nx: nx / nlen, nz: nz / nlen }
 }
 
 // The directed sections of a conveyor, as `[fromIdx, toIdx]` pairs into `eq.path`. When the
@@ -496,6 +562,9 @@ export default function AutomationTopology3D() {
   )
 
   const selectedIsConveyor = selected ? isConveyor(selected, libById) : false
+  // An ASRS that owns IN/OUT stubs (or a real conveyor) gets the conveyor path tools so the user can
+  // extend a stub with Draw sections / waypoint drag.
+  const selectedCanEditPath = selected ? canEditPath(selected, libById) : false
   const selectedMeta = selected?.equipmentId ? libById.get(selected.equipmentId) : undefined
   const selectedIsAsrs = selected ? isAsrs(selected, libById) : false
 
@@ -505,10 +574,10 @@ export default function AutomationTopology3D() {
     [functionPoints, selected],
   )
 
-  // Draw mode only makes sense for a selected conveyor — drop it otherwise.
+  // Draw mode only makes sense for a selected conveyor (or an ASRS with stubs) — drop it otherwise.
   useEffect(() => {
-    if (!selected || !selectedIsConveyor) setDrawPath(false)
-  }, [selected, selectedIsConveyor])
+    if (!selected || !selectedCanEditPath) setDrawPath(false)
+  }, [selected, selectedCanEditPath])
 
   // Reset the section anchor whenever draw mode turns off or the selection changes.
   useEffect(() => {
@@ -709,7 +778,16 @@ export default function AutomationTopology3D() {
   // reused any point within SNAP_M (0.5 m), so on a short conveyor the junction snapped to an
   // endpoint, no split happened, and the "branch" came off the end as an L-bend — the reported bug.
   const addDivertBranch = useCallback(
-    (id: string, x: number, z: number, side: 'LEFT' | 'RIGHT', snapStep: number | null) => {
+    (
+      id: string,
+      x: number,
+      z: number,
+      side: 'LEFT' | 'RIGHT',
+      snapStep: number | null,
+      // When true this is an INFEED merge, not a divert: the directed section runs stub → junction
+      // (the feeder merges INTO the line) instead of junction → stub.
+      merge = false,
+    ) => {
       const px = +x.toFixed(3)
       const pz = +z.toFixed(3)
       // Only collapse onto an existing waypoint when the drop is essentially ON it.
@@ -828,15 +906,73 @@ export default function AutomationTopology3D() {
           bx = +bx.toFixed(3)
           bz = +bz.toFixed(3)
 
-          // --- 3) Add the branch endpoint + a directed section junction → branch. ---
+          // --- 3) Add the branch endpoint + a directed section. ---
+          // Divert: junction → branch (material leaves the line). INFEED merge: branch → junction
+          // (the feeder runs into the line). The branch endpoint stays the same perpendicular stub.
           const branchIdx = path.length
           path.push([bx, bz])
-          if (!sections.some((s) => s[0] === junctionIdx && s[1] === branchIdx)) {
-            sections.push([junctionIdx, branchIdx])
+          const sec = merge ? [branchIdx, junctionIdx] : [junctionIdx, branchIdx]
+          if (!sections.some((s) => s[0] === sec[0] && s[1] === sec[1])) {
+            sections.push(sec)
           }
           return { ...e, path, sections }
         }),
       )
+      setSelectedId(id)
+      setDirty(true)
+    },
+    [],
+  )
+
+  // Add a 1 m IN/OUT conveyor stub to an ASRS, owned by the ASRS itself (its own `path`/`sections`,
+  // the same fields conveyors use). (x,z) is the drop point; we snap it to the ASRS footprint edge to
+  // get the port point + the outward edge normal, then add a second point 1 m perpendicular OUT from
+  // the port, plus a directed section. Direction of travel: INDUCT (IN) flows toward the rack
+  // (stub → port); DISCHARGE (OUT) flows away (port → stub). Returns the port point's path index so
+  // the caller can record it (e.g. as the function point's offset reference) if needed.
+  const addAsrsPortStub = useCallback(
+    (id: string, x: number, z: number, kind: 'INDUCT' | 'DISCHARGE', side: string | null) => {
+      let portOffsetM = 0
+      setEquipment((es) =>
+        es.map((e) => {
+          if (e.id !== id) return e
+          const snap = snapToFootprintPerimeter(e, x, z)
+          const path = Array.isArray(e.path) ? e.path.map((p) => [p[0], p[1]]) : []
+          const sections = Array.isArray(e.sections) ? e.sections.map((s) => [s[0], s[1]]) : []
+          // Port point on the edge.
+          const portIdx = path.length
+          path.push([snap.x, snap.z])
+          // Stub point 1 m outward along the edge normal.
+          const sx = +(snap.x + snap.nx * 1).toFixed(3)
+          const sz = +(snap.z + snap.nz * 1).toFixed(3)
+          const stubIdx = path.length
+          path.push([sx, sz])
+          // INDUCT (IN): stub → port (toward the rack). DISCHARGE (OUT): port → stub (away).
+          const sec = kind === 'INDUCT' ? [stubIdx, portIdx] : [portIdx, stubIdx]
+          sections.push(sec)
+          // Sequential arc-length up to the port point — so the FP marker (pointAlong) lands on it.
+          let acc = 0
+          for (let i = 0; i < portIdx; i++) {
+            acc += Math.hypot(path[i + 1][0] - path[i][0], path[i + 1][1] - path[i][1])
+          }
+          portOffsetM = +acc.toFixed(3)
+          return { ...e, path, sections }
+        }),
+      )
+      // The function point sits ON the port edge; its marker rides the stub's port point.
+      setFunctionPoints((fps) => [
+        ...fps,
+        {
+          id: crypto.randomUUID(),
+          placedId: id,
+          functionType: kind,
+          name: null,
+          offsetM: portOffsetM,
+          side: side || null,
+          nodeCode: null,
+          status: 'ACTIVE',
+        },
+      ])
       setSelectedId(id)
       setDirty(true)
     },
@@ -1162,6 +1298,7 @@ export default function AutomationTopology3D() {
               onDeleteFunctionPoint={deleteFunctionPoint}
               onUpdateFunctionPoint={updateFunctionPoint}
               onAddDivertBranch={addDivertBranch}
+              onAddAsrsPortStub={addAsrsPortStub}
             />
           ) : (
             <>
@@ -1273,7 +1410,7 @@ export default function AutomationTopology3D() {
                 <NumField label="Height (m)" value={selected.heightM} onChange={(v) => patchEquipment(selected.id, { heightM: v })} />
               </div>
 
-              {selectedIsConveyor && (
+              {selectedCanEditPath && (
                 <ConveyorPathTools
                   eq={selected}
                   drawPath={drawPath}
@@ -1963,16 +2100,20 @@ function FunctionPointMarker({
   const top = elev + eq.heightM + eq.posYM
   const color = functionColor(fp.functionType)
   const short = FUNCTION_SHORT[fp.functionType] ?? fp.functionType
+  // Ports/merge (IN/OUT/FEED) render as a diamond (octahedron) — distinct from the SCAN/DIVERT cones.
+  const isPort =
+    fp.functionType === 'INDUCT' || fp.functionType === 'DISCHARGE' || fp.functionType === 'INFEED'
   return (
     <group position={[at.x + ox, top, at.z + oz]}>
       <mesh
         position={[0, 0.25, 0]}
+        rotation={isPort ? [0, Math.PI / 4, 0] : [0, 0, 0]}
         onPointerDown={(e: ThreeEvent<PointerEvent>) => {
           e.stopPropagation()
           onSelect()
         }}
       >
-        <coneGeometry args={[0.16, 0.5, 16]} />
+        {isPort ? <octahedronGeometry args={[0.26, 0]} /> : <coneGeometry args={[0.16, 0.5, 16]} />}
         <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.45} />
       </mesh>
       <Html position={[0, 0.7, 0]} center distanceFactor={16} occlude={false}>
@@ -2281,9 +2422,32 @@ function EquipmentMesh({
     </group>
   )
 
+  // An ASRS that owns IN/OUT conveyor stubs renders them as a conveyor path in world space, ALONGSIDE
+  // its rack body (the stubs look like conveyors coming out of the rack). They live in world XZ (not
+  // the rack's local frame), so they sit OUTSIDE the rotated/gizmo'd box group. Extendable with the
+  // path tools (Draw sections / waypoint drag) when this ASRS is selected.
+  const asrsStubs =
+    cat === 'asrs' && hasPath(eq) ? (
+      <ConveyorPath
+        eq={eq}
+        cat="conveyor"
+        color={color}
+        selected={highlight}
+        editable={selected && !connectMode}
+        drawing={drawing}
+        activeFromIdx={activeFromIdx}
+        onSelect={onSelect}
+        onMoveWaypoint={onMoveWaypoint}
+        onAnchorWaypoint={onAnchorWaypoint}
+        onHandleDragChange={onHandleDragChange}
+      />
+    ) : null
+
   // When selected (and not connecting / drawing), wrap in PivotControls for drag-move + rotate.
   if (selected && !connectMode && !drawing) {
     return (
+      <group>
+        {asrsStubs}
       <PivotControls
         anchor={[0, 0, 0]}
         // Re-mount per equipment so the gizmo resets cleanly when selection changes.
@@ -2325,16 +2489,20 @@ function EquipmentMesh({
           {box}
         </group>
       </PivotControls>
+      </group>
     )
   }
 
   return (
-    <group
-      position={[eq.posXM, y, eq.posZM]}
-      rotation={[eq.tiltDeg * DEG, eq.rotationDeg * DEG, 0]}
-      rotation-order="YXZ"
-    >
-      {box}
+    <group>
+      {asrsStubs}
+      <group
+        position={[eq.posXM, y, eq.posZM]}
+        rotation={[eq.tiltDeg * DEG, eq.rotationDeg * DEG, 0]}
+        rotation-order="YXZ"
+      >
+        {box}
+      </group>
     </group>
   )
 }
