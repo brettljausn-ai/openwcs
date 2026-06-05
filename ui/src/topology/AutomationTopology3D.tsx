@@ -455,6 +455,13 @@ export default function AutomationTopology3D() {
     setDirty(true)
   }, [])
 
+  // Partial update of an existing function point (its placedId / offsetM / side / …). Used by the
+  // 2D plan when a placed marker is dragged onto (or along) a conveyor to re-position it.
+  const updateFunctionPoint = useCallback((id: string, patch: Partial<AutomationFunctionPoint>) => {
+    setFunctionPoints((fps) => fps.map((f) => (f.id === id ? { ...f, ...patch } : f)))
+    setDirty(true)
+  }, [])
+
   // A ground-plane click in draw mode. Resolve the click to a path index (snapping to an existing
   // point within SNAP_M, else appending a new one), then — if we have an anchor and it differs —
   // push a directed section from the anchor to the resolved point. Re-anchor to the resolved point
@@ -602,6 +609,146 @@ export default function AutomationTopology3D() {
     }
     setDirty(true)
   }, [])
+
+  // Drop a 1 m divert STUB at a world position (x,z) on a conveyor, in the divert direction. Unlike
+  // startBranchAt (which enters draw mode for a free-hand branch), this materialises a junction AND a
+  // single perpendicular branch point + directed section, then leaves draw mode OFF so the user can
+  // extend it later. The junction becomes a red decision point automatically (it gains a 2nd outgoing
+  // section). `side` LEFT rotates the conveyor's travel direction +90°, RIGHT −90° (in the X/Z plane).
+  // When `snapStep` is given (Snap on) the branch endpoint is snapped to that metre grid.
+  const addDivertBranch = useCallback(
+    (id: string, x: number, z: number, side: 'LEFT' | 'RIGHT', snapStep: number | null) => {
+      const px = +x.toFixed(3)
+      const pz = +z.toFixed(3)
+      setEquipment((es) =>
+        es.map((e) => {
+          if (e.id !== id) return e
+          const path = Array.isArray(e.path) ? e.path.map((p) => [p[0], p[1]]) : []
+          if (path.length < 2) return e
+
+          // --- 1) Resolve / insert the junction point (mirrors startBranchAt's logic). ---
+          let nearIdx = -1
+          let nearDist = SNAP_M
+          for (let i = 0; i < path.length; i++) {
+            const d = Math.hypot(path[i][0] - px, path[i][1] - pz)
+            if (d <= nearDist) {
+              nearDist = d
+              nearIdx = i
+            }
+          }
+          let sections = effectiveSections(e).map((s) => [s[0], s[1]])
+          let junctionIdx: number
+
+          if (nearIdx >= 0) {
+            junctionIdx = nearIdx
+          } else {
+            // Find the section whose segment best contains the projection and split it.
+            let bestSec = -1
+            let bestDist = Infinity
+            for (let k = 0; k < sections.length; k++) {
+              const a = path[sections[k][0]]
+              const b = path[sections[k][1]]
+              if (!a || !b) continue
+              const abx = b[0] - a[0]
+              const abz = b[1] - a[1]
+              const len2 = abx * abx + abz * abz
+              if (len2 < 1e-9) continue
+              let t = ((px - a[0]) * abx + (pz - a[1]) * abz) / len2
+              t = Math.min(1, Math.max(0, t))
+              const projx = a[0] + abx * t
+              const projz = a[1] + abz * t
+              const d = Math.hypot(projx - px, projz - pz)
+              if (d < bestDist) {
+                bestDist = d
+                bestSec = k
+              }
+            }
+            if (bestSec < 0) {
+              // No usable section — snap to the nearest existing point.
+              let fIdx = 0
+              let fDist = Infinity
+              for (let i = 0; i < path.length; i++) {
+                const d = Math.hypot(path[i][0] - px, path[i][1] - pz)
+                if (d < fDist) {
+                  fDist = d
+                  fIdx = i
+                }
+              }
+              junctionIdx = fIdx
+            } else {
+              const [a, b] = sections[bestSec]
+              const ax = path[a][0]
+              const az = path[a][1]
+              const abx = path[b][0] - ax
+              const abz = path[b][1] - az
+              const len2 = abx * abx + abz * abz
+              let t = len2 < 1e-9 ? 0 : ((px - ax) * abx + (pz - az) * abz) / len2
+              t = Math.min(1, Math.max(0, t))
+              const m = path.length
+              path.push([+(ax + abx * t).toFixed(3), +(az + abz * t).toFixed(3)])
+              sections = sections.map((s) => [s[0] >= m ? s[0] + 1 : s[0], s[1] >= m ? s[1] + 1 : s[1]])
+              sections.splice(bestSec, 1, [a, m], [m, b])
+              junctionIdx = m
+            }
+          }
+
+          // --- 2) Travel direction at the junction, then the perpendicular branch endpoint. ---
+          // Use the direction of the section that ENDS at the junction (incoming travel) if any,
+          // else the section that STARTS at it (outgoing), else the path-segment tangent.
+          const jx = path[junctionIdx][0]
+          const jz = path[junctionIdx][1]
+          let tx = 0
+          let tz = 0
+          const incoming = sections.find((s) => s[1] === junctionIdx)
+          const outgoing = sections.find((s) => s[0] === junctionIdx)
+          if (incoming && path[incoming[0]]) {
+            tx = jx - path[incoming[0]][0]
+            tz = jz - path[incoming[0]][1]
+          } else if (outgoing && path[outgoing[1]]) {
+            tx = path[outgoing[1]][0] - jx
+            tz = path[outgoing[1]][1] - jz
+          } else if (junctionIdx + 1 < path.length) {
+            tx = path[junctionIdx + 1][0] - jx
+            tz = path[junctionIdx + 1][1] - jz
+          } else if (junctionIdx - 1 >= 0) {
+            tx = jx - path[junctionIdx - 1][0]
+            tz = jz - path[junctionIdx - 1][1]
+          }
+          const tlen = Math.hypot(tx, tz) || 1
+          // Unit travel direction (dx,dz). LEFT = rotate +90° → (dz, −dx); RIGHT = −90° → (−dz, dx).
+          const dx = tx / tlen
+          const dz = tz / tlen
+          let bx: number
+          let bz: number
+          if (side === 'LEFT') {
+            bx = jx + dz * 1
+            bz = jz - dx * 1
+          } else {
+            bx = jx - dz * 1
+            bz = jz + dx * 1
+          }
+          if (snapStep && snapStep > 0) {
+            bx = +(Math.round(bx / snapStep) * snapStep).toFixed(3)
+            bz = +(Math.round(bz / snapStep) * snapStep).toFixed(3)
+          } else {
+            bx = +bx.toFixed(3)
+            bz = +bz.toFixed(3)
+          }
+
+          // --- 3) Add the branch endpoint + a directed section junction → branch. ---
+          const branchIdx = path.length
+          path.push([bx, bz])
+          if (!sections.some((s) => s[0] === junctionIdx && s[1] === branchIdx)) {
+            sections.push([junctionIdx, branchIdx])
+          }
+          return { ...e, path, sections }
+        }),
+      )
+      setSelectedId(id)
+      setDirty(true)
+    },
+    [],
+  )
 
   // Clicking an existing waypoint handle while drawing re-anchors WITHOUT creating a section — this
   // is how a branch / divert starts (anchor at a junction, then click a new direction).
@@ -920,7 +1067,8 @@ export default function AutomationTopology3D() {
               onDrawAt={drawSectionAt}
               onAddFunctionPoint={addFunctionPoint}
               onDeleteFunctionPoint={deleteFunctionPoint}
-              onStartBranch={startBranchAt}
+              onUpdateFunctionPoint={updateFunctionPoint}
+              onAddDivertBranch={addDivertBranch}
             />
           ) : (
             <>

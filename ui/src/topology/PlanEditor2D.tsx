@@ -25,6 +25,9 @@ const DEG = Math.PI / 180
 
 const GRID_OPTIONS = [0.25, 0.5, 1] as const
 
+// How close (world metres) the dragged marker must get to a conveyor centreline to snap onto it.
+const SNAP_RANGE_M = 0.75
+
 interface PlanEditor2DProps {
   // The placed equipment on the ACTIVE level (the same array the 3D canvas renders).
   items: AutomationEquipment[]
@@ -44,9 +47,19 @@ interface PlanEditor2DProps {
   onAddFunctionPoint: (fp: AutomationFunctionPoint) => void
   // Remove a function point — same as deleteFunctionPoint in the parent.
   onDeleteFunctionPoint: (id: string) => void
-  // Materialise a junction at (x,z) on a conveyor and start drawing its branch — same as
-  // startBranchAt in the parent (ensures-junction + anchor + enable draw-sections).
-  onStartBranch: (id: string, x: number, z: number) => void
+  // Partial-update an existing function point — same as updateFunctionPoint in the parent. Used to
+  // re-position a placed marker (its placedId / offsetM / side) after dragging it onto a conveyor.
+  onUpdateFunctionPoint: (id: string, patch: Partial<AutomationFunctionPoint>) => void
+  // Materialise a junction at (x,z) on a conveyor and drop a 1 m divert STUB in the divert direction
+  // (LEFT/RIGHT) — same as addDivertBranch in the parent. Does NOT enter draw mode. `snapStep` is the
+  // grid step to snap the branch endpoint to (null = no snap).
+  onAddDivertBranch: (
+    id: string,
+    x: number,
+    z: number,
+    side: 'LEFT' | 'RIGHT',
+    snapStep: number | null,
+  ) => void
 }
 
 // The arc-length offset (metres from the path start) of the projection of world point (px,pz) onto
@@ -118,25 +131,40 @@ export default function PlanEditor2D({
   onDrawAt,
   onAddFunctionPoint,
   onDeleteFunctionPoint,
-  onStartBranch,
+  onUpdateFunctionPoint,
+  onAddDivertBranch,
 }: PlanEditor2DProps) {
   // View transform: pixels-per-metre and a pan offset (in pixels) of the world origin.
   const [pxPerM, setPxPerM] = useState(40)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [gridStep, setGridStep] = useState<number>(0.5)
   const [snapOn, setSnapOn] = useState(true)
-  // When set, a function-point "drop" mode is armed for this type: the next click on the selected
-  // conveyor's path drops a function point there (and, for DIVERT_*, starts a branch). null = off.
-  const [dropType, setDropType] = useState<string | null>(null)
+
+  // A PENDING (not-yet-placed) function point created from the palette. It floats at `world` (metres)
+  // and is dragged onto a conveyor. `snap` holds the live snap preview (target conveyor + projected
+  // position/offset) while the cursor is within range of a centreline; null = not snapped.
+  type Pending = {
+    functionType: string
+    world: { x: number; z: number }
+    snap: { eqId: string; offsetM: number; x: number; z: number } | null
+  }
+  const [pending, setPending] = useState<Pending | null>(null)
 
   const svgRef = useRef<SVGSVGElement | null>(null)
-  // The current free-form drag (equipment move, waypoint move, or background pan).
+  // The current free-form drag (equipment move, waypoint move, background pan, a pending FP being
+  // dragged onto a conveyor, or an already-placed FP being re-positioned).
   const drag = useRef<
     | { kind: 'pan'; startX: number; startY: number; panX: number; panY: number }
     | { kind: 'move'; id: string }
     | { kind: 'waypoint'; id: string; index: number; path: number[][] }
+    | { kind: 'pending' }
+    | { kind: 'fp'; id: string }
     | null
   >(null)
+  // Live snap preview while dragging an already-PLACED marker (target conveyor + projection).
+  const [fpSnap, setFpSnap] = useState<{ eqId: string; offsetM: number; x: number; z: number } | null>(
+    null,
+  )
 
   // ---- coordinate helpers (world metres <-> screen pixels) -----------------
   const toPx = useCallback(
@@ -205,9 +233,8 @@ export default function PlanEditor2D({
     [pan, pxPerM],
   )
 
-  // ---- selection + function-point drop mode --------------------------------
+  // ---- selection -----------------------------------------------------------
   const selected = useMemo(() => items.find((it) => it.id === selectedId) ?? null, [items, selectedId])
-  const selectedIsConveyor = selected ? isConveyor(selected, libById) : false
 
   // Function points grouped by the placed equipment they sit on (only items on this level).
   const fpByPlaced = useMemo(() => {
@@ -222,63 +249,80 @@ export default function PlanEditor2D({
     return m
   }, [functionPoints, items])
 
-  // Disarm drop mode when the selection changes, when nothing/no-conveyor is selected, or when
-  // section-draw mode turns on (the two modes are mutually exclusive).
-  useEffect(() => {
-    if (!selected || !selectedIsConveyor || drawing) setDropType(null)
-  }, [selectedId, selectedIsConveyor, selected, drawing])
+  // Project a world point onto the NEAREST conveyor centreline across all the level's conveyors,
+  // returning the closest within `SNAP_M` (world metres) or null. Drives the snap preview + drop.
+  const conveyors = useMemo(() => items.filter((it) => isConveyor(it, libById)), [items, libById])
+  const nearestConveyorSnap = useCallback(
+    (wx: number, wz: number): { eqId: string; offsetM: number; x: number; z: number } | null => {
+      let best: { eqId: string; offsetM: number; x: number; z: number } | null = null
+      let bestDist = SNAP_RANGE_M
+      for (const eq of conveyors) {
+        const proj = projectToPath(eq, wx, wz)
+        const d = Math.hypot(proj.x - wx, proj.z - wz)
+        if (d < bestDist) {
+          bestDist = d
+          best = { eqId: eq.id, offsetM: proj.offsetM, x: proj.x, z: proj.z }
+        }
+      }
+      return best
+    },
+    [conveyors],
+  )
 
-  // Esc disarms the drop mode.
+  // Esc cancels a pending (un-placed) function point.
   useEffect(() => {
-    if (!dropType) return
+    if (!pending) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setDropType(null)
+      if (e.key === 'Escape') setPending(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [dropType])
+  }, [pending])
 
-  // Toggle the armed drop type (clicking the same type again disarms).
-  const armDrop = useCallback((type: string) => {
-    setDropType((cur) => (cur === type ? null : type))
-  }, [])
+  // Clicking a palette type CREATES a pending function point floating at a staging spot near the
+  // top-left of the canvas (in world metres). The user then drags it onto a conveyor to place it.
+  const createPending = useCallback(
+    (type: string) => {
+      // Stage it a little in from the top-left corner of the current view.
+      const world = clientToWorld(
+        (svgRef.current?.getBoundingClientRect().left ?? 0) + 60,
+        (svgRef.current?.getBoundingClientRect().top ?? 0) + 60,
+      )
+      setPending({ functionType: type, world, snap: nearestConveyorSnap(world.x, world.z) })
+    },
+    [clientToWorld, nearestConveyorSnap],
+  )
 
-  // Drop the armed function point at a world click projected onto the selected conveyor's path.
-  // For DIVERT_* we also materialise a junction there and start drawing the branch.
-  const dropFunctionPoint = useCallback(
-    (clientX: number, clientY: number) => {
-      if (!dropType || !selected) return
-      const w = clientToWorld(clientX, clientY)
-      const proj = projectToPath(selected, w.x, w.z)
-      const side = sideForType(dropType)
+  // Commit a pending function point at its current snap (called on drop). If snapped to a conveyor,
+  // create the real point; a DIVERT_* additionally drops a 1 m branch stub in the divert direction.
+  // If not snapped, discard (cancel) the pending point.
+  const commitPending = useCallback(() => {
+    setPending((cur) => {
+      if (!cur) return null
+      if (!cur.snap) return null // dropped off any conveyor → discard
+      const side = sideForType(cur.functionType)
       onAddFunctionPoint({
         id: crypto.randomUUID(),
-        placedId: selected.id,
-        functionType: dropType,
+        placedId: cur.snap.eqId,
+        functionType: cur.functionType,
         name: null,
-        offsetM: proj.offsetM,
+        offsetM: cur.snap.offsetM,
         side,
         nodeCode: null,
         status: 'ACTIVE',
       })
-      if (dropType === 'DIVERT_LEFT' || dropType === 'DIVERT_RIGHT') {
-        // Make the drop position a junction and begin drawing the branch (enables section-draw).
-        onStartBranch(selected.id, proj.x, proj.z)
+      if (side) {
+        // DIVERT_* → ensure a junction + drop a 1 m perpendicular stub in the divert direction.
+        onAddDivertBranch(cur.snap.eqId, cur.snap.x, cur.snap.z, side, snapOn ? gridStep : null)
       }
-      setDropType(null)
-    },
-    [dropType, selected, clientToWorld, onAddFunctionPoint, onStartBranch],
-  )
+      return null
+    })
+  }, [onAddFunctionPoint, onAddDivertBranch, snapOn, gridStep])
 
   // ---- background interactions ---------------------------------------------
   const onBackgroundPointerDown = useCallback(
     (e: React.PointerEvent<SVGRectElement>) => {
       if (e.button !== 0) return
-      if (dropType && selectedId) {
-        // Drop mode: project the click onto the selected conveyor's path and drop the point there.
-        dropFunctionPoint(e.clientX, e.clientY)
-        return
-      }
       if (drawing && selectedId) {
         // Draw mode: a click on the plane draws a (snapped) section on the selected conveyor.
         const w = clientToWorld(e.clientX, e.clientY)
@@ -289,10 +333,10 @@ export default function PlanEditor2D({
       drag.current = { kind: 'pan', startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y }
       ;(e.target as Element).setPointerCapture?.(e.pointerId)
     },
-    [drawing, selectedId, clientToWorld, gridStep, snapOn, onDrawAt, pan, dropType, dropFunctionPoint],
+    [drawing, selectedId, clientToWorld, gridStep, snapOn, onDrawAt, pan],
   )
 
-  // A single pointer-move handler at the SVG level drives pan / move / waypoint drags.
+  // A single pointer-move handler at the SVG level drives pan / move / waypoint / FP-marker drags.
   const onPointerMove = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       const d = drag.current
@@ -302,6 +346,18 @@ export default function PlanEditor2D({
         return
       }
       const w = clientToWorld(e.clientX, e.clientY)
+      if (d.kind === 'pending') {
+        // Move the floating pending marker; live-snap it to the nearest conveyor centreline.
+        setPending((cur) =>
+          cur ? { ...cur, world: w, snap: nearestConveyorSnap(w.x, w.z) } : cur,
+        )
+        return
+      }
+      if (d.kind === 'fp') {
+        // Re-positioning an already-placed marker: show the live snap preview onto a centreline.
+        setFpSnap(nearestConveyorSnap(w.x, w.z))
+        return
+      }
       const sx = snap(w.x, gridStep, snapOn)
       const sz = snap(w.z, gridStep, snapOn)
       if (d.kind === 'move') {
@@ -311,12 +367,29 @@ export default function PlanEditor2D({
         onPatch(d.id, { path: next })
       }
     },
-    [clientToWorld, gridStep, snapOn, onPatch],
+    [clientToWorld, gridStep, snapOn, onPatch, nearestConveyorSnap],
   )
 
+  // End any drag. A 'pending' drag commits/discards the pending point; an 'fp' drag re-positions the
+  // marker onto the snapped conveyor (or leaves it untouched if dropped off any conveyor).
   const endDrag = useCallback(() => {
+    const d = drag.current
     drag.current = null
-  }, [])
+    if (d?.kind === 'pending') {
+      commitPending()
+    } else if (d?.kind === 'fp') {
+      const snapTarget = fpSnap
+      setFpSnap(null)
+      if (snapTarget) {
+        const side = sideForType(functionPoints.find((f) => f.id === d.id)?.functionType ?? '')
+        onUpdateFunctionPoint(d.id, {
+          placedId: snapTarget.eqId,
+          offsetM: snapTarget.offsetM,
+          side,
+        })
+      }
+    }
+  }, [commitPending, fpSnap, functionPoints, onUpdateFunctionPoint])
 
   // A background click that wasn't a meaningful pan deselects (only when not drawing).
   const onBackgroundPointerUp = useCallback(
@@ -391,28 +464,28 @@ export default function PlanEditor2D({
         </button>
       </div>
 
-      {/* ---- function-point palette (only for a selected conveyor) ---- */}
-      {selected && selectedIsConveyor && !drawing && (
+      {/* ---- function-point palette: click a type to create a draggable point, then drag it onto a
+              conveyor (only useful when the level has at least one conveyor and we're not drawing). ---- */}
+      {conveyors.length > 0 && !drawing && (
         <div className="plan2d-fpbar">
-          <span className="plan2d-bar-label">Drop point</span>
+          <span className="plan2d-bar-label">New point</span>
           <div className="plan2d-fppalette">
             {FUNCTION_TYPES.map((t) => {
-              const armed = dropType === t
               const isDivert = t === 'DIVERT_LEFT' || t === 'DIVERT_RIGHT'
               return (
                 <button
                   key={t}
                   type="button"
-                  className={`plan2d-fpbtn${armed ? ' is-armed' : ''}${isDivert ? ' is-divert' : ''}`}
-                  style={armed ? { borderColor: functionColor(t), color: functionColor(t) } : undefined}
-                  onClick={() => armDrop(t)}
-                  title={`Drop a ${t} onto ${selected.code}`}
+                  className={`plan2d-fpbtn${isDivert ? ' is-divert' : ''}`}
+                  onClick={() => createPending(t)}
+                  title={`Create a ${t} and drag it onto a conveyor`}
                 >
                   {FUNCTION_SHORT[t] ?? t}
                 </button>
               )
             })}
           </div>
+          {pending && <span className="plan2d-fphint">Drag the new point onto a conveyor · Esc to cancel</span>}
         </div>
       )}
 
@@ -445,7 +518,7 @@ export default function PlanEditor2D({
           width="100%"
           height="100%"
           fill="transparent"
-          style={{ cursor: drawing || dropType ? 'crosshair' : 'grab' }}
+          style={{ cursor: drawing ? 'crosshair' : pending ? 'grabbing' : 'grab' }}
           onPointerDown={onBackgroundPointerDown}
           onPointerUp={onBackgroundPointerUp}
         />
@@ -496,12 +569,24 @@ export default function PlanEditor2D({
               drag.current = { kind: 'waypoint', id, index, path }
             }}
             onDrawAtPoint={onDrawAt}
-            dropArmed={!!dropType && eq.id === selectedId}
-            onDropAt={(clientX, clientY) => dropFunctionPoint(clientX, clientY)}
           />
         ))}
 
-        {/* Function-point markers, drawn on top of the equipment they belong to. */}
+        {/* Snap preview: a ring on the conveyor centreline where the dragged point would land. */}
+        {(() => {
+          const preview = pending?.snap ?? fpSnap
+          if (!preview) return null
+          const [px, py] = toPx(preview.x, preview.z)
+          return (
+            <g pointerEvents="none">
+              <circle cx={px} cy={py} r={9} className="plan2d-snapring" />
+              <circle cx={px} cy={py} r={2.5} fill="#8DC63F" />
+            </g>
+          )
+        })()}
+
+        {/* Function-point markers, drawn on top of the equipment they belong to. Draggable: a drag
+            re-positions the marker onto (or along) the nearest conveyor centreline (snap). */}
         {items.map((eq) =>
           (fpByPlaced.get(eq.id) ?? []).map((fp) => (
             <PlanFunctionPoint
@@ -510,20 +595,40 @@ export default function PlanEditor2D({
               eq={eq}
               pxPerM={pxPerM}
               toPx={toPx}
+              dragging={drag.current?.kind === 'fp' && drag.current.id === fp.id}
               onSelect={() => onSelect(eq.id)}
+              onDragStart={(e) => {
+                drag.current = { kind: 'fp', id: fp.id }
+                setFpSnap(null)
+                ;(e.target as Element).setPointerCapture?.(e.pointerId)
+              }}
             />
           )),
+        )}
+
+        {/* The PENDING (un-placed) function point — a floating, clearly-"unplaced" draggable marker. */}
+        {pending && (
+          <PendingMarker
+            pending={pending}
+            toPx={toPx}
+            onDragStart={(e) => {
+              drag.current = { kind: 'pending' }
+              ;(e.target as Element).setPointerCapture?.(e.pointerId)
+            }}
+          />
         )}
       </svg>
 
       <div className="plan2d-hint">
-        {dropType
-          ? dropType === 'DIVERT_LEFT' || dropType === 'DIVERT_RIGHT'
-            ? `Click the conveyor to drop a ${FUNCTION_SHORT[dropType] ?? dropType} — a junction appears and you draw the branch (Esc to cancel)`
-            : `Click the conveyor to drop a ${FUNCTION_SHORT[dropType] ?? dropType} (Esc to cancel)`
+        {pending
+          ? pending.snap
+            ? sideForType(pending.functionType)
+              ? `Drop to place the divert — a junction + 1 m stub appears in the divert direction`
+              : `Drop to place the ${FUNCTION_SHORT[pending.functionType] ?? pending.functionType} on the conveyor`
+            : 'Drag onto a conveyor to place · drop off any conveyor (or Esc) to cancel'
           : drawing
             ? 'Draw the divert branch — click where it should go; click a point to branch from it'
-            : 'Drag an item to move (snapped) · drag empty space to pan · scroll to zoom · select a conveyor to drop function points'}
+            : 'Drag an item to move (snapped) · drag a point onto a conveyor to (re)place it · drag empty space to pan · scroll to zoom'}
       </div>
 
       <PlanStyles />
@@ -545,8 +650,6 @@ function PlanItem({
   onMoveStart,
   onWaypointStart,
   onDrawAtPoint,
-  dropArmed,
-  onDropAt,
 }: {
   eq: AutomationEquipment
   conveyor: boolean
@@ -559,9 +662,6 @@ function PlanItem({
   onMoveStart: (id: string) => void
   onWaypointStart: (id: string, index: number, path: number[][]) => void
   onDrawAtPoint: (id: string, x: number, z: number) => void
-  // When true a function-point drop is armed for this (selected) item; a body click drops it.
-  dropArmed: boolean
-  onDropAt: (clientX: number, clientY: number) => void
 }) {
   const path = Array.isArray(eq.path) ? eq.path : []
   const isPathConveyor = conveyor && path.length >= 2
@@ -592,15 +692,10 @@ function PlanItem({
               strokeOpacity={selected ? 0.9 : 0.65}
               strokeLinecap="round"
               markerEnd="url(#plan2d-arrow)"
-              style={{ cursor: drawing || dropArmed ? 'crosshair' : 'pointer' }}
+              style={{ cursor: drawing ? 'crosshair' : 'pointer' }}
               onPointerDown={(e) => {
                 if (drawing) return
                 e.stopPropagation()
-                if (dropArmed) {
-                  // Drop the armed function point on this conveyor at the click (projected to path).
-                  onDropAt(e.clientX, e.clientY)
-                  return
-                }
                 onSelect(eq.id)
               }}
             />
@@ -672,15 +767,10 @@ function PlanItem({
   return (
     <g
       transform={`translate(${cx} ${cy}) rotate(${eq.rotationDeg})`}
-      style={{ cursor: drawing ? 'default' : dropArmed ? 'crosshair' : 'move' }}
+      style={{ cursor: drawing ? 'default' : 'move' }}
       onPointerDown={(e) => {
         if (e.button !== 0 || drawing) return
         e.stopPropagation()
-        if (dropArmed) {
-          // Drop the armed function point on this (box) conveyor, projected to its centreline.
-          onDropAt(e.clientX, e.clientY)
-          return
-        }
         onSelect(eq.id)
         onMoveStart(eq.id)
         ;(e.target as Element).setPointerCapture?.(e.pointerId)
@@ -708,19 +798,25 @@ function PlanItem({
 
 // A function-point marker rendered top-down on its conveyor: a small dot nudged to its side
 // (LEFT/RIGHT by ±widthM/2 perpendicular to travel), with a short type label. DIVERT_* render red.
-// Clicking it selects the owning conveyor (delete is available in the Properties panel list).
+// Clicking it selects the owning conveyor; dragging it re-positions it onto a conveyor centreline
+// (snap). Delete is available in the Properties panel list.
 function PlanFunctionPoint({
   fp,
   eq,
   pxPerM,
   toPx,
+  dragging,
   onSelect,
+  onDragStart,
 }: {
   fp: AutomationFunctionPoint
   eq: AutomationEquipment
   pxPerM: number
   toPx: (xM: number, zM: number) => [number, number]
+  // True while THIS marker is being dragged (we dim it; the live snap preview shows the target).
+  dragging: boolean
   onSelect: () => void
+  onDragStart: (e: React.PointerEvent<SVGGElement>) => void
 }) {
   const at = pointAlong(eq, fp.offsetM)
   // Right-hand normal to travel (dx,dz) is (dz,-dx); left is its negation. Nudge by half-width.
@@ -742,11 +838,12 @@ function PlanFunctionPoint({
   const [sx, sy] = toPx(at.x, at.z)
   return (
     <g
-      style={{ cursor: 'pointer' }}
+      style={{ cursor: 'grab', opacity: dragging ? 0.35 : 1 }}
       onPointerDown={(e) => {
         if (e.button !== 0) return
         e.stopPropagation()
         onSelect()
+        onDragStart(e)
       }}
     >
       {(ox !== 0 || oz !== 0) && (
@@ -764,6 +861,51 @@ function PlanFunctionPoint({
       />
       <text x={mx + 7} y={my + 3.5} className="plan2d-fplabel" style={{ fill: color }}>
         {short}
+      </text>
+    </g>
+  )
+}
+
+// The PENDING (not-yet-placed) function point: a floating, clearly-"unplaced" draggable marker
+// rendered at its current world staging position. A dashed ring + "unplaced" tint distinguish it
+// from the solid placed markers; dragging it (then dropping on a conveyor) materialises the point.
+function PendingMarker({
+  pending,
+  toPx,
+  onDragStart,
+}: {
+  pending: { functionType: string; world: { x: number; z: number } }
+  toPx: (xM: number, zM: number) => [number, number]
+  onDragStart: (e: React.PointerEvent<SVGGElement>) => void
+}) {
+  const isDivert = pending.functionType === 'DIVERT_LEFT' || pending.functionType === 'DIVERT_RIGHT'
+  const color = isDivert ? '#e0563f' : functionColor(pending.functionType)
+  const short = FUNCTION_SHORT[pending.functionType] ?? pending.functionType
+  const [mx, my] = toPx(pending.world.x, pending.world.z)
+  return (
+    <g
+      style={{ cursor: 'grabbing' }}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return
+        e.stopPropagation()
+        onDragStart(e)
+      }}
+    >
+      {/* Dashed "unplaced" halo. */}
+      <circle cx={mx} cy={my} r={11} className="plan2d-pendingring" />
+      <rect
+        x={mx - 5.5}
+        y={my - 5.5}
+        width={11}
+        height={11}
+        rx={isDivert ? 0 : 5.5}
+        fill={color}
+        fillOpacity={0.85}
+        stroke="#fff"
+        strokeWidth={1.4}
+      />
+      <text x={mx + 9} y={my + 3.5} className="plan2d-fplabel" style={{ fill: color }}>
+        {short} · unplaced
       </text>
     </g>
   )
@@ -809,10 +951,15 @@ function PlanStyles() {
       }
       .plan2d-fpbtn:hover { border-color: var(--glass-border-bright); color: var(--text); }
       .plan2d-fpbtn.is-divert { color: #e0907f; }
-      .plan2d-fpbtn.is-armed { background: rgba(141, 198, 63, .12); font-weight: 600; }
+      .plan2d-fphint { font-size: .72rem; color: var(--herbal-lime); letter-spacing: .02em; }
       .plan2d-fplabel {
         font-family: var(--font-mono); font-size: 10px;
         paint-order: stroke; stroke: #08120d; stroke-width: 3px; stroke-linejoin: round;
+      }
+      .plan2d-snapring { fill: none; stroke: #8DC63F; stroke-width: 2; stroke-opacity: .9; }
+      .plan2d-pendingring {
+        fill: rgba(141, 198, 63, .08); stroke: #8DC63F; stroke-width: 1.5;
+        stroke-dasharray: 3 3; stroke-opacity: .9;
       }
       .plan2d-svg { flex: 1; width: 100%; display: block; background: #081e16; touch-action: none; cursor: grab; }
       .plan2d-gridline { stroke: #173027; stroke-width: 1; }
