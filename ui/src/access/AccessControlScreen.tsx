@@ -32,7 +32,7 @@ const CATALOG: CatalogEntry[] = [
   { key: 'master-data:skus', label: 'SKUs', section: 'Master data', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
   { key: 'master-data:storage-blocks', label: 'Storage blocks', section: 'Master data', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
   { key: 'master-data:locations', label: 'Locations', section: 'Master data', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
-  { key: 'master-data:equipment', label: 'Equipment', section: 'Master data', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
+  { key: 'master-data:equipment', label: 'Equipment', section: 'Engineering', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
   { key: 'master-data:handling-unit-types', label: 'Handling unit types', section: 'Master data', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
   { key: 'master-data:label-templates', label: 'Label templates', section: 'Master data', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
   { key: 'gtp-config', label: 'GTP workplaces', section: 'Configuration', defaultRoles: ['ADMIN'] },
