@@ -19,3 +19,18 @@ export async function listServices(): Promise<ServiceStatus[]> {
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
   return (await res.json()) as ServiceStatus[]
 }
+
+export interface ServiceLogs {
+  service: string
+  tail: number
+  logs: string
+  // Present when the Docker socket was unreachable or the container wasn't found.
+  error?: string
+}
+
+// Recent container logs for a service, read by the gateway via the Docker socket.
+export async function fetchServiceLogs(name: string, tail = 200): Promise<ServiceLogs> {
+  const res = await fetch(`/api/system/services/${encodeURIComponent(name)}/logs?tail=${tail}`)
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return (await res.json()) as ServiceLogs
+}

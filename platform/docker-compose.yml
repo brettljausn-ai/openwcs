@@ -98,6 +98,11 @@ services:
       # unaffected (only the gateway enforces).
       OPENWCS_SECURITY_ENABLED: "true"
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/openwcs/protocol/openid-connect/certs
+    volumes:
+      # System info → service logs: read-only Docker socket so the gateway can fetch container logs
+      # via the Engine API (GET /api/system/services/{name}/logs). Privileged but demo-only; the
+      # endpoint is behind edge auth + the ADMIN System info screen.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   master-data:
     restart: unless-stopped
