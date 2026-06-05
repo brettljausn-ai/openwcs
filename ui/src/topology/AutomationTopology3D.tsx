@@ -2384,7 +2384,9 @@ function WorkstationConveyorPanel({
   const fpLabel = (fp: AutomationFunctionPoint): string => {
     const e = eqById.get(fp.placedId)
     const short = functionShortForSet(fpFunctions(fp.functionType)) || fp.functionType
-    return `${e?.code ?? '?'} · ${short} @ ${fp.offsetM}m`
+    // Prefer the point's given name (set in its config dialog); fall back to its function type.
+    const who = fp.name?.trim() ? fp.name.trim() : short
+    return `${e?.code ?? '?'} · ${who} @ ${fp.offsetM}m`
   }
 
   // Selectable points: function points that live on a conveyor.
@@ -2447,7 +2449,9 @@ function WorkstationConveyorPanel({
           })}
         </ul>
       )}
-      <div className="atopo-grid2" style={{ marginTop: '.4rem' }}>
+      {/* Stacked full-width so the (often long) point list isn't squeezed into half the narrow panel
+          and clipped at the screen edge. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem', marginTop: '.4rem' }}>
         <Select
           ariaLabel="Interaction role"
           value={role}
@@ -2463,10 +2467,10 @@ function WorkstationConveyorPanel({
             ...fpOptions,
           ]}
         />
+        <button type="button" className="btn btn-outline btn-sm atopo-pathbtn" disabled={!pointId} onClick={add}>
+          + Add interaction
+        </button>
       </div>
-      <button type="button" className="btn btn-outline btn-sm atopo-pathbtn" disabled={!pointId} onClick={add}>
-        + Add interaction
-      </button>
     </div>
   )
 }
