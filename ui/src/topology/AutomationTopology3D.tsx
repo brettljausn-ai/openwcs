@@ -214,6 +214,82 @@ export function decisionPoints(sections: number[][]): Set<number> {
   return out
 }
 
+// Remove the branch a divert function point spawned: find the junction at the point's offset, drop
+// the outgoing section that runs most perpendicular to the through-line (the divert branch), then
+// cascade-remove any sections/points that become unreachable from the conveyor start, and GC the
+// orphaned points (re-indexing). Returns the equipment unchanged when there's no branch to remove.
+export function removeDivertBranch(eq: AutomationEquipment, offsetM: number): AutomationEquipment {
+  const path = Array.isArray(eq.path) ? eq.path.map((p) => [p[0], p[1]]) : []
+  if (path.length < 2) return eq
+  let sections = effectiveSections(eq).map((s) => [s[0], s[1]])
+  const pos = pointAlong(eq, offsetM)
+  let jIdx = -1
+  let jDist = Infinity
+  for (let i = 0; i < path.length; i++) {
+    const d = Math.hypot(path[i][0] - pos.x, path[i][1] - pos.z)
+    if (d < jDist) {
+      jDist = d
+      jIdx = i
+    }
+  }
+  if (jIdx < 0) return eq
+  const outgoings = sections.filter((s) => s[0] === jIdx)
+  if (outgoings.length < 2) return eq // no branch hanging off this junction
+  // Incoming travel direction at the junction (else the conveyor's overall direction).
+  const incoming = sections.find((s) => s[1] === jIdx)
+  let ix = 1
+  let iz = 0
+  if (incoming && path[incoming[0]]) {
+    ix = path[jIdx][0] - path[incoming[0]][0]
+    iz = path[jIdx][1] - path[incoming[0]][1]
+  }
+  const ilen = Math.hypot(ix, iz) || 1
+  ix /= ilen
+  iz /= ilen
+  // The branch = the outgoing section most perpendicular to the incoming travel (the through-line
+  // continues roughly straight; the divert turns off it).
+  let branch: number[] | null = null
+  let bestPerp = Infinity
+  for (const s of outgoings) {
+    let ox = path[s[1]][0] - path[jIdx][0]
+    let oz = path[s[1]][1] - path[jIdx][1]
+    const olen = Math.hypot(ox, oz) || 1
+    ox /= olen
+    oz /= olen
+    const dot = Math.abs(ix * ox + iz * oz)
+    if (dot < bestPerp) {
+      bestPerp = dot
+      branch = s
+    }
+  }
+  if (!branch) return eq
+  const [bf, bt] = branch
+  sections = sections.filter((s) => !(s[0] === bf && s[1] === bt))
+  // Cascade: drop any section whose source is now unreachable (no incoming edge, and not the start).
+  for (let changed = true; changed; ) {
+    const hasIncoming = new Set(sections.map((s) => s[1]))
+    const before = sections.length
+    sections = sections.filter((s) => s[0] === 0 || hasIncoming.has(s[0]))
+    changed = sections.length !== before
+  }
+  // GC orphan points and re-index the survivors (preserves main-line order, so FP offsets hold).
+  const used = new Set<number>()
+  for (const s of sections) {
+    used.add(s[0])
+    used.add(s[1])
+  }
+  const keep: number[][] = []
+  const remap = new Map<number, number>()
+  for (let i = 0; i < path.length; i++) {
+    if (used.has(i)) {
+      remap.set(i, keep.length)
+      keep.push(path[i])
+    }
+  }
+  const newSections = sections.map((s) => [remap.get(s[0]) ?? 0, remap.get(s[1]) ?? 0])
+  return { ...eq, path: keep, sections: newSections }
+}
+
 // Indices of path points that take part in at least one section (the junction/node markers).
 export function junctionPoints(sections: number[][]): Set<number> {
   const out = new Set<number>()
@@ -450,10 +526,18 @@ export default function AutomationTopology3D() {
     setDirty(true)
   }, [])
 
-  const deleteFunctionPoint = useCallback((id: string) => {
-    setFunctionPoints((fps) => fps.filter((f) => f.id !== id))
-    setDirty(true)
-  }, [])
+  const deleteFunctionPoint = useCallback(
+    (id: string) => {
+      const fp = functionPoints.find((f) => f.id === id)
+      // Deleting a divert also removes the branch it spawned on its conveyor.
+      if (fp && (fp.functionType === 'DIVERT_LEFT' || fp.functionType === 'DIVERT_RIGHT')) {
+        setEquipment((es) => es.map((e) => (e.id === fp.placedId ? removeDivertBranch(e, fp.offsetM) : e)))
+      }
+      setFunctionPoints((fps) => fps.filter((f) => f.id !== id))
+      setDirty(true)
+    },
+    [functionPoints],
+  )
 
   // Partial update of an existing function point (its placedId / offsetM / side / …). Used by the
   // 2D plan when a placed marker is dragged onto (or along) a conveyor to re-position it.
@@ -2375,6 +2459,25 @@ function ConveyorPath({
           })()}
         </group>
       ))}
+
+      {/* Corner / joint fillers so turns look connected (not clunky): a square body block at each
+          interior point shared by 2+ sections fills the wedge gap a turn would otherwise leave. */}
+      {path.map((p, i) => {
+        const degree = sections.reduce((n, s) => n + (s[0] === i || s[1] === i ? 1 : 0), 0)
+        if (degree < 2) return null
+        return (
+          <group
+            key={`joint-${i}`}
+            position={[p[0], y, p[1]]}
+            onPointerDown={(e: ThreeEvent<PointerEvent>) => {
+              e.stopPropagation()
+              onSelect()
+            }}
+          >
+            <ConveyorBody length={eq.widthM} height={eq.heightM} width={eq.widthM} selected={selected} />
+          </group>
+        )
+      })}
 
       {/* Junction / decision markers — one per path point used by a section. */}
       {path.map((p, i) => {
