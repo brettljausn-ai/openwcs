@@ -69,12 +69,12 @@ class RoutingProjectionTest {
                 List.of(List.of(0d, 0d), List.of(5d, 0d), List.of(10d, 0d), List.of(5d, 5d)),
                 false,
                 List.of(List.of(0, 1), List.of(1, 2), List.of(1, 3)),
-                "ACTIVE");
+                "ACTIVE", "conveyor");
 
         // A sink box conveyor (no path): start/end nodes along its 4 m length.
         PlacedEquipmentDto sink = new PlacedEquipmentDto(sinkId, null, null, "SINK",
                 bd(20), bd(0), bd(0), bd(0), bd(0), bd(4), bd(1), bd(1),
-                null, false, null, "ACTIVE");
+                null, false, null, "ACTIVE", "conveyor");
 
         // A function point on the conveyor at offset 5 m (lands on path index 1, the divert) named D1.
         FunctionPointDto fp = new FunctionPointDto(fpId, convId, "DIVERT", "Divert 1",
@@ -86,6 +86,10 @@ class RoutingProjectionTest {
 
         automation.save(wh, new AutomationTopologyDto(
                 List.of(), List.of(conveyor, sink), List.of(conn), List.of(fp)));
+
+        // (c) category round-trips through save/load.
+        AutomationTopologyDto reloaded = automation.load(wh);
+        assertThat(reloaded.equipment()).allSatisfy(p -> assertThat(p.category()).isEqualTo("conveyor"));
 
         ProjectionResult result = projection.project(wh);
 
@@ -114,6 +118,78 @@ class RoutingProjectionTest {
                 .filter(e -> e.toCode().equals("D1"))
                 .findFirst().orElseThrow();
         assertThat(firstRun.cost()).isEqualTo(5);
+    }
+
+    @Test
+    void midSectionFunctionPointSplitsTheSectionAndInsertsANode() {
+        UUID wh = UUID.randomUUID();
+        UUID convId = UUID.randomUUID();
+
+        // A straight 10 m conveyor: path 0=(0,0) -> 1=(10,0), one section [0,1].
+        PlacedEquipmentDto conveyor = new PlacedEquipmentDto(convId, null, null, "CONV2",
+                bd(5), bd(0), bd(0), bd(0), bd(0), bd(10), bd(1), bd(1),
+                List.of(List.of(0d, 0d), List.of(10d, 0d)),
+                false,
+                List.of(List.of(0, 1)),
+                "ACTIVE", "conveyor");
+
+        // A SCAN function point mid-section at offset 4 m (not on either endpoint), named SCAN1.
+        FunctionPointDto scan = new FunctionPointDto(UUID.randomUUID(), convId, "SCAN", "Scan 1",
+                bd(4), "TOP", "SCAN1", "ACTIVE");
+
+        automation.save(wh, new AutomationTopologyDto(
+                List.of(), List.of(conveyor), List.of(), List.of(scan)));
+
+        ProjectionResult result = projection.project(wh);
+
+        // 2 path nodes + 1 inserted FP node = 3 nodes; the single section became 2 edges.
+        assertThat(result.nodes()).isEqualTo(3);
+        assertThat(result.edges()).isEqualTo(2);
+
+        Topology graph = topology.get(wh);
+        assertThat(graph.nodes().stream().anyMatch(n -> n.code().equals("SCAN1"))).isTrue();
+
+        // The section split into  start -> SCAN1 -> end : SCAN1 has one in-edge and one out-edge.
+        long intoScan = graph.edges().stream().filter(e -> e.toCode().equals("SCAN1")).count();
+        long outOfScan = graph.edges().stream().filter(e -> e.fromCode().equals("SCAN1")).count();
+        assertThat(intoScan).isEqualTo(1);
+        assertThat(outOfScan).isEqualTo(1);
+
+        // Cost split proportionally: 4 m before SCAN1, 6 m after; total preserved at 10.
+        EdgeDto into = graph.edges().stream().filter(e -> e.toCode().equals("SCAN1")).findFirst().orElseThrow();
+        EdgeDto out = graph.edges().stream().filter(e -> e.fromCode().equals("SCAN1")).findFirst().orElseThrow();
+        assertThat(into.cost()).isEqualTo(4);
+        assertThat(out.cost()).isEqualTo(6);
+    }
+
+    @Test
+    void closedConveyorProducesALoopWithItsNodesCarryingLoopCode() {
+        UUID wh = UUID.randomUUID();
+        UUID loopId = UUID.randomUUID();
+
+        // A closed square loop: 4 points, sections chaining them back to the start.
+        PlacedEquipmentDto loop = new PlacedEquipmentDto(loopId, null, null, "LOOP1",
+                bd(0), bd(0), bd(0), bd(0), bd(0), bd(20), bd(1), bd(1),
+                List.of(List.of(0d, 0d), List.of(10d, 0d), List.of(10d, 10d), List.of(0d, 10d)),
+                true,
+                List.of(List.of(0, 1), List.of(1, 2), List.of(2, 3), List.of(3, 0)),
+                "ACTIVE", "conveyor");
+
+        automation.save(wh, new AutomationTopologyDto(
+                List.of(), List.of(loop), List.of(), List.of()));
+
+        projection.project(wh);
+
+        Topology graph = topology.get(wh);
+        // Exactly one loop was inferred.
+        assertThat(graph.loops()).hasSize(1);
+        String loopCode = graph.loops().get(0).code();
+        assertThat(loopCode).isNotBlank();
+        assertThat(graph.loops().get(0).whenFull()).isEqualTo("HOLD");
+
+        // Every node of the closed conveyor carries the loop code.
+        assertThat(graph.nodes()).hasSize(4);
+        assertThat(graph.nodes()).allSatisfy(n -> assertThat(n.loopCode()).isEqualTo(loopCode));
     }
 
     private static BigDecimal bd(double v) {

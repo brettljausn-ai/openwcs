@@ -38,6 +38,9 @@ export interface AutomationEquipment {
   sections?: number[][] | null
   // When true the path loops back from the last waypoint to the first.
   closed?: boolean
+  // Denormalised category (conveyor|asrs|sorter|manual-storage|other) sent on save so the routing
+  // projection can classify without an equipment-library lookup.
+  category?: string | null
 }
 
 // A directed link between two placed-equipment items. from/toPlacedId reference

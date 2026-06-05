@@ -12,6 +12,7 @@ import type { AutomationEquipment, AutomationFunctionPoint } from './automationA
 import {
   canEditPath,
   category,
+  categoryBodyColor,
   colorFor,
   decisionPoints,
   effectiveSections,
@@ -33,6 +34,11 @@ const GRID_OPTIONS = [0.25, 0.5, 1] as const
 
 // How close (world metres) the dragged marker must get to a conveyor centreline to snap onto it.
 const SNAP_RANGE_M = 0.75
+
+// Pixels the pointer must travel before an equipment "move" actually starts. Below this a pointer-up
+// is treated as a pure click (select only, no move) — so clicking a block to select it never makes
+// it jump.
+const DRAG_THRESHOLD_PX = 4
 
 interface PlanEditor2DProps {
   // The placed equipment on the ACTIVE level (the same array the 3D canvas renders).
@@ -193,7 +199,20 @@ export default function PlanEditor2D({
   // dragged onto a conveyor, or an already-placed FP being re-positioned).
   const drag = useRef<
     | { kind: 'pan'; startX: number; startY: number; panX: number; panY: number }
-    | { kind: 'move'; id: string }
+    // Equipment move: a plain click only SELECTS; we don't move the item until the pointer crosses a
+    // small pixel threshold (`active`). startX/startY = pointer-down screen point; startWorld = the
+    // world point under the pointer at down; baseX/baseZ = the item's position at down. We translate
+    // by the world delta from the drag start (not snap-to-cursor) so the item never jumps mid-screen.
+    | {
+        kind: 'move'
+        id: string
+        startX: number
+        startY: number
+        startWorld: { x: number; z: number }
+        baseX: number
+        baseZ: number
+        active: boolean
+      }
     | { kind: 'waypoint'; id: string; index: number; path: number[][] }
     | { kind: 'pending' }
     | { kind: 'fp'; id: string }
@@ -454,11 +473,26 @@ export default function PlanEditor2D({
         }
         return
       }
+      if (d.kind === 'move') {
+        // Gate the move behind a small pixel threshold so a plain click only selects (no jump).
+        if (!d.active) {
+          const moved = Math.hypot(e.clientX - d.startX, e.clientY - d.startY)
+          if (moved < DRAG_THRESHOLD_PX) return
+          d.active = true
+        }
+        // Translate by the world delta from the drag start (don't snap the item centre to the
+        // cursor), then snap the resulting position to the grid.
+        const dxWorld = w.x - d.startWorld.x
+        const dzWorld = w.z - d.startWorld.z
+        onPatch(d.id, {
+          posXM: snap(d.baseX + dxWorld, gridStep, snapOn),
+          posZM: snap(d.baseZ + dzWorld, gridStep, snapOn),
+        })
+        return
+      }
       const sx = snap(w.x, gridStep, snapOn)
       const sz = snap(w.z, gridStep, snapOn)
-      if (d.kind === 'move') {
-        onPatch(d.id, { posXM: sx, posZM: sz })
-      } else if (d.kind === 'waypoint') {
+      if (d.kind === 'waypoint') {
         const next = d.path.map((p, i) => (i === d.index ? [sx, sz] : [p[0], p[1]]))
         onPatch(d.id, { path: next })
       }
@@ -660,13 +694,27 @@ export default function PlanEditor2D({
             // its rack box) and gets draggable waypoints to extend them.
             stubHost={canEditPath(eq, libById) && !isConveyor(eq, libById)}
             color={colorFor(eq, libById)}
+            // Stub conveyors on a NON-conveyor (ASRS / manual storage) draw in the equipment's
+            // category body colour (e.g. the mid-blue ASRS rack colour) so they match the recoloured
+            // 3D stub; a real conveyor keeps its own colour for the path.
+            pathColor={categoryBodyColor(category(eq, libById)) ?? colorFor(eq, libById)}
             selected={eq.id === selectedId}
             drawing={drawing && eq.id === selectedId}
             pxPerM={pxPerM}
             toPx={toPx}
             onSelect={onSelect}
-            onMoveStart={(id) => {
-              drag.current = { kind: 'move', id }
+            onMoveStart={(id, clientX, clientY) => {
+              const startWorld = clientToWorld(clientX, clientY)
+              drag.current = {
+                kind: 'move',
+                id,
+                startX: clientX,
+                startY: clientY,
+                startWorld,
+                baseX: eq.posXM,
+                baseZ: eq.posZM,
+                active: false,
+              }
             }}
             onWaypointStart={(id, index, path) => {
               drag.current = { kind: 'waypoint', id, index, path }
@@ -752,6 +800,7 @@ function PlanItem({
   conveyor,
   stubHost,
   color,
+  pathColor,
   selected,
   drawing,
   pxPerM,
@@ -766,12 +815,18 @@ function PlanItem({
   // An ASRS (non-conveyor) that owns IN/OUT conveyor stubs: render its path/sections on top of its box.
   stubHost: boolean
   color: string
+  // Stroke colour for the conveyor path/sections. For a stub host this is the equipment's category
+  // body colour (e.g. ASRS mid-blue) so the stub matches the recoloured 3D body; for a real conveyor
+  // it's just the conveyor's own colour.
+  pathColor: string
   selected: boolean
   drawing: boolean
   pxPerM: number
   toPx: (xM: number, zM: number) => [number, number]
   onSelect: (id: string | null) => void
-  onMoveStart: (id: string) => void
+  // Begin an equipment move drag. The pointer-down screen point (clientX/clientY) is passed so the
+  // parent can record the drag-start anchor and gate the actual move behind a small pixel threshold.
+  onMoveStart: (id: string, clientX: number, clientY: number) => void
   onWaypointStart: (id: string, index: number, path: number[][]) => void
   onDrawAtPoint: (id: string, x: number, z: number) => void
 }) {
@@ -800,9 +855,9 @@ function PlanItem({
               y1={ay}
               x2={bx}
               y2={by}
-              stroke={color}
+              stroke={pathColor}
               strokeWidth={Math.max(2, eq.widthM * pxPerM * 0.5)}
-              strokeOpacity={selected ? 0.9 : 0.65}
+              strokeOpacity={selected ? 0.95 : 0.8}
               strokeLinecap="round"
               style={{ cursor: drawing ? 'crosshair' : 'pointer' }}
               onPointerDown={(e) => {
@@ -933,7 +988,7 @@ function PlanItem({
         if (e.button !== 0 || drawing) return
         e.stopPropagation()
         onSelect(eq.id)
-        onMoveStart(eq.id)
+        onMoveStart(eq.id, e.clientX, e.clientY)
         ;(e.target as Element).setPointerCapture?.(e.pointerId)
       }}
     >

@@ -207,6 +207,23 @@ export function colorFor(eq: AutomationEquipment, lib: Map<string, Equipment>): 
   return '#6b7a85' // slate — other
 }
 
+// The solid body colour a category's 3D mesh uses (the mid-blue ASRS rack, burnt-orange manual rack,
+// amber sorter). Used to TINT a non-conveyor's IN/OUT conveyor stubs so they render in the same
+// colour as the equipment they belong to (rather than the default light-blue conveyor look). Returns
+// null for a real conveyor (stubs there keep the default conveyor body) and the `other` bucket.
+export function categoryBodyColor(cat: EquipmentCategory): string | null {
+  switch (cat) {
+    case 'asrs':
+      return '#1E88E5' // mid-blue — matches the ASRS rack frame
+    case 'manual-storage':
+      return '#C75B12' // burnt-orange — matches the manual-storage rack frame
+    case 'sorter':
+      return '#E0A33A' // amber — matches the sorter box
+    default:
+      return null
+  }
+}
+
 function equipmentTypeLabel(meta?: Equipment): string {
   if (!meta) return 'Equipment'
   return meta.type || meta.subtype || meta.family || 'Equipment'
@@ -563,7 +580,7 @@ export default function AutomationTopology3D() {
     try {
       const saved = await saveAutomationTopology(warehouseId, {
         levels,
-        equipment,
+        equipment: equipment.map((e) => ({ ...e, category: category(e, libById) })),
         connections,
         functionPoints,
       })
@@ -594,7 +611,12 @@ export default function AutomationTopology3D() {
     setProjecting(true)
     setError(null)
     try {
-      const saved = await saveAutomationTopology(warehouseId, { levels, equipment, connections, functionPoints })
+      const saved = await saveAutomationTopology(warehouseId, {
+        levels,
+        equipment: equipment.map((e) => ({ ...e, category: category(e, libById) })),
+        connections,
+        functionPoints,
+      })
       setLevels(saved.levels)
       setEquipment(saved.equipment)
       setConnections(saved.connections)
@@ -2320,16 +2342,28 @@ function ConveyorBody({
   width,
   selected,
   highlightColor = '#8DC63F',
+  // Optional body tint. Default is the standard light-blue conveyor look (upper #4FC3F7 over a
+  // translucent #8fd3ff lower band). When given (e.g. an ASRS's IN/OUT stub), the upper band takes
+  // this colour and the lower band a translucent version of it — keeping the rounded 80/20 two-tone
+  // shape, just recoloured, so a stub reads as a conveyor in the equipment's own colour, not a blur.
+  tint,
 }: {
   length: number
   height: number
   width: number
   selected: boolean
   highlightColor?: string
+  tint?: string
 }) {
   const lowerH = height * 0.8 // bottom 80% transparent
   const upperH = height * 0.2 // top 20% light blue
   const radius = Math.min(0.04, upperH * 0.4, Math.min(length, width) * 0.25)
+  // Upper band = the tint (or the default light blue); lower band = a translucent version of the
+  // same colour. We keep the lower band a touch more opaque than the default light-blue body so a
+  // tinted stub reads as a solid conveyor (in its colour) rather than a faint blur.
+  const upperColor = tint ?? '#4FC3F7'
+  const lowerColor = tint ?? '#8fd3ff'
+  const lowerOpacity = tint ? 0.45 : 0.18
   return (
     <group>
       {/* Lower 80%: translucent cool tint (y from −H/2 to +0.3H). */}
@@ -2341,15 +2375,15 @@ function ConveyorBody({
         castShadow
       >
         <meshStandardMaterial
-          color="#8fd3ff"
+          color={lowerColor}
           transparent
-          opacity={0.18}
+          opacity={lowerOpacity}
           metalness={0.2}
           roughness={0.5}
           depthWrite={false}
         />
       </RoundedBox>
-      {/* Top 20%: opaque modern light blue. Carries the selection highlight. */}
+      {/* Top 20%: opaque modern light blue (or the tint). Carries the selection highlight. */}
       <RoundedBox
         args={[length, upperH, width]}
         radius={radius}
@@ -2358,7 +2392,7 @@ function ConveyorBody({
         castShadow
       >
         <meshStandardMaterial
-          color="#4FC3F7"
+          color={upperColor}
           emissive={selected ? highlightColor : '#000000'}
           emissiveIntensity={selected ? 0.5 : 0}
           metalness={0.35}
@@ -2581,7 +2615,9 @@ function EquipmentMesh({
     cat === 'asrs' && hasPath(eq) ? (
       <ConveyorPath
         eq={eq}
-        cat="conveyor"
+        // Pass the ASRS category (not 'conveyor') so the stub bodies render tinted in the ASRS
+        // colour instead of the default light-blue conveyor look.
+        cat={cat}
         color={color}
         selected={highlight}
         editable={selected && !connectMode}
@@ -2702,6 +2738,11 @@ function ConveyorPath({
   const sections = effectiveSections(eq)
   const decisions = decisionPoints(sections)
   const junctions = junctionPoints(sections)
+  // For a NON-conveyor path host (an ASRS / manual-storage stub), tint the conveyor body in the
+  // equipment's own category colour so the stub reads as that equipment's IN/OUT piece — not the
+  // default light-blue conveyor (which on an ASRS looks like a vague blur). A real conveyor keeps
+  // the default look (tint = undefined).
+  const bodyTint = cat === 'conveyor' ? undefined : categoryBodyColor(cat) ?? undefined
 
   // One box + arrow per directed section.
   const segs = sections
@@ -2752,6 +2793,7 @@ function ConveyorPath({
               height={eq.heightM}
               width={eq.widthM}
               selected={selected}
+              tint={bodyTint}
             />
           </group>
           {/* Small, subtle travel-direction chevrons repeated every ~1 m along the section
@@ -2793,7 +2835,7 @@ function ConveyorPath({
               onSelect()
             }}
           >
-            <ConveyorBody length={eq.widthM} height={eq.heightM} width={eq.widthM} selected={selected} />
+            <ConveyorBody length={eq.widthM} height={eq.heightM} width={eq.widthM} selected={selected} tint={bodyTint} />
           </group>
         )
       })}

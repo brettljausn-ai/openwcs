@@ -71,6 +71,12 @@ public class PlacedEquipment extends Auditable {
     @Column(name = "status", nullable = false)
     private String status = "ACTIVE";
 
+    /** Denormalised equipment category from the placement editor used by the routing-graph
+     *  projection to classify by type: conveyor | asrs | sorter | manual-storage | other. Null/blank
+     *  → the projection falls back to its geometric heuristic. */
+    @Column(name = "category")
+    private String category;
+
     /** For conveyors: centreline waypoints [[x,z], …] in metres (corners / turns / loops). Null or
      *  fewer than 2 points → render as a single straight box of lengthM. */
     @JdbcTypeCode(SqlTypes.JSON)
@@ -222,5 +228,13 @@ public class PlacedEquipment extends Auditable {
 
     public void setSections(List<List<Integer>> sections) {
         this.sections = sections;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 }
