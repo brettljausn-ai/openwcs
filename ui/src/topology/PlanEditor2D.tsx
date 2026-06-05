@@ -51,6 +51,9 @@ interface PlanEditor2DProps {
   selectedId: string | null
   // Conveyor "Draw sections" mode is on (mirrors the 3D drawPath state).
   drawing: boolean
+  // The current draw anchor: the selected conveyor's path index the next section starts from (or
+  // null = the next click just places/anchors a start point). Drives the live pending-section preview.
+  activeFromIdx: number | null
   onSelect: (id: string | null) => void
   // Partial update of a placed item — same as patchEquipment in the parent.
   onPatch: (id: string, patch: Partial<AutomationEquipment>) => void
@@ -160,6 +163,7 @@ export default function PlanEditor2D({
   functionPoints,
   selectedId,
   drawing,
+  activeFromIdx,
   onSelect,
   onPatch,
   onDrawAt,
@@ -194,6 +198,10 @@ export default function PlanEditor2D({
     snap: SnapTarget | null
   }
   const [pending, setPending] = useState<Pending | null>(null)
+
+  // Live draw preview: where the cursor's next click would land while in Draw-sections mode.
+  // `onConveyor` is true when it snapped onto the selected conveyor's centreline (vs a free grid point).
+  const [drawHover, setDrawHover] = useState<{ x: number; z: number; onConveyor: boolean } | null>(null)
 
   const svgRef = useRef<SVGSVGElement | null>(null)
   // The current free-form drag (equipment move, waypoint move, background pan, a pending FP being
@@ -433,40 +441,53 @@ export default function PlanEditor2D({
     })
   }, [onAddFunctionPoint, onAddDivertBranch, onAddAsrsPortStub, snapOn, gridStep])
 
+  // Where a draw-mode click at world (wx,wz) would land: snapped onto the selected conveyor's
+  // centreline when within range (so it lands ON the conveyor and connects), else the grid point.
+  // Shared by the actual click and the live hover preview so they always agree.
+  const drawSnapAt = useCallback(
+    (wx: number, wz: number): { x: number; z: number; onConveyor: boolean } => {
+      const selEq = items.find((it) => it.id === selectedId)
+      if (selEq) {
+        const proj = projectToPath(selEq, wx, wz)
+        if (Math.hypot(proj.x - wx, proj.z - wz) <= SNAP_RANGE_M) {
+          return { x: proj.x, z: proj.z, onConveyor: true }
+        }
+      }
+      return { x: snap(wx, gridStep, snapOn), z: snap(wz, gridStep, snapOn), onConveyor: false }
+    },
+    [items, selectedId, gridStep, snapOn],
+  )
+
   // ---- background interactions ---------------------------------------------
   const onBackgroundPointerDown = useCallback(
     (e: React.PointerEvent<SVGRectElement>) => {
       if (e.button !== 0) return
       if (drawing && selectedId) {
-        // Draw mode: a click on the plane draws a section on the selected conveyor. Prefer snapping
-        // the point onto the conveyor's own centreline (so it lands ON the conveyor and connects);
-        // only fall back to the grid when the click is away from it.
+        // Draw mode: a click on the plane draws a section on the selected conveyor.
         const w = clientToWorld(e.clientX, e.clientY)
-        let sx = snap(w.x, gridStep, snapOn)
-        let sz = snap(w.z, gridStep, snapOn)
-        const selEq = items.find((it) => it.id === selectedId)
-        if (selEq) {
-          const proj = projectToPath(selEq, w.x, w.z)
-          if (Math.hypot(proj.x - w.x, proj.z - w.z) <= SNAP_RANGE_M) {
-            sx = proj.x
-            sz = proj.z
-          }
-        }
-        onDrawAt(selectedId, sx, sz)
+        const s = drawSnapAt(w.x, w.z)
+        onDrawAt(selectedId, s.x, s.z)
         return
       }
       // Otherwise begin a pan; an empty click (no drag) deselects on pointer-up.
       drag.current = { kind: 'pan', startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y }
       ;(e.target as Element).setPointerCapture?.(e.pointerId)
     },
-    [drawing, selectedId, clientToWorld, gridStep, snapOn, onDrawAt, pan, items],
+    [drawing, selectedId, clientToWorld, onDrawAt, pan, drawSnapAt],
   )
 
   // A single pointer-move handler at the SVG level drives pan / move / waypoint / FP-marker drags.
   const onPointerMove = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       const d = drag.current
-      if (!d) return
+      if (!d) {
+        // No drag in progress. While drawing, track where the next click would land (live preview).
+        if (drawing && selectedId) {
+          const w = clientToWorld(e.clientX, e.clientY)
+          setDrawHover(drawSnapAt(w.x, w.z))
+        }
+        return
+      }
       if (d.kind === 'pan') {
         setPan({ x: d.panX + (e.clientX - d.startX), y: d.panY + (e.clientY - d.startY) })
         return
@@ -520,8 +541,13 @@ export default function PlanEditor2D({
         onPatch(d.id, { path: next })
       }
     },
-    [clientToWorld, gridStep, snapOn, onPatch, nearestConveyorSnap, pendingSnap, functionPoints, onUpdateFunctionPoint],
+    [clientToWorld, gridStep, snapOn, onPatch, nearestConveyorSnap, pendingSnap, functionPoints, onUpdateFunctionPoint, drawing, selectedId, drawSnapAt],
   )
+
+  // Drop the live draw preview when we leave draw mode (or nothing's selected to draw on).
+  useEffect(() => {
+    if (!drawing || !selectedId) setDrawHover(null)
+  }, [drawing, selectedId])
 
   // End any drag. A 'pending' drag commits/discards the pending point. An 'fp' drag has already moved
   // the point live during onPointerMove, so here we only finalise: re-assert the divert side (so a
@@ -665,7 +691,10 @@ export default function PlanEditor2D({
         className="plan2d-svg"
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
-        onPointerLeave={endDrag}
+        onPointerLeave={() => {
+          endDrag()
+          setDrawHover(null)
+        }}
       >
         {/* Background — pan / deselect / draw target. */}
         <rect
@@ -757,6 +786,43 @@ export default function PlanEditor2D({
             </g>
           )
         })()}
+
+        {/* Live DRAW preview: a dot where the next click lands (lime = snaps onto the conveyor and
+            will connect; amber = a free grid point), plus a dashed line from the current anchor
+            showing the pending section's direction (anchor → cursor). */}
+        {drawing &&
+          drawHover &&
+          (() => {
+            const [hx, hy] = toPx(drawHover.x, drawHover.z)
+            const color = drawHover.onConveyor ? '#8DC63F' : '#f0a85a'
+            const selEq = items.find((it) => it.id === selectedId)
+            const anchorPt =
+              selEq && activeFromIdx != null && Array.isArray(selEq.path)
+                ? selEq.path[activeFromIdx]
+                : null
+            return (
+              <g pointerEvents="none">
+                {anchorPt &&
+                  (() => {
+                    const [ax, ay] = toPx(anchorPt[0], anchorPt[1])
+                    return (
+                      <line
+                        x1={ax}
+                        y1={ay}
+                        x2={hx}
+                        y2={hy}
+                        stroke={color}
+                        strokeWidth={1.5}
+                        strokeDasharray="5 4"
+                        strokeOpacity={0.85}
+                      />
+                    )
+                  })()}
+                <circle cx={hx} cy={hy} r={6} fill="none" stroke={color} strokeWidth={1.5} />
+                <circle cx={hx} cy={hy} r={2.5} fill={color} />
+              </g>
+            )
+          })()}
 
         {/* Function-point markers, drawn on top of the equipment they belong to. Draggable: a drag
             re-positions the marker onto (or along) the nearest conveyor centreline (snap). */}

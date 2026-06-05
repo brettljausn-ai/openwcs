@@ -1482,6 +1482,7 @@ export default function AutomationTopology3D({
               functionPoints={functionPoints}
               selectedId={selectedId}
               drawing={drawPath}
+              activeFromIdx={activeFromIdx}
               onSelect={setSelectedId}
               onPatch={patchEquipment}
               onDrawAt={drawSectionAt}
