@@ -14,6 +14,7 @@ import {
 } from '../masterdata/api'
 import {
   loadAutomationTopology,
+  projectRoutingGraph,
   saveAutomationTopology,
   type AutomationConnection,
   type AutomationEquipment,
@@ -487,6 +488,7 @@ export default function AutomationTopology3D() {
 
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [projecting, setProjecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -579,6 +581,32 @@ export default function AutomationTopology3D() {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSaving(false)
+    }
+  }, [warehouseId, levels, equipment, connections, functionPoints])
+
+  // Generate the conveyor routing graph (nodes/edges) from the current layout. Saves first so the
+  // projection reads the persisted placement, then replaces the warehouse's routing graph.
+  const projectGraph = useCallback(async () => {
+    if (!warehouseId) {
+      setError('No active warehouse selected')
+      return
+    }
+    setProjecting(true)
+    setError(null)
+    try {
+      const saved = await saveAutomationTopology(warehouseId, { levels, equipment, connections, functionPoints })
+      setLevels(saved.levels)
+      setEquipment(saved.equipment)
+      setConnections(saved.connections)
+      setFunctionPoints(saved.functionPoints)
+      setDirty(false)
+      const result = await projectRoutingGraph(warehouseId)
+      const warn = result.warnings.length ? ` · ${result.warnings.length} warning(s)` : ''
+      setInfo(`Routing graph generated: ${result.nodes} node(s), ${result.edges} edge(s)${warn}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setProjecting(false)
     }
   }, [warehouseId, levels, equipment, connections, functionPoints])
 
@@ -1241,6 +1269,15 @@ export default function AutomationTopology3D() {
             title="Link two pieces of equipment: click a source, then a target."
           >
             {connectMode ? 'Connecting…' : 'Connect'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={projectGraph}
+            disabled={loading || saving || projecting}
+            title="Generate the conveyor routing graph (nodes/edges) from this layout. Saves first, then replaces the Routing graph."
+          >
+            {projecting ? 'Generating…' : 'Generate routing'}
           </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={load} disabled={loading || saving}>
             {loading ? 'Loading…' : 'Reload'}

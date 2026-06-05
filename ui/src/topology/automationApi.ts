@@ -106,3 +106,21 @@ export async function saveAutomationTopology(
     functionPoints: body.functionPoints ?? [],
   }
 }
+
+export interface RoutingProjectionResult {
+  nodes: number
+  edges: number
+  warnings: string[]
+}
+
+/** Generate the conveyor routing graph (nodes/edges) from the placed equipment + sections +
+ *  connections + function points. Replaces the warehouse's routing graph. */
+export async function projectRoutingGraph(warehouseId: string): Promise<RoutingProjectionResult> {
+  const res = await fetch(
+    `/api/flow/automation/topology/project?warehouseId=${encodeURIComponent(warehouseId)}`,
+    { method: 'POST' },
+  )
+  if (!res.ok) throw new Error(`Projection failed: ${res.status}`)
+  const body = (await res.json()) as Partial<RoutingProjectionResult>
+  return { nodes: body.nodes ?? 0, edges: body.edges ?? 0, warnings: body.warnings ?? [] }
+}
