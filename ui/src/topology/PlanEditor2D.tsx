@@ -272,23 +272,33 @@ export default function PlanEditor2D({
   }, [pan, pxPerM, gridStep, toPx])
 
   // ---- wheel zoom (around the cursor) --------------------------------------
-  const onWheel = useCallback(
-    (e: React.WheelEvent<SVGSVGElement>) => {
+  // React registers onWheel as a PASSIVE root listener, so calling preventDefault() in a React
+  // handler is rejected ("Unable to preventDefault inside passive event listener") and floods the
+  // console on every tick. Attach a native NON-passive wheel listener instead. A ref carries the
+  // current pan/zoom so the listener can stay attached once (no re-bind per pan/zoom).
+  const viewRef = useRef({ pan, pxPerM })
+  viewRef.current = { pan, pxPerM }
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
       e.preventDefault()
-      const rect = svgRef.current?.getBoundingClientRect()
-      const cx = e.clientX - (rect?.left ?? 0)
-      const cy = e.clientY - (rect?.top ?? 0)
+      const rect = el.getBoundingClientRect()
+      const cx = e.clientX - rect.left
+      const cy = e.clientY - rect.top
+      const { pan: p, pxPerM: scale } = viewRef.current
       const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12
-      const next = Math.min(240, Math.max(6, pxPerM * factor))
-      if (next === pxPerM) return
+      const next = Math.min(240, Math.max(6, scale * factor))
+      if (next === scale) return
       // Keep the world point under the cursor fixed: solve for the new pan.
-      const worldX = (cx - pan.x) / pxPerM
-      const worldZ = (cy - pan.y) / pxPerM
+      const worldX = (cx - p.x) / scale
+      const worldZ = (cy - p.y) / scale
       setPan({ x: cx - worldX * next, y: cy - worldZ * next })
       setPxPerM(next)
-    },
-    [pan, pxPerM],
-  )
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [])
 
   // ---- selection -----------------------------------------------------------
   const selected = useMemo(() => items.find((it) => it.id === selectedId) ?? null, [items, selectedId])
@@ -652,7 +662,6 @@ export default function PlanEditor2D({
       <svg
         ref={svgRef}
         className="plan2d-svg"
-        onWheel={onWheel}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerLeave={endDrag}
