@@ -610,82 +610,91 @@ export default function AutomationTopology3D() {
     setDirty(true)
   }, [])
 
-  // Drop a 1 m divert STUB at a world position (x,z) on a conveyor, in the divert direction. Unlike
+  // Drop a divert STUB at a world position (x,z) on a conveyor, in the divert direction. Unlike
   // startBranchAt (which enters draw mode for a free-hand branch), this materialises a junction AND a
   // single perpendicular branch point + directed section, then leaves draw mode OFF so the user can
   // extend it later. The junction becomes a red decision point automatically (it gains a 2nd outgoing
   // section). `side` LEFT rotates the conveyor's travel direction +90°, RIGHT −90° (in the X/Z plane).
-  // When `snapStep` is given (Snap on) the branch endpoint is snapped to that metre grid.
+  // When `snapStep` is given (Snap on) the branch stub LENGTH is snapped to that metre grid (min ~1 m
+  // so the stub is always clearly visible), but its DIRECTION stays exactly perpendicular.
+  //
+  // Junction rule (this is the important bit): a drop on the *interior* of a section must INSERT a new
+  // junction and SPLIT that section so the main line stays straight (the stub then sprouts to the
+  // side). We only REUSE an existing path point when the projection lands almost exactly on it
+  // (within JUNCTION_REUSE_M — far tighter than the SNAP_M used for free-hand drawing). The old code
+  // reused any point within SNAP_M (0.5 m), so on a short conveyor the junction snapped to an
+  // endpoint, no split happened, and the "branch" came off the end as an L-bend — the reported bug.
   const addDivertBranch = useCallback(
     (id: string, x: number, z: number, side: 'LEFT' | 'RIGHT', snapStep: number | null) => {
       const px = +x.toFixed(3)
       const pz = +z.toFixed(3)
+      // Only collapse onto an existing waypoint when the drop is essentially ON it.
+      const JUNCTION_REUSE_M = 0.12
       setEquipment((es) =>
         es.map((e) => {
           if (e.id !== id) return e
           const path = Array.isArray(e.path) ? e.path.map((p) => [p[0], p[1]]) : []
           if (path.length < 2) return e
 
-          // --- 1) Resolve / insert the junction point (mirrors startBranchAt's logic). ---
-          let nearIdx = -1
-          let nearDist = SNAP_M
-          for (let i = 0; i < path.length; i++) {
-            const d = Math.hypot(path[i][0] - px, path[i][1] - pz)
-            if (d <= nearDist) {
-              nearDist = d
-              nearIdx = i
-            }
-          }
           let sections = effectiveSections(e).map((s) => [s[0], s[1]])
           let junctionIdx: number
 
-          if (nearIdx >= 0) {
-            junctionIdx = nearIdx
-          } else {
-            // Find the section whose segment best contains the projection and split it.
-            let bestSec = -1
-            let bestDist = Infinity
-            for (let k = 0; k < sections.length; k++) {
-              const a = path[sections[k][0]]
-              const b = path[sections[k][1]]
-              if (!a || !b) continue
-              const abx = b[0] - a[0]
-              const abz = b[1] - a[1]
-              const len2 = abx * abx + abz * abz
-              if (len2 < 1e-9) continue
-              let t = ((px - a[0]) * abx + (pz - a[1]) * abz) / len2
-              t = Math.min(1, Math.max(0, t))
-              const projx = a[0] + abx * t
-              const projz = a[1] + abz * t
-              const d = Math.hypot(projx - px, projz - pz)
-              if (d < bestDist) {
-                bestDist = d
-                bestSec = k
+          // --- 1) Resolve / insert the junction point. ---
+          // (a) Find the section whose segment the drop projects onto most closely.
+          let bestSec = -1
+          let bestDist = Infinity
+          let bestT = 0
+          for (let k = 0; k < sections.length; k++) {
+            const a = path[sections[k][0]]
+            const b = path[sections[k][1]]
+            if (!a || !b) continue
+            const abx = b[0] - a[0]
+            const abz = b[1] - a[1]
+            const len2 = abx * abx + abz * abz
+            if (len2 < 1e-9) continue
+            let t = ((px - a[0]) * abx + (pz - a[1]) * abz) / len2
+            t = Math.min(1, Math.max(0, t))
+            const projx = a[0] + abx * t
+            const projz = a[1] + abz * t
+            const d = Math.hypot(projx - px, projz - pz)
+            if (d < bestDist) {
+              bestDist = d
+              bestSec = k
+              bestT = t
+            }
+          }
+
+          if (bestSec < 0) {
+            // No usable section — fall back to the nearest existing point as the junction.
+            let fIdx = 0
+            let fDist = Infinity
+            for (let i = 0; i < path.length; i++) {
+              const d = Math.hypot(path[i][0] - px, path[i][1] - pz)
+              if (d < fDist) {
+                fDist = d
+                fIdx = i
               }
             }
-            if (bestSec < 0) {
-              // No usable section — snap to the nearest existing point.
-              let fIdx = 0
-              let fDist = Infinity
-              for (let i = 0; i < path.length; i++) {
-                const d = Math.hypot(path[i][0] - px, path[i][1] - pz)
-                if (d < fDist) {
-                  fDist = d
-                  fIdx = i
-                }
-              }
-              junctionIdx = fIdx
+            junctionIdx = fIdx
+          } else {
+            const [a, b] = sections[bestSec]
+            const ax = path[a][0]
+            const az = path[a][1]
+            const abx = path[b][0] - ax
+            const abz = path[b][1] - az
+            const jxOnSeg = ax + abx * bestT
+            const jzOnSeg = az + abz * bestT
+            // (b) Reuse an endpoint of this section ONLY when the projection is right on it; otherwise
+            // INSERT a junction and split the section so the main line stays straight.
+            const dToA = Math.hypot(ax - jxOnSeg, az - jzOnSeg)
+            const dToB = Math.hypot(path[b][0] - jxOnSeg, path[b][1] - jzOnSeg)
+            if (dToA <= JUNCTION_REUSE_M) {
+              junctionIdx = a
+            } else if (dToB <= JUNCTION_REUSE_M) {
+              junctionIdx = b
             } else {
-              const [a, b] = sections[bestSec]
-              const ax = path[a][0]
-              const az = path[a][1]
-              const abx = path[b][0] - ax
-              const abz = path[b][1] - az
-              const len2 = abx * abx + abz * abz
-              let t = len2 < 1e-9 ? 0 : ((px - ax) * abx + (pz - az) * abz) / len2
-              t = Math.min(1, Math.max(0, t))
               const m = path.length
-              path.push([+(ax + abx * t).toFixed(3), +(az + abz * t).toFixed(3)])
+              path.push([+jxOnSeg.toFixed(3), +jzOnSeg.toFixed(3)])
               sections = sections.map((s) => [s[0] >= m ? s[0] + 1 : s[0], s[1] >= m ? s[1] + 1 : s[1]])
               sections.splice(bestSec, 1, [a, m], [m, b])
               junctionIdx = m
@@ -718,22 +727,22 @@ export default function AutomationTopology3D() {
           // Unit travel direction (dx,dz). LEFT = rotate +90° → (dz, −dx); RIGHT = −90° → (−dz, dx).
           const dx = tx / tlen
           const dz = tz / tlen
+          // Stub length: ~1 m, or the grid step rounded up to at least 1 m when Snap is on, so the
+          // stub is always a clearly-visible perpendicular piece (never collapsed to ~0).
+          let stub = 1
+          if (snapStep && snapStep > 0) stub = Math.max(1, Math.round(1 / snapStep) * snapStep)
+          // Perpendicular branch endpoint (direction stays exact; only the length is snapped).
           let bx: number
           let bz: number
           if (side === 'LEFT') {
-            bx = jx + dz * 1
-            bz = jz - dx * 1
+            bx = jx + dz * stub
+            bz = jz - dx * stub
           } else {
-            bx = jx - dz * 1
-            bz = jz + dx * 1
+            bx = jx - dz * stub
+            bz = jz + dx * stub
           }
-          if (snapStep && snapStep > 0) {
-            bx = +(Math.round(bx / snapStep) * snapStep).toFixed(3)
-            bz = +(Math.round(bz / snapStep) * snapStep).toFixed(3)
-          } else {
-            bx = +bx.toFixed(3)
-            bz = +bz.toFixed(3)
-          }
+          bx = +bx.toFixed(3)
+          bz = +bz.toFixed(3)
 
           // --- 3) Add the branch endpoint + a directed section junction → branch. ---
           const branchIdx = path.length
@@ -1942,16 +1951,17 @@ function ConveyorBody({
   selected: boolean
   highlightColor?: string
 }) {
-  const halfH = height / 2
-  const radius = Math.min(0.04, halfH * 0.4, Math.min(length, width) * 0.25)
+  const lowerH = height * 0.8 // bottom 80% transparent
+  const upperH = height * 0.2 // top 20% light blue
+  const radius = Math.min(0.04, upperH * 0.4, Math.min(length, width) * 0.25)
   return (
     <group>
-      {/* Lower half: translucent cool tint (y from −H/2 to 0). */}
+      {/* Lower 80%: translucent cool tint (y from −H/2 to +0.3H). */}
       <RoundedBox
-        args={[length, halfH, width]}
-        radius={radius}
+        args={[length, lowerH, width]}
+        radius={Math.min(0.04, lowerH * 0.2, Math.min(length, width) * 0.25)}
         smoothness={3}
-        position={[0, -height / 4, 0]}
+        position={[0, -height / 2 + lowerH / 2, 0]}
         castShadow
       >
         <meshStandardMaterial
@@ -1963,12 +1973,12 @@ function ConveyorBody({
           depthWrite={false}
         />
       </RoundedBox>
-      {/* Upper half: opaque modern light blue (y from 0 to H/2). Carries the selection highlight. */}
+      {/* Top 20%: opaque modern light blue. Carries the selection highlight. */}
       <RoundedBox
-        args={[length, halfH, width]}
+        args={[length, upperH, width]}
         radius={radius}
         smoothness={3}
-        position={[0, height / 4, 0]}
+        position={[0, height / 2 - upperH / 2, 0]}
         castShadow
       >
         <meshStandardMaterial
@@ -2341,15 +2351,28 @@ function ConveyorPath({
               selected={selected}
             />
           </group>
-          {/* Green travel-direction arrow at the section midpoint, pointing from → to. */}
-          <DirectionArrow
-            mx={s.mx}
-            mz={s.mz}
-            y={top + 0.18}
-            ux={s.ux}
-            uz={s.uz}
-            size={Math.max(0.18, Math.min(0.45, eq.widthM * 0.4))}
-          />
+          {/* Small, subtle travel-direction chevrons repeated every ~1 m along the section
+              (capped for very long sections), each pointing from → to. */}
+          {(() => {
+            const count = Math.min(30, Math.max(1, Math.round(s.len)))
+            const size = Math.max(0.12, Math.min(0.28, eq.widthM * 0.28)) // small
+            return Array.from({ length: count }, (_, c) => {
+              const dM = (c + 0.5) * (s.len / count)
+              const cx = s.ax + s.ux * dM
+              const cz = s.az + s.uz * dM
+              return (
+                <DirectionArrow
+                  key={`arr-${k}-${c}`}
+                  mx={cx}
+                  mz={cz}
+                  y={top + 0.06}
+                  ux={s.ux}
+                  uz={s.uz}
+                  size={size}
+                />
+              )
+            })
+          })()}
         </group>
       ))}
 
@@ -2404,8 +2427,9 @@ function ConveyorPath({
   )
 }
 
-// A flat chevron-style arrow (two short lines meeting at a point) on the ground plane, marking
-// travel direction at a section midpoint. (u x,uz) is the unit travel direction in world XZ.
+// A small, subtle flat chevron (two short lines meeting at a point) on the ground plane, marking
+// travel direction at a point along a section. (ux,uz) is the unit travel direction in world XZ.
+// Drawn low-contrast / semi-transparent so the repeated per-metre chevrons read as a background aid.
 function DirectionArrow({
   mx,
   mz,
@@ -2421,7 +2445,7 @@ function DirectionArrow({
   uz: number
   size: number
 }) {
-  // Tip ahead of the midpoint; two barbs swept back from it.
+  // Tip ahead of the point; two barbs swept back from it.
   const tip: [number, number, number] = [mx + ux * size, y, mz + uz * size]
   // Right-hand normal on the ground plane to (ux,uz) is (uz,-ux).
   const nx = uz
@@ -2438,7 +2462,9 @@ function DirectionArrow({
     y,
     mz - uz * back - nz * spread,
   ]
-  return <Line points={[left, tip, right]} color="#8DC63F" lineWidth={3} />
+  return (
+    <Line points={[left, tip, right]} color="#8DC63F" lineWidth={1.5} transparent opacity={0.3} />
+  )
 }
 
 // A flat marker disc at a junction point. Decision/divert points (the `from` of 2+ sections) are
