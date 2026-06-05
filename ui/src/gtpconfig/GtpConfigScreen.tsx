@@ -8,6 +8,7 @@ import {
   NodeBody,
   NodeRole,
   OPERATING_MODES,
+  OPERATING_MODE_LABELS,
   OperatingMode,
   STATION_MODES,
   Station,
@@ -232,29 +233,23 @@ function ConfirmDelete({
   )
 }
 
-/** Operating-mode multiselect via checkboxes. PICKING is always on (the base flow). */
+/** Operating-mode multiselect via checkboxes. A workplace can run any combination (e.g. decanting-only). */
 function ModeCheckboxes({ value, onChange }: { value: OperatingMode[]; onChange: (v: OperatingMode[]) => void }) {
   function toggle(m: OperatingMode, on: boolean) {
-    if (m === 'PICKING') return // always retained
     onChange(on ? [...new Set([...value, m])] : value.filter((x) => x !== m))
   }
   return (
     <div className="gtp-checks">
-      {OPERATING_MODES.map((m) => {
-        const checked = m === 'PICKING' || value.includes(m)
-        return (
-          <label key={m} className="gtp-check">
-            <input
-              type="checkbox"
-              checked={checked}
-              disabled={m === 'PICKING'}
-              onChange={(e) => toggle(m, e.target.checked)}
-            />
-            {m}
-            {m === 'PICKING' && <span className="muted"> (always)</span>}
-          </label>
-        )
-      })}
+      {OPERATING_MODES.map((m) => (
+        <label key={m} className="gtp-check">
+          <input
+            type="checkbox"
+            checked={value.includes(m)}
+            onChange={(e) => toggle(m, e.target.checked)}
+          />
+          {OPERATING_MODE_LABELS[m]}
+        </label>
+      ))}
     </div>
   )
 }
@@ -421,7 +416,7 @@ function StationDialog({
   const [status, setStatus] = useState(initial?.status ?? 'ACTIVE')
   const [modes, setModes] = useState<OperatingMode[]>(initial?.supportedModes ?? ['PICKING'])
 
-  const valid = code.trim() !== ''
+  const valid = code.trim() !== '' && modes.length > 0
 
   return (
     <EditDialog
@@ -429,14 +424,13 @@ function StationDialog({
       canSave={valid}
       onClose={onClose}
       onSave={async () => {
-        const withPicking = [...new Set<OperatingMode>(['PICKING', ...modes])]
         if (initial) {
           const body: UpdateStationBody = {
             code: code.trim(),
             name: name.trim() || null,
             mode,
             status,
-            supportedModes: withPicking,
+            supportedModes: modes,
           }
           onSaved(await updateStation(initial.id, body))
         } else {
@@ -445,7 +439,7 @@ function StationDialog({
             code: code.trim(),
             name: name.trim() || null,
             mode,
-            supportedModes: withPicking,
+            supportedModes: modes,
           }
           onSaved(await createStation(body))
         }

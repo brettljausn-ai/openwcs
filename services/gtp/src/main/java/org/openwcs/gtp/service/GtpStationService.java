@@ -99,9 +99,7 @@ public class GtpStationService {
             station.setStatus(request.status().trim());
         }
         if (request.supportedModes() != null) {
-            Set<OperatingMode> parsed = parseModes(request.supportedModes());
-            parsed.add(OperatingMode.PICKING);
-            station.setSupportedModeSet(parsed);
+            station.setSupportedModeSet(parseModes(request.supportedModes()));
         }
         return station;
     }
@@ -114,15 +112,13 @@ public class GtpStationService {
     }
 
     /**
-     * Replace the set of operating modes a station supports. An empty/blank list is rejected; PICKING
-     * is always retained so a station never loses the base flow.
+     * Replace the set of operating modes a station supports. A station can run any combination
+     * (e.g. decanting-only); when no modes are given the set defaults to PICKING.
      */
     @Transactional
     public GtpStation setSupportedModes(UUID stationId, List<String> modes) {
         GtpStation station = requireStation(stationId);
-        Set<OperatingMode> parsed = parseModes(modes);
-        parsed.add(OperatingMode.PICKING);
-        station.setSupportedModeSet(parsed);
+        station.setSupportedModeSet(parseModes(modes));
         return station;
     }
 
