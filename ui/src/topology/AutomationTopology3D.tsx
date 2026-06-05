@@ -510,6 +510,8 @@ export default function AutomationTopology3D({
   const [connectMode, setConnectMode] = useState(false)
   const [connectFrom, setConnectFrom] = useState<string | null>(null)
   const [selectedConnId, setSelectedConnId] = useState<string | null>(null)
+  // The function point whose config dialog is open (clicking a marker in 2D/3D), or null.
+  const [editFpId, setEditFpId] = useState<string | null>(null)
   // Library filter: show only equipment with no placement anywhere in the editor.
   const [unplacedOnly, setUnplacedOnly] = useState(false)
 
@@ -1488,6 +1490,7 @@ export default function AutomationTopology3D({
               onAddFunctionPoint={addFunctionPoint}
               onDeleteFunctionPoint={deleteFunctionPoint}
               onUpdateFunctionPoint={updateFunctionPoint}
+              onEditFunctionPoint={setEditFpId}
               onAddDivertBranch={addDivertBranch}
               onAddAsrsPortStub={addAsrsPortStub}
             />
@@ -1524,6 +1527,7 @@ export default function AutomationTopology3D({
                 drawPath={drawPath}
                 activeFromIdx={activeFromIdx}
                 onSelect={setSelectedId}
+                onEditFunctionPoint={setEditFpId}
                 onConnectPick={handleConnectPick}
                 onMove={(id, x, z, rotDeg) =>
                   patchEquipment(id, { posXM: x, posZM: z, rotationDeg: rotDeg })
@@ -1646,7 +1650,173 @@ export default function AutomationTopology3D({
         </aside>
       </div>
 
+      {/* Function-point config dialog — opened by clicking a marker in the 2D plan or 3D view. */}
+      {editFpId &&
+        (() => {
+          const fp = functionPoints.find((f) => f.id === editFpId)
+          if (!fp) return null
+          const eq = equipment.find((e) => e.id === fp.placedId)
+          const meta = eq?.equipmentId ? libById.get(eq.equipmentId) : undefined
+          const typeOptions =
+            meta?.processTypes && meta.processTypes.length > 0 ? meta.processTypes : [...FUNCTION_TYPES]
+          return (
+            <FunctionPointDialog
+              fp={fp}
+              typeOptions={typeOptions}
+              onUpdate={updateFunctionPoint}
+              onDelete={deleteFunctionPoint}
+              onClose={() => setEditFpId(null)}
+            />
+          )
+        })()}
+
       <Styles />
+    </div>
+  )
+}
+
+// A small modal to configure a single function point: which functions it combines, its name, offset,
+// side and routing node code. Opened by clicking a marker in the 2D plan or 3D view. All edits apply
+// live (the fp is read fresh from state each render), so there's no separate Save — just Done/Delete.
+function FunctionPointDialog({
+  fp,
+  typeOptions,
+  onUpdate,
+  onDelete,
+  onClose,
+}: {
+  fp: AutomationFunctionPoint
+  typeOptions: string[]
+  onUpdate: (id: string, patch: Partial<AutomationFunctionPoint>) => void
+  onDelete: (id: string) => void
+  onClose: () => void
+}) {
+  const active = fpFunctions(fp.functionType)
+  // Toggle one function on/off; never let the set go empty.
+  const toggle = (t: string) => {
+    const next = active.includes(t) ? active.filter((x) => x !== t) : [...active, t]
+    if (next.length === 0) return
+    onUpdate(fp.id, { functionType: joinFunctions(next) })
+  }
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className="atopo-modal-backdrop" onPointerDown={onClose}>
+      <div className="atopo-modal glass" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="atopo-modal-head">
+          <h3 style={{ color: functionColorForSet(active) }}>
+            {functionShortForSet(active) || fp.functionType}
+          </h3>
+          <button type="button" className="atopo-modal-x" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+
+        <label className="atopo-field">
+          <span>
+            Functions{' '}
+            <InfoTip
+              text="A point can combine functions — e.g. a scan + divert at the same spot. Toggle the ones that apply (at least one)."
+              example="SCAN + DIV ◀"
+            />
+          </span>
+          <div className="atopo-fps-chips" style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {typeOptions.map((t) => {
+              const on = active.includes(t)
+              const c = functionColor(t)
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  className={`atopo-fps-chip${on ? ' is-on' : ''}`}
+                  aria-pressed={on}
+                  title={t}
+                  style={{
+                    fontSize: 12,
+                    lineHeight: 1.2,
+                    padding: '3px 8px',
+                    borderRadius: 999,
+                    cursor: 'pointer',
+                    border: `1px solid ${on ? c : 'var(--glass-border)'}`,
+                    color: on ? c : 'var(--text-dim)',
+                    background: on ? 'rgba(255,255,255,0.06)' : 'transparent',
+                    opacity: on ? 1 : 0.7,
+                  }}
+                  onClick={() => toggle(t)}
+                >
+                  {FUNCTION_SHORT[t] ?? t}
+                </button>
+              )
+            })}
+          </div>
+        </label>
+
+        <label className="atopo-field">
+          <span>Name</span>
+          <input
+            className="form-control"
+            value={fp.name ?? ''}
+            placeholder="optional"
+            autoFocus
+            onChange={(e) => onUpdate(fp.id, { name: e.target.value || null })}
+          />
+        </label>
+
+        <div className="atopo-grid2">
+          <NumField label="Offset (m)" value={fp.offsetM} onChange={(v) => onUpdate(fp.id, { offsetM: v })} />
+          <label className="atopo-field">
+            <span>Side</span>
+            <Select
+              ariaLabel="Side"
+              value={fp.side ?? ''}
+              onChange={(v) => onUpdate(fp.id, { side: v || null })}
+              options={[
+                { value: '', label: '—' },
+                { value: 'LEFT', label: 'LEFT' },
+                { value: 'RIGHT', label: 'RIGHT' },
+              ]}
+            />
+          </label>
+        </div>
+
+        <label className="atopo-field">
+          <span>
+            Node code{' '}
+            <InfoTip
+              text="Optional — maps this point to a conveyor routing node so material-flow routes can reference it."
+              example="DIV-12"
+            />
+          </span>
+          <input
+            className="form-control"
+            value={fp.nodeCode ?? ''}
+            placeholder="optional"
+            onChange={(e) => onUpdate(fp.id, { nodeCode: e.target.value || null })}
+          />
+        </label>
+
+        <div className="atopo-modal-actions">
+          <button
+            type="button"
+            className="btn btn-danger btn-sm"
+            onClick={() => {
+              onDelete(fp.id)
+              onClose()
+            }}
+          >
+            Delete
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -2182,6 +2352,8 @@ interface SceneContentProps {
   // The current section-draw anchor index on the selected conveyor (highlighted), or null.
   activeFromIdx: number | null
   onSelect: (id: string | null) => void
+  // Open a function point's config dialog (clicking its 3D marker).
+  onEditFunctionPoint: (id: string) => void
   onConnectPick: (id: string) => void
   onMove: (id: string, x: number, z: number, rotationDeg: number) => void
   // A ground-plane click while drawing: resolve/append a point and (with an anchor) add a section.
@@ -2206,6 +2378,7 @@ function SceneContent({
   drawPath,
   activeFromIdx,
   onSelect,
+  onEditFunctionPoint,
   onConnectPick,
   onMove,
   onDrawSectionAt,
@@ -2304,7 +2477,7 @@ function SceneContent({
             key={fp.id}
             fp={fp}
             eq={eq}
-            onSelect={() => (connectMode ? onConnectPick(eq.id) : onSelect(eq.id))}
+            onSelect={() => (connectMode ? onConnectPick(eq.id) : onEditFunctionPoint(fp.id))}
           />
         )
       })}
@@ -3265,6 +3438,22 @@ function Styles() {
       }
       .atopo-fps-type { font-family: var(--font-mono); font-size: .72rem; font-weight: 600; }
       .atopo-fps-form { display: flex; flex-direction: column; gap: .5rem; margin-top: .2rem; }
+      .atopo-modal-backdrop {
+        position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+        background: rgba(4, 14, 10, .55); backdrop-filter: blur(2px); padding: 1rem;
+      }
+      .atopo-modal {
+        width: 320px; max-width: 100%; max-height: 90vh; overflow-y: auto;
+        display: flex; flex-direction: column; gap: .7rem; padding: 1rem 1.1rem; border-radius: 14px;
+      }
+      .atopo-modal-head { display: flex; align-items: center; justify-content: space-between; }
+      .atopo-modal-head h3 { margin: 0; font-size: 1rem; font-family: var(--font-mono); letter-spacing: .03em; }
+      .atopo-modal-x {
+        background: none; border: none; cursor: pointer; color: var(--text-dim); font-size: 1.3rem;
+        line-height: 1; padding: 0 .2rem;
+      }
+      .atopo-modal-x:hover { color: var(--text); }
+      .atopo-modal-actions { display: flex; justify-content: space-between; gap: .5rem; margin-top: .3rem; }
       .atopo-areas {
         display: flex; flex-direction: column; gap: .5rem; margin-top: .4rem;
         padding: .6rem .7rem; border-radius: 10px;
