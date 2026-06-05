@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, type ThreeEvent } from '@react-three/fiber'
-import { Grid, Html, Line, OrbitControls, PivotControls, Text } from '@react-three/drei'
+import { Grid, Html, Line, OrbitControls, PivotControls, RoundedBox, Text } from '@react-three/drei'
 import * as THREE from 'three'
 import Select from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
@@ -150,6 +150,28 @@ function equipmentTypeLabel(meta?: Equipment): string {
 export function isConveyor(eq: AutomationEquipment, lib: Map<string, Equipment>): boolean {
   const meta = eq.equipmentId ? lib.get(eq.equipmentId) : undefined
   return (meta?.family ?? '').toUpperCase() === 'CONVEYOR'
+}
+
+// Coarse visual category for a placed item, derived from its library family/type. Drives which 3D
+// body is drawn (two-tone conveyor body, mid-blue rack, burnt-orange rack, amber sorter box).
+//   conveyor       — family CONVEYOR with a *_CONVEYOR type (or a conveyor-ish type).
+//   sorter         — type SORTER.
+//   asrs           — automated storage: family ASRS/AUTOSTORE/AMR, or type ASRS.
+//   manual-storage — anything else recognisable (generic/other storage equipment).
+//   other          — fallback bucket (rendered like manual-storage).
+export type EquipmentCategory = 'conveyor' | 'asrs' | 'manual-storage' | 'sorter' | 'other'
+
+export function category(eq: AutomationEquipment, lib: Map<string, Equipment>): EquipmentCategory {
+  const meta = eq.equipmentId ? lib.get(eq.equipmentId) : undefined
+  const family = (meta?.family ?? '').toUpperCase()
+  const type = (meta?.type ?? '').toUpperCase()
+  if (type === 'SORTER') return 'sorter'
+  if (family === 'ASRS' || family === 'AUTOSTORE' || family === 'AMR' || type === 'ASRS') return 'asrs'
+  if (family === 'CONVEYOR' || /_CONVEYOR$/.test(type)) return 'conveyor'
+  // Generic / unrecognised equipment is treated as manual storage. `other` stays a distinct bucket
+  // for anything we can't classify at all (no library meta), rendered like manual storage.
+  if (meta) return 'manual-storage'
+  return 'other'
 }
 
 // A usable polyline needs at least two waypoints.
@@ -1631,6 +1653,7 @@ function SceneContent({
             key={eq.id}
             eq={eq}
             conveyor={isConveyor(eq, lib)}
+            cat={category(eq, lib)}
             color={colorFor(eq, lib)}
             selected={isSel}
             // In connect mode highlight the chosen source and route clicks to the connect picker.
@@ -1753,9 +1776,131 @@ function ConnectionLine({
   )
 }
 
+// A two-tone, slightly rounded conveyor body, centred on its group origin and sized to one piece
+// (length × height × width). Built from two stacked RoundedBoxes: a translucent cool-tinted lower
+// half and a modern light-blue opaque upper half. The selection highlight (emissive) is applied to
+// the upper half. Used by both the box-mode conveyor (EquipmentMesh) and each conveyor section
+// (ConveyorPath), so they share one look. The group origin is the centre, with y spanning −H/2..H/2.
+function ConveyorBody({
+  length,
+  height,
+  width,
+  selected,
+  highlightColor = '#8DC63F',
+}: {
+  length: number
+  height: number
+  width: number
+  selected: boolean
+  highlightColor?: string
+}) {
+  const halfH = height / 2
+  const radius = Math.min(0.04, halfH * 0.4, Math.min(length, width) * 0.25)
+  return (
+    <group>
+      {/* Lower half: translucent cool tint (y from −H/2 to 0). */}
+      <RoundedBox
+        args={[length, halfH, width]}
+        radius={radius}
+        smoothness={3}
+        position={[0, -height / 4, 0]}
+        castShadow
+      >
+        <meshStandardMaterial
+          color="#8fd3ff"
+          transparent
+          opacity={0.18}
+          metalness={0.2}
+          roughness={0.5}
+          depthWrite={false}
+        />
+      </RoundedBox>
+      {/* Upper half: opaque modern light blue (y from 0 to H/2). Carries the selection highlight. */}
+      <RoundedBox
+        args={[length, halfH, width]}
+        radius={radius}
+        smoothness={3}
+        position={[0, height / 4, 0]}
+        castShadow
+      >
+        <meshStandardMaterial
+          color="#4FC3F7"
+          emissive={selected ? highlightColor : '#000000'}
+          emissiveIntensity={selected ? 0.5 : 0}
+          metalness={0.35}
+          roughness={0.4}
+        />
+      </RoundedBox>
+    </group>
+  )
+}
+
+// A rack-like storage frame, centred on its group origin and sized to [L,H,W]: four vertical
+// corner uprights spanning the full height plus four horizontal shelf slabs evenly stacked up the
+// height. Reused for automated storage (mid blue) and manual storage (burnt orange) — colour comes
+// in via `color`. Selection highlight = emissive on every member.
+function Rack({
+  size,
+  color,
+  selected,
+  highlightColor = '#8DC63F',
+}: {
+  size: [number, number, number]
+  color: string
+  selected: boolean
+  highlightColor?: string
+}) {
+  const [L, H, W] = size
+  const post = Math.min(0.06, L * 0.25, W * 0.25) // square upright cross-section
+  const slab = Math.min(0.04, H * 0.12) // shelf slab thickness
+  const hx = L / 2 - post / 2
+  const hz = W / 2 - post / 2
+  const corners: Array<[number, number]> = [
+    [hx, hz],
+    [hx, -hz],
+    [-hx, hz],
+    [-hx, -hz],
+  ]
+  // Shelves evenly spaced over the height, including the very bottom and the very top.
+  const shelfCount = 4
+  const shelves = Array.from({ length: shelfCount }, (_, i) => {
+    const t = i / (shelfCount - 1)
+    return -H / 2 + slab / 2 + t * (H - slab)
+  })
+  const mat = (
+    <meshStandardMaterial
+      color={color}
+      emissive={selected ? highlightColor : '#000000'}
+      emissiveIntensity={selected ? 0.5 : 0}
+      metalness={0.3}
+      roughness={0.6}
+      transparent
+      opacity={0.9}
+    />
+  )
+  return (
+    <group>
+      {corners.map(([x, z], i) => (
+        <mesh key={`post-${i}`} position={[x, 0, z]} castShadow>
+          <boxGeometry args={[post, H, post]} />
+          {mat}
+        </mesh>
+      ))}
+      {shelves.map((y, i) => (
+        <mesh key={`shelf-${i}`} position={[0, y, 0]} castShadow>
+          <boxGeometry args={[L, slab, W]} />
+          {mat}
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
 interface EquipmentMeshProps {
   eq: AutomationEquipment
   conveyor: boolean
+  // Visual category — picks which body is drawn (conveyor two-tone / rack / sorter box).
+  cat: EquipmentCategory
   color: string
   selected: boolean
   // Connect mode on → clicks pick connection endpoints; the chosen source is highlighted.
@@ -1775,6 +1920,7 @@ interface EquipmentMeshProps {
 function EquipmentMesh({
   eq,
   conveyor,
+  cat,
   color,
   selected,
   connectMode,
@@ -1798,6 +1944,7 @@ function EquipmentMesh({
     return (
       <ConveyorPath
         eq={eq}
+        cat={cat}
         color={color}
         selected={highlight}
         editable={selected && !connectMode}
@@ -1814,24 +1961,70 @@ function EquipmentMesh({
   // Captured at drag start so cumulative gizmo deltas apply to a fixed base, not live state.
   const dragBase = useRef<{ x: number; z: number; rotDeg: number } | null>(null)
   const y = eq.heightM / 2 + eq.posYM
+  // The per-category body, all origin-centred (y spans −H/2..H/2) like the old boxGeometry:
+  //   conveyor       — two-tone rounded body.
+  //   asrs           — mid-blue rack frame.
+  //   manual-storage / other — burnt-orange rack frame.
+  //   sorter         — lightly rounded amber box.
+  let body: JSX.Element
+  if (cat === 'conveyor') {
+    body = (
+      <ConveyorBody
+        length={eq.lengthM}
+        height={eq.heightM}
+        width={eq.widthM}
+        selected={highlight}
+        highlightColor={highlightColor}
+      />
+    )
+  } else if (cat === 'asrs') {
+    body = (
+      <Rack
+        size={[eq.lengthM, eq.heightM, eq.widthM]}
+        color="#1E88E5"
+        selected={highlight}
+        highlightColor={highlightColor}
+      />
+    )
+  } else if (cat === 'manual-storage' || cat === 'other') {
+    body = (
+      <Rack
+        size={[eq.lengthM, eq.heightM, eq.widthM]}
+        color="#C75B12"
+        selected={highlight}
+        highlightColor={highlightColor}
+      />
+    )
+  } else {
+    // sorter — a lightly rounded amber box.
+    body = (
+      <RoundedBox
+        args={[eq.lengthM, eq.heightM, eq.widthM]}
+        radius={Math.min(0.04, Math.min(eq.lengthM, eq.heightM, eq.widthM) * 0.2)}
+        smoothness={3}
+        castShadow
+      >
+        <meshStandardMaterial
+          color="#E0A33A"
+          emissive={highlight ? highlightColor : '#000000'}
+          emissiveIntensity={highlight ? 0.5 : 0}
+          metalness={0.2}
+          roughness={0.6}
+        />
+      </RoundedBox>
+    )
+  }
+
   const box = (
-    <mesh
-      castShadow
+    <group
       onPointerDown={(e: ThreeEvent<PointerEvent>) => {
         e.stopPropagation()
         onSelect()
       }}
     >
-      <boxGeometry args={[eq.lengthM, eq.heightM, eq.widthM]} />
-      <meshStandardMaterial
-        color={color}
-        emissive={highlight ? highlightColor : '#000000'}
-        emissiveIntensity={highlight ? 0.5 : 0}
-        metalness={0.1}
-        roughness={0.7}
-      />
+      {body}
       {highlight && (
-        // Simple wireframe outline on the highlighted box.
+        // Simple wireframe outline on the highlighted body.
         <lineSegments>
           <edgesGeometry args={[new THREE.BoxGeometry(eq.lengthM * 1.02, eq.heightM * 1.02, eq.widthM * 1.02)]} />
           <lineBasicMaterial color={highlightColor} />
@@ -1840,7 +2033,7 @@ function EquipmentMesh({
       <Html position={[0, eq.heightM / 2 + 0.4, 0]} center distanceFactor={18} occlude={false}>
         <div className="atopo-label">{eq.code}</div>
       </Html>
-    </mesh>
+    </group>
   )
 
   // When selected (and not connecting / drawing), wrap in PivotControls for drag-move + rotate.
@@ -1907,6 +2100,8 @@ function EquipmentMesh({
 
 interface ConveyorPathProps {
   eq: AutomationEquipment
+  // Visual category (currently always 'conveyor' for path-mode items, but threaded for parity).
+  cat: EquipmentCategory
   color: string
   selected: boolean
   // When true, draggable waypoint handles are shown (suppressed while in connect mode).
@@ -1927,6 +2122,7 @@ interface ConveyorPathProps {
 // draggable sphere handles move each waypoint (all sections referencing it follow).
 function ConveyorPath({
   eq,
+  cat,
   color,
   selected,
   editable,
@@ -1978,23 +2174,21 @@ function ConveyorPath({
     <group>
       {segs.map((s, k) => (
         <group key={`seg-${k}`}>
-          <group position={[s.mx, y, s.mz]} rotation={[0, -s.yaw, 0]}>
-            <mesh
-              castShadow
-              onPointerDown={(e: ThreeEvent<PointerEvent>) => {
-                e.stopPropagation()
-                onSelect()
-              }}
-            >
-              <boxGeometry args={[s.len, eq.heightM, eq.widthM]} />
-              <meshStandardMaterial
-                color={color}
-                emissive={selected ? '#8DC63F' : '#000000'}
-                emissiveIntensity={selected ? 0.5 : 0}
-                metalness={0.1}
-                roughness={0.7}
-              />
-            </mesh>
+          <group
+            position={[s.mx, y, s.mz]}
+            rotation={[0, -s.yaw, 0]}
+            onPointerDown={(e: ThreeEvent<PointerEvent>) => {
+              e.stopPropagation()
+              onSelect()
+            }}
+          >
+            {/* Two-tone rounded conveyor body for this section (shared with box-mode conveyors). */}
+            <ConveyorBody
+              length={s.len}
+              height={eq.heightM}
+              width={eq.widthM}
+              selected={selected}
+            />
           </group>
           {/* Green travel-direction arrow at the section midpoint, pointing from → to. */}
           <DirectionArrow
