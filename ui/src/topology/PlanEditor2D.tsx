@@ -6,10 +6,20 @@
 // Coordinate convention matches 3D: world X → right, world Z → down, rotationDeg = yaw about Y.
 // We map metres → pixels with a scale and a pan offset, and snap moves/draws to a metre grid.
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Equipment } from '../masterdata/api'
-import type { AutomationEquipment } from './automationApi'
-import { colorFor, decisionPoints, effectiveSections, isConveyor, junctionPoints } from './AutomationTopology3D'
+import type { AutomationEquipment, AutomationFunctionPoint } from './automationApi'
+import {
+  colorFor,
+  decisionPoints,
+  effectiveSections,
+  FUNCTION_SHORT,
+  FUNCTION_TYPES,
+  functionColor,
+  isConveyor,
+  junctionPoints,
+  pointAlong,
+} from './AutomationTopology3D'
 
 const DEG = Math.PI / 180
 
@@ -20,6 +30,8 @@ interface PlanEditor2DProps {
   items: AutomationEquipment[]
   // Library map (master-data equipment by id) — drives type colours / conveyor detection.
   libById: Map<string, Equipment>
+  // All function points (any level); we render the ones whose placedId is in `items`.
+  functionPoints: AutomationFunctionPoint[]
   selectedId: string | null
   // Conveyor "Draw sections" mode is on (mirrors the 3D drawPath state).
   drawing: boolean
@@ -28,6 +40,65 @@ interface PlanEditor2DProps {
   onPatch: (id: string, patch: Partial<AutomationEquipment>) => void
   // A snapped world (x,z) click while drawing — same as drawSectionAt in the parent.
   onDrawAt: (id: string, x: number, z: number) => void
+  // Create a function point — same as addFunctionPoint in the parent.
+  onAddFunctionPoint: (fp: AutomationFunctionPoint) => void
+  // Remove a function point — same as deleteFunctionPoint in the parent.
+  onDeleteFunctionPoint: (id: string) => void
+  // Materialise a junction at (x,z) on a conveyor and start drawing its branch — same as
+  // startBranchAt in the parent (ensures-junction + anchor + enable draw-sections).
+  onStartBranch: (id: string, x: number, z: number) => void
+}
+
+// The arc-length offset (metres from the path start) of the projection of world point (px,pz) onto
+// a conveyor's centreline, plus the projected world position itself. For a polyline we walk each
+// segment, clamp the projection to the segment, and keep the closest one (accumulating arc-length).
+// For a straight box (no path) we project onto its centreline. Inverse of pointAlong().
+function projectToPath(
+  eq: AutomationEquipment,
+  px: number,
+  pz: number,
+): { offsetM: number; x: number; z: number } {
+  const path = Array.isArray(eq.path) ? eq.path : []
+  if (path.length >= 2) {
+    const pairCount = eq.closed ? path.length : path.length - 1
+    let acc = 0
+    let best = { offsetM: 0, x: path[0][0], z: path[0][1], dist: Infinity }
+    for (let i = 0; i < pairCount; i++) {
+      const a = path[i]
+      const b = path[(i + 1) % path.length]
+      const abx = b[0] - a[0]
+      const abz = b[1] - a[1]
+      const len2 = abx * abx + abz * abz
+      const segLen = Math.sqrt(len2)
+      if (len2 < 1e-9) continue
+      let t = ((px - a[0]) * abx + (pz - a[1]) * abz) / len2
+      t = Math.min(1, Math.max(0, t))
+      const projx = a[0] + abx * t
+      const projz = a[1] + abz * t
+      const d = Math.hypot(projx - px, projz - pz)
+      if (d < best.dist) {
+        best = { offsetM: acc + t * segLen, x: projx, z: projz, dist: d }
+      }
+      acc += segLen
+    }
+    return { offsetM: +best.offsetM.toFixed(3), x: best.x, z: best.z }
+  }
+  // Straight box: project onto its centreline from the start endpoint along yaw.
+  const yaw = eq.rotationDeg * DEG
+  const ux = Math.cos(yaw)
+  const uz = Math.sin(yaw)
+  const startX = eq.posXM - (ux * eq.lengthM) / 2
+  const startZ = eq.posZM - (uz * eq.lengthM) / 2
+  let t = (px - startX) * ux + (pz - startZ) * uz
+  t = Math.min(eq.lengthM, Math.max(0, t))
+  return { offsetM: +t.toFixed(3), x: startX + ux * t, z: startZ + uz * t }
+}
+
+// The side a divert type sits on (null for non-divert types).
+function sideForType(type: string): 'LEFT' | 'RIGHT' | null {
+  if (type === 'DIVERT_LEFT') return 'LEFT'
+  if (type === 'DIVERT_RIGHT') return 'RIGHT'
+  return null
 }
 
 // Snap a metre value to the nearest multiple of `step` (no-op when snapping is off).
@@ -39,17 +110,24 @@ function snap(v: number, step: number, on: boolean): number {
 export default function PlanEditor2D({
   items,
   libById,
+  functionPoints,
   selectedId,
   drawing,
   onSelect,
   onPatch,
   onDrawAt,
+  onAddFunctionPoint,
+  onDeleteFunctionPoint,
+  onStartBranch,
 }: PlanEditor2DProps) {
   // View transform: pixels-per-metre and a pan offset (in pixels) of the world origin.
   const [pxPerM, setPxPerM] = useState(40)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [gridStep, setGridStep] = useState<number>(0.5)
   const [snapOn, setSnapOn] = useState(true)
+  // When set, a function-point "drop" mode is armed for this type: the next click on the selected
+  // conveyor's path drops a function point there (and, for DIVERT_*, starts a branch). null = off.
+  const [dropType, setDropType] = useState<string | null>(null)
 
   const svgRef = useRef<SVGSVGElement | null>(null)
   // The current free-form drag (equipment move, waypoint move, or background pan).
@@ -127,10 +205,80 @@ export default function PlanEditor2D({
     [pan, pxPerM],
   )
 
+  // ---- selection + function-point drop mode --------------------------------
+  const selected = useMemo(() => items.find((it) => it.id === selectedId) ?? null, [items, selectedId])
+  const selectedIsConveyor = selected ? isConveyor(selected, libById) : false
+
+  // Function points grouped by the placed equipment they sit on (only items on this level).
+  const fpByPlaced = useMemo(() => {
+    const onLevel = new Set(items.map((it) => it.id))
+    const m = new Map<string, AutomationFunctionPoint[]>()
+    for (const fp of functionPoints) {
+      if (!onLevel.has(fp.placedId)) continue
+      const arr = m.get(fp.placedId) ?? []
+      arr.push(fp)
+      m.set(fp.placedId, arr)
+    }
+    return m
+  }, [functionPoints, items])
+
+  // Disarm drop mode when the selection changes, when nothing/no-conveyor is selected, or when
+  // section-draw mode turns on (the two modes are mutually exclusive).
+  useEffect(() => {
+    if (!selected || !selectedIsConveyor || drawing) setDropType(null)
+  }, [selectedId, selectedIsConveyor, selected, drawing])
+
+  // Esc disarms the drop mode.
+  useEffect(() => {
+    if (!dropType) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDropType(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [dropType])
+
+  // Toggle the armed drop type (clicking the same type again disarms).
+  const armDrop = useCallback((type: string) => {
+    setDropType((cur) => (cur === type ? null : type))
+  }, [])
+
+  // Drop the armed function point at a world click projected onto the selected conveyor's path.
+  // For DIVERT_* we also materialise a junction there and start drawing the branch.
+  const dropFunctionPoint = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!dropType || !selected) return
+      const w = clientToWorld(clientX, clientY)
+      const proj = projectToPath(selected, w.x, w.z)
+      const side = sideForType(dropType)
+      onAddFunctionPoint({
+        id: crypto.randomUUID(),
+        placedId: selected.id,
+        functionType: dropType,
+        name: null,
+        offsetM: proj.offsetM,
+        side,
+        nodeCode: null,
+        status: 'ACTIVE',
+      })
+      if (dropType === 'DIVERT_LEFT' || dropType === 'DIVERT_RIGHT') {
+        // Make the drop position a junction and begin drawing the branch (enables section-draw).
+        onStartBranch(selected.id, proj.x, proj.z)
+      }
+      setDropType(null)
+    },
+    [dropType, selected, clientToWorld, onAddFunctionPoint, onStartBranch],
+  )
+
   // ---- background interactions ---------------------------------------------
   const onBackgroundPointerDown = useCallback(
     (e: React.PointerEvent<SVGRectElement>) => {
       if (e.button !== 0) return
+      if (dropType && selectedId) {
+        // Drop mode: project the click onto the selected conveyor's path and drop the point there.
+        dropFunctionPoint(e.clientX, e.clientY)
+        return
+      }
       if (drawing && selectedId) {
         // Draw mode: a click on the plane draws a (snapped) section on the selected conveyor.
         const w = clientToWorld(e.clientX, e.clientY)
@@ -141,7 +289,7 @@ export default function PlanEditor2D({
       drag.current = { kind: 'pan', startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y }
       ;(e.target as Element).setPointerCapture?.(e.pointerId)
     },
-    [drawing, selectedId, clientToWorld, gridStep, snapOn, onDrawAt, pan],
+    [drawing, selectedId, clientToWorld, gridStep, snapOn, onDrawAt, pan, dropType, dropFunctionPoint],
   )
 
   // A single pointer-move handler at the SVG level drives pan / move / waypoint drags.
@@ -184,7 +332,6 @@ export default function PlanEditor2D({
   )
 
   // ---- rotate the selected item -------------------------------------------
-  const selected = useMemo(() => items.find((it) => it.id === selectedId) ?? null, [items, selectedId])
   const rotateBy = useCallback(
     (delta: number) => {
       if (!selected) return
@@ -244,6 +391,31 @@ export default function PlanEditor2D({
         </button>
       </div>
 
+      {/* ---- function-point palette (only for a selected conveyor) ---- */}
+      {selected && selectedIsConveyor && !drawing && (
+        <div className="plan2d-fpbar">
+          <span className="plan2d-bar-label">Drop point</span>
+          <div className="plan2d-fppalette">
+            {FUNCTION_TYPES.map((t) => {
+              const armed = dropType === t
+              const isDivert = t === 'DIVERT_LEFT' || t === 'DIVERT_RIGHT'
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  className={`plan2d-fpbtn${armed ? ' is-armed' : ''}${isDivert ? ' is-divert' : ''}`}
+                  style={armed ? { borderColor: functionColor(t), color: functionColor(t) } : undefined}
+                  onClick={() => armDrop(t)}
+                  title={`Drop a ${t} onto ${selected.code}`}
+                >
+                  {FUNCTION_SHORT[t] ?? t}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <svg
         ref={svgRef}
         className="plan2d-svg"
@@ -273,7 +445,7 @@ export default function PlanEditor2D({
           width="100%"
           height="100%"
           fill="transparent"
-          style={{ cursor: drawing ? 'crosshair' : 'grab' }}
+          style={{ cursor: drawing || dropType ? 'crosshair' : 'grab' }}
           onPointerDown={onBackgroundPointerDown}
           onPointerUp={onBackgroundPointerUp}
         />
@@ -324,14 +496,34 @@ export default function PlanEditor2D({
               drag.current = { kind: 'waypoint', id, index, path }
             }}
             onDrawAtPoint={onDrawAt}
+            dropArmed={!!dropType && eq.id === selectedId}
+            onDropAt={(clientX, clientY) => dropFunctionPoint(clientX, clientY)}
           />
         ))}
+
+        {/* Function-point markers, drawn on top of the equipment they belong to. */}
+        {items.map((eq) =>
+          (fpByPlaced.get(eq.id) ?? []).map((fp) => (
+            <PlanFunctionPoint
+              key={fp.id}
+              fp={fp}
+              eq={eq}
+              pxPerM={pxPerM}
+              toPx={toPx}
+              onSelect={() => onSelect(eq.id)}
+            />
+          )),
+        )}
       </svg>
 
       <div className="plan2d-hint">
-        {drawing
-          ? 'Draw mode: click the grid to add sections; click a point to branch from it'
-          : 'Drag an item to move (snapped) · drag empty space to pan · scroll to zoom'}
+        {dropType
+          ? dropType === 'DIVERT_LEFT' || dropType === 'DIVERT_RIGHT'
+            ? `Click the conveyor to drop a ${FUNCTION_SHORT[dropType] ?? dropType} — a junction appears and you draw the branch (Esc to cancel)`
+            : `Click the conveyor to drop a ${FUNCTION_SHORT[dropType] ?? dropType} (Esc to cancel)`
+          : drawing
+            ? 'Draw the divert branch — click where it should go; click a point to branch from it'
+            : 'Drag an item to move (snapped) · drag empty space to pan · scroll to zoom · select a conveyor to drop function points'}
       </div>
 
       <PlanStyles />
@@ -353,6 +545,8 @@ function PlanItem({
   onMoveStart,
   onWaypointStart,
   onDrawAtPoint,
+  dropArmed,
+  onDropAt,
 }: {
   eq: AutomationEquipment
   conveyor: boolean
@@ -365,6 +559,9 @@ function PlanItem({
   onMoveStart: (id: string) => void
   onWaypointStart: (id: string, index: number, path: number[][]) => void
   onDrawAtPoint: (id: string, x: number, z: number) => void
+  // When true a function-point drop is armed for this (selected) item; a body click drops it.
+  dropArmed: boolean
+  onDropAt: (clientX: number, clientY: number) => void
 }) {
   const path = Array.isArray(eq.path) ? eq.path : []
   const isPathConveyor = conveyor && path.length >= 2
@@ -395,10 +592,15 @@ function PlanItem({
               strokeOpacity={selected ? 0.9 : 0.65}
               strokeLinecap="round"
               markerEnd="url(#plan2d-arrow)"
-              style={{ cursor: drawing ? 'crosshair' : 'pointer' }}
+              style={{ cursor: drawing || dropArmed ? 'crosshair' : 'pointer' }}
               onPointerDown={(e) => {
                 if (drawing) return
                 e.stopPropagation()
+                if (dropArmed) {
+                  // Drop the armed function point on this conveyor at the click (projected to path).
+                  onDropAt(e.clientX, e.clientY)
+                  return
+                }
                 onSelect(eq.id)
               }}
             />
@@ -470,10 +672,15 @@ function PlanItem({
   return (
     <g
       transform={`translate(${cx} ${cy}) rotate(${eq.rotationDeg})`}
-      style={{ cursor: drawing ? 'default' : 'move' }}
+      style={{ cursor: drawing ? 'default' : dropArmed ? 'crosshair' : 'move' }}
       onPointerDown={(e) => {
         if (e.button !== 0 || drawing) return
         e.stopPropagation()
+        if (dropArmed) {
+          // Drop the armed function point on this (box) conveyor, projected to its centreline.
+          onDropAt(e.clientX, e.clientY)
+          return
+        }
         onSelect(eq.id)
         onMoveStart(eq.id)
         ;(e.target as Element).setPointerCapture?.(e.pointerId)
@@ -494,6 +701,69 @@ function PlanItem({
       <line x1={0} y1={0} x2={w / 2} y2={0} stroke="#08120d" strokeOpacity={0.5} strokeWidth={1} />
       <text x={0} y={-h / 2 - 4} className="plan2d-label" textAnchor="middle" transform={`rotate(${-eq.rotationDeg})`}>
         {eq.code}
+      </text>
+    </g>
+  )
+}
+
+// A function-point marker rendered top-down on its conveyor: a small dot nudged to its side
+// (LEFT/RIGHT by ±widthM/2 perpendicular to travel), with a short type label. DIVERT_* render red.
+// Clicking it selects the owning conveyor (delete is available in the Properties panel list).
+function PlanFunctionPoint({
+  fp,
+  eq,
+  pxPerM,
+  toPx,
+  onSelect,
+}: {
+  fp: AutomationFunctionPoint
+  eq: AutomationEquipment
+  pxPerM: number
+  toPx: (xM: number, zM: number) => [number, number]
+  onSelect: () => void
+}) {
+  const at = pointAlong(eq, fp.offsetM)
+  // Right-hand normal to travel (dx,dz) is (dz,-dx); left is its negation. Nudge by half-width.
+  const half = eq.widthM / 2
+  let ox = 0
+  let oz = 0
+  if (fp.side === 'LEFT') {
+    ox = -at.dz * half
+    oz = at.dx * half
+  } else if (fp.side === 'RIGHT') {
+    ox = at.dz * half
+    oz = -at.dx * half
+  }
+  const isDivert = fp.functionType === 'DIVERT_LEFT' || fp.functionType === 'DIVERT_RIGHT'
+  const color = isDivert ? '#e0563f' : functionColor(fp.functionType)
+  const short = FUNCTION_SHORT[fp.functionType] ?? fp.functionType
+  const [mx, my] = toPx(at.x + ox, at.z + oz)
+  // A short stem from the centreline to the side-nudged marker, so the point reads as attached.
+  const [sx, sy] = toPx(at.x, at.z)
+  return (
+    <g
+      style={{ cursor: 'pointer' }}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return
+        e.stopPropagation()
+        onSelect()
+      }}
+    >
+      {(ox !== 0 || oz !== 0) && (
+        <line x1={sx} y1={sy} x2={mx} y2={my} stroke={color} strokeWidth={1} strokeOpacity={0.6} />
+      )}
+      <rect
+        x={mx - 4.5}
+        y={my - 4.5}
+        width={9}
+        height={9}
+        rx={isDivert ? 0 : 4.5}
+        fill={color}
+        stroke="#08120d"
+        strokeWidth={1.2}
+      />
+      <text x={mx + 7} y={my + 3.5} className="plan2d-fplabel" style={{ fill: color }}>
+        {short}
       </text>
     </g>
   )
@@ -526,6 +796,24 @@ function PlanStyles() {
         font-family: var(--font-body);
       }
       .plan2d-iconbtn:hover { border-color: var(--glass-border-bright); }
+      .plan2d-fpbar {
+        display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
+        padding: .4rem .6rem; border-bottom: 1px solid var(--glass-border);
+        background: rgba(8, 30, 22, .22);
+      }
+      .plan2d-fppalette { display: inline-flex; flex-wrap: wrap; gap: .3rem; }
+      .plan2d-fpbtn {
+        padding: .22rem .5rem; border-radius: 7px; cursor: pointer; font-size: .72rem;
+        background: var(--glass-bg); color: var(--text-dim);
+        border: 1px solid var(--glass-border); font-family: var(--font-mono); white-space: nowrap;
+      }
+      .plan2d-fpbtn:hover { border-color: var(--glass-border-bright); color: var(--text); }
+      .plan2d-fpbtn.is-divert { color: #e0907f; }
+      .plan2d-fpbtn.is-armed { background: rgba(141, 198, 63, .12); font-weight: 600; }
+      .plan2d-fplabel {
+        font-family: var(--font-mono); font-size: 10px;
+        paint-order: stroke; stroke: #08120d; stroke-width: 3px; stroke-linejoin: round;
+      }
       .plan2d-svg { flex: 1; width: 100%; display: block; background: #081e16; touch-action: none; cursor: grab; }
       .plan2d-gridline { stroke: #173027; stroke-width: 1; }
       .plan2d-gridline.is-strong { stroke: #214a3a; stroke-width: 1.2; }
