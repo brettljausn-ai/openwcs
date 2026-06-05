@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Equipment } from '../masterdata/api'
-import type { AutomationEquipment, AutomationFunctionPoint } from './automationApi'
+import type { AutomationConnection, AutomationEquipment, AutomationFunctionPoint } from './automationApi'
 import {
   canEditPath,
   category,
@@ -54,6 +54,13 @@ interface PlanEditor2DProps {
   // The current draw anchor: the selected conveyor's path index the next section starts from (or
   // null = the next click just places/anchors a start point). Drives the live pending-section preview.
   activeFromIdx: number | null
+  // Connect mode: while ON, clicking a piece of equipment picks it as a connection endpoint instead
+  // of selecting/moving it. `connectFrom` is the chosen source's placed id (highlighted), or null.
+  connectMode: boolean
+  connectFrom: string | null
+  onConnectPick: (id: string) => void
+  // All equipment connections (any level) — drawn as lines between the linked items' centres.
+  connections: AutomationConnection[]
   onSelect: (id: string | null) => void
   // Partial update of a placed item — same as patchEquipment in the parent.
   onPatch: (id: string, patch: Partial<AutomationEquipment>) => void
@@ -166,6 +173,10 @@ export default function PlanEditor2D({
   selectedId,
   drawing,
   activeFromIdx,
+  connectMode,
+  connectFrom,
+  onConnectPick,
+  connections,
   onSelect,
   onPatch,
   onDrawAt,
@@ -201,6 +212,10 @@ export default function PlanEditor2D({
     snap: SnapTarget | null
   }
   const [pending, setPending] = useState<Pending | null>(null)
+  // Mirror of `pending` so commitPending can read the latest without doing side-effects inside a
+  // setState updater (React may invoke an updater more than once — which created duplicate points).
+  const pendingRef = useRef<Pending | null>(null)
+  pendingRef.current = pending
 
   // Live draw preview: where the cursor's next click would land while in Draw-sections mode.
   // `onConveyor` is true when it snapped onto the selected conveyor's centreline (vs a free grid point).
@@ -411,39 +426,40 @@ export default function PlanEditor2D({
   // create the real point; a DIVERT_* additionally drops a 1 m branch stub in the divert direction.
   // If not snapped, discard (cancel) the pending point.
   const commitPending = useCallback(() => {
-    setPending((cur) => {
-      if (!cur) return null
-      if (!cur.snap) return null // dropped off any valid target → discard
-      const type = cur.functionType
+    // Read + clear the pending point WITHOUT doing side-effects inside the updater, so the create
+    // calls below fire exactly once (the previous side-effect-in-updater duplicated the points).
+    const cur = pendingRef.current
+    pendingRef.current = null
+    setPending(null)
+    if (!cur || !cur.snap) return // dropped off any valid target → discard
+    const type = cur.functionType
 
-      // ASRS IN/OUT port: snap to the rack edge and add a 1 m IN/OUT conveyor stub OWNED by the ASRS,
-      // plus its function point (created together inside onAddAsrsPortStub).
-      if (cur.snap.kind === 'asrs-edge' && (type === 'INDUCT' || type === 'DISCHARGE')) {
-        onAddAsrsPortStub(cur.snap.eqId, cur.snap.x, cur.snap.z, type, null)
-        return null
-      }
+    // ASRS IN/OUT port: snap to the rack edge and add a 1 m IN/OUT conveyor stub OWNED by the ASRS,
+    // plus its function point (created together inside onAddAsrsPortStub).
+    if (cur.snap.kind === 'asrs-edge' && (type === 'INDUCT' || type === 'DISCHARGE')) {
+      onAddAsrsPortStub(cur.snap.eqId, cur.snap.x, cur.snap.z, type, null)
+      return
+    }
 
-      const side = sideForType(type)
-      onAddFunctionPoint({
-        id: crypto.randomUUID(),
-        placedId: cur.snap.eqId,
-        functionType: type,
-        name: null,
-        offsetM: cur.snap.offsetM,
-        side,
-        nodeCode: null,
-        status: 'ACTIVE',
-      })
-      if (side) {
-        // DIVERT_* → ensure a junction + drop a 1 m perpendicular stub in the divert direction.
-        onAddDivertBranch(cur.snap.eqId, cur.snap.x, cur.snap.z, side, snapOn ? gridStep : null)
-      } else if (type === 'INFEED') {
-        // INFEED is the mirror of a divert: ensure a junction + drop a 1 m perpendicular stub whose
-        // directed section runs INTO the junction (the feeder merges in). Default to the LEFT side.
-        onAddDivertBranch(cur.snap.eqId, cur.snap.x, cur.snap.z, 'LEFT', snapOn ? gridStep : null, true)
-      }
-      return null
+    const side = sideForType(type)
+    onAddFunctionPoint({
+      id: crypto.randomUUID(),
+      placedId: cur.snap.eqId,
+      functionType: type,
+      name: null,
+      offsetM: cur.snap.offsetM,
+      side,
+      nodeCode: null,
+      status: 'ACTIVE',
     })
+    if (side) {
+      // DIVERT_* → ensure a junction + drop a 1 m perpendicular stub in the divert direction.
+      onAddDivertBranch(cur.snap.eqId, cur.snap.x, cur.snap.z, side, snapOn ? gridStep : null)
+    } else if (type === 'INFEED') {
+      // INFEED is the mirror of a divert: ensure a junction + drop a 1 m perpendicular stub whose
+      // directed section runs INTO the junction (the feeder merges in). Default to the LEFT side.
+      onAddDivertBranch(cur.snap.eqId, cur.snap.x, cur.snap.z, 'LEFT', snapOn ? gridStep : null, true)
+    }
   }, [onAddFunctionPoint, onAddDivertBranch, onAddAsrsPortStub, snapOn, gridStep])
 
   // Where a draw-mode click at world (wx,wz) would land: snapped onto the selected conveyor's
@@ -751,6 +767,40 @@ export default function PlanEditor2D({
           <line x1={grid.ox} y1={grid.oy - 8} x2={grid.ox} y2={grid.oy + 8} className="plan2d-origin" />
         </g>
 
+        {/* Equipment connections — a dashed line (arrow at the target) between linked items' centres.
+            Drawn under the equipment; both endpoints must be on this level. */}
+        {(() => {
+          const byId = new Map(items.map((it) => [it.id, it]))
+          const centre = (eq: AutomationEquipment): [number, number] => {
+            const p = Array.isArray(eq.path) ? eq.path : []
+            if (p.length >= 1) {
+              let sx = 0
+              let sz = 0
+              for (const pt of p) {
+                sx += pt[0]
+                sz += pt[1]
+              }
+              return [sx / p.length, sz / p.length]
+            }
+            return [eq.posXM, eq.posZM]
+          }
+          return connections.map((c) => {
+            const from = byId.get(c.fromPlacedId)
+            const to = byId.get(c.toPlacedId)
+            if (!from || !to) return null
+            const [ax, az] = centre(from)
+            const [bx, bz] = centre(to)
+            const [x1, y1] = toPx(ax, az)
+            const [x2, y2] = toPx(bx, bz)
+            return (
+              <g key={c.id} pointerEvents="none">
+                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#f0a85a" strokeWidth={2} strokeDasharray="6 4" strokeOpacity={0.85} />
+                <circle cx={x2} cy={y2} r={4} fill="#f0a85a" />
+              </g>
+            )
+          })
+        })()}
+
         {/* Equipment + conveyor paths. */}
         {items.map((eq) => (
           <PlanItem
@@ -765,12 +815,16 @@ export default function PlanEditor2D({
             // category body colour (e.g. the mid-blue ASRS rack colour) so they match the recoloured
             // 3D stub; a real conveyor keeps its own colour for the path.
             pathColor={categoryBodyColor(category(eq, libById)) ?? colorFor(eq, libById)}
-            selected={eq.id === selectedId}
+            // In connect mode highlight the chosen source; otherwise the selected item.
+            selected={connectMode ? eq.id === connectFrom : eq.id === selectedId}
             drawing={drawing && eq.id === selectedId}
             pxPerM={pxPerM}
             toPx={toPx}
-            onSelect={onSelect}
+            // Connect mode: a click PICKS this equipment as an endpoint via onSelect; the move is
+            // suppressed (onMoveStart no-ops) so the box click doesn't also pick → double-toggle.
+            onSelect={(id) => (connectMode ? (id ? onConnectPick(id) : undefined) : onSelect(id))}
             onMoveStart={(id, clientX, clientY) => {
+              if (connectMode) return
               const startWorld = clientToWorld(clientX, clientY)
               drag.current = {
                 kind: 'move',
