@@ -24,9 +24,13 @@ import PlanEditor2D from './PlanEditor2D'
 
 const DEG = Math.PI / 180
 
+// Snap radius (metres): a ground/plan click this close to an existing path point reuses that point
+// (so junctions form) rather than creating a near-duplicate vertex. Shared by 3D + 2D editors.
+export const SNAP_M = 0.5
+
 // The process types a function point can carry. Used as the default Select options when the
 // placed equipment's library entry doesn't declare its own `processTypes`.
-const FUNCTION_TYPES = [
+export const FUNCTION_TYPES = [
   'SCAN',
   'LABEL_APPLICATOR',
   'DIVERT_LEFT',
@@ -39,7 +43,7 @@ const FUNCTION_TYPES = [
 ] as const
 
 // Short marker labels per function type for the 3D <Html> tag. Falls back to the raw type.
-const FUNCTION_SHORT: Record<string, string> = {
+export const FUNCTION_SHORT: Record<string, string> = {
   SCAN: 'SCAN',
   LABEL_APPLICATOR: 'LBL',
   DIVERT_LEFT: '◀ DIV',
@@ -52,7 +56,7 @@ const FUNCTION_SHORT: Record<string, string> = {
 }
 
 // Distinct marker colour per function type, so points read at a glance in the scene.
-function functionColor(type: string): string {
+export function functionColor(type: string): string {
   switch (type) {
     case 'SCAN':
       return '#5ec8e0'
@@ -89,7 +93,7 @@ function isAsrs(eq: AutomationEquipment, lib: Map<string, Equipment>): boolean {
 // unit direction (dx,dz) of travel at that offset (used to push the marker to a side). For a
 // polyline conveyor this walks the path by arc-length; for a box it projects along the box length
 // from its start endpoint (posX/posZ − length/2 rotated by yaw).
-function pointAlong(
+export function pointAlong(
   eq: AutomationEquipment,
   offsetM: number,
 ): { x: number; z: number; dx: number; dz: number } {
@@ -429,10 +433,6 @@ export default function AutomationTopology3D() {
     setDirty(true)
   }, [])
 
-  // Snap radius (metres): a ground click this close to an existing path point reuses that point
-  // (so junctions form) rather than creating a near-duplicate vertex.
-  const SNAP_M = 0.5
-
   // A ground-plane click in draw mode. Resolve the click to a path index (snapping to an existing
   // point within SNAP_M, else appending a new one), then — if we have an anchor and it differs —
   // push a directed section from the anchor to the resolved point. Re-anchor to the resolved point
@@ -484,6 +484,102 @@ export default function AutomationTopology3D() {
     },
     [activeFromIdx],
   )
+
+  // Start a divert branch at a world position (x,z) on a conveyor: ensure a junction path point
+  // exists there, then anchor + enable draw-sections mode so the user's next clicks lay the branch.
+  //
+  // Junction resolution mirrors the spec: if the projected position is within SNAP_M of an existing
+  // path point, reuse that index; otherwise INSERT a new point and split the section [a,b] whose
+  // segment contains it into [a, m] and [m, b], shifting every other section index >= m by +1. We
+  // materialise effectiveSections() to an explicit sections array so even implicit-sequential paths
+  // keep their topology after the split.
+  const startBranchAt = useCallback((id: string, x: number, z: number) => {
+    const px = +x.toFixed(3)
+    const pz = +z.toFixed(3)
+    let junctionIdx: number | null = null
+    setEquipment((es) =>
+      es.map((e) => {
+        if (e.id !== id) return e
+        const path = Array.isArray(e.path) ? e.path.map((p) => [p[0], p[1]]) : []
+        if (path.length < 2) return e
+        // Reuse a nearby existing point (forms the junction on it) within the snap radius.
+        let nearIdx = -1
+        let nearDist = SNAP_M
+        for (let i = 0; i < path.length; i++) {
+          const d = Math.hypot(path[i][0] - px, path[i][1] - pz)
+          if (d <= nearDist) {
+            nearDist = d
+            nearIdx = i
+          }
+        }
+        const sections = effectiveSections(e).map((s) => [s[0], s[1]])
+        if (nearIdx >= 0) {
+          junctionIdx = nearIdx
+          return { ...e, path, sections }
+        }
+        // No nearby point: find the section whose segment best contains the projection, insert a new
+        // point there, and split that section. We pick the section with the smallest perpendicular
+        // distance to its segment (projection clamped to the segment).
+        let bestSec = -1
+        let bestDist = Infinity
+        for (let k = 0; k < sections.length; k++) {
+          const a = path[sections[k][0]]
+          const b = path[sections[k][1]]
+          if (!a || !b) continue
+          const abx = b[0] - a[0]
+          const abz = b[1] - a[1]
+          const len2 = abx * abx + abz * abz
+          if (len2 < 1e-9) continue
+          let t = ((px - a[0]) * abx + (pz - a[1]) * abz) / len2
+          t = Math.min(1, Math.max(0, t))
+          const projx = a[0] + abx * t
+          const projz = a[1] + abz * t
+          const d = Math.hypot(projx - px, projz - pz)
+          if (d < bestDist) {
+            bestDist = d
+            bestSec = k
+          }
+        }
+        if (bestSec < 0) {
+          // Genuinely ambiguous (no usable section) — fall back to snapping to the nearest point.
+          let fIdx = 0
+          let fDist = Infinity
+          for (let i = 0; i < path.length; i++) {
+            const d = Math.hypot(path[i][0] - px, path[i][1] - pz)
+            if (d < fDist) {
+              fDist = d
+              fIdx = i
+            }
+          }
+          junctionIdx = fIdx
+          return { ...e, path, sections }
+        }
+        // Insert the new point at the projected position on the chosen segment, split [a,b]→[a,m],[m,b].
+        const [a, b] = sections[bestSec]
+        const ax = path[a][0]
+        const az = path[a][1]
+        const abx = path[b][0] - ax
+        const abz = path[b][1] - az
+        const len2 = abx * abx + abz * abz
+        let t = len2 < 1e-9 ? 0 : ((px - ax) * abx + (pz - az) * abz) / len2
+        t = Math.min(1, Math.max(0, t))
+        const m = path.length
+        path.push([+(ax + abx * t).toFixed(3), +(az + abz * t).toFixed(3)])
+        // Shift every existing index >= m by +1. Since m === old path.length, no existing index can
+        // be >= m, so the shift is a no-op here — but we keep it explicit for correctness/clarity.
+        const shifted = sections.map((s) => [s[0] >= m ? s[0] + 1 : s[0], s[1] >= m ? s[1] + 1 : s[1]])
+        shifted.splice(bestSec, 1, [a, m], [m, b])
+        junctionIdx = m
+        return { ...e, path, sections: shifted }
+      }),
+    )
+    if (junctionIdx != null) {
+      setSelectedId(id)
+      setActiveFromIdx(junctionIdx)
+      setDrawPath(true)
+    }
+    setDirty(true)
+  }, [])
 
   // Clicking an existing waypoint handle while drawing re-anchors WITHOUT creating a section — this
   // is how a branch / divert starts (anchor at a junction, then click a new direction).
@@ -794,11 +890,15 @@ export default function AutomationTopology3D() {
             <PlanEditor2D
               items={levelEquipment}
               libById={libById}
+              functionPoints={functionPoints}
               selectedId={selectedId}
               drawing={drawPath}
               onSelect={setSelectedId}
               onPatch={patchEquipment}
               onDrawAt={drawSectionAt}
+              onAddFunctionPoint={addFunctionPoint}
+              onDeleteFunctionPoint={deleteFunctionPoint}
+              onStartBranch={startBranchAt}
             />
           ) : (
             <>
