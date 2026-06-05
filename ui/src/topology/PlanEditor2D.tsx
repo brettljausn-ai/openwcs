@@ -393,7 +393,10 @@ export default function PlanEditor2D({
   const pendingSnap = useCallback(
     (type: string, wx: number, wz: number): SnapTarget | null => {
       if (type === 'INDUCT' || type === 'DISCHARGE') return nearestAsrsEdgeSnap(wx, wz)
-      return nearestConveyorSnap(wx, wz)
+      // No distance cap: a conveyor point always snaps to the NEAREST conveyor, so the staging marker
+      // can be dragged onto any conveyor (even far from where it was created) and always shows where
+      // it will land — rather than only snapping within 0.75 m and otherwise refusing to place.
+      return nearestConveyorSnap(wx, wz, Infinity)
     },
     [nearestAsrsEdgeSnap, nearestConveyorSnap],
   )
@@ -1226,7 +1229,9 @@ function PlanFunctionPoint({
         pointerEvents="none"
       />
       <text x={mx + 7} y={my + 3.5} className="plan2d-fplabel" style={{ fill: color }}>
-        {short}
+        {/* Show the point's given name when it has one (so named points are identifiable on the
+            plan and match the workstation "Conveyor interactions" picker); else its function type. */}
+        {fp.name?.trim() ? fp.name.trim() : short}
       </text>
     </g>
   )
