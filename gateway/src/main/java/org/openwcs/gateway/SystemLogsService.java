@@ -1,96 +1,84 @@
 package org.openwcs.gateway;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import com.github.dockerjava.api.DockerClient;
-import com.github.dockerjava.api.async.ResultCallback;
-import com.github.dockerjava.api.model.Container;
-import com.github.dockerjava.api.model.Frame;
-import com.github.dockerjava.core.DefaultDockerClientConfig;
-import com.github.dockerjava.core.DockerClientConfig;
-import com.github.dockerjava.core.DockerClientImpl;
-import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
-import com.github.dockerjava.transport.DockerHttpClient;
-
 /**
- * Reads a service container's recent logs via the Docker Engine API over the mounted
- * {@code /var/run/docker.sock} (see docker-compose.yml — the gateway is the only container with the
- * socket). Containers are matched by their Compose service label, so this is independent of the
- * project name / container-id. Blocking by nature — callers run it on a worker scheduler.
- *
- * <p>Privileged: socket access is root-equivalent on the host. Acceptable for the single-box demo
- * (the endpoint is behind edge auth and the ADMIN-only System info screen); not for a hardened prod.
+ * Reads the daily-rotated per-service log files that every service + adapter writes to the shared
+ * {@code openwcs-logs} volume (see libs/common logback-spring.xml and the Go adapters' dailylog.go).
+ * Layout: {@code <logDir>/<service>/<service>.<yyyy-MM-dd>.log}. The gateway mounts the same volume
+ * read-only. No Docker socket needed — logs survive container recreation and are kept ~14 days.
  */
 @Component
 public class SystemLogsService {
 
-    private final String dockerHost;
-    private volatile DockerClient client;
+    private static final Pattern DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
+
+    private final Path logRoot;
 
     public SystemLogsService(
-            @Value("${openwcs.system.docker-host:unix:///var/run/docker.sock}") String dockerHost) {
-        this.dockerHost = dockerHost;
+            @Value("${openwcs.system.log-dir:${OPENWCS_LOG_DIR:/var/log/openwcs}}") String logDir) {
+        this.logRoot = Paths.get(logDir);
     }
 
-    private DockerClient client() {
-        DockerClient c = client;
-        if (c == null) {
-            synchronized (this) {
-                c = client;
-                if (c == null) {
-                    DockerClientConfig cfg = DefaultDockerClientConfig.createDefaultConfigBuilder()
-                            .withDockerHost(dockerHost)
-                            .build();
-                    DockerHttpClient http = new ApacheDockerHttpClient.Builder()
-                            .dockerHost(cfg.getDockerHost())
-                            .maxConnections(10)
-                            .build();
-                    c = DockerClientImpl.getInstance(cfg, http);
-                    client = c;
-                }
-            }
+    /** Available log dates (yyyy-MM-dd) for a service, newest first. */
+    public List<String> days(String service) {
+        Path dir = logRoot.resolve(service);
+        if (!Files.isDirectory(dir)) {
+            return List.of();
         }
-        return c;
+        Pattern file = Pattern.compile(Pattern.quote(service) + "\\.(\\d{4}-\\d{2}-\\d{2})\\.log");
+        try (Stream<Path> s = Files.list(dir)) {
+            return s.map(p -> p.getFileName().toString())
+                    .map(file::matcher)
+                    .filter(Matcher::matches)
+                    .map(m -> m.group(1))
+                    .sorted(Comparator.reverseOrder())
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            return List.of();
+        }
     }
 
     /**
-     * The last {@code tail} log lines (stdout + stderr, timestamped) of the container running the
-     * given Compose service. Throws if no such container exists or the socket is unreachable.
+     * The last {@code tail} lines of a service's log for {@code date} (yyyy-MM-dd); the most recent
+     * available day when {@code date} is null/blank. Empty string when there's nothing to show.
      */
-    public String tail(String composeService, int tail) {
-        DockerClient c = client();
-        List<Container> found = c.listContainersCmd()
-                .withShowAll(true)
-                .withLabelFilter(Map.of("com.docker.compose.service", composeService))
-                .exec();
-        if (found.isEmpty()) {
-            throw new NoSuchElementException("No container found for service '" + composeService + "'");
+    public String tail(String service, String date, int tail) {
+        String day = (date == null || date.isBlank()) ? null : date.trim();
+        if (day == null) {
+            List<String> available = days(service);
+            if (available.isEmpty()) {
+                return "";
+            }
+            day = available.get(0);
         }
-        String containerId = found.get(0).getId();
-        StringBuilder sb = new StringBuilder();
+        // Defend against path traversal — the date segment must be a plain yyyy-MM-dd.
+        if (!DATE.matcher(day).matches()) {
+            return "";
+        }
+        Path file = logRoot.resolve(service).resolve(service + "." + day + ".log");
+        if (!Files.isRegularFile(file)) {
+            return "";
+        }
         try {
-            c.logContainerCmd(containerId)
-                    .withStdOut(true)
-                    .withStdErr(true)
-                    .withTail(tail)
-                    .withTimestamps(true)
-                    .exec(new ResultCallback.Adapter<Frame>() {
-                        @Override
-                        public void onNext(Frame frame) {
-                            sb.append(new String(frame.getPayload(), StandardCharsets.UTF_8));
-                        }
-                    })
-                    .awaitCompletion(8, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+            int from = Math.max(0, lines.size() - tail);
+            return String.join("\n", lines.subList(from, lines.size()));
+        } catch (IOException e) {
+            return "";
         }
-        return sb.toString();
     }
 }

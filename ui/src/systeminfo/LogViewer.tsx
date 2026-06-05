@@ -1,24 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchServiceLogs } from './api'
+import { fetchLogDays, fetchServiceLogs } from './api'
 
 const TAIL_OPTIONS = [200, 500, 1000, 2000]
 
 // Shared log viewer for one service — used by both the modal (System info table) and the full
-// Logs page. Fetches the last N lines via the gateway (Docker socket) and filters them client-side
-// by a free-text query. `fillHeight` makes the <pre> grow to fill its container (page mode);
-// otherwise it's capped (modal mode).
+// Logs page. Reads the last N lines of a chosen day's file via the gateway and filters them
+// client-side by a free-text query. `fillHeight` makes the <pre> grow to fill its container (page
+// mode); otherwise it's capped (modal mode).
 export default function LogViewer({ name, fillHeight = false }: { name: string; fillHeight?: boolean }) {
   const [tail, setTail] = useState(200)
+  const [date, setDate] = useState('') // '' = most recent day
+  const [days, setDays] = useState<string[]>([])
   const [text, setText] = useState('')
   const [err, setErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
   const preRef = useRef<HTMLPreElement>(null)
 
+  // Load the available days once per service (newest first); reset the selection to "latest".
+  useEffect(() => {
+    setDate('')
+    fetchLogDays(name)
+      .then(setDays)
+      .catch(() => setDays([]))
+  }, [name])
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetchServiceLogs(name, tail)
+      const res = await fetchServiceLogs(name, tail, date || undefined)
       setText(res.logs ?? '')
       setErr(res.error ?? null)
     } catch (e) {
@@ -27,7 +37,7 @@ export default function LogViewer({ name, fillHeight = false }: { name: string; 
     } finally {
       setLoading(false)
     }
-  }, [name, tail])
+  }, [name, tail, date])
 
   useEffect(() => {
     load()
@@ -52,6 +62,20 @@ export default function LogViewer({ name, fillHeight = false }: { name: string; 
           onChange={(e) => setQuery(e.target.value)}
           style={{ flex: 1, minWidth: 160 }}
         />
+        <label style={{ fontSize: '.78rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+          Day
+          <select
+            className="form-control"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            style={{ padding: '.15rem .35rem', height: 'auto' }}
+          >
+            <option value="">Latest{days[0] ? ` (${days[0]})` : ''}</option>
+            {days.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        </label>
         <label style={{ fontSize: '.78rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
           Tail
           <select

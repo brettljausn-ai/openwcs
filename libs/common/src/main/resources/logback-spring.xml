@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Shared logging for every openWCS Spring Boot service. This file lives in libs:common, which is on
+  each service's (and the gateway's) classpath, so Spring Boot picks it up automatically — no per-
+  service config. Logs go to:
+    • the console (so `docker logs` and dev runs keep working), and
+    • a daily-rolled per-service file under ${OPENWCS_LOG_DIR} (a host-backed volume in compose),
+      kept for 14 days — the System info screen serves the last ≥10 days from there.
+  In CI/dev (no writable /var/log/openwcs) the file appender simply fails to start and logging
+  continues on the console; it never breaks the app.
+-->
+<configuration>
+  <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+  <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+  <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="openwcs"/>
+  <property name="LOG_DIR" value="${OPENWCS_LOG_DIR:-/var/log/openwcs}"/>
+
+  <!-- No <file> element: the active file is the current day's pattern file, so today's log is
+       ${LOG_DIR}/<service>/<service>.<today>.log and prior days are siblings — one uniform scheme
+       the gateway reads (matches the Go adapters). -->
+  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>${LOG_DIR}/${appName}/${appName}.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <maxHistory>14</maxHistory>
+      <cleanHistoryOnStart>true</cleanHistoryOnStart>
+    </rollingPolicy>
+    <encoder>
+      <pattern>${FILE_LOG_PATTERN}</pattern>
+    </encoder>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="FILE"/>
+  </root>
+</configuration>
