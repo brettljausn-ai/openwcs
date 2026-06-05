@@ -28,6 +28,13 @@ const (
 	defaultPort = "9096" // 9092 is Kafka's port; adapters avoid it
 )
 
+// Build metadata, injected via -ldflags at build time (see Dockerfile). Defaults cover `go run`.
+var (
+	version   = "0.1.0-SNAPSHOT"
+	commit    = "dev"
+	buildTime = "unknown"
+)
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -50,6 +57,9 @@ func main() {
 			"family":    family,
 			"transport": transport,
 			"status":    "skeleton",
+			"version":   version,
+			"commit":    commit,
+			"buildTime": buildTime,
 		})
 	})
 

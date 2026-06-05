@@ -85,6 +85,12 @@ services:
       OPENWCS_URI_SLOTTING: http://slotting:8093
       OPENWCS_URI_GTP: http://gtp:8094
       OPENWCS_URI_COUNTING: http://counting:8095
+      # Go device adapters — reached by the System info aggregator (GET /api/system/services).
+      OPENWCS_URI_CONVEYOR_ADAPTER: http://conveyor-adapter:9091
+      OPENWCS_URI_AMR_GEEKPLUS_ADAPTER: http://amr-geekplus-adapter:9093
+      OPENWCS_URI_AUTOSTORE_ADAPTER: http://autostore-adapter:9094
+      OPENWCS_URI_CONVEYOR_SNIFFER: http://conveyor-sniffer:9095
+      OPENWCS_URI_ASRS_ADAPTER: http://asrs-adapter:9096
       # Edge auth: the gateway is the trust boundary — it requires a valid Keycloak JWT on
       # every /api/** call and forwards X-Auth-User/X-Auth-Roles downstream. We validate by
       # signature (jwk-set-uri) rather than issuer-uri so tokens minted via the nginx proxy
@@ -298,38 +304,65 @@ services:
       # Push confirmations to registered webhooks (poller over the txlog feed).
       OPENWCS_HOST_WEBHOOK_ENABLED: "true"
 
+  # Go adapters stamp version metadata into the binary via ldflags. deploy.sh exports
+  # OPENWCS_GIT_SHA / OPENWCS_BUILD_TIME; defaults cover a plain `docker compose build`.
   conveyor-adapter:
     restart: unless-stopped
     profiles: ["apps"]
-    build: ../services/adapters/conveyor
+    build:
+      context: ../services/adapters/conveyor
+      args:
+        VERSION: "${OPENWCS_VERSION:-0.1.0-SNAPSHOT}"
+        GIT_SHA: "${OPENWCS_GIT_SHA:-dev}"
+        BUILD_TIME: "${OPENWCS_BUILD_TIME:-unknown}"
     ports: ["9091:9091"]
     depends_on: [postgres, kafka]
 
   asrs-adapter:
     restart: unless-stopped
     profiles: ["apps"]
-    build: ../services/adapters/asrs
+    build:
+      context: ../services/adapters/asrs
+      args:
+        VERSION: "${OPENWCS_VERSION:-0.1.0-SNAPSHOT}"
+        GIT_SHA: "${OPENWCS_GIT_SHA:-dev}"
+        BUILD_TIME: "${OPENWCS_BUILD_TIME:-unknown}"
     ports: ["9096:9096"]   # 9096, not 9092 — Kafka owns host port 9092
     depends_on: [postgres, kafka]
 
   amr-geekplus-adapter:
     restart: unless-stopped
     profiles: ["apps"]
-    build: ../services/adapters/amr-geekplus
+    build:
+      context: ../services/adapters/amr-geekplus
+      args:
+        VERSION: "${OPENWCS_VERSION:-0.1.0-SNAPSHOT}"
+        GIT_SHA: "${OPENWCS_GIT_SHA:-dev}"
+        BUILD_TIME: "${OPENWCS_BUILD_TIME:-unknown}"
     ports: ["9093:9093"]
     depends_on: [postgres, kafka]
 
   autostore-adapter:
     restart: unless-stopped
     profiles: ["apps"]
-    build: ../services/adapters/autostore
+    build:
+      context: ../services/adapters/autostore
+      args:
+        VERSION: "${OPENWCS_VERSION:-0.1.0-SNAPSHOT}"
+        GIT_SHA: "${OPENWCS_GIT_SHA:-dev}"
+        BUILD_TIME: "${OPENWCS_BUILD_TIME:-unknown}"
     ports: ["9094:9094"]
     depends_on: [postgres, kafka]
 
   conveyor-sniffer:
     restart: unless-stopped
     profiles: ["apps"]
-    build: ../services/adapters/conveyor-sniffer
+    build:
+      context: ../services/adapters/conveyor-sniffer
+      args:
+        VERSION: "${OPENWCS_VERSION:-0.1.0-SNAPSHOT}"
+        GIT_SHA: "${OPENWCS_GIT_SHA:-dev}"
+        BUILD_TIME: "${OPENWCS_BUILD_TIME:-unknown}"
     ports: ["9095:9095", "9200:9200"]   # health/info, telegram ingest
     depends_on: [flow-orchestrator]
     environment:

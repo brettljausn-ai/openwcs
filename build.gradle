@@ -10,11 +10,42 @@ allprojects {
     repositories { mavenCentral() }
 }
 
+// Short git commit of the working tree, captured once at configuration time on the build host
+// (jars are built on the host before Docker — see scripts/deploy.sh). Falls back to 'unknown' when
+// .git is absent. Stamped into each Spring Boot service's build-info.
+ext.gitSha = {
+    try {
+        def out = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'rev-parse', '--short', 'HEAD'
+            standardOutput = out
+            errorOutput = new ByteArrayOutputStream()
+            ignoreExitValue = true
+        }
+        def sha = out.toString().trim()
+        return sha ?: 'unknown'
+    } catch (ignored) {
+        return 'unknown'
+    }
+}()
+
 subprojects {
     apply plugin: 'java'
 
     java {
         toolchain { languageVersion = JavaLanguageVersion.of(21) }
+    }
+
+    // Every Spring Boot service stamps build-info.properties (version + build time + git commit)
+    // into its jar, exposed read-only at /actuator/info — the System info screen reads it.
+    plugins.withId('org.springframework.boot') {
+        springBoot {
+            buildInfo {
+                properties {
+                    additional = [commit: rootProject.ext.gitSha]
+                }
+            }
+        }
     }
 
     tasks.withType(Test).configureEach {
