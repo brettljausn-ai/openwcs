@@ -25,6 +25,13 @@ const (
 	defaultTcp  = ":9200" // telegram ingest
 )
 
+// Build metadata, injected via -ldflags at build time (see Dockerfile). Defaults cover `go run`.
+var (
+	version   = "0.1.0-SNAPSHOT"
+	commit    = "dev"
+	buildTime = "unknown"
+)
+
 func env(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
@@ -68,6 +75,9 @@ func main() {
 			"description": "Captures conveyor scan telegrams from defined IPs and posts them to the WCS for topology learning.",
 			"ingest":      tcpAddr,
 			"status":      "skeleton",
+			"version":     version,
+			"commit":      commit,
+			"buildTime":   buildTime,
 		})
 	})
 	srv := &http.Server{Addr: ":" + port, Handler: mux}

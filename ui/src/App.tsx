@@ -27,6 +27,7 @@ import SettingsScreen from './settings/SettingsScreen'
 import UsersScreen from './users/UsersScreen'
 import AccessControlScreen from './access/AccessControlScreen'
 import WarehouseAccessScreen from './warehouseaccess/WarehouseAccessScreen'
+import SystemInfoScreen from './systeminfo/SystemInfoScreen'
 
 const COMPONENTS: Record<string, JSX.Element> = {
   dashboard: <Dashboard />,
@@ -53,6 +54,7 @@ const COMPONENTS: Record<string, JSX.Element> = {
   users: <UsersScreen />,
   'access-control': <AccessControlScreen />,
   'warehouse-access': <WarehouseAccessScreen />,
+  'system-info': <SystemInfoScreen />,
 }
 
 function RequireAuth({ children }: { children: JSX.Element }) {

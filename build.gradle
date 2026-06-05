@@ -10,11 +10,35 @@ allprojects {
     repositories { mavenCentral() }
 }
 
+// Short git commit of the working tree (jars build on the host before Docker — see
+// scripts/deploy.sh). Uses providers.exec so it's compatible with the Gradle configuration cache
+// (a plain exec {} at configuration time is rejected). The OPENWCS_GIT_SHA env wins when set (the
+// deploy/CI pipeline can pass it); otherwise we read git; falling back to 'unknown'. Stamped into
+// each Spring Boot service's build-info, exposed read-only at /actuator/info.
+def gitShaProvider = providers.environmentVariable('OPENWCS_GIT_SHA').orElse(
+    providers.exec {
+        commandLine 'git', 'rev-parse', '--short', 'HEAD'
+        ignoreExitValue = true
+    }.standardOutput.asText.map { it.trim() }
+).map { it?.trim() ? it.trim() : 'unknown' }.orElse('unknown')
+
 subprojects {
     apply plugin: 'java'
 
     java {
         toolchain { languageVersion = JavaLanguageVersion.of(21) }
+    }
+
+    // Every Spring Boot service stamps build-info.properties (version + build time + git commit)
+    // into its jar, exposed read-only at /actuator/info — the System info screen reads it.
+    plugins.withId('org.springframework.boot') {
+        springBoot {
+            buildInfo {
+                properties {
+                    additional.put('commit', gitShaProvider)
+                }
+            }
+        }
     }
 
     tasks.withType(Test).configureEach {

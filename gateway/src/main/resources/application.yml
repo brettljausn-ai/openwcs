@@ -62,6 +62,32 @@ spring:
 openwcs:
   security:
     enabled: ${OPENWCS_SECURITY_ENABLED:false}
+  # The services the System info screen (GET /api/system/services) reports version + health for.
+  # `uri` reuses the same OPENWCS_URI_* overrides as the routes above (localhost in dev, service
+  # DNS in compose). kind=java → probe /actuator/{health,info}; kind=go → /healthz + / (JSON).
+  system:
+    services:
+      - { name: gateway, kind: java, uri: "http://localhost:8080" }
+      - { name: master-data, kind: java, uri: "${OPENWCS_URI_MASTER_DATA:http://localhost:8081}" }
+      - { name: inventory, kind: java, uri: "${OPENWCS_URI_INVENTORY:http://localhost:8082}" }
+      - { name: process-engine, kind: java, uri: "${OPENWCS_URI_PROCESS_ENGINE:http://localhost:8083}" }
+      - { name: order-management, kind: java, uri: "${OPENWCS_URI_ORDER_MANAGEMENT:http://localhost:8084}" }
+      - { name: flow-orchestrator, kind: java, uri: "${OPENWCS_URI_FLOW_ORCHESTRATOR:http://localhost:8085}" }
+      - { name: txlog, kind: java, uri: "${OPENWCS_URI_TXLOG:http://localhost:8086}" }
+      - { name: iam, kind: java, uri: "${OPENWCS_URI_IAM:http://localhost:8087}" }
+      - { name: notification, kind: java, uri: "${OPENWCS_URI_NOTIFICATION:http://localhost:8088}" }
+      - { name: integration-sap, kind: java, uri: "${OPENWCS_URI_INTEGRATION_SAP:http://localhost:8089}" }
+      - { name: integration-manhattan, kind: java, uri: "${OPENWCS_URI_INTEGRATION_MANHATTAN:http://localhost:8090}" }
+      - { name: allocation, kind: java, uri: "${OPENWCS_URI_ALLOCATION:http://localhost:8091}" }
+      - { name: integration-host, kind: java, uri: "${OPENWCS_URI_INTEGRATION_HOST:http://localhost:8092}" }
+      - { name: slotting, kind: java, uri: "${OPENWCS_URI_SLOTTING:http://localhost:8093}" }
+      - { name: gtp, kind: java, uri: "${OPENWCS_URI_GTP:http://localhost:8094}" }
+      - { name: counting, kind: java, uri: "${OPENWCS_URI_COUNTING:http://localhost:8095}" }
+      - { name: conveyor-adapter, kind: go, uri: "${OPENWCS_URI_CONVEYOR_ADAPTER:http://localhost:9091}" }
+      - { name: amr-geekplus-adapter, kind: go, uri: "${OPENWCS_URI_AMR_GEEKPLUS_ADAPTER:http://localhost:9093}" }
+      - { name: autostore-adapter, kind: go, uri: "${OPENWCS_URI_AUTOSTORE_ADAPTER:http://localhost:9094}" }
+      - { name: conveyor-sniffer, kind: go, uri: "${OPENWCS_URI_CONVEYOR_SNIFFER:http://localhost:9095}" }
+      - { name: asrs-adapter, kind: go, uri: "${OPENWCS_URI_ASRS_ADAPTER:http://localhost:9096}" }
 
 management:
   endpoints:

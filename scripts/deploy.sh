@@ -42,7 +42,12 @@ git reset --hard "origin/$BRANCH"          # track main exactly; discard any loc
 log "building service jars (./gradlew bootJar)"
 ./gradlew bootJar --no-daemon
 
-log "(re)building images and starting the stack"
+# Version metadata for the Go adapters' build args (Java jars stamp git via Gradle). The System
+# info screen surfaces these. Java services pick up the commit from Gradle's build-info directly.
+export OPENWCS_GIT_SHA="$(git rev-parse --short HEAD)"
+export OPENWCS_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+log "(re)building images and starting the stack (git ${OPENWCS_GIT_SHA})"
 "${COMPOSE[@]}" up --build -d --remove-orphans
 
 "${COMPOSE[@]}" ps
