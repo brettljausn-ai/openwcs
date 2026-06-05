@@ -14,7 +14,11 @@
   <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
 
   <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="openwcs"/>
-  <property name="LOG_DIR" value="${OPENWCS_LOG_DIR:-/var/log/openwcs}"/>
+  <!-- Prod containers set OPENWCS_LOG_DIR=/var/log/openwcs (the shared volume); everywhere else we
+       fall back to a writable temp dir so the file appender always starts. (Spring Boot treats a
+       logback appender that can't open its file as a FATAL config error, so the default MUST be
+       writable — /var/log isn't, for a non-root CI/dev user.) -->
+  <property name="LOG_DIR" value="${OPENWCS_LOG_DIR:-${java.io.tmpdir}/openwcs-logs}"/>
 
   <!-- No <file> element: the active file is the current day's pattern file, so today's log is
        ${LOG_DIR}/<service>/<service>.<today>.log and prior days are siblings — one uniform scheme
