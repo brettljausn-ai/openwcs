@@ -1983,10 +1983,11 @@ function ConveyorBody({
   )
 }
 
-// A rack-like storage frame, centred on its group origin and sized to [L,H,W]: four vertical
-// corner uprights spanning the full height plus four horizontal shelf slabs evenly stacked up the
-// height. Reused for automated storage (mid blue) and manual storage (burnt orange) — colour comes
-// in via `color`. Selection highlight = emissive on every member.
+// A rack-like storage frame, centred on its group origin and sized to [L,H,W]. Modelled as a real
+// aisle: storage racks on both sides of the width with an EMPTY central aisle (where a crane/shuttle
+// would run) down the length. Each side rack has four corner uprights and one shelf level per ~1 m of
+// height. Reused for automated storage (mid blue) and manual storage (burnt orange) via `color`;
+// selection highlight = emissive on every member.
 function Rack({
   size,
   color,
@@ -1999,22 +2000,18 @@ function Rack({
   highlightColor?: string
 }) {
   const [L, H, W] = size
-  const post = Math.min(0.06, L * 0.25, W * 0.25) // square upright cross-section
-  const slab = Math.min(0.04, H * 0.12) // shelf slab thickness
+  const post = Math.min(0.08, L * 0.25, W * 0.2) // square upright cross-section
+  const slab = Math.min(0.04, H * 0.1) // shelf slab thickness
+  const aisle = W * 0.4 // central empty strip (the crane/shuttle aisle), down the length
+  const sideW = Math.max((W - aisle) / 2, post) // depth of each side rack
+  const sideZ = aisle / 2 + sideW / 2 // centre of each side rack in Z
   const hx = L / 2 - post / 2
-  const hz = W / 2 - post / 2
-  const corners: Array<[number, number]> = [
-    [hx, hz],
-    [hx, -hz],
-    [-hx, hz],
-    [-hx, -hz],
-  ]
-  // Shelves evenly spaced over the height, including the very bottom and the very top.
-  const shelfCount = 4
-  const shelves = Array.from({ length: shelfCount }, (_, i) => {
-    const t = i / (shelfCount - 1)
-    return -H / 2 + slab / 2 + t * (H - slab)
-  })
+  const zInner = aisle / 2 + post / 2 // upright on the aisle-facing edge
+  const zOuter = W / 2 - post / 2 // upright on the outer edge
+  // One shelf level per ~1 m of height (at least two: bottom and top).
+  const shelfCount = Math.max(2, Math.round(H))
+  const shelfYs = Array.from({ length: shelfCount }, (_, i) => -H / 2 + slab / 2 + (i / (shelfCount - 1)) * (H - slab))
+  const sides = [1, -1] // +Z and -Z rack faces, with the aisle between them
   const mat = (
     <meshStandardMaterial
       color={color}
@@ -2028,18 +2025,24 @@ function Rack({
   )
   return (
     <group>
-      {corners.map(([x, z], i) => (
-        <mesh key={`post-${i}`} position={[x, 0, z]} castShadow>
-          <boxGeometry args={[post, H, post]} />
-          {mat}
-        </mesh>
-      ))}
-      {shelves.map((y, i) => (
-        <mesh key={`shelf-${i}`} position={[0, y, 0]} castShadow>
-          <boxGeometry args={[L, slab, W]} />
-          {mat}
-        </mesh>
-      ))}
+      {sides.flatMap((s) =>
+        [zInner, zOuter].flatMap((z, zi) =>
+          [hx, -hx].map((x, xi) => (
+            <mesh key={`post-${s}-${zi}-${xi}`} position={[x, 0, s * z]} castShadow>
+              <boxGeometry args={[post, H, post]} />
+              {mat}
+            </mesh>
+          )),
+        ),
+      )}
+      {sides.flatMap((s) =>
+        shelfYs.map((y, i) => (
+          <mesh key={`shelf-${s}-${i}`} position={[0, y, s * sideZ]} castShadow>
+            <boxGeometry args={[L, slab, sideW]} />
+            {mat}
+          </mesh>
+        )),
+      )}
     </group>
   )
 }
