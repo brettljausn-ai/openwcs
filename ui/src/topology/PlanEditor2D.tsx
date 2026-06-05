@@ -10,6 +10,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Equipment } from '../masterdata/api'
 import type { AutomationEquipment, AutomationFunctionPoint } from './automationApi'
 import {
+  canEditPath,
+  category,
   colorFor,
   decisionPoints,
   effectiveSections,
@@ -19,6 +21,7 @@ import {
   isConveyor,
   junctionPoints,
   pointAlong,
+  snapToFootprintPerimeter,
 } from './AutomationTopology3D'
 
 const DEG = Math.PI / 180
@@ -59,6 +62,18 @@ interface PlanEditor2DProps {
     z: number,
     side: 'LEFT' | 'RIGHT',
     snapStep: number | null,
+    // When true, an INFEED merge: the directed section runs stub → junction (feeder merges in).
+    merge?: boolean,
+  ) => void
+  // Snap (x,z) to an ASRS footprint edge and add a 1 m IN/OUT conveyor stub owned by the ASRS, plus
+  // the matching function point — same as addAsrsPortStub in the parent. INDUCT flows toward the
+  // rack (stub → port); DISCHARGE flows away (port → stub).
+  onAddAsrsPortStub: (
+    id: string,
+    x: number,
+    z: number,
+    kind: 'INDUCT' | 'DISCHARGE',
+    side: string | null,
   ) => void
 }
 
@@ -133,6 +148,7 @@ export default function PlanEditor2D({
   onDeleteFunctionPoint,
   onUpdateFunctionPoint,
   onAddDivertBranch,
+  onAddAsrsPortStub,
 }: PlanEditor2DProps) {
   // View transform: pixels-per-metre and a pan offset (in pixels) of the world origin.
   const [pxPerM, setPxPerM] = useState(40)
@@ -143,10 +159,20 @@ export default function PlanEditor2D({
   // A PENDING (not-yet-placed) function point created from the palette. It floats at `world` (metres)
   // and is dragged onto a conveyor. `snap` holds the live snap preview (target conveyor + projected
   // position/offset) while the cursor is within range of a centreline; null = not snapped.
+  // A snap target for a dragged point: either a CONVEYOR centreline (offsetM along it) or an ASRS
+  // EDGE (a point snapped to the rack footprint perimeter, with the outward normal baked into x,z by
+  // snapToFootprintPerimeter). `kind` discriminates how a drop is committed.
+  type SnapTarget = {
+    kind: 'conveyor' | 'asrs-edge'
+    eqId: string
+    offsetM: number
+    x: number
+    z: number
+  }
   type Pending = {
     functionType: string
     world: { x: number; z: number }
-    snap: { eqId: string; offsetM: number; x: number; z: number } | null
+    snap: SnapTarget | null
   }
   const [pending, setPending] = useState<Pending | null>(null)
 
@@ -252,21 +278,54 @@ export default function PlanEditor2D({
   // Project a world point onto the NEAREST conveyor centreline across all the level's conveyors,
   // returning the closest within `SNAP_M` (world metres) or null. Drives the snap preview + drop.
   const conveyors = useMemo(() => items.filter((it) => isConveyor(it, libById)), [items, libById])
+  // ASRS placements on this level — IN/OUT ports snap to their footprint perimeter.
+  const asrsItems = useMemo(
+    () => items.filter((it) => category(it, libById) === 'asrs'),
+    [items, libById],
+  )
   const nearestConveyorSnap = useCallback(
-    (wx: number, wz: number): { eqId: string; offsetM: number; x: number; z: number } | null => {
-      let best: { eqId: string; offsetM: number; x: number; z: number } | null = null
+    (wx: number, wz: number): SnapTarget | null => {
+      let best: SnapTarget | null = null
       let bestDist = SNAP_RANGE_M
       for (const eq of conveyors) {
         const proj = projectToPath(eq, wx, wz)
         const d = Math.hypot(proj.x - wx, proj.z - wz)
         if (d < bestDist) {
           bestDist = d
-          best = { eqId: eq.id, offsetM: proj.offsetM, x: proj.x, z: proj.z }
+          best = { kind: 'conveyor', eqId: eq.id, offsetM: proj.offsetM, x: proj.x, z: proj.z }
         }
       }
       return best
     },
     [conveyors],
+  )
+
+  // Snap a dragged ASRS port (INDUCT/DISCHARGE) to the nearest ASRS footprint perimeter within range.
+  const nearestAsrsEdgeSnap = useCallback(
+    (wx: number, wz: number): SnapTarget | null => {
+      let best: SnapTarget | null = null
+      let bestDist = SNAP_RANGE_M
+      for (const eq of asrsItems) {
+        const snap = snapToFootprintPerimeter(eq, wx, wz)
+        const d = Math.hypot(snap.x - wx, snap.z - wz)
+        if (d < bestDist) {
+          bestDist = d
+          best = { kind: 'asrs-edge', eqId: eq.id, offsetM: 0, x: snap.x, z: snap.z }
+        }
+      }
+      return best
+    },
+    [asrsItems],
+  )
+
+  // The snap target for a PENDING function point of a given type. INDUCT/DISCHARGE prefer an ASRS edge
+  // (and ONLY snap there); INFEED and all other types snap to a conveyor centreline.
+  const pendingSnap = useCallback(
+    (type: string, wx: number, wz: number): SnapTarget | null => {
+      if (type === 'INDUCT' || type === 'DISCHARGE') return nearestAsrsEdgeSnap(wx, wz)
+      return nearestConveyorSnap(wx, wz)
+    },
+    [nearestAsrsEdgeSnap, nearestConveyorSnap],
   )
 
   // Esc cancels a pending (un-placed) function point.
@@ -288,9 +347,9 @@ export default function PlanEditor2D({
         (svgRef.current?.getBoundingClientRect().left ?? 0) + 60,
         (svgRef.current?.getBoundingClientRect().top ?? 0) + 60,
       )
-      setPending({ functionType: type, world, snap: nearestConveyorSnap(world.x, world.z) })
+      setPending({ functionType: type, world, snap: pendingSnap(type, world.x, world.z) })
     },
-    [clientToWorld, nearestConveyorSnap],
+    [clientToWorld, pendingSnap],
   )
 
   // Commit a pending function point at its current snap (called on drop). If snapped to a conveyor,
@@ -299,12 +358,21 @@ export default function PlanEditor2D({
   const commitPending = useCallback(() => {
     setPending((cur) => {
       if (!cur) return null
-      if (!cur.snap) return null // dropped off any conveyor → discard
-      const side = sideForType(cur.functionType)
+      if (!cur.snap) return null // dropped off any valid target → discard
+      const type = cur.functionType
+
+      // ASRS IN/OUT port: snap to the rack edge and add a 1 m IN/OUT conveyor stub OWNED by the ASRS,
+      // plus its function point (created together inside onAddAsrsPortStub).
+      if (cur.snap.kind === 'asrs-edge' && (type === 'INDUCT' || type === 'DISCHARGE')) {
+        onAddAsrsPortStub(cur.snap.eqId, cur.snap.x, cur.snap.z, type, null)
+        return null
+      }
+
+      const side = sideForType(type)
       onAddFunctionPoint({
         id: crypto.randomUUID(),
         placedId: cur.snap.eqId,
-        functionType: cur.functionType,
+        functionType: type,
         name: null,
         offsetM: cur.snap.offsetM,
         side,
@@ -314,10 +382,14 @@ export default function PlanEditor2D({
       if (side) {
         // DIVERT_* → ensure a junction + drop a 1 m perpendicular stub in the divert direction.
         onAddDivertBranch(cur.snap.eqId, cur.snap.x, cur.snap.z, side, snapOn ? gridStep : null)
+      } else if (type === 'INFEED') {
+        // INFEED is the mirror of a divert: ensure a junction + drop a 1 m perpendicular stub whose
+        // directed section runs INTO the junction (the feeder merges in). Default to the LEFT side.
+        onAddDivertBranch(cur.snap.eqId, cur.snap.x, cur.snap.z, 'LEFT', snapOn ? gridStep : null, true)
       }
       return null
     })
-  }, [onAddFunctionPoint, onAddDivertBranch, snapOn, gridStep])
+  }, [onAddFunctionPoint, onAddDivertBranch, onAddAsrsPortStub, snapOn, gridStep])
 
   // ---- background interactions ---------------------------------------------
   const onBackgroundPointerDown = useCallback(
@@ -347,9 +419,10 @@ export default function PlanEditor2D({
       }
       const w = clientToWorld(e.clientX, e.clientY)
       if (d.kind === 'pending') {
-        // Move the floating pending marker; live-snap it to the nearest conveyor centreline.
+        // Move the floating pending marker; live-snap it (conveyor centreline, or ASRS edge for
+        // INDUCT/DISCHARGE) per its type.
         setPending((cur) =>
-          cur ? { ...cur, world: w, snap: nearestConveyorSnap(w.x, w.z) } : cur,
+          cur ? { ...cur, world: w, snap: pendingSnap(cur.functionType, w.x, w.z) } : cur,
         )
         return
       }
@@ -378,7 +451,7 @@ export default function PlanEditor2D({
         onPatch(d.id, { path: next })
       }
     },
-    [clientToWorld, gridStep, snapOn, onPatch, nearestConveyorSnap, functionPoints, onUpdateFunctionPoint],
+    [clientToWorld, gridStep, snapOn, onPatch, nearestConveyorSnap, pendingSnap, functionPoints, onUpdateFunctionPoint],
   )
 
   // End any drag. A 'pending' drag commits/discards the pending point. An 'fp' drag has already moved
@@ -472,27 +545,49 @@ export default function PlanEditor2D({
       </div>
 
       {/* ---- function-point palette: click a type to create a draggable point, then drag it onto a
-              conveyor (only useful when the level has at least one conveyor and we're not drawing). ---- */}
-      {conveyors.length > 0 && !drawing && (
+              target (conveyor centreline, or an ASRS edge for IN/OUT ports). Shown when the level has
+              at least one conveyor OR ASRS and we're not drawing. Each button is enabled only when its
+              drop target exists: INDUCT/DISCHARGE need an ASRS; every other type needs a conveyor. ---- */}
+      {(conveyors.length > 0 || asrsItems.length > 0) && !drawing && (
         <div className="plan2d-fpbar">
           <span className="plan2d-bar-label">New point</span>
           <div className="plan2d-fppalette">
             {FUNCTION_TYPES.map((t) => {
               const isDivert = t === 'DIVERT_LEFT' || t === 'DIVERT_RIGHT'
+              const isPort = t === 'INDUCT' || t === 'DISCHARGE'
+              const isInfeed = t === 'INFEED'
+              // INDUCT/DISCHARGE drop onto an ASRS edge; everything else onto a conveyor.
+              const enabled = isPort ? asrsItems.length > 0 : conveyors.length > 0
+              const target = isPort ? 'an ASRS' : 'a conveyor'
               return (
                 <button
                   key={t}
                   type="button"
-                  className={`plan2d-fpbtn${isDivert ? ' is-divert' : ''}`}
+                  className={`plan2d-fpbtn${isDivert ? ' is-divert' : ''}${
+                    isPort ? ' is-port' : ''
+                  }${isInfeed ? ' is-infeed' : ''}`}
                   onClick={() => createPending(t)}
-                  title={`Create a ${t} and drag it onto a conveyor`}
+                  disabled={!enabled}
+                  title={
+                    enabled
+                      ? `Create a ${t} and drag it onto ${target}`
+                      : `Add ${target} first to place a ${t}`
+                  }
                 >
                   {FUNCTION_SHORT[t] ?? t}
                 </button>
               )
             })}
           </div>
-          {pending && <span className="plan2d-fphint">Drag the new point onto a conveyor · Esc to cancel</span>}
+          {pending && (
+            <span className="plan2d-fphint">
+              Drag the new point onto{' '}
+              {pending.functionType === 'INDUCT' || pending.functionType === 'DISCHARGE'
+                ? 'an ASRS'
+                : 'a conveyor'}{' '}
+              · Esc to cancel
+            </span>
+          )}
         </div>
       )}
 
@@ -549,6 +644,9 @@ export default function PlanEditor2D({
             key={eq.id}
             eq={eq}
             conveyor={isConveyor(eq, libById)}
+            // An ASRS that owns IN/OUT stubs also draws its path/sections as conveyor stubs (on top of
+            // its rack box) and gets draggable waypoints to extend them.
+            stubHost={canEditPath(eq, libById) && !isConveyor(eq, libById)}
             color={colorFor(eq, libById)}
             selected={eq.id === selectedId}
             drawing={drawing && eq.id === selectedId}
@@ -617,8 +715,14 @@ export default function PlanEditor2D({
           ? pending.snap
             ? sideForType(pending.functionType)
               ? `Drop to place the divert — a junction + 1 m stub appears in the divert direction`
-              : `Drop to place the ${FUNCTION_SHORT[pending.functionType] ?? pending.functionType} on the conveyor`
-            : 'Drag onto a conveyor to place · drop off any conveyor (or Esc) to cancel'
+              : pending.functionType === 'INFEED'
+                ? `Drop to place the infeed — a junction + 1 m merge stub appears (extend it back to its source)`
+                : pending.snap.kind === 'asrs-edge'
+                  ? `Drop to place the ${FUNCTION_SHORT[pending.functionType] ?? pending.functionType} port — a 1 m stub appears on the ASRS edge`
+                  : `Drop to place the ${FUNCTION_SHORT[pending.functionType] ?? pending.functionType} on the conveyor`
+            : pending.functionType === 'INDUCT' || pending.functionType === 'DISCHARGE'
+              ? 'Drag onto an ASRS to place an IN/OUT port · drop off (or Esc) to cancel'
+              : 'Drag onto a conveyor to place · drop off any conveyor (or Esc) to cancel'
           : drawing
             ? 'Draw the divert branch — click where it should go; click a point to branch from it'
             : 'Drag an item to move (snapped) · click a point to select it, drag it along the conveyor to reposition · drag empty space to pan · scroll to zoom'}
@@ -634,6 +738,7 @@ export default function PlanEditor2D({
 function PlanItem({
   eq,
   conveyor,
+  stubHost,
   color,
   selected,
   drawing,
@@ -646,6 +751,8 @@ function PlanItem({
 }: {
   eq: AutomationEquipment
   conveyor: boolean
+  // An ASRS (non-conveyor) that owns IN/OUT conveyor stubs: render its path/sections on top of its box.
+  stubHost: boolean
   color: string
   selected: boolean
   drawing: boolean
@@ -658,8 +765,9 @@ function PlanItem({
 }) {
   const path = Array.isArray(eq.path) ? eq.path : []
   const isPathConveyor = conveyor && path.length >= 2
-
-  if (isPathConveyor) {
+  // The path/sections overlay (directed sections + chevrons + junctions + waypoints + label). Shared
+  // by a real conveyor (rendered alone) and an ASRS stub host (rendered on top of its rack box).
+  const renderPath = () => {
     const sections = effectiveSections(eq)
     const decisions = decisionPoints(sections)
     const junctions = junctionPoints(sections)
@@ -798,11 +906,14 @@ function PlanItem({
     )
   }
 
+  // A real conveyor with a path renders just the path overlay.
+  if (isPathConveyor) return renderPath()
+
   // Plain box: a rotated rect centred at (posXM, posZM).
   const [cx, cy] = toPx(eq.posXM, eq.posZM)
   const w = eq.lengthM * pxPerM
   const h = eq.widthM * pxPerM
-  return (
+  const box = (
     <g
       transform={`translate(${cx} ${cy}) rotate(${eq.rotationDeg})`}
       style={{ cursor: drawing ? 'default' : 'move' }}
@@ -832,6 +943,17 @@ function PlanItem({
       </text>
     </g>
   )
+
+  // An ASRS stub host draws its IN/OUT conveyor stubs (path/sections) on top of its rack box.
+  if (stubHost && path.length >= 2) {
+    return (
+      <g>
+        {box}
+        {renderPath()}
+      </g>
+    )
+  }
+  return box
 }
 
 // A function-point marker rendered top-down on its conveyor: a small dot nudged to its side
@@ -869,6 +991,9 @@ function PlanFunctionPoint({
     oz = -at.dx * half
   }
   const isDivert = fp.functionType === 'DIVERT_LEFT' || fp.functionType === 'DIVERT_RIGHT'
+  // Ports/merge (IN/OUT/FEED) render as a DIAMOND — distinct from a round SCAN or a square DIVERT.
+  const isPort =
+    fp.functionType === 'INDUCT' || fp.functionType === 'DISCHARGE' || fp.functionType === 'INFEED'
   const color = isDivert ? '#e0563f' : functionColor(fp.functionType)
   const short = FUNCTION_SHORT[fp.functionType] ?? fp.functionType
   const [mx, my] = toPx(at.x + ox, at.z + oz)
@@ -894,7 +1019,8 @@ function PlanFunctionPoint({
         y={my - 4.5}
         width={9}
         height={9}
-        rx={isDivert ? 0 : 4.5}
+        transform={isPort ? `rotate(45 ${mx} ${my})` : undefined}
+        rx={isDivert || isPort ? 0 : 4.5}
         fill={color}
         stroke="#08120d"
         strokeWidth={1.2}
@@ -920,6 +1046,10 @@ function PendingMarker({
   onDragStart: (e: React.PointerEvent<SVGGElement>) => void
 }) {
   const isDivert = pending.functionType === 'DIVERT_LEFT' || pending.functionType === 'DIVERT_RIGHT'
+  const isPort =
+    pending.functionType === 'INDUCT' ||
+    pending.functionType === 'DISCHARGE' ||
+    pending.functionType === 'INFEED'
   const color = isDivert ? '#e0563f' : functionColor(pending.functionType)
   const short = FUNCTION_SHORT[pending.functionType] ?? pending.functionType
   const [mx, my] = toPx(pending.world.x, pending.world.z)
@@ -939,7 +1069,8 @@ function PendingMarker({
         y={my - 5.5}
         width={11}
         height={11}
-        rx={isDivert ? 0 : 5.5}
+        transform={isPort ? `rotate(45 ${mx} ${my})` : undefined}
+        rx={isDivert || isPort ? 0 : 5.5}
         fill={color}
         fillOpacity={0.85}
         stroke="#fff"
@@ -991,7 +1122,10 @@ function PlanStyles() {
         border: 1px solid var(--glass-border); font-family: var(--font-mono); white-space: nowrap;
       }
       .plan2d-fpbtn:hover { border-color: var(--glass-border-bright); color: var(--text); }
+      .plan2d-fpbtn:disabled { opacity: .4; cursor: not-allowed; }
       .plan2d-fpbtn.is-divert { color: #e0907f; }
+      .plan2d-fpbtn.is-port { color: #8DC63F; }
+      .plan2d-fpbtn.is-infeed { color: #5ee0c8; }
       .plan2d-fphint { font-size: .72rem; color: var(--herbal-lime); letter-spacing: .02em; }
       .plan2d-fplabel {
         font-family: var(--font-mono); font-size: 10px;
