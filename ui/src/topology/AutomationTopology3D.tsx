@@ -2708,7 +2708,11 @@ function EquipmentMesh({
         anchor={[0, 0, 0]}
         // Re-mount per equipment so the gizmo resets cleanly when selection changes.
         key={eq.id}
-        scale={Math.max(1.5, Math.max(eq.lengthM, eq.widthM))}
+        // `fixed` keeps the gizmo a constant on-screen size (scale = pixels) instead of scaling with
+        // the equipment — an 80 m ASRS otherwise produced a giant arrow/axis gizmo that filled the view.
+        fixed
+        scale={90}
+        lineWidth={2.5}
         depthTest={false}
         disableScaling
         // autoTransform off: our React state is the source of truth for the group's transform,
