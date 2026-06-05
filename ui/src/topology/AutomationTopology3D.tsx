@@ -29,6 +29,10 @@ const DEG = Math.PI / 180
 // Snap radius (metres): a ground/plan click this close to an existing path point reuses that point
 // (so junctions form) rather than creating a near-duplicate vertex. Shared by 3D + 2D editors.
 export const SNAP_M = 0.5
+// When a divert branch's stub endpoint lands within this distance (m) of ANOTHER conveyor's
+// centreline, it snaps exactly onto that line so the divert meets the existing conveyor at one shared
+// coordinate (rather than overlaying a parallel/offset stub).
+const DIVERT_MERGE_M = 0.75
 // Render width (m) for an IN/OUT conveyor stub owned by a non-conveyor (e.g. an ASRS). The stub is
 // physically a piece of conveyor — it just wears the host's colour — so it draws at a conveyor width,
 // NOT the host's footprint width (a 5 m ASRS rack would otherwise render as a giant blob).
@@ -1092,6 +1096,39 @@ export default function AutomationTopology3D({
           bx = +bx.toFixed(3)
           bz = +bz.toFixed(3)
 
+          // --- 2b) Merge onto an overlapping conveyor. ---
+          // If the stub endpoint lands within DIVERT_MERGE_M of ANOTHER conveyor's centreline, snap it
+          // exactly onto that line so the divert MEETS the existing conveyor at one shared coordinate
+          // (there is only ever one conveyor line per point) instead of overlaying a parallel/offset
+          // stub. The routing projection's adjacency inference then connects the two.
+          {
+            let md = DIVERT_MERGE_M
+            for (const other of es) {
+              if (other.id === id || !isConveyor(other, libById)) continue
+              const op = Array.isArray(other.path) ? other.path : []
+              if (op.length < 2) continue
+              const pc = other.closed ? op.length : op.length - 1
+              for (let i = 0; i < pc; i++) {
+                const oa = op[i]
+                const ob = op[(i + 1) % op.length]
+                const abx = ob[0] - oa[0]
+                const abz = ob[1] - oa[1]
+                const len2 = abx * abx + abz * abz
+                if (len2 < 1e-9) continue
+                let t = ((bx - oa[0]) * abx + (bz - oa[1]) * abz) / len2
+                t = Math.min(1, Math.max(0, t))
+                const jx2 = oa[0] + abx * t
+                const jz2 = oa[1] + abz * t
+                const d = Math.hypot(jx2 - bx, jz2 - bz)
+                if (d <= md) {
+                  md = d
+                  bx = +jx2.toFixed(3)
+                  bz = +jz2.toFixed(3)
+                }
+              }
+            }
+          }
+
           // --- 3) Add the branch endpoint + a directed section. ---
           // Divert: junction → branch (material leaves the line). INFEED merge: branch → junction
           // (the feeder runs into the line). The branch endpoint stays the same perpendicular stub.
@@ -1107,7 +1144,7 @@ export default function AutomationTopology3D({
       setSelectedId(id)
       setDirty(true)
     },
-    [],
+    [libById],
   )
 
   // Add a 1 m IN/OUT conveyor stub to an ASRS, owned by the ASRS itself (its own `path`/`sections`,
