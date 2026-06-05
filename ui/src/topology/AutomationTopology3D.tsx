@@ -43,6 +43,54 @@ export const FUNCTION_TYPES = [
   'INFEED',
 ] as const
 
+// A function point can carry a COMBINATION of functions (e.g. SCAN + DIVERT_LEFT), stored in the
+// single `functionType` string as a comma-separated set the backend just round-trips. These two
+// helpers convert between the string and a clean list.
+//
+// fpFunctions: split on comma, trim, drop empties, dedupe (preserving first-seen order).
+export function fpFunctions(functionType: string): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of (functionType ?? '').split(',')) {
+    const t = raw.trim()
+    if (t && !seen.has(t)) {
+      seen.add(t)
+      out.push(t)
+    }
+  }
+  return out
+}
+
+// joinFunctions: dedupe and join with commas, in a stable order (by FUNCTION_TYPES position, with
+// any unknown types appended in their given order). Inverse of fpFunctions for storage.
+export function joinFunctions(list: string[]): string {
+  const seen = new Set<string>()
+  const clean: string[] = []
+  for (const raw of list) {
+    const t = (raw ?? '').trim()
+    if (t && !seen.has(t)) {
+      seen.add(t)
+      clean.push(t)
+    }
+  }
+  const order = (t: string) => {
+    const i = (FUNCTION_TYPES as readonly string[]).indexOf(t)
+    return i === -1 ? FUNCTION_TYPES.length : i
+  }
+  clean.sort((a, b) => order(a) - order(b))
+  return clean.join(',')
+}
+
+// True for the divert function types (left/right).
+function isDivertType(t: string): boolean {
+  return t === 'DIVERT_LEFT' || t === 'DIVERT_RIGHT'
+}
+
+// True for the port-style function types (rendered as a diamond): induct / discharge / infeed.
+function isPortType(t: string): boolean {
+  return t === 'INDUCT' || t === 'DISCHARGE' || t === 'INFEED'
+}
+
 // Short marker labels per function type for the 3D <Html> tag. Falls back to the raw type.
 export const FUNCTION_SHORT: Record<string, string> = {
   SCAN: 'SCAN',
@@ -82,6 +130,20 @@ export function functionColor(type: string): string {
     default:
       return '#cfd8d2'
   }
+}
+
+// Representative colour for a SET of functions: a divert wins (red), then a port colour, else the
+// first function's colour. Empty falls back to functionColor's default.
+export function functionColorForSet(list: string[]): string {
+  if (list.some(isDivertType)) return '#e0563f'
+  const port = list.find(isPortType)
+  if (port) return functionColor(port)
+  return functionColor(list[0] ?? '')
+}
+
+// Combined short label for a SET of functions, e.g. "SCAN · ◀ DIV". Empty → ''.
+export function functionShortForSet(list: string[]): string {
+  return list.map((t) => FUNCTION_SHORT[t] ?? t).join(' · ')
 }
 
 // True when a placed item's library entry marks it as an ASRS-style storage system that a
@@ -598,8 +660,8 @@ export default function AutomationTopology3D() {
   const deleteFunctionPoint = useCallback(
     (id: string) => {
       const fp = functionPoints.find((f) => f.id === id)
-      // Deleting a divert also removes the branch it spawned on its conveyor.
-      if (fp && (fp.functionType === 'DIVERT_LEFT' || fp.functionType === 'DIVERT_RIGHT')) {
+      // Deleting a point whose function set INCLUDES a divert also removes the branch it spawned.
+      if (fp && fpFunctions(fp.functionType).some(isDivertType)) {
         setEquipment((es) => es.map((e) => (e.id === fp.placedId ? removeDivertBranch(e, fp.offsetM) : e)))
       }
       setFunctionPoints((fps) => fps.filter((f) => f.id !== id))
@@ -1427,6 +1489,7 @@ export default function AutomationTopology3D() {
                 points={selectedFunctionPoints}
                 processTypes={selectedMeta?.processTypes ?? null}
                 onAdd={addFunctionPoint}
+                onUpdate={updateFunctionPoint}
                 onDelete={deleteFunctionPoint}
               />
 
@@ -1676,6 +1739,7 @@ function FunctionPointsPanel({
   points,
   processTypes,
   onAdd,
+  onUpdate,
   onDelete,
 }: {
   placedId: string
@@ -1683,6 +1747,7 @@ function FunctionPointsPanel({
   // The library equipment's declared process types (preferred Select options), or null.
   processTypes: string[] | null
   onAdd: (fp: AutomationFunctionPoint) => void
+  onUpdate: (id: string, patch: Partial<AutomationFunctionPoint>) => void
   onDelete: (id: string) => void
 }) {
   const typeOptions = processTypes && processTypes.length > 0 ? processTypes : [...FUNCTION_TYPES]
@@ -1729,27 +1794,73 @@ function FunctionPointsPanel({
         <p className="atopo-muted atopo-fps-empty">None yet.</p>
       ) : (
         <ul className="atopo-fps-list">
-          {points.map((fp) => (
-            <li key={fp.id} className="atopo-fps-row">
-              <span className="atopo-fps-label">
-                <span className="atopo-fps-type" style={{ color: functionColor(fp.functionType) }}>
-                  {fp.functionType}
+          {points.map((fp) => {
+            const active = fpFunctions(fp.functionType)
+            // Toggle a single function on/off for this point. Require at least one to remain.
+            const toggle = (t: string) => {
+              const next = active.includes(t)
+                ? active.filter((x) => x !== t)
+                : [...active, t]
+              if (next.length === 0) return // don't allow emptying
+              onUpdate(fp.id, { functionType: joinFunctions(next) })
+            }
+            return (
+              <li key={fp.id} className="atopo-fps-row">
+                <span className="atopo-fps-label">
+                  <span
+                    className="atopo-fps-type"
+                    style={{ color: functionColorForSet(active) }}
+                  >
+                    {functionShortForSet(active) || fp.functionType}
+                  </span>
+                  {fp.name ? <span> · {fp.name}</span> : null}
+                  <span className="atopo-muted">
+                    {' '}
+                    @ {fp.offsetM} m{fp.side ? ` · ${fp.side}` : ''}
+                  </span>
+                  <span
+                    className="atopo-fps-chips"
+                    style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}
+                  >
+                    {typeOptions.map((t) => {
+                      const on = active.includes(t)
+                      const c = functionColor(t)
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          className={`atopo-fps-chip${on ? ' is-on' : ''}`}
+                          aria-pressed={on}
+                          title={t}
+                          style={{
+                            fontSize: 11,
+                            lineHeight: 1.2,
+                            padding: '2px 6px',
+                            borderRadius: 999,
+                            cursor: 'pointer',
+                            border: `1px solid ${on ? c : 'var(--border, #44504a)'}`,
+                            color: on ? c : 'var(--muted, #9aa6a0)',
+                            background: on ? 'rgba(255,255,255,0.06)' : 'transparent',
+                            opacity: on ? 1 : 0.7,
+                          }}
+                          onClick={() => toggle(t)}
+                        >
+                          {FUNCTION_SHORT[t] ?? t}
+                        </button>
+                      )
+                    })}
+                  </span>
                 </span>
-                {fp.name ? <span> · {fp.name}</span> : null}
-                <span className="atopo-muted">
-                  {' '}
-                  @ {fp.offsetM} m{fp.side ? ` · ${fp.side}` : ''}
-                </span>
-              </span>
-              <button
-                type="button"
-                className="btn btn-danger btn-sm"
-                onClick={() => onDelete(fp.id)}
-              >
-                Delete
-              </button>
-            </li>
-          ))}
+                <button
+                  type="button"
+                  className="btn btn-danger btn-sm"
+                  onClick={() => onDelete(fp.id)}
+                >
+                  Delete
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
 
@@ -2098,11 +2209,14 @@ function FunctionPointMarker({
     oz = -at.dx * half
   }
   const top = elev + eq.heightM + eq.posYM
-  const color = functionColor(fp.functionType)
-  const short = FUNCTION_SHORT[fp.functionType] ?? fp.functionType
+  // The point can carry a combination of functions; pick a representative colour and show the
+  // combined short labels.
+  const fns = fpFunctions(fp.functionType)
+  const color = functionColorForSet(fns)
+  const short = functionShortForSet(fns) || fp.functionType
   // Ports/merge (IN/OUT/FEED) render as a diamond (octahedron) — distinct from the SCAN/DIVERT cones.
-  const isPort =
-    fp.functionType === 'INDUCT' || fp.functionType === 'DISCHARGE' || fp.functionType === 'INFEED'
+  // If the set includes any port type, use the diamond glyph.
+  const isPort = fns.some(isPortType)
   return (
     <group position={[at.x + ox, top, at.z + oz]}>
       <mesh
