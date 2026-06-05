@@ -35,7 +35,7 @@ public final class AutomationTopologyDtos {
                                      BigDecimal lengthM, BigDecimal widthM, BigDecimal heightM,
                                      List<List<Double>> path, boolean closed,
                                      List<List<Integer>> sections,
-                                     String status) {
+                                     String status, String category) {
     }
 
     /** A directed connection between two placed pieces of equipment, optionally anchored at function points. */

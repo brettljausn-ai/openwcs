@@ -3,9 +3,11 @@ package org.openwcs.flow.service;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 import org.openwcs.flow.api.AutomationTopologyDtos.AutomationTopologyDto;
@@ -13,6 +15,7 @@ import org.openwcs.flow.api.AutomationTopologyDtos.ConnectionDto;
 import org.openwcs.flow.api.AutomationTopologyDtos.FunctionPointDto;
 import org.openwcs.flow.api.AutomationTopologyDtos.PlacedEquipmentDto;
 import org.openwcs.flow.domain.ConveyorEdge;
+import org.openwcs.flow.domain.ConveyorLoop;
 import org.openwcs.flow.domain.ConveyorNode;
 import org.openwcs.flow.repo.ConveyorControllerRepository;
 import org.openwcs.flow.repo.ConveyorEdgeRepository;
@@ -39,6 +42,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class RoutingProjectionService {
 
     private static final double MIN_BOX_LENGTH_M = 0.05;
+    /** A function point within this arc-distance of an existing path point aliases it (no split). */
+    private static final double ON_POINT_TOLERANCE_M = 0.05;
 
     private final AutomationTopologyService automation;
     private final ConveyorNodeRepository nodes;
@@ -65,6 +70,8 @@ public class RoutingProjectionService {
         String code;
         final Double posX;
         final Double posY;
+        /** The loop this node belongs to (its code), or null. Set when its conveyor is a loop. */
+        String loopCode;
 
         StagedNode(String code, Double posX, Double posY) {
             this.code = code;
@@ -73,18 +80,43 @@ public class RoutingProjectionService {
         }
     }
 
+    /** A loop staged in memory before persistence. */
+    private static final class StagedLoop {
+        final String code;
+        final int maxHus;
+
+        StagedLoop(String code, int maxHus) {
+            this.code = code;
+            this.maxHus = maxHus;
+        }
+    }
+
     /** An edge staged in memory by from/to node codes. */
     private static final class StagedEdge {
         String fromCode;
         String toCode;
-        final int cost;
+        int cost;
         String exitCode;
+        /** World positions of the edge endpoints (for FP mid-section splitting); null when off-path. */
+        double fromX;
+        double fromZ;
+        double toX;
+        double toZ;
+        boolean hasGeometry;
 
         StagedEdge(String fromCode, String toCode, int cost, String exitCode) {
             this.fromCode = fromCode;
             this.toCode = toCode;
             this.cost = cost;
             this.exitCode = exitCode;
+        }
+
+        void geometry(double fromX, double fromZ, double toX, double toZ) {
+            this.fromX = fromX;
+            this.fromZ = fromZ;
+            this.toX = toX;
+            this.toZ = toZ;
+            this.hasGeometry = true;
         }
     }
 
@@ -96,6 +128,7 @@ public class RoutingProjectionService {
         // Staged nodes keyed by code (codes are kept globally unique within this projection).
         Map<String, StagedNode> stagedByCode = new LinkedHashMap<>();
         List<StagedEdge> stagedEdges = new ArrayList<>();
+        List<StagedLoop> stagedLoops = new ArrayList<>();
         // (equipmentId, pathIndex) -> current node code.
         Map<String, String> codeByEquipPoint = new HashMap<>();
         // equipmentId -> ordered list of path indices that became nodes (entry = first, exit = last).
@@ -103,13 +136,31 @@ public class RoutingProjectionService {
 
         List<PlacedEquipmentDto> equipment = model.equipment() == null ? List.of() : model.equipment();
 
+        // Function points grouped by the equipment they sit on, ordered by their offset along it.
+        Map<UUID, List<FunctionPointDto>> fpsByEquip = new HashMap<>();
+        if (model.functionPoints() != null) {
+            for (FunctionPointDto fp : model.functionPoints()) {
+                if (fp.placedId() == null) {
+                    continue;
+                }
+                fpsByEquip.computeIfAbsent(fp.placedId(), k -> new ArrayList<>()).add(fp);
+            }
+            for (List<FunctionPointDto> list : fpsByEquip.values()) {
+                list.sort((a, b) -> Double.compare(num(a.offsetM()), num(b.offsetM())));
+            }
+        }
+
         for (PlacedEquipmentDto e : equipment) {
             List<List<Double>> path = e.path();
             List<List<Integer>> sections = e.sections();
             boolean hasPath = path != null && path.size() >= 2;
             boolean hasSection = sections != null && !sections.isEmpty();
+            String cat = category(e);
 
-            if (hasPath && hasSection) {
+            // A category that has no routable path collapses to a single node regardless of geometry.
+            boolean pointKind = (cat != null && noPathKind(cat)) && !(hasPath && hasSection);
+
+            if (!pointKind && hasPath && hasSection) {
                 // Collect every path index referenced by a section, in ascending order.
                 TreeSet<Integer> used = new TreeSet<>();
                 for (List<Integer> s : sections) {
@@ -132,6 +183,7 @@ public class RoutingProjectionService {
                     stagedByCode.put(code, new StagedNode(code, p.get(0), p.get(1)));
                     codeByEquipPoint.put(key(e.id(), idx), code);
                 }
+                List<StagedEdge> equipEdges = new ArrayList<>();
                 for (List<Integer> s : sections) {
                     if (s == null || s.size() < 2 || !validIndex(s.get(0), path) || !validIndex(s.get(1), path)) {
                         continue;
@@ -144,9 +196,23 @@ public class RoutingProjectionService {
                         continue;
                     }
                     int cost = (int) Math.max(1, Math.round(distance(path.get(i), path.get(j))));
-                    stagedEdges.add(new StagedEdge(fromCode, toCode, cost, toCode));
+                    StagedEdge edge = new StagedEdge(fromCode, toCode, cost, toCode);
+                    List<Double> pi = path.get(i);
+                    List<Double> pj = path.get(j);
+                    edge.geometry(pi.get(0), pi.get(1), pj.get(0), pj.get(1));
+                    equipEdges.add(edge);
                 }
-            } else if (isBox(e)) {
+                // Feature 2: insert / alias the equipment's function points before staging its edges.
+                List<String> insertedFpCodes = new ArrayList<>();
+                applyFunctionPoints(e, path, equipEdges, stagedByCode, codeByEquipPoint,
+                        fpsByEquip.get(e.id()), insertedFpCodes, warnings);
+                stagedEdges.addAll(equipEdges);
+
+                // Feature 3: a closed path or a cyclic section graph is a loop.
+                if (isLoop(e, ordered, sections)) {
+                    stageLoop(e, stagedByCode, codeByEquipPoint, ordered, insertedFpCodes, stagedLoops);
+                }
+            } else if (!pointKind && isBoxKind(e, cat)) {
                 double[] start = boxEndpoint(e, true);
                 double[] end = boxEndpoint(e, false);
                 int last = lastIndex(e);
@@ -165,37 +231,6 @@ public class RoutingProjectionService {
             }
         }
 
-        // Function-point node-code aliasing: rename the layout node nearest a named function point to
-        // the FP's nodeCode. This is the seam binding named PLC nodes to the projected layout.
-        if (model.functionPoints() != null) {
-            for (FunctionPointDto fp : model.functionPoints()) {
-                if (fp.nodeCode() == null || fp.nodeCode().isBlank() || fp.placedId() == null) {
-                    continue;
-                }
-                List<Integer> pts = pointsByEquip.get(fp.placedId());
-                if (pts == null || pts.isEmpty()) {
-                    warnings.add("Function point " + fpLabel(fp) + " has nodeCode '" + fp.nodeCode()
-                            + "' but its equipment produced no path nodes; alias skipped.");
-                    continue;
-                }
-                PlacedEquipmentDto eq = findEquipment(equipment, fp.placedId());
-                int nearestIdx = nearestPathIndex(eq, pts, fp.offsetM());
-                String oldCode = codeByEquipPoint.get(key(fp.placedId(), nearestIdx));
-                if (oldCode == null) {
-                    continue;
-                }
-                String desired = fp.nodeCode().trim();
-                String newCode = oldCode.equals(desired) ? desired : uniqueCode(desired, stagedByCode);
-                if (!newCode.equals(desired)) {
-                    warnings.add("Function-point nodeCode '" + desired + "' collided; aliased as '"
-                            + newCode + "'.");
-                }
-                if (!newCode.equals(oldCode)) {
-                    rename(oldCode, newCode, stagedByCode, codeByEquipPoint, stagedEdges);
-                }
-            }
-        }
-
         // Connections: exit node of FROM equipment -> entry node of TO equipment.
         if (model.connections() != null) {
             for (ConnectionDto c : model.connections()) {
@@ -210,18 +245,84 @@ public class RoutingProjectionService {
             }
         }
 
-        return persist(warehouseId, stagedByCode, stagedEdges, warnings);
+        return persist(warehouseId, stagedByCode, stagedEdges, stagedLoops, warnings);
+    }
+
+    /**
+     * Bind a conveyor's function points to its routing graph (Feature 2). For each FP, by arc-length
+     * {@code offsetM} along the path: if it lands essentially ON a path point that became a node, keep
+     * the v1 aliasing (rename that node to the FP's nodeCode); otherwise it sits mid-section, so split
+     * the section's edge by inserting a node at the FP position, chaining multiple FPs on one section
+     * in offset order ({@code i -> fp1 -> fp2 -> ... -> j}) with cost split proportionally to the
+     * sub-segment lengths (each at least 1).
+     */
+    private void applyFunctionPoints(PlacedEquipmentDto e, List<List<Double>> path,
+                                     List<StagedEdge> equipEdges, Map<String, StagedNode> stagedByCode,
+                                     Map<String, String> codeByEquipPoint, List<FunctionPointDto> fps,
+                                     List<String> insertedFpCodes, List<String> warnings) {
+        if (fps == null || fps.isEmpty()) {
+            return;
+        }
+        int fpIndex = 0;
+        for (FunctionPointDto fp : fps) {
+            int index = fpIndex++;
+            double offset = num(fp.offsetM());
+            double[] pos = pointAlong(path, offset);
+            if (pos == null) {
+                continue;
+            }
+            // If the FP is essentially ON an existing path point of this equipment, alias it (v1).
+            Integer onIdx = pathPointAt(e, path, codeByEquipPoint, pos);
+            if (onIdx != null) {
+                if (fp.nodeCode() == null || fp.nodeCode().isBlank()) {
+                    continue;
+                }
+                String oldCode = codeByEquipPoint.get(key(e.id(), onIdx));
+                if (oldCode == null) {
+                    continue;
+                }
+                aliasNode(oldCode, fp.nodeCode().trim(), stagedByCode, codeByEquipPoint, equipEdges, warnings);
+                continue;
+            }
+            // Mid-section: find the edge whose segment contains the FP position and split it.
+            StagedEdge host = containingEdge(equipEdges, pos);
+            if (host == null) {
+                warnings.add("Function point " + fpLabel(fp) + " at offset " + offset
+                        + " m is not on any section of " + label(e) + "; skipped.");
+                continue;
+            }
+            String desired = (fp.nodeCode() != null && !fp.nodeCode().isBlank())
+                    ? fp.nodeCode().trim() : sanitise(eqCode(e)) + "#fp" + index;
+            String fpCode = uniqueCode(desired, stagedByCode);
+            if (!fpCode.equals(desired) && fp.nodeCode() != null && !fp.nodeCode().isBlank()) {
+                warnings.add("Function-point nodeCode '" + desired + "' collided; inserted as '"
+                        + fpCode + "'.");
+            }
+            stagedByCode.put(fpCode, new StagedNode(fpCode, pos[0], pos[1]));
+            insertedFpCodes.add(fpCode);
+            splitEdge(host, fpCode, pos, equipEdges);
+        }
     }
 
     // ---- persistence (full replace, mirroring TopologyService.replace) -------------------------
 
     private ProjectionResult persist(UUID warehouseId, Map<String, StagedNode> stagedByCode,
-                                     List<StagedEdge> stagedEdges, List<String> warnings) {
+                                     List<StagedEdge> stagedEdges, List<StagedLoop> stagedLoops,
+                                     List<String> warnings) {
         edges.deleteByWarehouseId(warehouseId);
         loops.deleteByWarehouseId(warehouseId);
         controllers.deleteByWarehouseId(warehouseId);
         nodes.deleteAll(nodes.findByWarehouseId(warehouseId));
         nodes.flush();
+
+        for (StagedLoop sl : stagedLoops) {
+            ConveyorLoop loop = new ConveyorLoop();
+            loop.setWarehouseId(warehouseId);
+            loop.setCode(sl.code);
+            loop.setMaxHus(sl.maxHus);
+            loop.setWhenFull("HOLD");
+            loops.save(loop);
+        }
 
         Map<String, UUID> idByCode = new HashMap<>();
         for (StagedNode sn : stagedByCode.values()) {
@@ -230,6 +331,7 @@ public class RoutingProjectionService {
             node.setCode(sn.code);
             node.setPosX(sn.posX);
             node.setPosY(sn.posY);
+            node.setLoopCode(sn.loopCode);
             idByCode.put(sn.code, nodes.save(node).getId());
         }
 
@@ -264,9 +366,18 @@ public class RoutingProjectionService {
         pointsByEquip.put(e.id(), List.of(0));
     }
 
-    /** Rename a staged node's code and fix up the index map and any edges referencing the old code. */
-    private void rename(String oldCode, String newCode, Map<String, StagedNode> stagedByCode,
-                        Map<String, String> codeByEquipPoint, List<StagedEdge> stagedEdges) {
+    /** Alias (rename) the layout node a function point sits on to the FP's nodeCode (v1 behaviour),
+     *  fixing up the index map and any of this equipment's edges referencing the old code. */
+    private void aliasNode(String oldCode, String desired, Map<String, StagedNode> stagedByCode,
+                           Map<String, String> codeByEquipPoint, List<StagedEdge> equipEdges,
+                           List<String> warnings) {
+        String newCode = oldCode.equals(desired) ? desired : uniqueCode(desired, stagedByCode);
+        if (!newCode.equals(desired)) {
+            warnings.add("Function-point nodeCode '" + desired + "' collided; aliased as '" + newCode + "'.");
+        }
+        if (newCode.equals(oldCode)) {
+            return;
+        }
         StagedNode node = stagedByCode.remove(oldCode);
         if (node == null) {
             return;
@@ -278,7 +389,7 @@ public class RoutingProjectionService {
                 en.setValue(newCode);
             }
         }
-        for (StagedEdge se : stagedEdges) {
+        for (StagedEdge se : equipEdges) {
             if (se.fromCode.equals(oldCode)) {
                 se.fromCode = newCode;
             }
@@ -291,10 +402,78 @@ public class RoutingProjectionService {
         }
     }
 
+    /** Split a host edge {@code i -> j} at an inserted FP node, replacing it in place with
+     *  {@code i -> fp} and appending {@code fp -> j}, splitting cost proportionally to the
+     *  sub-segment lengths (each at least 1). Geometry is updated so later FPs on the same original
+     *  segment chain onto the correct sub-edge. */
+    private void splitEdge(StagedEdge host, String fpCode, double[] pos, List<StagedEdge> equipEdges) {
+        double segLen = Math.hypot(host.toX - host.fromX, host.toZ - host.fromZ);
+        double dFrom = Math.hypot(pos[0] - host.fromX, pos[1] - host.fromZ);
+        double frac = segLen > 0 ? Math.min(1.0, Math.max(0.0, dFrom / segLen)) : 0.5;
+        int total = host.cost;
+        int firstCost = (int) Math.max(1, Math.min(total - 1 > 0 ? total - 1 : total, Math.round(total * frac)));
+        int secondCost = Math.max(1, total - firstCost);
+
+        String origToCode = host.toCode;
+        double origToX = host.toX;
+        double origToZ = host.toZ;
+
+        // host becomes from -> fp; its exit now points at the inserted node.
+        host.toCode = fpCode;
+        host.exitCode = fpCode;
+        host.cost = firstCost;
+        host.toX = pos[0];
+        host.toZ = pos[1];
+
+        // tail: fp -> j, retaining the original target as its exit.
+        StagedEdge tail = new StagedEdge(fpCode, origToCode, secondCost, origToCode);
+        tail.geometry(pos[0], pos[1], origToX, origToZ);
+        equipEdges.add(tail);
+    }
+
+    /** The edge whose segment contains {@code pos} (within a small tolerance), or null. */
+    private static StagedEdge containingEdge(List<StagedEdge> equipEdges, double[] pos) {
+        StagedEdge best = null;
+        double bestDist = ON_POINT_TOLERANCE_M;
+        for (StagedEdge se : equipEdges) {
+            if (!se.hasGeometry) {
+                continue;
+            }
+            double d = pointToSegment(pos[0], pos[1], se.fromX, se.fromZ, se.toX, se.toZ);
+            if (d <= bestDist) {
+                bestDist = d;
+                best = se;
+            }
+        }
+        return best;
+    }
+
     // ---- classification & geometry -------------------------------------------------------------
 
-    private static boolean isBox(PlacedEquipmentDto e) {
-        return e.lengthM() != null && e.lengthM().doubleValue() > MIN_BOX_LENGTH_M;
+    /** The lower-cased trimmed category, or null when absent/blank (→ geometric fallback). */
+    private static String category(PlacedEquipmentDto e) {
+        String c = e.category();
+        if (c == null || c.isBlank()) {
+            return null;
+        }
+        return c.trim().toLowerCase();
+    }
+
+    /** Categories that, when they carry NO routable path, collapse to a single node. */
+    private static boolean noPathKind(String cat) {
+        return "asrs".equals(cat) || "sorter".equals(cat) || "manual-storage".equals(cat)
+                || "other".equals(cat);
+    }
+
+    /** Whether this equipment should be staged as a straight start/end box. Prefer the supplied
+     *  category ({@code conveyor} → box when it has a usable length); fall back to the geometric
+     *  heuristic (a meaningful lengthM) when no category was supplied. */
+    private static boolean isBoxKind(PlacedEquipmentDto e, String cat) {
+        boolean hasLength = e.lengthM() != null && e.lengthM().doubleValue() > MIN_BOX_LENGTH_M;
+        if (cat == null) {
+            return hasLength;
+        }
+        return "conveyor".equals(cat) && hasLength;
     }
 
     /** Start (true) or end (false) endpoint of a straight box along its length, rotated by yaw.
@@ -326,33 +505,67 @@ public class RoutingProjectionService {
         return Math.hypot(dx, dz);
     }
 
-    /** The path index whose arc-length position is closest to a function point's offset (metres). */
-    private static int nearestPathIndex(PlacedEquipmentDto e, List<Integer> candidates, BigDecimal offsetM) {
-        List<List<Double>> path = e == null ? null : e.path();
-        if (path == null || path.size() < 2 || candidates.size() == 1) {
-            return candidates.get(0);
+    /** The world position at arc-length {@code offsetM} along the polyline (clamped to the ends).
+     *  Mirrors the UI {@code pointAlong} polyline walk. Null when there is no usable path. */
+    private static double[] pointAlong(List<List<Double>> path, double offsetM) {
+        if (path == null || path.size() < 2) {
+            return null;
         }
-        double target = num(offsetM);
-        // Cumulative arc-length from path[0] to each candidate index.
-        double best = Double.MAX_VALUE;
-        int bestIdx = candidates.get(0);
-        for (int idx : candidates) {
-            double arc = arcLengthTo(path, idx);
-            double d = Math.abs(arc - target);
-            if (d < best) {
-                best = d;
-                bestIdx = idx;
+        if (offsetM <= 0) {
+            List<Double> p = path.get(0);
+            return new double[] {p.get(0), p.get(1)};
+        }
+        double remaining = offsetM;
+        for (int i = 0; i + 1 < path.size(); i++) {
+            List<Double> a = path.get(i);
+            List<Double> b = path.get(i + 1);
+            double seg = distance(a, b);
+            if (seg <= 0) {
+                continue;
             }
+            if (remaining <= seg) {
+                double t = remaining / seg;
+                return new double[] {a.get(0) + (b.get(0) - a.get(0)) * t,
+                        a.get(1) + (b.get(1) - a.get(1)) * t};
+            }
+            remaining -= seg;
         }
-        return bestIdx;
+        List<Double> last = path.get(path.size() - 1);
+        return new double[] {last.get(0), last.get(1)};
     }
 
-    private static double arcLengthTo(List<List<Double>> path, int index) {
-        double sum = 0;
-        for (int i = 0; i < index && i + 1 < path.size(); i++) {
-            sum += distance(path.get(i), path.get(i + 1));
+    /** The equipment path index that became a node and sits within {@link #ON_POINT_TOLERANCE_M} of
+     *  {@code pos}, or null when {@code pos} is genuinely mid-section. */
+    private static Integer pathPointAt(PlacedEquipmentDto e, List<List<Double>> path,
+                                       Map<String, String> codeByEquipPoint, double[] pos) {
+        if (path == null) {
+            return null;
         }
-        return sum;
+        for (int idx = 0; idx < path.size(); idx++) {
+            if (codeByEquipPoint.get(key(e.id(), idx)) == null) {
+                continue;
+            }
+            List<Double> p = path.get(idx);
+            if (Math.hypot(p.get(0) - pos[0], p.get(1) - pos[1]) <= ON_POINT_TOLERANCE_M) {
+                return idx;
+            }
+        }
+        return null;
+    }
+
+    /** Shortest distance from point (px,pz) to the segment (ax,az)-(bx,bz). */
+    private static double pointToSegment(double px, double pz, double ax, double az, double bx, double bz) {
+        double dx = bx - ax;
+        double dz = bz - az;
+        double len2 = dx * dx + dz * dz;
+        if (len2 <= 0) {
+            return Math.hypot(px - ax, pz - az);
+        }
+        double t = ((px - ax) * dx + (pz - az) * dz) / len2;
+        t = Math.min(1.0, Math.max(0.0, t));
+        double cx = ax + t * dx;
+        double cz = az + t * dz;
+        return Math.hypot(px - cx, pz - cz);
     }
 
     // ---- connection endpoint resolution --------------------------------------------------------
@@ -377,10 +590,14 @@ public class RoutingProjectionService {
 
     // ---- codes -------------------------------------------------------------------------------
 
+    /** Stable base code for an equipment instance: its code, or EQ-<short id>. */
+    private static String eqCode(PlacedEquipmentDto e) {
+        return e.code() != null && !e.code().isBlank() ? e.code().trim() : "EQ-" + shortId(e.id());
+    }
+
     /** Base node code for an equipment point: equipment code (or EQ-<short id>) + '#' + index. */
     private static String nodeCode(PlacedEquipmentDto e, int index) {
-        String base = e.code() != null && !e.code().isBlank() ? e.code().trim() : "EQ-" + shortId(e.id());
-        return sanitise(base) + "#" + index;
+        return sanitise(eqCode(e)) + "#" + index;
     }
 
     private static String uniqueCode(String desired, Map<String, StagedNode> stagedByCode) {
@@ -404,17 +621,94 @@ public class RoutingProjectionService {
         return id == null ? "x" : id.toString().substring(0, 8);
     }
 
-    private static PlacedEquipmentDto findEquipment(List<PlacedEquipmentDto> equipment, UUID id) {
-        for (PlacedEquipmentDto e : equipment) {
-            if (id.equals(e.id())) {
-                return e;
-            }
-        }
-        return null;
-    }
-
     private static String key(UUID equipId, int index) {
         return equipId + "@" + index;
+    }
+
+    // ---- loops (Feature 3) ---------------------------------------------------------------------
+
+    /** Whether a path-conveyor is a loop: it is flagged {@code closed}, OR its directed sections form
+     *  a single cycle that visits every node point (in-degree and out-degree 1 everywhere, with the
+     *  reachable set covering all node points). */
+    private static boolean isLoop(PlacedEquipmentDto e, List<Integer> nodePoints, List<List<Integer>> sections) {
+        if (e.closed()) {
+            return true;
+        }
+        if (nodePoints == null || nodePoints.size() < 2 || sections == null) {
+            return false;
+        }
+        Map<Integer, Integer> outDeg = new HashMap<>();
+        Map<Integer, Integer> inDeg = new HashMap<>();
+        Map<Integer, Integer> next = new HashMap<>();
+        for (List<Integer> s : sections) {
+            if (s == null || s.size() < 2) {
+                continue;
+            }
+            int i = s.get(0);
+            int j = s.get(1);
+            outDeg.merge(i, 1, Integer::sum);
+            inDeg.merge(j, 1, Integer::sum);
+            next.put(i, j);
+        }
+        // Every node point must have exactly one in- and one out-edge for a simple directed cycle.
+        for (int p : nodePoints) {
+            if (outDeg.getOrDefault(p, 0) != 1 || inDeg.getOrDefault(p, 0) != 1) {
+                return false;
+            }
+        }
+        // Walk the successor chain from the first point; it must return after visiting every point.
+        int start = nodePoints.get(0);
+        Set<Integer> seen = new HashSet<>();
+        int cur = start;
+        for (int steps = 0; steps < nodePoints.size(); steps++) {
+            if (!seen.add(cur)) {
+                return false;
+            }
+            Integer nxt = next.get(cur);
+            if (nxt == null) {
+                return false;
+            }
+            cur = nxt;
+        }
+        return cur == start && seen.size() == nodePoints.size();
+    }
+
+    /** Stage a loop for a conveyor and tag every node it generated (path nodes + inserted function
+     *  points) with the loop code. */
+    private void stageLoop(PlacedEquipmentDto e, Map<String, StagedNode> stagedByCode,
+                           Map<String, String> codeByEquipPoint, List<Integer> nodePoints,
+                           List<String> insertedFpCodes, List<StagedLoop> stagedLoops) {
+        String loopCode = uniqueLoopCode(sanitise(eqCode(e)) + "-loop", stagedLoops);
+        for (int idx : nodePoints) {
+            tagLoop(stagedByCode.get(codeByEquipPoint.get(key(e.id(), idx))), loopCode);
+        }
+        for (String fpCode : insertedFpCodes) {
+            tagLoop(stagedByCode.get(fpCode), loopCode);
+        }
+        // maxHus default: the number of node points around the loop (a sane non-zero capacity).
+        stagedLoops.add(new StagedLoop(loopCode, nodePoints.size()));
+    }
+
+    private static void tagLoop(StagedNode node, String loopCode) {
+        if (node != null) {
+            node.loopCode = loopCode;
+        }
+    }
+
+    private static String uniqueLoopCode(String desired, List<StagedLoop> stagedLoops) {
+        Set<String> taken = new HashSet<>();
+        for (StagedLoop l : stagedLoops) {
+            taken.add(l.code);
+        }
+        if (!taken.contains(desired)) {
+            return desired;
+        }
+        int n = 2;
+        String candidate;
+        do {
+            candidate = desired + "-" + n++;
+        } while (taken.contains(candidate));
+        return candidate;
     }
 
     private static double num(BigDecimal v) {
