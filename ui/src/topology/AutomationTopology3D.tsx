@@ -471,7 +471,14 @@ function worldCenter(
   return [eq.posXM, elev + eq.heightM / 2 + eq.posYM, eq.posZM]
 }
 
-export default function AutomationTopology3D() {
+export default function AutomationTopology3D({
+  collapsed = false,
+  onToggleChrome,
+}: {
+  // When true the surrounding page chrome (title + level meta) is folded away for more canvas height.
+  collapsed?: boolean
+  onToggleChrome?: () => void
+} = {}) {
   const { currentWarehouseId: warehouseId } = useWarehouse()
 
   const [levels, setLevels] = useState<AutomationLevel[]>([])
@@ -758,7 +765,10 @@ export default function AutomationTopology3D() {
             resolvedIdx = path.length - 1
           }
           resolved = resolvedIdx
-          const sections = Array.isArray(e.sections) ? e.sections.map((s) => [s[0], s[1]]) : []
+          // Materialise the conveyor's CURRENT connectivity (sequential for an implicit path) before
+          // appending — otherwise the first drawn section would replace the whole implicit path with
+          // just itself, disconnecting every existing point. Mirrors startBranchAt / addDivertBranch.
+          const sections = effectiveSections(e).map((s) => [s[0], s[1]])
           // With an anchor that isn't the resolved point, add a directed section — unless an
           // identical one already exists.
           if (
@@ -1243,7 +1253,7 @@ export default function AutomationTopology3D() {
   }
 
   return (
-    <div className="atopo">
+    <div className={`atopo${collapsed ? ' is-collapsed' : ''}`}>
       {/* ---- top toolbar: level tabs + actions ---- */}
       <div className="atopo-toolbar">
         <div className="atopo-levels">
@@ -1307,14 +1317,25 @@ export default function AutomationTopology3D() {
           <button type="button" className="btn btn-primary btn-sm" onClick={save} disabled={saving || loading}>
             {saving ? 'Saving…' : 'Save'}
           </button>
+          {onToggleChrome && (
+            <button
+              type="button"
+              className="atopo-fold"
+              onClick={onToggleChrome}
+              aria-pressed={collapsed}
+              title={collapsed ? 'Unfold header (more controls)' : 'Fold header up (more canvas)'}
+            >
+              {collapsed ? '▾' : '▴'}
+            </button>
+          )}
         </div>
       </div>
 
       {error && <div className="alert alert-danger">{error}</div>}
       {!error && info && <div className="atopo-info">{info}</div>}
 
-      {/* inline editor for the active level's name + elevation */}
-      {activeLevel && (
+      {/* inline editor for the active level's name + elevation (hidden when chrome is folded) */}
+      {activeLevel && !collapsed && (
         <div className="atopo-levelmeta glass">
           <label className="atopo-inline">
             <span>
@@ -1499,6 +1520,19 @@ export default function AutomationTopology3D() {
             <p className="atopo-muted">Select a piece of equipment to edit it, or add one from the library.</p>
           ) : (
             <div className="atopo-fields">
+              {/* Conveyor section tools first — the most-used drawing controls, reachable without
+                  scrolling past the geometry fields. */}
+              {selectedCanEditPath && (
+                <ConveyorPathTools
+                  eq={selected}
+                  drawPath={drawPath}
+                  activeFromIdx={activeFromIdx}
+                  onToggleDraw={() => setDrawPath((d) => !d)}
+                  onPatch={(patch) => patchEquipment(selected.id, patch)}
+                  onRemoveLastSection={() => removeLastSection(selected.id)}
+                  onClearAnchor={() => setActiveFromIdx(null)}
+                />
+              )}
               <label className="atopo-field">
                 <span>Code</span>
                 <input
@@ -1530,18 +1564,6 @@ export default function AutomationTopology3D() {
                 <NumField label="Width (m)" value={selected.widthM} onChange={(v) => patchEquipment(selected.id, { widthM: v })} />
                 <NumField label="Height (m)" value={selected.heightM} onChange={(v) => patchEquipment(selected.id, { heightM: v })} />
               </div>
-
-              {selectedCanEditPath && (
-                <ConveyorPathTools
-                  eq={selected}
-                  drawPath={drawPath}
-                  activeFromIdx={activeFromIdx}
-                  onToggleDraw={() => setDrawPath((d) => !d)}
-                  onPatch={(patch) => patchEquipment(selected.id, patch)}
-                  onRemoveLastSection={() => removeLastSection(selected.id)}
-                  onClearAnchor={() => setActiveFromIdx(null)}
-                />
-              )}
 
               <FunctionPointsPanel
                 placedId={selected.id}
@@ -2186,6 +2208,9 @@ function SceneContent({
             key={c.id}
             a={worldCenter(from, levels)}
             b={worldCenter(to, levels)}
+            // Size the arrowhead to the equipment it points at so it never dwarfs a small conveyor
+            // (a fixed 0.5 m cone looked huge next to a 0.6 m-wide conveyor) nor vanishes on an ASRS.
+            headSize={Math.max(0.08, Math.min(0.18, (to.widthM || 0.6) * 0.2))}
             active={c.id === selectedConnId}
           />
         )
@@ -2303,10 +2328,13 @@ function ConnectionLine({
   a,
   b,
   active,
+  headSize = 0.18,
 }: {
   a: [number, number, number]
   b: [number, number, number]
   active: boolean
+  // Arrowhead radius in metres; height is derived from it. Scaled by the caller to the target.
+  headSize?: number
 }) {
   const color = active ? '#8DC63F' : '#f0a85a'
   const va = new THREE.Vector3(a[0], a[1], a[2])
@@ -2323,7 +2351,7 @@ function ConnectionLine({
       <Line points={[a, b]} color={color} lineWidth={active ? 3 : 2} />
       {len > 1e-4 && (
         <mesh position={[b[0], b[1], b[2]]} quaternion={quat}>
-          <coneGeometry args={[0.18, 0.5, 12]} />
+          <coneGeometry args={[headSize, headSize * 2.4, 12]} />
           <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.3} />
         </mesh>
       )}
@@ -3059,6 +3087,15 @@ function Styles() {
         background: rgba(141, 198, 63, .15); color: var(--herbal-lime); border-color: var(--glass-border-bright);
       }
       .atopo-info { font-size: .8rem; color: var(--text-dim); }
+      .atopo-fold {
+        display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+        border-radius: 8px; cursor: pointer; line-height: 1; font-size: .8rem;
+        background: var(--glass-bg); color: var(--text-dim); border: 1px solid var(--glass-border);
+      }
+      .atopo-fold:hover { color: var(--text); border-color: var(--glass-border-bright); }
+      /* When the page chrome is folded, give the canvas (and side panels) the reclaimed height. */
+      .atopo.is-collapsed .atopo-canvas { height: 90vh; }
+      .atopo.is-collapsed .atopo-panel { max-height: 90vh; }
       .atopo-levelmeta { display: flex; gap: 1rem; padding: .6rem .8rem; flex-wrap: wrap; }
       .atopo-inline { display: flex; flex-direction: column; gap: .25rem; min-width: 200px; flex: 1; margin: 0; }
       .atopo-inline > span { font-size: .8125rem; color: var(--text-dim); }

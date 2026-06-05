@@ -26,12 +26,33 @@ type TopologyTab = '3d' | 'routing'
 // routing graph (the original node/edge editor, unchanged below in RoutingGraphEditor).
 export default function TopologyEditor() {
   const [tab, setTab] = useState<TopologyTab>('3d')
+  // Fold the page chrome (title + level meta) away to give the drawing canvas more height.
+  // Persisted so the editor reopens the way the user left it.
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('topoChromeCollapsed') === '1'
+    } catch {
+      return false
+    }
+  })
+  const toggleCollapsed = () =>
+    setCollapsed((c) => {
+      const next = !c
+      try {
+        localStorage.setItem('topoChromeCollapsed', next ? '1' : '0')
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
   return (
     <div className="app-content">
-      <div className="page-head">
-        <span className="eyebrow">Configuration</span>
-        <h1>Automation topology</h1>
-      </div>
+      {!collapsed && (
+        <div className="page-head">
+          <span className="eyebrow">Configuration</span>
+          <h1>Automation topology</h1>
+        </div>
+      )}
       <div className="topo-tabs" role="tablist">
         <button
           type="button"
@@ -54,7 +75,7 @@ export default function TopologyEditor() {
       </div>
       {tab === '3d' ? (
         <Suspense fallback={<div className="glass card-pad">Loading 3D editor…</div>}>
-          <AutomationTopology3D />
+          <AutomationTopology3D collapsed={collapsed} onToggleChrome={toggleCollapsed} />
         </Suspense>
       ) : (
         <div className="topo-routing-wrap">
