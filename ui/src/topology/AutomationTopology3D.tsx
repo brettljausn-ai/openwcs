@@ -738,96 +738,104 @@ export default function AutomationTopology3D({
     setDirty(true)
   }, [])
 
-  // A ground-plane click in draw mode. Resolve the click to a path index (snapping to an existing
-  // point within SNAP_M, else appending a new one), then — if we have an anchor and it differs —
-  // push a directed section from the anchor to the resolved point. Re-anchor to the resolved point
-  // so consecutive clicks chain into a connected run. Returns nothing; updates state.
+  // A ground-plane / waypoint click in draw mode. This is the two-click section draw:
+  //   first click  → resolves to a path point and becomes the anchor (no section yet);
+  //   second click → resolves to another point and draws a directed section ANCHOR → here, so the
+  //                  section's travel direction follows the CLICK ORDER:
+  //     • click an existing point, then a grid spot → section runs existing → new (outward);
+  //     • click a grid spot, then a point on the conveyor → section runs new → existing (inward).
+  // The resolved point becomes the new anchor so consecutive clicks chain into a run.
+  //
+  // A click resolves (in order): to an existing vertex within SNAP_M (reuse → junction); else onto
+  // the nearest section within SNAP_M (insert a junction, splitting it, so a click on the conveyor
+  // BODY connects to it); else to a brand-new free point.
+  //
+  // Everything is computed up-front from the CURRENT equipment (NOT inside the state updater) so the
+  // new anchor is set deterministically. The old code stashed the resolved index via a side-effect
+  // inside setEquipment, which only ran when React happened to evaluate the updater eagerly — so the
+  // anchor sometimes never advanced and the next click "didn't draw".
   const drawSectionAt = useCallback(
     (id: string, x: number, z: number) => {
       const px = +x.toFixed(3)
       const pz = +z.toFixed(3)
-      let resolved: number | null = null
-      setEquipment((es) =>
-        es.map((e) => {
-          if (e.id !== id) return e
-          const path = Array.isArray(e.path) ? e.path.map((p) => [p[0], p[1]]) : []
-          // Materialise the conveyor's CURRENT connectivity (sequential for an implicit path) up
-          // front — we need it both to snap onto a section interior and to preserve existing
-          // sections when we append. Mirrors startBranchAt / addDivertBranch.
-          const sections = effectiveSections(e).map((s) => [s[0], s[1]])
-          // 1) Snap to the nearest existing point within the snap radius (reuse it → forms junctions).
-          let nearIdx = -1
-          let nearDist = SNAP_M
-          for (let i = 0; i < path.length; i++) {
-            const d = Math.hypot(path[i][0] - px, path[i][1] - pz)
-            if (d <= nearDist) {
-              nearDist = d
-              nearIdx = i
-            }
+      const eq = equipment.find((e) => e.id === id)
+      if (!eq) return
+      const path = Array.isArray(eq.path) ? eq.path.map((p) => [p[0], p[1]]) : []
+      // Materialise CURRENT connectivity (sequential for an implicit path) so we can snap onto a
+      // section interior and preserve existing sections when we append. Mirrors startBranchAt.
+      const sections = effectiveSections(eq).map((s) => [s[0], s[1]])
+
+      // 1) Snap to the nearest existing point within the snap radius (reuse it → forms junctions).
+      let nearIdx = -1
+      let nearDist = SNAP_M
+      for (let i = 0; i < path.length; i++) {
+        const d = Math.hypot(path[i][0] - px, path[i][1] - pz)
+        if (d <= nearDist) {
+          nearDist = d
+          nearIdx = i
+        }
+      }
+      let resolvedIdx: number
+      if (nearIdx >= 0) {
+        resolvedIdx = nearIdx
+      } else {
+        // 2) Else snap onto the nearest SECTION within the snap radius and INSERT a junction (split
+        //    it) so a click ON the conveyor body connects to it instead of dropping a loose point.
+        let bestSec = -1
+        let bestDist = SNAP_M
+        let bjx = 0
+        let bjz = 0
+        for (let k = 0; k < sections.length; k++) {
+          const a = path[sections[k][0]]
+          const b = path[sections[k][1]]
+          if (!a || !b) continue
+          const abx = b[0] - a[0]
+          const abz = b[1] - a[1]
+          const len2 = abx * abx + abz * abz
+          if (len2 < 1e-9) continue
+          let t = ((px - a[0]) * abx + (pz - a[1]) * abz) / len2
+          t = Math.min(1, Math.max(0, t))
+          const jx = a[0] + abx * t
+          const jz = a[1] + abz * t
+          const d = Math.hypot(jx - px, jz - pz)
+          if (d <= bestDist) {
+            bestDist = d
+            bestSec = k
+            bjx = jx
+            bjz = jz
           }
-          let resolvedIdx: number
-          if (nearIdx >= 0) {
-            resolvedIdx = nearIdx
-          } else {
-            // 2) Else snap onto the nearest SECTION within the snap radius and INSERT a junction
-            //    (split that section) so a click ON the conveyor body connects to it instead of
-            //    dropping a disconnected point — the reported "doesn't snap to the conveyor" bug.
-            let bestSec = -1
-            let bestDist = SNAP_M
-            let bjx = 0
-            let bjz = 0
-            for (let k = 0; k < sections.length; k++) {
-              const a = path[sections[k][0]]
-              const b = path[sections[k][1]]
-              if (!a || !b) continue
-              const abx = b[0] - a[0]
-              const abz = b[1] - a[1]
-              const len2 = abx * abx + abz * abz
-              if (len2 < 1e-9) continue
-              let t = ((px - a[0]) * abx + (pz - a[1]) * abz) / len2
-              t = Math.min(1, Math.max(0, t))
-              const jx = a[0] + abx * t
-              const jz = a[1] + abz * t
-              const d = Math.hypot(jx - px, jz - pz)
-              if (d <= bestDist) {
-                bestDist = d
-                bestSec = k
-                bjx = jx
-                bjz = jz
-              }
-            }
-            if (bestSec >= 0) {
-              const [a, b] = sections[bestSec]
-              const m = path.length
-              path.push([+bjx.toFixed(3), +bjz.toFixed(3)])
-              // m is the new highest index, so no existing section index needs shifting.
-              sections.splice(bestSec, 1, [a, m], [m, b])
-              resolvedIdx = m
-            } else {
-              // 3) Nowhere near the conveyor → a free point (start/extend a fresh run).
-              path.push([px, pz])
-              resolvedIdx = path.length - 1
-            }
-          }
-          resolved = resolvedIdx
-          // With an anchor that isn't the resolved point, add a directed section — unless an
-          // identical one already exists.
-          if (
-            activeFromIdx != null &&
-            activeFromIdx !== resolvedIdx &&
-            activeFromIdx < path.length &&
-            !sections.some((s) => s[0] === activeFromIdx && s[1] === resolvedIdx)
-          ) {
-            sections.push([activeFromIdx, resolvedIdx])
-          }
-          return { ...e, path, sections }
-        }),
-      )
+        }
+        if (bestSec >= 0) {
+          const [a, b] = sections[bestSec]
+          const m = path.length
+          path.push([+bjx.toFixed(3), +bjz.toFixed(3)])
+          // m is the new highest index, so no existing section index needs shifting.
+          sections.splice(bestSec, 1, [a, m], [m, b])
+          resolvedIdx = m
+        } else {
+          // 3) Nowhere near the conveyor → a free point (start/extend a fresh run).
+          path.push([px, pz])
+          resolvedIdx = path.length - 1
+        }
+      }
+
+      // With an anchor that isn't the resolved point, add a directed section ANCHOR → resolved
+      // (travel direction follows the click order) — unless an identical one already exists.
+      if (
+        activeFromIdx != null &&
+        activeFromIdx !== resolvedIdx &&
+        activeFromIdx < path.length &&
+        !sections.some((s) => s[0] === activeFromIdx && s[1] === resolvedIdx)
+      ) {
+        sections.push([activeFromIdx, resolvedIdx])
+      }
+
+      setEquipment((es) => es.map((e) => (e.id === id ? { ...e, path, sections } : e)))
       // Re-anchor to the resolved point so consecutive clicks chain into a connected run.
-      if (resolved != null) setActiveFromIdx(resolved)
+      setActiveFromIdx(resolvedIdx)
       setDirty(true)
     },
-    [activeFromIdx],
+    [activeFromIdx, equipment],
   )
 
   // Start a divert branch at a world position (x,z) on a conveyor: ensure a junction path point
@@ -1547,7 +1555,7 @@ export default function AutomationTopology3D({
                   ? `Connect: from ${equipmentById.get(connectFrom)?.code ?? '?'} — click a target (or the source again to cancel)`
                   : 'Connect: click a source piece of equipment'
                 : drawPath
-                  ? 'Draw mode: click to add sections; click a point to branch from it'
+                  ? 'Draw mode: click a start point then an end point — the section runs start → end'
                   : 'Drag to orbit · right-drag to pan · scroll to zoom'}
             </div>
             </>
@@ -1737,8 +1745,8 @@ function ConveyorPathTools({
       {drawPath && (
         <div className="atopo-drawhint">
           {activeFromIdx == null
-            ? 'Click the floor to place the first point, then keep clicking to chain sections. Click an existing point to branch from it.'
-            : `Anchored at point ${activeFromIdx + 1}. Click to draw a section to a new/snapped point, or click another point to re-anchor (branch).`}
+            ? 'Click a start point (a point/body on the conveyor, or empty floor), then an end point — the section runs start → end. Keep clicking to chain.'
+            : `Anchored at point ${activeFromIdx + 1}. Click an end point to draw the section ${activeFromIdx + 1} → there; it then becomes the new anchor. Click point ${activeFromIdx + 1} to re-pick.`}
           {activeFromIdx != null && (
             <button type="button" className="atopo-linkbtn" onClick={onClearAnchor}>
               clear anchor

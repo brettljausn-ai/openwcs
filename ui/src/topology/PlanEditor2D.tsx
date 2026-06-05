@@ -806,7 +806,7 @@ export default function PlanEditor2D({
               ? 'Drag onto an ASRS to place an IN/OUT port · drop off (or Esc) to cancel'
               : 'Drag onto a conveyor to place · drop off any conveyor (or Esc) to cancel'
           : drawing
-            ? 'Draw the divert branch — click where it should go; click a point to branch from it'
+            ? 'Draw a section: click a start point, then an end point — the section runs in that order. Click the conveyor (point or body) to start/end on it; click empty grid for a free point.'
             : 'Drag an item to move (snapped) · click a point to select it, drag it along the conveyor to reposition · drag empty space to pan · scroll to zoom'}
       </div>
 
