@@ -190,7 +190,7 @@ export default function PlanEditor2D({
   // View transform: pixels-per-metre and a pan offset (in pixels) of the world origin.
   const [pxPerM, setPxPerM] = useState(40)
   const [pan, setPan] = useState({ x: 0, y: 0 })
-  const [gridStep, setGridStep] = useState<number>(0.5)
+  const [gridStep, setGridStep] = useState<number>(1)
   const [snapOn, setSnapOn] = useState(true)
 
   // A PENDING (not-yet-placed) function point created from the palette. It floats at `world` (metres)
