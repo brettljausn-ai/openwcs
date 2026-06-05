@@ -19,6 +19,8 @@ package org.openwcs.gtp.domain;
 public enum OperatingMode {
     PICKING,
     DECANTING,
+    /** Decant one source HU into 1..n target HUs (e.g. splitting into different compartments). */
+    DECANT_MULTI,
     STOCK_COUNT,
     QC,
     MAINTENANCE;

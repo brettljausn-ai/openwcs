@@ -5,8 +5,17 @@
 // their nodes and configures supported operating modes. The bearer token (with the admin's roles) is
 // added by the global fetch interceptor.
 
-export type OperatingMode = 'PICKING' | 'DECANTING' | 'STOCK_COUNT' | 'QC' | 'MAINTENANCE'
-export const OPERATING_MODES: OperatingMode[] = ['PICKING', 'DECANTING', 'STOCK_COUNT', 'QC', 'MAINTENANCE']
+export type OperatingMode = 'PICKING' | 'DECANTING' | 'DECANT_MULTI' | 'STOCK_COUNT' | 'QC' | 'MAINTENANCE'
+export const OPERATING_MODES: OperatingMode[] = ['PICKING', 'DECANTING', 'DECANT_MULTI', 'STOCK_COUNT', 'QC', 'MAINTENANCE']
+// Friendly labels for the mode codes (DECANT_MULTI = one source HU → many target HUs / compartments).
+export const OPERATING_MODE_LABELS: Record<OperatingMode, string> = {
+  PICKING: 'Picking',
+  DECANTING: 'Decanting',
+  DECANT_MULTI: 'Decant 1→N',
+  STOCK_COUNT: 'Stock count',
+  QC: 'QC',
+  MAINTENANCE: 'Maintenance',
+}
 
 export type StationMode = 'ORDER_LOCATION' | 'PUT_WALL'
 export const STATION_MODES: StationMode[] = ['ORDER_LOCATION', 'PUT_WALL']
