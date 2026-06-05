@@ -1313,6 +1313,11 @@ export default function AutomationTopology3D({
     setDirty(true)
   }, [])
 
+  const addConnection = useCallback((conn: AutomationConnection) => {
+    setConnections((cs) => [...cs, conn])
+    setDirty(true)
+  }, [])
+
   const toggleConnectMode = useCallback(() => {
     setConnectMode((on) => {
       const next = !on
@@ -1739,6 +1744,18 @@ export default function AutomationTopology3D({
                     ]}
                   />
                 </label>
+              )}
+
+              {selectedIsWorkstation && (
+                <WorkstationConveyorPanel
+                  workstationId={selected.id}
+                  connections={connections}
+                  functionPoints={functionPoints}
+                  equipment={equipment}
+                  libById={libById}
+                  onAdd={addConnection}
+                  onDelete={deleteConnection}
+                />
               )}
 
               <button type="button" className="btn btn-danger btn-sm atopo-delete" onClick={deleteSelected}>
@@ -2334,6 +2351,129 @@ function FunctionPointsPanel({
           + Add function point
         </button>
       </div>
+    </div>
+  )
+}
+
+// Roles a GTP workplace's conveyor interaction can play. STOCK = stock-feed conveyor (e.g. from an
+// ASRS), ORDER = order conveyor/destination, DECANT = a decant point. Stored on the connection label.
+const WORKSTATION_ROLES = ['STOCK', 'ORDER', 'DECANT']
+
+// A workplace's conveyor interactions: connections from this workstation to a SPECIFIC function point
+// on a conveyor, each tagged with a role. A pick-place typically has two (STOCK + ORDER); a decant
+// station one or none. Reuses the existing connection model (toPointId + label).
+function WorkstationConveyorPanel({
+  workstationId,
+  connections,
+  functionPoints,
+  equipment,
+  libById,
+  onAdd,
+  onDelete,
+}: {
+  workstationId: string
+  connections: AutomationConnection[]
+  functionPoints: AutomationFunctionPoint[]
+  equipment: AutomationEquipment[]
+  libById: Map<string, Equipment>
+  onAdd: (conn: AutomationConnection) => void
+  onDelete: (id: string) => void
+}) {
+  const [role, setRole] = useState(WORKSTATION_ROLES[0])
+  const [pointId, setPointId] = useState('')
+
+  const eqById = useMemo(() => {
+    const m = new Map<string, AutomationEquipment>()
+    for (const e of equipment) m.set(e.id, e)
+    return m
+  }, [equipment])
+
+  const fpLabel = (fp: AutomationFunctionPoint): string => {
+    const e = eqById.get(fp.placedId)
+    const short = functionShortForSet(fpFunctions(fp.functionType)) || fp.functionType
+    return `${e?.code ?? '?'} · ${short} @ ${fp.offsetM}m`
+  }
+
+  // Selectable points: function points that live on a conveyor.
+  const fpOptions = useMemo(
+    () =>
+      functionPoints
+        .filter((fp) => {
+          const e = eqById.get(fp.placedId)
+          return e && isConveyor(e, libById)
+        })
+        .map((fp) => ({ value: fp.id, label: fpLabel(fp) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [functionPoints, eqById, libById],
+  )
+
+  const myConns = connections.filter((c) => c.fromPlacedId === workstationId && c.toPointId)
+
+  const add = () => {
+    const fp = functionPoints.find((f) => f.id === pointId)
+    if (!fp) return
+    onAdd({
+      id: crypto.randomUUID(),
+      fromPlacedId: workstationId,
+      toPlacedId: fp.placedId,
+      fromPointId: null,
+      toPointId: fp.id,
+      label: role,
+      status: 'ACTIVE',
+    })
+    setPointId('')
+  }
+
+  return (
+    <div className="atopo-areas">
+      <div className="atopo-areas-head">
+        Conveyor interactions{' '}
+        <InfoTip
+          text="Link this workplace to specific conveyor function points, each with a role. A pick-place usually has two (a STOCK feed + an ORDER conveyor); a decant station one or none."
+          example="STOCK · CONV-1 · SCAN @ 3m"
+        />
+      </div>
+      {myConns.length === 0 ? (
+        <p className="atopo-muted atopo-areas-empty">No conveyor interactions yet.</p>
+      ) : (
+        <ul className="atopo-areas-list">
+          {myConns.map((c) => {
+            const fp = functionPoints.find((f) => f.id === c.toPointId)
+            return (
+              <li key={c.id} className="atopo-areas-row">
+                <span className="atopo-areas-code">
+                  <strong>{c.label ?? '—'}</strong>
+                  {' · '}
+                  {fp ? fpLabel(fp) : 'point removed'}
+                </span>
+                <button type="button" className="btn btn-danger btn-sm" onClick={() => onDelete(c.id)}>
+                  Remove
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <div className="atopo-grid2" style={{ marginTop: '.4rem' }}>
+        <Select
+          ariaLabel="Interaction role"
+          value={role}
+          onChange={setRole}
+          options={WORKSTATION_ROLES.map((r) => ({ value: r, label: r }))}
+        />
+        <Select
+          ariaLabel="Conveyor function point"
+          value={pointId}
+          onChange={setPointId}
+          options={[
+            { value: '', label: fpOptions.length ? 'Pick a conveyor point…' : 'No conveyor points yet' },
+            ...fpOptions,
+          ]}
+        />
+      </div>
+      <button type="button" className="btn btn-outline btn-sm atopo-pathbtn" disabled={!pointId} onClick={add}>
+        + Add interaction
+      </button>
     </div>
   )
 }
