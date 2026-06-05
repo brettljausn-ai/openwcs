@@ -12,6 +12,7 @@ import {
   type Equipment,
   type StorageBlock,
 } from '../masterdata/api'
+import { listStations, type Station } from '../gtpconfig/api'
 import {
   loadAutomationTopology,
   projectRoutingGraph,
@@ -206,6 +207,7 @@ export function pointAlong(
 // Three muted, distinct colours keyed off the equipment family/type. Anything that isn't a
 // recognisable conveyor / storage(ASRS) / sorter falls back to a neutral slate.
 export function colorFor(eq: AutomationEquipment, lib: Map<string, Equipment>): string {
+  if (eq.stationId) return '#3ea66a' // green — GTP workstation
   const meta = eq.equipmentId ? lib.get(eq.equipmentId) : undefined
   const key = `${meta?.family ?? ''} ${meta?.type ?? ''} ${meta?.subtype ?? ''} ${eq.code}`.toLowerCase()
   if (/conveyor|roller|belt|transport/.test(key)) return '#4f8a8b' // teal — transport
@@ -226,6 +228,8 @@ export function categoryBodyColor(cat: EquipmentCategory): string | null {
       return '#C75B12' // burnt-orange — matches the manual-storage rack frame
     case 'sorter':
       return '#E0A33A' // amber — matches the sorter box
+    case 'workstation':
+      return '#3ea66a' // green — GTP workstation
     default:
       return null
   }
@@ -250,9 +254,11 @@ export function isConveyor(eq: AutomationEquipment, lib: Map<string, Equipment>)
 //   asrs           — automated storage: family ASRS/AUTOSTORE/AMR, or type ASRS.
 //   manual-storage — anything else recognisable (generic/other storage equipment).
 //   other          — fallback bucket (rendered like manual-storage).
-export type EquipmentCategory = 'conveyor' | 'asrs' | 'manual-storage' | 'sorter' | 'other'
+export type EquipmentCategory = 'conveyor' | 'asrs' | 'manual-storage' | 'sorter' | 'workstation' | 'other'
 
 export function category(eq: AutomationEquipment, lib: Map<string, Equipment>): EquipmentCategory {
+  // A GTP workstation is identified by its station reference (it has no master-data equipment).
+  if (eq.stationId || eq.category === 'workstation') return 'workstation'
   const meta = eq.equipmentId ? lib.get(eq.equipmentId) : undefined
   const family = (meta?.family ?? '').toUpperCase()
   const type = (meta?.type ?? '').toUpperCase()
@@ -494,6 +500,8 @@ export default function AutomationTopology3D({
   const [functionPoints, setFunctionPoints] = useState<AutomationFunctionPoint[]>([])
 
   const [library, setLibrary] = useState<Equipment[]>([])
+  // GTP stations in this warehouse — placeable as "workstation" equipment in the topology.
+  const [stations, setStations] = useState<Station[]>([])
   const [activeLevelId, setActiveLevelId] = useState<string>('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // Which editor surface is shown in the centre column. Both share all the state above.
@@ -559,15 +567,17 @@ export default function AutomationTopology3D({
     setLoading(true)
     setError(null)
     try {
-      const [topo, lib] = await Promise.all([
+      const [topo, lib, sts] = await Promise.all([
         loadAutomationTopology(warehouseId),
         listEquipment(warehouseId).catch(() => [] as Equipment[]),
+        listStations(warehouseId).catch(() => [] as Station[]),
       ])
       setLevels(topo.levels)
       setEquipment(topo.equipment)
       setConnections(topo.connections)
       setFunctionPoints(topo.functionPoints)
       setLibrary(lib)
+      setStations(sts)
       setActiveLevelId((prev) =>
         topo.levels.some((l) => l.id === prev) ? prev : topo.levels[0]?.id ?? '',
       )
@@ -694,6 +704,7 @@ export default function AutomationTopology3D({
   const selectedCanEditPath = selected ? canEditPath(selected, libById) : false
   const selectedMeta = selected?.equipmentId ? libById.get(selected.equipmentId) : undefined
   const selectedIsAsrs = selected ? isAsrs(selected, libById) : false
+  const selectedIsWorkstation = selected ? category(selected, libById) === 'workstation' : false
 
   // Function points belonging to the currently-selected placed equipment.
   const selectedFunctionPoints = useMemo(
@@ -1217,6 +1228,39 @@ export default function AutomationTopology3D({
     [activeLevelId],
   )
 
+  // Place a GTP station as a "workstation" box (no master-data equipment — it references the station
+  // via stationId). Positionable and connectable to conveyors like any other equipment.
+  const placeWorkstation = useCallback(
+    (station: Station) => {
+      if (!activeLevelId) {
+        setError('Add a level first')
+        return
+      }
+      counter.current += 1
+      const placed: AutomationEquipment = {
+        id: crypto.randomUUID(),
+        levelId: activeLevelId,
+        equipmentId: null,
+        stationId: station.id,
+        category: 'workstation',
+        code: station.code || `WS-${counter.current}`,
+        posXM: 0,
+        posYM: 0,
+        posZM: 0,
+        rotationDeg: 0,
+        tiltDeg: 0,
+        lengthM: 1.2,
+        widthM: 1.2,
+        heightM: 1.0,
+        status: 'ACTIVE',
+      }
+      setEquipment((es) => [...es, placed])
+      setSelectedId(placed.id)
+      setDirty(true)
+    },
+    [activeLevelId],
+  )
+
   const deleteSelected = useCallback(() => {
     if (!selectedId) return
     setEquipment((es) => es.filter((e) => e.id !== selectedId))
@@ -1473,6 +1517,36 @@ export default function AutomationTopology3D({
               </div>
             ))
           )}
+
+          {/* GTP workplaces — placeable as "workstation" boxes that link to a gtp_station and can be
+              connected to conveyors. Sourced from the GTP config, not the equipment library. */}
+          {stations.length > 0 && (
+            <div className="atopo-libgroup">
+              <div className="atopo-libgroup-head">GTP workplaces</div>
+              {stations.map((s) => {
+                const placedCount = equipment.filter((e) => e.stationId === s.id).length
+                return (
+                  <div key={s.id} className="atopo-librow">
+                    <span className="atopo-librow-label">
+                      {s.code}
+                      {s.name ? <span className="atopo-muted"> · {s.name}</span> : null}
+                      <span className={`atopo-badge ${placedCount > 0 ? 'is-placed' : 'is-unplaced'}`}>
+                        {placedCount > 0 ? `placed ${placedCount}` : 'not placed'}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => placeWorkstation(s)}
+                      disabled={!activeLevelId}
+                    >
+                      + Add
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </aside>
 
         {/* ---- center: 3D canvas ---- */}
@@ -1644,6 +1718,27 @@ export default function AutomationTopology3D({
                   warehouseId={warehouseId}
                   equipmentId={selected.equipmentId ?? null}
                 />
+              )}
+
+              {selectedIsWorkstation && (
+                <label className="atopo-field">
+                  <span>
+                    GTP workplace{' '}
+                    <InfoTip
+                      text="The goods-to-person workplace this box represents. Connect it to conveyors to model how work reaches it."
+                      example="PP1 — Pick Place 1"
+                    />
+                  </span>
+                  <Select
+                    ariaLabel="GTP workplace"
+                    value={selected.stationId ?? ''}
+                    onChange={(v) => patchEquipment(selected.id, { stationId: v || null })}
+                    options={[
+                      { value: '', label: '— unlinked —' },
+                      ...stations.map((s) => ({ value: s.id, label: s.name ? `${s.code} — ${s.name}` : s.code })),
+                    ]}
+                  />
+                </label>
               )}
 
               <button type="button" className="btn btn-danger btn-sm atopo-delete" onClick={deleteSelected}>
@@ -2826,6 +2921,24 @@ function EquipmentMesh({
         selected={highlight}
         highlightColor={highlightColor}
       />
+    )
+  } else if (cat === 'workstation') {
+    // GTP workstation — a rounded green box (a person-facing station, not a rack).
+    body = (
+      <RoundedBox
+        args={[eq.lengthM, eq.heightM, eq.widthM]}
+        radius={Math.min(0.06, Math.min(eq.lengthM, eq.heightM, eq.widthM) * 0.2)}
+        smoothness={3}
+        castShadow
+      >
+        <meshStandardMaterial
+          color="#3ea66a"
+          emissive={highlight ? highlightColor : '#000000'}
+          emissiveIntensity={highlight ? 0.5 : 0}
+          metalness={0.2}
+          roughness={0.6}
+        />
+      </RoundedBox>
     )
   } else {
     // sorter — a lightly rounded amber box.

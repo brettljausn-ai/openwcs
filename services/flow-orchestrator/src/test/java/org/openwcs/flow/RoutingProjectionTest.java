@@ -69,12 +69,12 @@ class RoutingProjectionTest {
                 List.of(List.of(0d, 0d), List.of(5d, 0d), List.of(10d, 0d), List.of(5d, 5d)),
                 false,
                 List.of(List.of(0, 1), List.of(1, 2), List.of(1, 3)),
-                "ACTIVE", "conveyor");
+                "ACTIVE", "conveyor", null);
 
         // A sink box conveyor (no path): start/end nodes along its 4 m length.
         PlacedEquipmentDto sink = new PlacedEquipmentDto(sinkId, null, null, "SINK",
                 bd(20), bd(0), bd(0), bd(0), bd(0), bd(4), bd(1), bd(1),
-                null, false, null, "ACTIVE", "conveyor");
+                null, false, null, "ACTIVE", "conveyor", null);
 
         // A function point on the conveyor at offset 5 m (lands on path index 1, the divert) named D1.
         FunctionPointDto fp = new FunctionPointDto(fpId, convId, "DIVERT", "Divert 1",
@@ -131,7 +131,7 @@ class RoutingProjectionTest {
                 List.of(List.of(0d, 0d), List.of(10d, 0d)),
                 false,
                 List.of(List.of(0, 1)),
-                "ACTIVE", "conveyor");
+                "ACTIVE", "conveyor", null);
 
         // A SCAN function point mid-section at offset 4 m (not on either endpoint), named SCAN1.
         FunctionPointDto scan = new FunctionPointDto(UUID.randomUUID(), convId, "SCAN", "Scan 1",
@@ -173,7 +173,7 @@ class RoutingProjectionTest {
                 List.of(List.of(0d, 0d), List.of(10d, 0d), List.of(10d, 10d), List.of(0d, 10d)),
                 true,
                 List.of(List.of(0, 1), List.of(1, 2), List.of(2, 3), List.of(3, 0)),
-                "ACTIVE", "conveyor");
+                "ACTIVE", "conveyor", null);
 
         automation.save(wh, new AutomationTopologyDto(
                 List.of(), List.of(loop), List.of(), List.of()));
