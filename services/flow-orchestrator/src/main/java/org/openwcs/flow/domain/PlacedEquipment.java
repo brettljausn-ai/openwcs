@@ -77,6 +77,11 @@ public class PlacedEquipment extends Auditable {
     @Column(name = "category")
     private String category;
 
+    /** For a "workstation" placement: the GTP station (gtp_station) it represents. Soft reference
+     *  (no FK — gtp lives in another service). Null for all other equipment. */
+    @Column(name = "station_id")
+    private UUID stationId;
+
     /** For conveyors: centreline waypoints [[x,z], …] in metres (corners / turns / loops). Null or
      *  fewer than 2 points → render as a single straight box of lengthM. */
     @JdbcTypeCode(SqlTypes.JSON)
@@ -236,5 +241,13 @@ public class PlacedEquipment extends Auditable {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public UUID getStationId() {
+        return stationId;
+    }
+
+    public void setStationId(UUID stationId) {
+        this.stationId = stationId;
     }
 }

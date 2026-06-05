@@ -38,9 +38,12 @@ export interface AutomationEquipment {
   sections?: number[][] | null
   // When true the path loops back from the last waypoint to the first.
   closed?: boolean
-  // Denormalised category (conveyor|asrs|sorter|manual-storage|other) sent on save so the routing
-  // projection can classify without an equipment-library lookup.
+  // Denormalised category (conveyor|asrs|sorter|manual-storage|workstation|other) sent on save so the
+  // routing projection can classify without an equipment-library lookup.
   category?: string | null
+  // For a "workstation" placement: the GTP station (gtp_station) it represents. Set when the item was
+  // placed from the GTP-workplaces library section; null for all other equipment.
+  stationId?: string | null
 }
 
 // A directed link between two placed-equipment items. from/toPlacedId reference
