@@ -18,6 +18,9 @@ import {
   FUNCTION_SHORT,
   FUNCTION_TYPES,
   functionColor,
+  functionColorForSet,
+  functionShortForSet,
+  fpFunctions,
   isConveyor,
   junctionPoints,
   pointAlong,
@@ -126,6 +129,15 @@ function projectToPath(
 function sideForType(type: string): 'LEFT' | 'RIGHT' | null {
   if (type === 'DIVERT_LEFT') return 'LEFT'
   if (type === 'DIVERT_RIGHT') return 'RIGHT'
+  return null
+}
+
+// The side implied by a function SET: the first divert member's side (null if the set has none).
+function sideForSet(functionType: string): 'LEFT' | 'RIGHT' | null {
+  for (const t of fpFunctions(functionType)) {
+    const s = sideForType(t)
+    if (s) return s
+  }
   return null
 }
 
@@ -465,7 +477,7 @@ export default function PlanEditor2D({
     } else if (d?.kind === 'fp') {
       setFpSnap(null)
       const fp = functionPoints.find((f) => f.id === d.id)
-      const side = sideForType(fp?.functionType ?? '')
+      const side = sideForSet(fp?.functionType ?? '')
       // Keep the divert FPs' side; non-divert points keep whatever side they had.
       if (side && fp && fp.side !== side) onUpdateFunctionPoint(d.id, { side })
     }
@@ -990,12 +1002,13 @@ function PlanFunctionPoint({
     ox = at.dz * half
     oz = -at.dx * half
   }
-  const isDivert = fp.functionType === 'DIVERT_LEFT' || fp.functionType === 'DIVERT_RIGHT'
+  // The point can carry a combination of functions; derive the glyph/colour/label from the set.
+  const fns = fpFunctions(fp.functionType)
+  const isDivert = fns.some((t) => t === 'DIVERT_LEFT' || t === 'DIVERT_RIGHT')
   // Ports/merge (IN/OUT/FEED) render as a DIAMOND — distinct from a round SCAN or a square DIVERT.
-  const isPort =
-    fp.functionType === 'INDUCT' || fp.functionType === 'DISCHARGE' || fp.functionType === 'INFEED'
-  const color = isDivert ? '#e0563f' : functionColor(fp.functionType)
-  const short = FUNCTION_SHORT[fp.functionType] ?? fp.functionType
+  const isPort = fns.some((t) => t === 'INDUCT' || t === 'DISCHARGE' || t === 'INFEED')
+  const color = functionColorForSet(fns)
+  const short = functionShortForSet(fns) || fp.functionType
   const [mx, my] = toPx(at.x + ox, at.z + oz)
   // A short stem from the centreline to the side-nudged marker, so the point reads as attached.
   const [sx, sy] = toPx(at.x, at.z)
