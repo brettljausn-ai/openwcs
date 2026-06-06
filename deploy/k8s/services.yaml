@@ -1,0 +1,723 @@
+# Deployment + Service for every Java service. Stateless request paths → safe to replicate;
+# relays/schedulers are guarded by ShedLock and the loop-capacity race is fixed (see README.md).
+# Set the image registry/tag before applying (REGISTRY/TAG).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: openwcs
+  labels: { app: gateway }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: gateway }
+  template:
+    metadata:
+      labels: { app: gateway }
+    spec:
+      containers:
+        - name: gateway
+          image: REGISTRY/openwcs-gateway:TAG
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8080 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: openwcs
+spec:
+  selector: { app: gateway }
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: master-data
+  namespace: openwcs
+  labels: { app: master-data }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: master-data }
+  template:
+    metadata:
+      labels: { app: master-data }
+    spec:
+      containers:
+        - name: master-data
+          image: REGISTRY/openwcs-master-data:TAG
+          ports:
+            - containerPort: 8081
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8081 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8081 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: master-data
+  namespace: openwcs
+spec:
+  selector: { app: master-data }
+  ports:
+    - port: 8081
+      targetPort: 8081
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory
+  namespace: openwcs
+  labels: { app: inventory }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: inventory }
+  template:
+    metadata:
+      labels: { app: inventory }
+    spec:
+      containers:
+        - name: inventory
+          image: REGISTRY/openwcs-inventory:TAG
+          ports:
+            - containerPort: 8082
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8082 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8082 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory
+  namespace: openwcs
+spec:
+  selector: { app: inventory }
+  ports:
+    - port: 8082
+      targetPort: 8082
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: process-engine
+  namespace: openwcs
+  labels: { app: process-engine }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: process-engine }
+  template:
+    metadata:
+      labels: { app: process-engine }
+    spec:
+      containers:
+        - name: process-engine
+          image: REGISTRY/openwcs-process-engine:TAG
+          ports:
+            - containerPort: 8083
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8083 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8083 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: process-engine
+  namespace: openwcs
+spec:
+  selector: { app: process-engine }
+  ports:
+    - port: 8083
+      targetPort: 8083
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-management
+  namespace: openwcs
+  labels: { app: order-management }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: order-management }
+  template:
+    metadata:
+      labels: { app: order-management }
+    spec:
+      containers:
+        - name: order-management
+          image: REGISTRY/openwcs-order-management:TAG
+          ports:
+            - containerPort: 8084
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8084 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8084 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-management
+  namespace: openwcs
+spec:
+  selector: { app: order-management }
+  ports:
+    - port: 8084
+      targetPort: 8084
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flow-orchestrator
+  namespace: openwcs
+  labels: { app: flow-orchestrator }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: flow-orchestrator }
+  template:
+    metadata:
+      labels: { app: flow-orchestrator }
+    spec:
+      containers:
+        - name: flow-orchestrator
+          image: REGISTRY/openwcs-flow-orchestrator:TAG
+          ports:
+            - containerPort: 8085
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8085 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8085 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flow-orchestrator
+  namespace: openwcs
+spec:
+  selector: { app: flow-orchestrator }
+  ports:
+    - port: 8085
+      targetPort: 8085
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: txlog
+  namespace: openwcs
+  labels: { app: txlog }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: txlog }
+  template:
+    metadata:
+      labels: { app: txlog }
+    spec:
+      containers:
+        - name: txlog
+          image: REGISTRY/openwcs-txlog:TAG
+          ports:
+            - containerPort: 8086
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8086 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8086 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: txlog
+  namespace: openwcs
+spec:
+  selector: { app: txlog }
+  ports:
+    - port: 8086
+      targetPort: 8086
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iam
+  namespace: openwcs
+  labels: { app: iam }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: iam }
+  template:
+    metadata:
+      labels: { app: iam }
+    spec:
+      containers:
+        - name: iam
+          image: REGISTRY/openwcs-iam:TAG
+          ports:
+            - containerPort: 8087
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8087 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8087 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iam
+  namespace: openwcs
+spec:
+  selector: { app: iam }
+  ports:
+    - port: 8087
+      targetPort: 8087
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification
+  namespace: openwcs
+  labels: { app: notification }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: notification }
+  template:
+    metadata:
+      labels: { app: notification }
+    spec:
+      containers:
+        - name: notification
+          image: REGISTRY/openwcs-notification:TAG
+          ports:
+            - containerPort: 8088
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8088 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8088 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification
+  namespace: openwcs
+spec:
+  selector: { app: notification }
+  ports:
+    - port: 8088
+      targetPort: 8088
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: integration-sap
+  namespace: openwcs
+  labels: { app: integration-sap }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: integration-sap }
+  template:
+    metadata:
+      labels: { app: integration-sap }
+    spec:
+      containers:
+        - name: integration-sap
+          image: REGISTRY/openwcs-integration-sap:TAG
+          ports:
+            - containerPort: 8089
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8089 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8089 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: integration-sap
+  namespace: openwcs
+spec:
+  selector: { app: integration-sap }
+  ports:
+    - port: 8089
+      targetPort: 8089
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: integration-manhattan
+  namespace: openwcs
+  labels: { app: integration-manhattan }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: integration-manhattan }
+  template:
+    metadata:
+      labels: { app: integration-manhattan }
+    spec:
+      containers:
+        - name: integration-manhattan
+          image: REGISTRY/openwcs-integration-manhattan:TAG
+          ports:
+            - containerPort: 8090
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8090 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8090 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: integration-manhattan
+  namespace: openwcs
+spec:
+  selector: { app: integration-manhattan }
+  ports:
+    - port: 8090
+      targetPort: 8090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: allocation
+  namespace: openwcs
+  labels: { app: allocation }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: allocation }
+  template:
+    metadata:
+      labels: { app: allocation }
+    spec:
+      containers:
+        - name: allocation
+          image: REGISTRY/openwcs-allocation:TAG
+          ports:
+            - containerPort: 8091
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8091 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8091 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: allocation
+  namespace: openwcs
+spec:
+  selector: { app: allocation }
+  ports:
+    - port: 8091
+      targetPort: 8091
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: integration-host
+  namespace: openwcs
+  labels: { app: integration-host }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: integration-host }
+  template:
+    metadata:
+      labels: { app: integration-host }
+    spec:
+      containers:
+        - name: integration-host
+          image: REGISTRY/openwcs-integration-host:TAG
+          ports:
+            - containerPort: 8092
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8092 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8092 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: integration-host
+  namespace: openwcs
+spec:
+  selector: { app: integration-host }
+  ports:
+    - port: 8092
+      targetPort: 8092
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slotting
+  namespace: openwcs
+  labels: { app: slotting }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: slotting }
+  template:
+    metadata:
+      labels: { app: slotting }
+    spec:
+      containers:
+        - name: slotting
+          image: REGISTRY/openwcs-slotting:TAG
+          ports:
+            - containerPort: 8093
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8093 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8093 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: slotting
+  namespace: openwcs
+spec:
+  selector: { app: slotting }
+  ports:
+    - port: 8093
+      targetPort: 8093
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gtp
+  namespace: openwcs
+  labels: { app: gtp }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: gtp }
+  template:
+    metadata:
+      labels: { app: gtp }
+    spec:
+      containers:
+        - name: gtp
+          image: REGISTRY/openwcs-gtp:TAG
+          ports:
+            - containerPort: 8094
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8094 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8094 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gtp
+  namespace: openwcs
+spec:
+  selector: { app: gtp }
+  ports:
+    - port: 8094
+      targetPort: 8094
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: counting
+  namespace: openwcs
+  labels: { app: counting }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: counting }
+  template:
+    metadata:
+      labels: { app: counting }
+    spec:
+      containers:
+        - name: counting
+          image: REGISTRY/openwcs-counting:TAG
+          ports:
+            - containerPort: 8095
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8095 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8095 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: counting
+  namespace: openwcs
+spec:
+  selector: { app: counting }
+  ports:
+    - port: 8095
+      targetPort: 8095
