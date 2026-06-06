@@ -86,3 +86,31 @@ jobs:
             echo "== $spec =="
             npx --yes @apidevtools/swagger-cli@4 validate "$spec"
           done
+
+  # CodeQL replaces the repository's "default setup" code scanning so the security + code-quality
+  # analysis runs inside this CI run instead of as separate workflow runs. build-mode: none means it
+  # analyses source directly — it does NOT re-run the Gradle/Go builds the jobs above already do.
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ actions, go, java-kotlin, javascript-typescript ]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          analysis-kinds: code-scanning,code-quality
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
