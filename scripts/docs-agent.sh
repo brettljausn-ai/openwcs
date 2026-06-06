@@ -1,69 +1,84 @@
 #!/usr/bin/env bash
-# openWCS documentation agent.
+# openWCS documentation agent — PR mode.
 #
-# Runs in CI right after a change merges to main (see .github/workflows/docs-agent.yml). It uses
-# Claude Code headlessly to keep the project's user-facing docs in sync with the code that just
-# merged: in-repo docs + the public marketing site (opened as a PR, since main is protected) and
-# the GitHub wiki (a separate, unprotected repo — pushed directly).
+# Runs in CI on a pull request (see .github/workflows/docs-agent.yml), BEFORE it merges. It uses
+# Claude Code headlessly to bring the repo's user-facing docs in sync with what the PR changes, then
+# commits the result back ONTO THE PR BRANCH — so the docs land atomically with the code when the PR
+# is merged (no separate, after-the-fact docs PR).
+#
+# The GitHub wiki is a SEPARATE git repo and cannot be part of this PR; it is synced after merge by
+# scripts/docs-wiki.sh (.github/workflows/docs-wiki.yml). See docs/DOCS-AGENT.md.
 #
 # Required env:
-#   ANTHROPIC_API_KEY  Claude API key (repo secret)
-#   GH_TOKEN           token with repo + wiki write + PR write (the workflow passes GITHUB_TOKEN)
-#   GITHUB_REPOSITORY  owner/repo (provided by Actions)
-#   GITHUB_SHA         the merged commit (provided by Actions)
+#   ANTHROPIC_API_KEY  or  CLAUDE_CODE_OAUTH_TOKEN   Claude auth (provide one)
+#   GH_TOKEN           token able to push to the PR head branch (see the token note in DOCS-AGENT.md)
+#   PR_HEAD_REF        the PR branch name to push the docs commit back to
+#   BASE_REF           the PR base branch (default: main)
 set -euo pipefail
 
-SHORT_SHA="${GITHUB_SHA:0:7}"
-BRANCH="docs/auto-${SHORT_SHA}"
-REPO="${GITHUB_REPOSITORY}"
+BASE_REF="${BASE_REF:-main}"
+PR_HEAD_REF="${PR_HEAD_REF:-}"
+MARKER='[docs-agent]'
 
-git config user.name 'openwcs-docs-agent'
+AGENT_NAME='openwcs-docs-agent'
+git config user.name "$AGENT_NAME"
 git config user.email 'docs-agent@users.noreply.github.com'
 
-PROMPT=$(cat <<PROMPT_EOF
-You are the openWCS documentation agent, running in CI immediately after a change merged to main.
-Keep the project's USER-FACING documentation in sync with what just merged. Be conservative: only
-change what the merge actually warrants, never churn unrelated text, and match the existing style.
+# Loop guard: if the branch tip is our own commit, the docs are already in sync for this diff.
+# (Only matters when the push that triggered this run was made with a PAT, which re-triggers CI.)
+# Match on the commit AUTHOR, not the message — a human commit that merely mentions the marker text
+# must not trip the guard.
+if [[ "$(git log -1 --pretty=%an)" == "$AGENT_NAME" ]]; then
+  echo "Branch tip was authored by the docs agent — already in sync, skipping."
+  exit 0
+fi
 
-STEP 1 — Understand the change. Run \`git show --stat HEAD\` and \`git diff HEAD~1 HEAD\` to see what
-merged. If it has no documentation impact (test-only, a tiny refactor, a CI/tooling tweak, or a
-docs-only commit), STOP and make no changes.
+# Make sure we can diff the PR against its base.
+git fetch --no-tags origin "$BASE_REF"
+
+IFS= read -r -d '' PROMPT <<PROMPT_EOF || true
+You are the openWCS documentation agent, running in CI on a pull request BEFORE it merges. Your job is
+to bring the repository's USER-FACING documentation in sync with what THIS PR changes, so the docs
+merge together with the code. Be conservative: only change what the PR actually warrants, never churn
+unrelated text, and match the existing style.
+
+STEP 1 — Understand the change. Run \`git diff origin/${BASE_REF}...HEAD --stat\` and
+\`git diff origin/${BASE_REF}...HEAD\` to see everything this PR changes versus the base branch. If it
+has no documentation impact (test-only, a tiny refactor, a CI/tooling tweak, or a docs-only change),
+STOP and make no changes.
 
 STEP 2 — In-repo docs. Update only what the change warrants:
   - README.md (contributor welcome + the service/port table)
   - docs/AS-BUILT.md and docs/DEVELOPMENT-STATUS.md (status, the service rows, the relevant section)
-  Keep the format; edit the specific rows/sections, don't rewrite.
+  Keep the format; edit the specific rows/sections, do not rewrite.
 
-STEP 3 — Public marketing site (only if the change is a user-facing product capability). Update the
-  relevant page under public/ and public/i18n.js, keeping ALL FOUR languages (en/de/fr/es) in parity.
-  Then run \`node public/i18n-check.js\` and fix any missing keys. Skip this step for internal-only changes.
+STEP 3 — Public marketing site (ONLY for a user-facing product capability). Update the relevant page
+  under public/ and public/i18n.js, keeping ALL FOUR languages (en/de/fr/es) in parity. Then run
+  \`node public/i18n-check.js\` and fix any missing keys. Skip this step for internal-only changes.
 
-STEP 4 — Wiki (separate repo). If the change affects anything documented there, clone, edit, and PUSH:
-  git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.wiki.git" /tmp/wiki
-  # edit the relevant /tmp/wiki/*.md pages (e.g. Services.md, Security.md, the feature pages)
-  cd /tmp/wiki && git -c user.name='openwcs-docs-agent' -c user.email='docs-agent@users.noreply.github.com' \\
-    commit -am 'docs: sync wiki for ${SHORT_SHA} [docs-agent]' && git push
-  cd "${GITHUB_WORKSPACE:-$PWD}"
-  (Only push if you actually changed wiki pages.)
-
-STEP 5 — Open a PR for the in-repo changes (NEVER push to main; it is protected). If and only if you
-  edited files in README.md / docs/ / public/:
-  git checkout -b ${BRANCH}
-  git commit -am 'docs: auto-sync for ${SHORT_SHA} [docs-agent]'
-  git push -u origin ${BRANCH}
-  gh pr create --base main --head ${BRANCH} \\
-    --title 'docs: auto-sync for ${SHORT_SHA} [docs-agent]' \\
-    --body 'Automated documentation & marketing-site sync for the change merged in ${SHORT_SHA}. Please review and merge.'
-  If you made no in-repo edits, do not create a branch or PR.
-
-The literal marker [docs-agent] in commit messages is REQUIRED — the workflow skips its own commits
-to avoid an infinite loop. Finish by printing a one-line summary of what you updated (or "no changes").
+Do NOT touch the GitHub wiki — it is synced separately after merge. Do NOT commit, push, or open a PR
+yourself; the surrounding script commits your edits onto the PR branch. Finish by printing a one-line
+summary of what you updated (or "no changes").
 PROMPT_EOF
-)
 
-echo "::group::Running docs agent for ${SHORT_SHA}"
+echo "::group::Running docs agent (PR mode) against origin/${BASE_REF}"
 claude -p "$PROMPT" \
   --dangerously-skip-permissions \
   --model sonnet \
   --max-turns 60
 echo "::endgroup::"
+
+# Commit and push any doc changes back onto the PR branch. Scope the commit to the doc surfaces so the
+# agent can never accidentally sweep unrelated working-tree changes into the PR.
+if [[ -n "$(git status --porcelain -- README.md docs/ public/)" ]]; then
+  if [[ -z "$PR_HEAD_REF" ]]; then
+    echo "Doc changes were produced but PR_HEAD_REF is unset — cannot push. Failing." >&2
+    exit 1
+  fi
+  git add -- README.md docs/ public/
+  git commit -m "docs: sync docs with this PR ${MARKER}"
+  git push origin "HEAD:${PR_HEAD_REF}"
+  echo "Pushed doc updates to ${PR_HEAD_REF}."
+else
+  echo "No doc changes needed."
+fi

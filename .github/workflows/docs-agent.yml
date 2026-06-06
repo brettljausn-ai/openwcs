@@ -1,35 +1,41 @@
-name: Docs agent
+name: Docs agent (PR)
 
-# After every change merges to main, a Claude Code agent reviews the diff and keeps the
-# user-facing documentation in sync: in-repo docs + the public marketing site (opened as a PR,
-# since main is protected) and the GitHub wiki (pushed directly). See scripts/docs-agent.sh.
+# On every (non-draft) pull request, a Claude Code agent reviews the PR's diff and brings the
+# in-repo user-facing docs in sync — README.md, docs/, and the public/ marketing site — then commits
+# the result back onto the PR branch, so the docs merge together with the code. The GitHub wiki is a
+# separate repo and is synced after merge by docs-wiki.yml. See scripts/docs-agent.sh + docs/DOCS-AGENT.md.
 #
-# Setup: add ONE auth secret — either ANTHROPIC_API_KEY (Anthropic API billing) or
-# CLAUDE_CODE_OAUTH_TOKEN (a Claude Pro/Max subscription token from `claude setup-token`).
-# Without one the job fails fast. See docs/DOCS-AGENT.md.
+# Setup: add ONE auth secret — ANTHROPIC_API_KEY (API billing) or CLAUDE_CODE_OAUTH_TOKEN (a Claude
+# Pro/Max token from `claude setup-token`). TOKEN NOTE: pushing the docs commit with the default
+# GITHUB_TOKEN does NOT re-trigger required PR checks on the new commit. If `main` requires status
+# checks, add a PAT/App token as DOCS_AGENT_TOKEN (repo `contents: write`) so the docs commit gets
+# checked too; otherwise the GITHUB_TOKEN fallback is fine.
 on:
-  push:
-    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 permissions:
-  contents: write       # push the docs branch + the wiki
-  pull-requests: write  # open the docs PR
+  contents: write       # push the docs commit onto the PR branch
+  pull-requests: write
 
 concurrency:
-  group: docs-agent
-  cancel-in-progress: false
+  group: docs-agent-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   sync-docs:
-    # Skip the agent's own commits (the [docs-agent] marker) so it never re-triggers itself.
-    if: ${{ !contains(github.event.head_commit.message, '[docs-agent]') }}
+    # Skip drafts; manual runs always proceed.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repo
+      - name: Check out the PR branch
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0          # need HEAD~1 to diff the merged change
+          # Check out the PR head branch (not the merge ref) so we can commit + push back to it.
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0          # need the base branch to diff the whole PR
+          token: ${{ secrets.DOCS_AGENT_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -39,10 +45,12 @@ jobs:
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
 
-      - name: Run docs agent
+      - name: Run docs agent (PR mode)
         env:
           # Provide ONE of these (see docs/DOCS-AGENT.md). The unused one stays empty.
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.DOCS_AGENT_TOKEN || secrets.GITHUB_TOKEN }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
         run: bash scripts/docs-agent.sh

@@ -4,12 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title data-i18n="conv.title">Conveyor routing — openWCS</title>
-  <meta name="description" content="How openWCS routes handling units across conveyors: a vendor-neutral topology graph, WCS pathfinding to sequenced targets, per-loop capacity limits, a visual schematic editor, and topology learning from live scan traffic." />
+  <meta name="description" content="How openWCS routes handling units across conveyors: a vendor-neutral topology graph, WCS pathfinding to sequenced targets, per-loop capacity limits, a 2D top-down + 3D layout editor where routing is inferred from physical placement, and topology learning from live scan traffic." />
   <meta name="theme-color" content="#061812" />
   <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/conveyors.html" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <meta property="og:title" content="Conveyor routing — openWCS" />
-  <meta property="og:description" content="Vendor-neutral conveyor routing: topology graph, WCS pathfinding, loop limits, visual editor, and learning from traffic." />
+  <meta property="og:description" content="Vendor-neutral conveyor routing: topology graph, WCS pathfinding, loop limits, a 2D/3D layout editor with geometry-inferred routing, and learning from traffic." />
   <meta property="og:type" content="article" />
   <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -92,14 +92,19 @@
           <p data-i18n="conv.p5">Looping configurations have a maximum number of handling units allowed in the loop. Per-loop limits trigger <strong>HOLD</strong> or divert to an <strong>OVERFLOW</strong> target so the loop never jams.</p>
         </div>
         <div class="card">
-          <div class="tag" data-i18n="conv.tag5">Admin UI</div>
-          <h3 data-i18n="conv.h10">Draw the schematic</h3>
-          <p data-i18n="conv.p6">Admins draw the flow between nodes in a visual editor (React Flow) and set each node's hardware address — no code, no integrator change request.</p>
+          <div class="tag" data-i18n="conv.tag5">Layout editor</div>
+          <h3 data-i18n="conv.h10">Place it, don't wire it</h3>
+          <p data-i18n="conv.p6">Admins lay the conveyors out as they physically run — in a 2D top-down plan and a 3D layout editor — and drop named function points (scan, divert, merge) on them. openWCS infers the routing graph from that geometry; no hand-drawn connections.</p>
         </div>
         <div class="card">
           <div class="tag" data-i18n="conv.tag6">Learning</div>
           <h3 data-i18n="conv.h11">Discover from traffic</h3>
           <p data-i18n="conv.p7">Point the sniffer at defined source IPs and openWCS listens to scan telegrams, inferring nodes, edges and targets from real traffic to bootstrap or verify the topology.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="conv.tag13">Function points</div>
+          <h3 data-i18n="conv.h18">Scan · divert · merge on the line</h3>
+          <p data-i18n="conv.p21">Drop named function points onto a conveyor — scanners, diverts, merges, ASRS in/out ports — and openWCS turns the physical layout into the routing graph automatically, so the graph never drifts from the floor plan.</p>
         </div>
       </div>
     </div>
