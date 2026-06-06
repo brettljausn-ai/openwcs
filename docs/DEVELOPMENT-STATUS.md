@@ -47,7 +47,8 @@ shipper/fulfillment-config paths, other services. Avro/Schema-Registry ⬜.
 
 **Platform:** docker-compose ✅ (incl. allocation; Keycloak imports the `openwcs` realm).
 **CI ✅** (GitHub Actions: Java build+test with Testcontainers, Go adapters, UI build, OpenAPI
-validation). **Gradle wrapper committed.** Helm/k8s ⬜.
+validation). **Gradle wrapper committed.** **k8s starter manifests ✅** (`deploy/k8s/`; horizontal
+scaling — see [`SCALING.md`](./SCALING.md)); Helm ⬜.
 
 ---
 
