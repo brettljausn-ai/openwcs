@@ -101,7 +101,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ actions, go, java-kotlin, javascript-typescript ]
+        # `queries: code-quality` adds the code-quality pack on top of the default security queries,
+        # so both run in this one job (Actions has no quality pack, so it runs security only).
+        include:
+          - { language: actions,               queries: '' }
+          - { language: go,                    queries: 'code-quality' }
+          - { language: java-kotlin,           queries: 'code-quality' }
+          - { language: javascript-typescript, queries: 'code-quality' }
     steps:
       - uses: actions/checkout@v4
       - name: Initialize CodeQL
@@ -109,7 +115,7 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: none
-          analysis-kinds: code-scanning,code-quality
+          queries: ${{ matrix.queries }}
       - name: Analyze
         uses: github/codeql-action/analyze@v3
         with:
