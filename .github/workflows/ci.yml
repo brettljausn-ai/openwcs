@@ -103,19 +103,35 @@ jobs:
       matrix:
         # `queries: code-quality` adds the code-quality pack on top of the default security queries,
         # so both run in this one job (Actions has no quality pack, so it runs security only).
+        # Go can't be analysed buildless, so it uses build-mode: manual and builds below; the others
+        # use build-mode: none (no build, so the Gradle/Go builds above are not duplicated).
         include:
-          - { language: actions,               queries: '' }
-          - { language: go,                    queries: 'code-quality' }
-          - { language: java-kotlin,           queries: 'code-quality' }
-          - { language: javascript-typescript, queries: 'code-quality' }
+          - { language: actions,               build-mode: none,   queries: '' }
+          - { language: go,                    build-mode: manual, queries: 'code-quality' }
+          - { language: java-kotlin,           build-mode: none,   queries: 'code-quality' }
+          - { language: javascript-typescript, build-mode: none,   queries: 'code-quality' }
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Go
+        if: matrix.language == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: false
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-          build-mode: none
+          build-mode: ${{ matrix.build-mode }}
           queries: ${{ matrix.queries }}
+      - name: Build Go adapters (CodeQL tracing)
+        if: matrix.language == 'go'
+        run: |
+          set -euo pipefail
+          for dir in services/adapters/*/; do
+            echo "== $dir =="
+            ( cd "$dir" && go build ./... )
+          done
       - name: Analyze
         uses: github/codeql-action/analyze@v3
         with:
