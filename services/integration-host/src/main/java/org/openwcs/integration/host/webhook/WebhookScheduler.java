@@ -1,6 +1,7 @@
 package org.openwcs.integration.host.webhook;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +21,7 @@ public class WebhookScheduler {
     }
 
     @Scheduled(fixedDelayString = "${openwcs.host.webhook.interval-ms:5000}")
+    @SchedulerLock(name = "host-webhook-dispatch", lockAtMostFor = "PT1M")
     public void run() {
         dispatcher.dispatchOnce();
     }

@@ -11,6 +11,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
+    // ShedLock: cluster-wide lock so the outbox relay runs on a single replica when scaled out.
+    implementation 'net.javacrumbs.shedlock:shedlock-spring:5.16.0'
+    implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:5.16.0'
+
     // Publishes the streamed transaction log to Kafka (topic txlog.stream) via the outbox relay.
     implementation 'org.springframework.kafka:spring-kafka'
 

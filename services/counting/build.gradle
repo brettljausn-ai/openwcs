@@ -11,6 +11,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
+    // ShedLock: cluster-wide lock so the off-peak count-schedule sweep runs on a single replica when scaled out.
+    implementation 'net.javacrumbs.shedlock:shedlock-spring:5.16.0'
+    implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:5.16.0'
+
     // Service-local `counting` store; calls inventory (expected snapshot) + txlog (StockAdjusted) over REST.
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'

@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.kafka.core.KafkaTemplate;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,7 @@ public class OutboxRelay {
     }
 
     @Scheduled(fixedDelayString = "${openwcs.txlog.relay.interval-ms:1000}")
+    @SchedulerLock(name = "txlog-outbox-relay", lockAtMostFor = "PT1M")
     @Transactional
     public void publishPending() {
         List<OutboxMessage> batch = outbox.findByPublishedAtIsNullOrderByIdAsc(PageRequest.of(0, batchSize));

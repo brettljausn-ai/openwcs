@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,7 @@ public class OrderTransactionRelay {
     }
 
     @Scheduled(fixedDelayString = "${openwcs.orders.relay.interval-ms:1000}")
+    @SchedulerLock(name = "order-transaction-relay", lockAtMostFor = "PT1M")
     @Transactional
     public void publishPending() {
         List<OrderOutboxMessage> batch =
