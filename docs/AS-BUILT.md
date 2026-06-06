@@ -1,6 +1,6 @@
 # openWCS — As-Built Documentation
 
-_Last updated: 2026-06-02_
+_Last updated: 2026-06-06_
 
 What is **actually implemented** today (not the target architecture). Design intent:
 [`build.md`](../build.md); decisions: [`docs/adr/`](./adr); live progress:
@@ -64,7 +64,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 | `gtp` | gtp | gtp_station (+ supported_modes), station_node, destination_demand, work_cycle (+ operating_mode, target_hu_id), put_instruction, task_line |
 | `counting` | counting | count_task, count_line, count_schedule |
 | `iam` | iam | role, role_permission, app_user, user_role, screen_access (+ _role/_user), user_warehouse |
-| `flow` | flow-orchestrator | device_task |
+| `flow` | flow-orchestrator | device_task, conveyor_node, conveyor_edge, conveyor_loop, conveyor_controller, topology_observation, **warehouse_level**, **placed_equipment** (+ path/sections/category/**station_id**), **equipment_function_point**, **equipment_connection** |
 | `host_integration` | integration-host | idempotency_key, webhook_subscription |
 | `ACT_*` (public) | process-engine | Flowable's own engine tables (it manages its schema; a documented exception to schema-per-service) |
 
@@ -270,7 +270,9 @@ scan would route an HU into a loop that is at capacity, the WCS either `HOLD`s i
 re-evaluated next scan) or diverts it to the loop's `OVERFLOW` target — configurable per loop.
 Occupancy is the count of active routes whose last-scanned node is in that loop. An **admin
 schematic editor** (the `ui` app, React Flow) loads/saves the whole graph — drag nodes, draw
-edges, set per-node hardware address, and define loops. **Topology learning**: a sniffer posts
+edges, set per-node hardware address, and define loops. (The routing graph is now usually
+**generated from the automation-topology layout** — see §7f — rather than drawn by hand.)
+**Topology learning**: a sniffer posts
 observed scans (`POST /conveyor/observations {node, barcode, sourceIp}`); the WCS infers a
 candidate topology — nodes seen, segments (consecutive scans of the same HU), and likely targets
 (terminal nodes) — flagged against the configured graph (`GET /conveyor/discovery`), which the
@@ -399,6 +401,41 @@ present/confirm → `DEVICE_OPERATE` (OPERATOR role). Contract: `contracts/opena
 
 ---
 
+## 7f. Automation topology — placement model + routing projection (flow-orchestrator)
+
+A second model in flow-orchestrator describes **where equipment physically sits** and drives an
+admin **3D/2D layout editor** (the `ui` app, react-three-fiber + an SVG plan view). It is the
+authoring source the conveyor routing graph (§7b) is now generated from.
+
+- **Model** (`flow` schema, V6/V10): `warehouse_level` (floors with elevation), `placed_equipment`
+  (a placed master-data equipment instance — position/rotation/tilt + envelope `lengthM/widthM/heightM`,
+  a conveyor `path` polyline + directed `sections`, `closed` flag, `category`, and a soft
+  `station_id` linking a placed **GTP workstation** to its `gtp_station`), `equipment_function_point`
+  (named points on a conveyor — scan/divert/induct/discharge/infeed — at an arc-length `offsetM`,
+  with a `side` and an optional PLC `nodeCode`), and `equipment_connection`. Load/save the whole graph
+  via `GET`/`PUT /api/flow/automation/topology?warehouseId=` (`AutomationTopologyDtos`).
+- **Editor** (`ui/src/topology/`): a 3D view (`AutomationTopology3D`) and a top-down **2D plan**
+  (`PlanEditor2D`) share one model — an edit in either shows in the other. Place equipment from the
+  library; draw conveyor sections; drop **function points** (click a conveyor to place one *anywhere*
+  along a run, or drag a palette marker onto it — named points show their name on the plan); divert/
+  infeed points materialise a junction + a 1 m branch stub; ASRS IN/OUT ports snap to the rack
+  footprint as owned conveyor stubs. The 2D grid defaults to **1 m**. Place a GTP workplace as a
+  connectable **"workstation"** box (it has no master-data equipment — it references its `gtp_station`
+  via `station_id`) and link it to specific conveyor function points with a **role** (STOCK / ORDER /
+  DECANT) in the Properties panel ("Conveyor interactions").
+- **Routing projection** (`RoutingProjectionService`, `POST /api/flow/automation/topology/project`):
+  turns the placement model into the routable conveyor graph of §7b, **fully replacing** the
+  warehouse's nodes/edges/loops. Path waypoints become nodes, directed sections become edges, function
+  points alias a layout node (when on-point) or split a section (mid-run) into named PLC node codes,
+  and a closed/cyclic conveyor becomes a capacity loop. **Connections are auto-inferred from
+  geometry**: a node of one equipment within ~1.5 m of a node of another is linked (both directions)
+  — so an ASRS infeed stub meeting a conveyor, or a divert stub landing on another conveyor, merges
+  automatically with no hand-drawn connection. Hand-drawn connections are still honoured if present,
+  but the editor no longer offers a "Connect" tool; GTP workstation role-interactions stay explicit.
+  The projection returns a `ProjectionResult` (node/edge counts + non-fatal warnings).
+
+---
+
 ## 8. The two working vertical slices
 
 **Goods-in → stock:** `POST /api/txlog/events {GoodsReceived}` → outbox relay →
@@ -462,6 +499,14 @@ run green); the first run surfaced one test-isolation bug, now fixed.
   with mode-appropriate task lines + outcomes. Physical lights + stock/order-HU retrieval + demand
   auto-wire from allocation, and the decant→slotting-putaway / count→inventory-StockAdjusted
   integrations, are seams (not built).
+- **Automation topology** (flow-orchestrator §7f): built — 3D/2D placement editor (levels, placed
+  equipment with conveyor path/sections, function points placeable anywhere on a run, ASRS port stubs,
+  GTP workstations linked to conveyor function points by role), and a deterministic **routing
+  projection** that generates the §7b conveyor graph from the layout with geometry-inferred
+  connections. Not yet built: equipment family/type is not visible to the projection (classification
+  is structural/by category), the projection is a manual action (no auto-reproject on save), and the
+  placed-equipment ↔ live-device binding (driving real moves through these nodes) is still the
+  flow-orchestrator/adapter seam.
 - Scaffold-only: notification, integration-*, the asrs/amr/autostore device adapters.
 - flow-orchestrator dispatches device tasks but **no BPMN process originates them yet**
   (process-engine is still a scaffold); the device contract is synchronous HTTP, not the

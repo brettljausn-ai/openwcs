@@ -33,6 +33,10 @@ cycle count) that run the building.
   in a visual (BPMN) designer — no redeploy to add a variant.
 - **Equipment & host abstraction.** Uniform contracts mean the core never speaks
   a vendor protocol, an ERP dialect, or a WMS API directly.
+- **Design the automation in the app.** A visual **Automation Topology** editor places,
+  sizes and connects equipment (conveyors as polyline section graphs, ASRS with IN/OUT
+  ports, diverts/merges, GTP workstations) on warehouse levels in 2D/3D — and projects a
+  vendor-neutral routing graph (nodes/edges) the orchestrator routes HUs over.
 
 ---
 
@@ -56,7 +60,7 @@ openwcs/
 │   ├── flow-orchestrator/  txlog/  iam/  notification/
 │   ├── integration-sap/  integration-manhattan/     # host gateways
 │   └── adapters/         # Go device adapters (one per equipment family)
-│       ├── conveyor/  asrs/  amr-geekplus/  autostore/
+│       ├── conveyor/  asrs/  amr-geekplus/  autostore/  conveyor-sniffer/
 └── ui/                   # React + TypeScript SPA (operator + management screens)
 ```
 
@@ -73,9 +77,9 @@ openwcs/
 | `services/order-management` | Java | 8084 | Outbound orders + fulfilment lifecycle + release management (priority/dispatch-time); delegates allocation |
 | `services/allocation` | Java | 8091 | Outbound prep: pick-location allocation (UoM breakdown), multi-size cubing into shippers (largest-first, per-line carton traceability) or host 1:1, batch picking |
 | `services/slotting` | Java | 8093 | Inbound slotting & replenishment (ADR 0003): put-away assignment for automated rack/GTP blocks (velocity-to-exit, multi-deep same-SKU lanes, aisle redundancy + balancing), manual pick-face slotting with min/max + opportunistic replenishment, off-peak re-slotting |
-| `services/gtp` | Java | 8094 | Goods-to-person station execution (ADR 0006): configure GTP stations + STOCK/ORDER nodes, present a stock HU to generate a put-to-light put-list across order destinations (ORDER_LOCATION conveyor / PUT_WALL rack topology), confirm puts, complete destinations — one stock HU serving many orders (batch); orthogonal **operating modes** (PICKING / DECANTING / STOCK_COUNT / QC / MAINTENANCE) on a generalised task-line work-cycle |
+| `services/gtp` | Java | 8094 | Goods-to-person station execution (ADR 0006): configure GTP stations + STOCK/ORDER nodes, present a stock HU to generate a put-to-light put-list across order destinations (ORDER_LOCATION conveyor / PUT_WALL rack topology), confirm puts, complete destinations — one stock HU serving many orders (batch); orthogonal **operating modes** freely enabled per station (PICKING / DECANTING / DECANT_MULTI / STOCK_COUNT / QC / MAINTENANCE) on a generalised task-line work-cycle |
 | `services/counting` | Java | 8095 | Cycle / stock counting: count tasks (location/SKU/zone/block scope, blind or variance), ABC-cadence scheduling, capture → variance vs inventory → reconcile (auto-approve within tolerance / recount) → `StockAdjusted` |
-| `services/flow-orchestrator` | Java | 8085 | Dispatches device tasks to adapters over the uniform device contract; vendor-neutral conveyor routing (topology graph + HU route plans + shortest-path next-hop on scan) |
+| `services/flow-orchestrator` | Java | 8085 | Dispatches device tasks to adapters over the uniform device contract; vendor-neutral conveyor routing (topology graph + HU route plans + shortest-path next-hop on scan); **automation-topology placement** (levels, placed equipment with envelopes + conveyor polyline sections, function points, ASRS ports; `GET`/`PUT /api/flow/automation/topology`) which drives the 2D/3D editor and projects the routing graph (connections auto-inferred from geometry) |
 | `services/txlog` | Java | 8086 | Append-only transaction log (shared Postgres) |
 | `services/iam` | Java | 8087 | Authorization model: users → roles → coded permissions; per-user warehouse access (allowed warehouses + default; gateway-enforced scope) (Keycloak does auth) |
 | `services/notification` | Java | 8088 | Operator alerts, exceptions, andon |
@@ -87,7 +91,7 @@ openwcs/
 | `services/adapters/amr-geekplus` | Go | 9093 | Geek+ RCS adapter (REST + WebSocket) |
 | `services/adapters/autostore` | Go | 9094 | AutoStore grid adapter (REST) |
 | `services/adapters/conveyor-sniffer` | Go | 9095 | Captures scan telegrams from defined IPs → posts observations to the WCS for conveyor topology learning |
-| `ui` | React/TS | 5173 dev / 443 prod | Operator + management SPA: Keycloak login, dashboard, and role/user-gated screens — orders (inbound/outbound), counting, GTP operator + config, transport, stock transactions, topology, processes, slotting, master data, settings, users, access control, warehouse access. A global top-bar warehouse switcher auto-selects each user's default warehouse on login and scopes every warehouse-related screen (no UUID entry). Inbound/outbound are read-only (host owns orders). Shared styled Select + searchable/sortable/paginated DataTable; warehouse-access user list paginates server-side. In compose served by nginx on host `:443` (HTTPS forced). |
+| `ui` | React/TS | 5173 dev / 443 prod | Operator + management SPA: Keycloak login, dashboard, and role/user-gated screens organised into five top-level sections — **Master data** (warehouses, SKUs, storage blocks, locations, handling-unit types, label templates — each catalog its own access-controllable screen), **Operations** (inbound/outbound orders, stock counting, GTP workplaces, transport, stock transactions, stock overview, handling-unit registry), **Engineering** (automation topology, BPMN processes, slotting, equipment), **Configuration** (GTP workplaces, settings incl. demo mode), **Administration** (user management, access control, warehouse access, system info — version + health for every service/adapter, a live log viewer and a searchable full-page per-service daily log view). A **collapsible** sidebar; a per-screen **help drawer** ("?" in the top bar) plus hover-help on editable fields. A global top-bar warehouse switcher auto-selects each user's default warehouse on login and scopes every warehouse-related screen (no UUID entry). Inbound/outbound are read-only (host owns orders). Shared styled Select + searchable/sortable/paginated DataTable; warehouse-access user list paginates server-side. In compose served by nginx on host `:443` (HTTPS forced). |
 
 ---
 
@@ -97,7 +101,7 @@ Persistent state is split by ownership (build.md §5–§6, §16):
 
 | Schema | Owner | Holds |
 |---|---|---|
-| `master_data` | master-data | Warehouse, SKU (global core) + per-warehouse `SkuProfile` overlays, `AttributeSchema`, DangerousGoods, UoM/bundles, Barcode + BarcodeType, Location, HandlingUnitType, Equipment |
+| `master_data` | master-data | Warehouse, SKU (global core) + per-warehouse `SkuProfile` overlays, `AttributeSchema`, DangerousGoods, UoM/bundles, Barcode + BarcodeType (incl. **GS1 barcode rules**), Location (+ cell coords), **StorageBlock** (+ allowed HU types), HandlingUnitType, Equipment, **Shipper**, **ShippingService**, **Route**, **LabelTemplate** |
 | `transaction_log` | txlog | Append-only event log — system of record (scaffolded separately) |
 | `inventory` | inventory | Durable `stock` table (qty per SKU × batch × location × HU × status), `reservation`, and the **instance** data created at goods-in: `batch`/lot + `serial_unit`; `projection_offset` replay cursor |
 
@@ -226,6 +230,13 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/master-data/war
 Every screen is registered in a **permission catalog** (`ui/src/auth/screens.ts`) and
 gated by role (ADMIN/SUPERVISOR/OPERATOR/VIEWER), overridable per role/user via the
 Access control screen.
+
+### Try it with demo data
+
+With no host connected, open **Settings → Demo mode** (ADMIN) to **seed a sample
+catalog plus handling units and stock** for the current warehouse, then explore every
+screen end-to-end. Turning demo mode off performs a **full operational reset** —
+purging transactional data across services while keeping config, equipment and users.
 
 ### 5. Stand up a demo server (Ubuntu)
 One command on a fresh Ubuntu 22.04/24.04 box installs Docker + JDK 21, clones,
