@@ -1,8 +1,10 @@
 name: CI
 
 on:
+  # Feature branches are covered by their pull_request run; only build the push event on main
+  # (post-merge) so a PR branch doesn't run CI twice (once for the push, once for the PR).
   push:
-    branches: [ main, 'feat/**' ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
