@@ -110,7 +110,10 @@ public class RoutingService {
         // Loop capacity: if this hop would enter a loop the HU isn't already in, and that loop is
         // at its limit, HOLD upstream or divert to the loop's overflow target.
         if (toLoop != null && !toLoop.equals(here.getLoopCode())) {
-            ConveyorLoop loop = loops.findByWarehouseIdAndCode(scan.warehouseId(), toLoop).orElse(null);
+            // Take a write lock on the loop row so the occupancy count below and the decision to
+            // enter are atomic — concurrent scans entering the same loop (across replicas) serialize
+            // here, so capacity can't be exceeded by a check-then-act race.
+            ConveyorLoop loop = loops.lockByWarehouseIdAndCode(scan.warehouseId(), toLoop).orElse(null);
             if (loop != null
                     && routes.countByWarehouseIdAndCurrentLoopAndStatus(scan.warehouseId(), toLoop, "ACTIVE")
                             >= loop.getMaxHus()) {
