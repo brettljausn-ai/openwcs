@@ -19,8 +19,9 @@ concurrency:
 
 jobs:
   sync-wiki:
-    # Skip the agent's own commits (the [docs-agent] marker) so it never re-triggers itself.
-    if: ${{ !contains(github.event.head_commit.message, '[docs-agent]') }}
+    # Skip the agent's own commits so it never re-triggers itself. Match on the commit AUTHOR, not the
+    # message — a human commit that merely mentions the marker text must not be skipped.
+    if: ${{ github.event.head_commit.author.name != 'openwcs-docs-agent' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out repo

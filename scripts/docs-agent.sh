@@ -20,13 +20,16 @@ BASE_REF="${BASE_REF:-main}"
 PR_HEAD_REF="${PR_HEAD_REF:-}"
 MARKER='[docs-agent]'
 
-git config user.name 'openwcs-docs-agent'
+AGENT_NAME='openwcs-docs-agent'
+git config user.name "$AGENT_NAME"
 git config user.email 'docs-agent@users.noreply.github.com'
 
 # Loop guard: if the branch tip is our own commit, the docs are already in sync for this diff.
 # (Only matters when the push that triggered this run was made with a PAT, which re-triggers CI.)
-if git log -1 --pretty=%B | grep -qF "$MARKER"; then
-  echo "Branch tip is a docs-agent commit ($MARKER) — already in sync, skipping."
+# Match on the commit AUTHOR, not the message — a human commit that merely mentions the marker text
+# must not trip the guard.
+if [[ "$(git log -1 --pretty=%an)" == "$AGENT_NAME" ]]; then
+  echo "Branch tip was authored by the docs agent — already in sync, skipping."
   exit 0
 fi
 

@@ -62,15 +62,18 @@ fallback is fine. (The wiki job only needs the built-in `GITHUB_TOKEN`.)
 
 ## Loop protection
 
-Every commit the agent makes carries the literal tag `[docs-agent]`:
+The agent commits as the author **`openwcs-docs-agent`**, and both jobs skip when the triggering
+commit was authored by it (matching on author, not message, so a human commit that merely *mentions*
+the agent never trips the guard):
 
-- **Wiki job** — its `if:` skips any merge whose head commit contains the tag.
+- **Wiki job** — its `if:` skips any push whose head commit author is `openwcs-docs-agent`.
 - **PR job** — if a `DOCS_AGENT_TOKEN` is used, the agent's own push re-triggers the PR workflow; the
-  script skips when the branch tip is already a `[docs-agent]` commit, so it never loops. (With the
+  script skips when the branch tip was authored by the agent, so it never loops. (With the
   `GITHUB_TOKEN` fallback the push doesn't re-trigger at all.)
 
-The agent runs again — and adds another docs commit — whenever a human pushes more code on top, which
-is the intended behaviour.
+The agent's commits also carry a `[docs-agent]` marker in the message for easy scanning of history.
+It runs again — and adds another docs commit — whenever a human pushes more code on top, which is the
+intended behaviour.
 
 ## Tuning
 
