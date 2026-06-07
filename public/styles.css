@@ -362,37 +362,52 @@ footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; g
 .rm-legend .lg-planned { color: var(--text-dim); }
 .rm-legend .lg-exploring { color: var(--text-faint); }
 
-.roadmap { position: relative; max-width: var(--maxw); margin-top: clamp(1rem, 3vw, 2rem); }
-/* The glowing spine running down the whole timeline. */
-.roadmap::before {
-  content: ''; position: absolute; left: 13px; top: .6rem; bottom: .6rem; width: 2px;
-  background: linear-gradient(180deg, var(--herbal-lime), rgba(141,198,63,.22) 78%, transparent);
+/* Alternating timeline: a central glowing spine with milestone markers per phase
+   and item cards hanging off either side, each pinned to the spine by a node. */
+.roadmap { position: relative; max-width: 940px; margin: clamp(1rem, 3vw, 2rem) auto 0; }
+.roadmap::before {                          /* the central spine */
+  content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; transform: translateX(-50%);
+  background: linear-gradient(180deg, var(--herbal-lime) 0%, rgba(141,198,63,.55) 55%, rgba(141,198,63,.18) 88%, transparent);
   box-shadow: 0 0 18px -2px var(--herbal-glow);
 }
-.rm-phase { position: relative; padding-left: 3.4rem; margin-bottom: clamp(2.4rem, 5vw, 3.6rem); }
-.rm-phase:last-child { margin-bottom: 0; }
-.rm-marker {
-  position: absolute; left: 3px; top: .15rem; width: 22px; height: 22px; border-radius: 50%;
-  display: grid; place-items: center;
-  background: rgba(11,32,24,.95); border: 1px solid var(--glass-border-bright);
-  box-shadow: 0 0 22px -6px var(--herbal-glow);
+
+/* ---- Phase milestone (a labelled station straddling the spine) ---- */
+.tl-phase { position: relative; display: flex; justify-content: center; margin: clamp(1.6rem, 4vw, 2.8rem) 0 clamp(.6rem, 2vw, 1.2rem); }
+.tl-phase:first-child { margin-top: 0; }
+.tl-milestone {
+  position: relative; z-index: 2; display: inline-flex; align-items: center; gap: .75rem;
+  padding: .55rem 1.25rem .55rem .95rem; border-radius: 999px;
+  background: rgba(11,32,24,.92); border: 1px solid var(--glass-border-bright);
+  box-shadow: 0 0 26px -8px var(--herbal-glow); backdrop-filter: blur(8px);
 }
-.rm-marker::after {
-  content: ''; width: 8px; height: 8px; border-radius: 50%;
-  background: var(--herbal-lime); box-shadow: 0 0 10px 1px var(--herbal-glow);
+.tl-mdot { width: 12px; height: 12px; border-radius: 50%; flex: none; background: var(--herbal-lime); box-shadow: 0 0 12px 1px var(--herbal-glow); }
+.tl-milestone h2 { font-size: clamp(1.3rem, 2.8vw, 1.85rem); }
+.tl-msub { margin: 0; font-family: var(--font-mono); font-size: .62rem; letter-spacing: .16em; text-transform: uppercase; color: var(--text-dim); }
+
+/* ---- Timeline item (card on one side, node on the spine) ---- */
+.tl-item { position: relative; display: flex; margin: .9rem 0; min-height: 2.4rem; }
+.tl-item.tl-left  { justify-content: flex-start; }
+.tl-item.tl-right { justify-content: flex-end; }
+.tl-item .rm-card { width: calc(50% - 2.6rem); }
+.tl-node {
+  position: absolute; left: 50%; top: 1.9rem; width: 15px; height: 15px; transform: translate(-50%, -50%);
+  z-index: 2; border-radius: 50%; background: rgba(6,24,18,1);
+  border: 2px solid var(--herbal-lime); box-shadow: 0 0 12px -2px var(--herbal-glow);
 }
-.rm-phase-head { margin-bottom: 1.3rem; }
-.rm-phase-head h2 { font-size: clamp(1.7rem, 3.4vw, 2.5rem); }
-.rm-phase-sub {
-  margin: .5rem 0 0; font-family: var(--font-mono); font-size: .72rem;
-  letter-spacing: .18em; text-transform: uppercase; color: var(--text-dim);
-}
-.rm-items { display: grid; gap: 1.1rem; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
+.tl-conn { position: absolute; top: 1.9rem; height: 2px; width: 2.6rem; background: var(--glass-border-bright); }
+.tl-left  .tl-conn { right: 50%; }
+.tl-right .tl-conn { left: 50%; }
+/* node colour follows status */
+.tl-item.rm-active .tl-node { border-color: #f5c451; box-shadow: 0 0 12px -2px rgba(245,196,81,.6); }
+.tl-item.rm-active .tl-conn { background: rgba(245,196,81,.5); }
+.tl-item.rm-planned .tl-node, .tl-item.rm-exploring .tl-node { border-color: rgba(247,249,248,.35); box-shadow: none; }
+
+/* ---- Card ---- */
 .rm-card {
   position: relative; overflow: hidden;
   background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: var(--radius);
   border-left: 2px solid var(--glass-border);
-  padding: 1.35rem 1.4rem;
+  padding: 1.25rem 1.35rem;
   transition: border-color .18s ease, transform .18s ease, background .18s ease, box-shadow .18s ease;
 }
 .rm-card:hover {
@@ -400,8 +415,8 @@ footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; g
   transform: translateY(-3px); background: var(--glass-bg-strong);
   box-shadow: 0 16px 40px -18px rgba(0,0,0,.7);
 }
-.rm-card h3 { font-size: 1.28rem; margin: 0; }
-.rm-card p { color: var(--text-dim); margin: .5rem 0 0; font-size: .94rem; }
+.rm-card h3 { font-size: 1.22rem; margin: 0; }
+.rm-card p { color: var(--text-dim); margin: .5rem 0 0; font-size: .92rem; }
 .rm-card-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
 /* Status accent on the left edge of each card. */
 .rm-done { border-left-color: var(--herbal-lime); }
@@ -425,9 +440,16 @@ footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; g
   padding: .12rem .42rem; border-radius: 6px; border: 1px solid var(--glass-border);
 }
 
-@media (max-width: 560px) {
-  .rm-phase { padding-left: 2.6rem; }
-  .rm-items { grid-template-columns: 1fr; }
+/* ---- Collapse to a single left-aligned rail on narrow screens ---- */
+@media (max-width: 720px) {
+  .roadmap { max-width: none; }
+  .roadmap::before { left: 9px; transform: none; }
+  .tl-phase { justify-content: flex-start; }
+  .tl-milestone { margin-left: -3px; }
+  .tl-item, .tl-item.tl-left, .tl-item.tl-right { justify-content: flex-start; padding-left: 2.5rem; }
+  .tl-item .rm-card { width: 100%; }
+  .tl-node { left: 9px; }
+  .tl-conn { left: 9px; right: auto; width: 2.5rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .pill-active::before { animation: none; }
