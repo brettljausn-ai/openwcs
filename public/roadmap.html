@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title data-i18n="rm.title">Roadmap — openWCS</title>
+  <meta name="description" content="The openWCS roadmap: what is shipped, in progress, next up and being explored — a living timeline rendered straight from roadmap.md, kept honest against the codebase." />
+  <meta name="theme-color" content="#061812" />
+  <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/roadmap.html" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta property="og:title" content="Roadmap — openWCS" />
+  <meta property="og:description" content="Shipped, in progress, next up and exploring — the openWCS roadmap as a living timeline, generated from roadmap.md and kept honest against what's actually built." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://brettljausn-ai.github.io/openwcs/roadmap.html" />
+  <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script defer src="i18n.js"></script>
+</head>
+<body id="top">
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
+      <nav class="nav-links">
+        <a href="index.html" data-i18n="rm.nav1">← Overview</a>
+        <a href="functions.html">Functions</a>
+        <a href="automation.html">Automation</a>
+        <a href="roadmap.html">Roadmap</a>
+      </nav>
+      <div class="nav-right">
+        <div class="lang" id="lang">
+          <button class="lang-toggle" id="lang-toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Select language">
+            <svg class="globe" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg>
+            <span class="lang-code" id="lang-code">EN</span>
+            <svg class="chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <ul class="lang-menu" id="lang-menu" role="listbox" aria-label="Language">
+            <li role="option" data-lang="en"><span>English</span></li>
+            <li role="option" data-lang="de"><span>Deutsch</span></li>
+            <li role="option" data-lang="fr"><span>Français</span></li>
+            <li role="option" data-lang="es"><span>Español</span></li>
+          </ul>
+        </div>
+        <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="rm.eyebrow">Product roadmap</p>
+      <h1 data-i18n="rm.h1">Where openWCS is <span class="lime">heading.</span></h1>
+      <p class="lead" data-i18n="rm.lead">
+        A living timeline of what is shipped, what we're building now, and what's next — drawn straight
+        from a single, plain-text file in the repo. No marketing fog: each item is tagged honestly
+        against what's actually in the codebase.
+      </p>
+      <div class="rm-legend" aria-hidden="true">
+        <span class="lg-done"><i></i> Shipped</span>
+        <span class="lg-active"><i></i> In progress</span>
+        <span class="lg-planned"><i></i> Planned</span>
+        <span class="lg-exploring"><i></i> Exploring</span>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top:0">
+    <div class="wrap">
+      <div class="roadmap" id="roadmap">
+        <!-- Rendered from roadmap.md by the script below. -->
+        <noscript>
+          <p style="color:var(--text-dim)">
+            The interactive timeline needs JavaScript. You can always read the roadmap source directly:
+            <a href="roadmap.md">roadmap.md</a> ·
+            <a href="https://github.com/brettljausn-ai/openwcs/blob/main/public/roadmap.md">on GitHub</a>.
+          </p>
+        </noscript>
+      </div>
+
+      <p class="rm-source" data-i18n="rm.source">
+        This roadmap is generated from <code>public/roadmap.md</code> — edit that one file to change it.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow" data-i18n="rm.ctaEyebrow">Built in the open</p>
+        <h2 data-i18n="rm.ctaTitle">Shape what comes next.</h2>
+        <p data-i18n="rm.ctaP">openWCS is open source under AGPL-3.0. What's shipped is in the repo; what's planned is tracked in the open. Open an issue, send a PR, or sponsor the work.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+          <a class="btn btn-ghost" href="https://www.patreon.com/c/karlfriesenbichler" data-i18n="rm.ctaSponsor">Sponsor on Patreon</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span data-i18n="rm.foot">openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
+      <span><a href="index.html">Overview</a> · <a href="functions.html">Functions</a> · <a href="automation.html">Automation</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a> · <a href="https://www.patreon.com/c/karlfriesenbichler">Sponsor</a></span>
+    </div>
+  </footer>
+
+  <script>
+  /* Render the roadmap timeline from public/roadmap.md — the single source of truth.
+     Keep the file in roadmap.md format; this just parses and draws it. No build step. */
+  (function () {
+    var STATUS = {
+      done:      { label: 'Shipped',     card: 'rm-done',      pill: 'pill-built' },
+      active:    { label: 'In progress', card: 'rm-active',    pill: 'pill-active' },
+      planned:   { label: 'Planned',     card: 'rm-planned',   pill: 'pill-planned' },
+      exploring: { label: 'Exploring',   card: 'rm-exploring', pill: 'pill-exploring' }
+    };
+
+    function parse(md) {
+      md = md.replace(/<!--[\s\S]*?-->/g, '');          // drop HTML comments (the editing guide)
+      var phases = [], cur = null;
+      md.split(/\r?\n/).forEach(function (raw) {
+        var t = raw.trim();
+        if (!t) return;
+        var h = t.match(/^##\s+(.+)$/);
+        if (h) { cur = { title: h[1].trim(), sub: '', items: [] }; phases.push(cur); return; }
+        if (!cur) return;
+        var s = t.match(/^>\s+(.+)$/);
+        if (s) { cur.sub = s[1].trim(); return; }
+        var it = t.match(/^-\s*\[(done|active|planned|exploring)\]\s*([\s\S]+)$/i);
+        if (it) {
+          var bits = it[2].split('::');
+          cur.items.push({
+            status: it[1].toLowerCase(),
+            title: bits[0].trim(),
+            desc: bits.slice(1).join('::').trim()
+          });
+        }
+      });
+      return phases;
+    }
+
+    function el(tag, cls, text) {
+      var n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text != null) n.textContent = text;          // textContent → safe against any markup in the .md
+      return n;
+    }
+
+    function render(phases) {
+      var root = document.getElementById('roadmap');
+      root.innerHTML = '';
+      phases.forEach(function (ph) {
+        var sec = el('section', 'rm-phase');
+        sec.setAttribute('data-reveal', '');
+        sec.appendChild(el('span', 'rm-marker'));
+
+        var head = el('div', 'rm-phase-head');
+        head.appendChild(el('h2', null, ph.title));
+        if (ph.sub) head.appendChild(el('p', 'rm-phase-sub', ph.sub));
+        sec.appendChild(head);
+
+        var items = el('div', 'rm-items');
+        ph.items.forEach(function (item) {
+          var meta = STATUS[item.status] || STATUS.planned;
+          var card = el('article', 'rm-card ' + meta.card);
+          var ch = el('div', 'rm-card-head');
+          ch.appendChild(el('h3', null, item.title));
+          ch.appendChild(el('span', 'pill ' + meta.pill, meta.label));
+          card.appendChild(ch);
+          if (item.desc) card.appendChild(el('p', null, item.desc));
+          items.appendChild(card);
+        });
+        sec.appendChild(items);
+        root.appendChild(sec);
+      });
+      revealNew(root);
+    }
+
+    /* i18n.js already ran its reveal() over the static page before this fetch resolved,
+       so wire up the freshly-injected phases ourselves. */
+    function revealNew(root) {
+      var els = root.querySelectorAll('[data-reveal]');
+      var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!('IntersectionObserver' in window) || reduce) {
+        els.forEach(function (e) { e.classList.add('in'); });
+        return;
+      }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+        });
+      }, { threshold: 0.1, rootMargin: '0px 0px -8% 0px' });
+      els.forEach(function (e) { io.observe(e); });
+    }
+
+    function fail() {
+      var root = document.getElementById('roadmap');
+      root.innerHTML = '';
+      var p = el('p', null);
+      p.style.color = 'var(--text-dim)';
+      p.appendChild(document.createTextNode("Couldn't load the roadmap here. Read it directly: "));
+      var a = el('a', null, 'roadmap.md');
+      a.href = 'roadmap.md';
+      p.appendChild(a);
+      p.appendChild(document.createTextNode(' · '));
+      var b = el('a', null, 'on GitHub');
+      b.href = 'https://github.com/brettljausn-ai/openwcs/blob/main/public/roadmap.md';
+      p.appendChild(b);
+      p.appendChild(document.createTextNode('.'));
+      root.appendChild(p);
+    }
+
+    fetch('roadmap.md', { cache: 'no-cache' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(function (md) {
+        var phases = parse(md);
+        if (!phases.length) throw new Error('empty');
+        render(phases);
+      })
+      .catch(fail);
+  })();
+  </script>
+</body>
+</html>
