@@ -156,6 +156,8 @@ header.nav {
 .btn-primary:hover { text-decoration: none; transform: translateY(-1px); box-shadow: 0 10px 28px -6px var(--herbal-glow); }
 .btn-ghost { background: var(--glass-bg); border-color: var(--glass-border); color: var(--text); }
 .btn-ghost:hover { text-decoration: none; border-color: var(--glass-border-bright); transform: translateY(-1px); }
+/* Compact, equal-width buttons for the nav bar (GitHub + Patreon sit side by side). */
+.btn-nav { padding: .48rem 1rem; font-size: .85rem; min-width: 6.6rem; text-align: center; }
 
 /* ---- Sections ---- */
 section { padding: clamp(4rem, 9vw, 7rem) 0; }
