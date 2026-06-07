@@ -37,6 +37,10 @@ cycle count) that run the building.
   sizes and connects equipment (conveyors as polyline section graphs, ASRS with IN/OUT
   ports, diverts/merges, GTP workstations) on warehouse levels in 2D/3D — and projects a
   vendor-neutral routing graph (nodes/edges) the orchestrator routes HUs over.
+- **Scales horizontally.** Every service is stateless; ShedLock prevents duplicate
+  scheduled-job execution across replicas; the conveyor loop-capacity check uses a
+  pessimistic row lock so it stays correct under concurrent scans. Ready-to-apply
+  Kubernetes manifests and HPA config live in `deploy/k8s/` — see [`docs/SCALING.md`](./docs/SCALING.md).
 
 ---
 
@@ -48,6 +52,8 @@ openwcs/
 ├── styling.md            # UI design system (tokens, components)
 ├── settings.gradle       # Gradle multi-project (Java services + gateway + libs)
 ├── build.gradle
+├── deploy/
+│   └── k8s/              # Kubernetes starter manifests (horizontal scaling — see docs/SCALING.md)
 ├── platform/
 │   └── docker-compose.yml   # local infra (postgres, kafka, schema-registry, keycloak) + app profile
 ├── contracts/
