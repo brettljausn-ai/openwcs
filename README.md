@@ -1,6 +1,7 @@
 # openwcs
 
 [![CI](https://github.com/brettljausn-ai/openwcs/actions/workflows/ci.yml/badge.svg)](https://github.com/brettljausn-ai/openwcs/actions/workflows/ci.yml)
+[![Sponsor on Patreon](https://img.shields.io/badge/Patreon-sponsor-8DC63F?logo=patreon&logoColor=white)](https://www.patreon.com/c/karlfriesenbichler)
 
 An **open-source Warehouse Control System (WCS)** that orchestrates automated
 material-handling equipment — conveyors, ASRS (shuttles & cranes), AMRs (e.g.
@@ -295,6 +296,20 @@ coherent as it grows.
 > 📌 **Keep this README current.** It's the welcome file for everyone touching
 > the code — update the service table, ports, and getting-started steps whenever
 > the architecture changes.
+
+---
+
+## Support openWCS
+
+openWCS is independent, open-source software. If it's useful to you or your business, you can fund
+its development on Patreon. Sponsorship pays for new features, documentation, testing, and support,
+and keeps the project vendor-neutral and free for everyone.
+
+**[Sponsor openWCS on Patreon »](https://www.patreon.com/c/karlfriesenbichler)**
+
+Tiers run from **Backer** (individuals and developers) through **Sponsor** and **Business Sponsor**
+to **Partner** (advisory and roadmap influence for integrators and enterprises). Sponsors are
+credited in [`SPONSORS.md`](./SPONSORS.md); the full breakdown lives on the Patreon page.
 
 ---
 
