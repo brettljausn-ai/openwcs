@@ -1,0 +1,235 @@
+# Go device adapters. The conveyor/asrs/amr/autostore adapters are stateless HTTP services and scale
+# freely. The conveyor-sniffer is the exception — see its block. Set REGISTRY/TAG before applying, and
+# fill in the adapter-specific env (PLC/controller endpoints) for your hardware.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adapter-conveyor
+  namespace: openwcs
+  labels: { app: adapter-conveyor }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: adapter-conveyor }
+  template:
+    metadata:
+      labels: { app: adapter-conveyor }
+    spec:
+      containers:
+        - name: adapter-conveyor
+          image: REGISTRY/openwcs-adapter-conveyor:TAG
+          env:
+            - { name: PORT, value: "9091" }
+          ports:
+            - containerPort: 9091
+          readinessProbe:
+            httpGet: { path: /readyz, port: 9091 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 9091 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "100m", memory: "64Mi" }
+            limits: { memory: "128Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: adapter-conveyor
+  namespace: openwcs
+spec:
+  selector: { app: adapter-conveyor }
+  ports:
+    - port: 9091
+      targetPort: 9091
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adapter-asrs
+  namespace: openwcs
+  labels: { app: adapter-asrs }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: adapter-asrs }
+  template:
+    metadata:
+      labels: { app: adapter-asrs }
+    spec:
+      containers:
+        - name: adapter-asrs
+          image: REGISTRY/openwcs-adapter-asrs:TAG
+          env:
+            - { name: PORT, value: "9096" }
+          ports:
+            - containerPort: 9096
+          readinessProbe:
+            httpGet: { path: /readyz, port: 9096 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 9096 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "100m", memory: "64Mi" }
+            limits: { memory: "128Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: adapter-asrs
+  namespace: openwcs
+spec:
+  selector: { app: adapter-asrs }
+  ports:
+    - port: 9096
+      targetPort: 9096
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adapter-amr-geekplus
+  namespace: openwcs
+  labels: { app: adapter-amr-geekplus }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: adapter-amr-geekplus }
+  template:
+    metadata:
+      labels: { app: adapter-amr-geekplus }
+    spec:
+      containers:
+        - name: adapter-amr-geekplus
+          image: REGISTRY/openwcs-adapter-amr-geekplus:TAG
+          env:
+            - { name: PORT, value: "9093" }
+          ports:
+            - containerPort: 9093
+          readinessProbe:
+            httpGet: { path: /readyz, port: 9093 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 9093 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "100m", memory: "64Mi" }
+            limits: { memory: "128Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: adapter-amr-geekplus
+  namespace: openwcs
+spec:
+  selector: { app: adapter-amr-geekplus }
+  ports:
+    - port: 9093
+      targetPort: 9093
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adapter-autostore
+  namespace: openwcs
+  labels: { app: adapter-autostore }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: adapter-autostore }
+  template:
+    metadata:
+      labels: { app: adapter-autostore }
+    spec:
+      containers:
+        - name: adapter-autostore
+          image: REGISTRY/openwcs-adapter-autostore:TAG
+          env:
+            - { name: PORT, value: "9094" }
+          ports:
+            - containerPort: 9094
+          readinessProbe:
+            httpGet: { path: /readyz, port: 9094 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 9094 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "100m", memory: "64Mi" }
+            limits: { memory: "128Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: adapter-autostore
+  namespace: openwcs
+spec:
+  selector: { app: adapter-autostore }
+  ports:
+    - port: 9094
+      targetPort: 9094
+---
+# conveyor-sniffer — SINGLE REPLICA ONLY.
+# It accepts a long-lived TCP telegram stream per conveyor controller on SNIFFER_LISTEN; round-robin
+# load balancing across replicas would fragment telegrams. Pinned to replicas: 1 with a Recreate
+# strategy (never two at once). To scale sniffing, run one Deployment per controller/site with its own
+# SNIFFER_LISTEN + ALLOWED_IPS, or front it with a session-affinity (sticky) L4 load balancer.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adapter-conveyor-sniffer
+  namespace: openwcs
+  labels: { app: adapter-conveyor-sniffer }
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: adapter-conveyor-sniffer }
+  template:
+    metadata:
+      labels: { app: adapter-conveyor-sniffer }
+    spec:
+      containers:
+        - name: adapter-conveyor-sniffer
+          image: REGISTRY/openwcs-adapter-conveyor-sniffer:TAG
+          env:
+            - { name: PORT, value: "9095" }              # HTTP health
+            - { name: SNIFFER_LISTEN, value: ":9200" }   # raw TCP telegram stream from the controller
+            - { name: WCS_OBSERVATIONS_URL, value: "http://flow-orchestrator:8085/api/flow/conveyor/observations" }
+            # - { name: WAREHOUSE_ID, value: "<uuid>" }
+            # - { name: ALLOWED_IPS, value: "10.0.0.10,10.0.0.11" }  # CSV; empty = accept any source
+          ports:
+            - { containerPort: 9095, name: http }
+            - { containerPort: 9200, name: telegram }
+          readinessProbe:
+            httpGet: { path: /readyz, port: 9095 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 9095 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "100m", memory: "64Mi" }
+            limits: { memory: "128Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: adapter-conveyor-sniffer
+  namespace: openwcs
+spec:
+  selector: { app: adapter-conveyor-sniffer }
+  ports:
+    - { name: http, port: 9095, targetPort: 9095 }
+    - { name: telegram, port: 9200, targetPort: 9200 }

@@ -4,6 +4,7 @@ import java.util.UUID;
 import org.openwcs.slotting.repo.PickSlotRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -27,6 +28,7 @@ public class ReplenishmentScheduler {
     }
 
     @Scheduled(cron = "${openwcs.slotting.offpeak-cron:0 0 2 * * *}")
+    @SchedulerLock(name = "slotting-replenishment-topoff")
     public void topOffAllWarehouses() {
         for (UUID warehouseId : pickSlots.findDistinctActiveWarehouseIds()) {
             int created = replenishment.topOff(warehouseId).size();

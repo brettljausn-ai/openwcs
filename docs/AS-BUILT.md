@@ -1,6 +1,6 @@
 # openWCS — As-Built Documentation
 
-_Last updated: 2026-06-06_
+_Last updated: 2026-06-07_
 
 What is **actually implemented** today (not the target architecture). Design intent:
 [`build.md`](../build.md); decisions: [`docs/adr/`](./adr); live progress:
@@ -107,8 +107,8 @@ Reservations check ATP under a pessimistic lock so concurrent allocations can't 
 ## 5. txlog (system of record)
 
 `POST /api/txlog/events` writes the immutable event + an outbox row in one tx; a scheduled
-`OutboxRelay` publishes to `txlog.stream` in order. Query/replay by stream or global
-position.
+`OutboxRelay` (**ShedLock-guarded** — runs on one replica only when scaled out) publishes to
+`txlog.stream` in order. Query/replay by stream or global position.
 
 ## 6. order-management (orders, release, line transactions)
 
@@ -133,10 +133,10 @@ default) and passes the dispatch context to allocation.
   time) and `POST /release-due?warehouseId=&withinMinutes=`.
 - **Line stock transactions** (every type): `POST /orders/{id}/lines/{lineNo}/transactions`
   records a receipt / pick / count / adjustment (type derived from `orderType`) and, in the
-  **same local transaction**, writes an `order_outbox` row. A scheduled relay then **appends
-  the matching event** (`GoodsReceived` / `Picked` / `StockAdjusted`) to the transaction log
-  (correlation = order, stream = line) and records the `event_id` back on the line
-  transaction. So the audit record + publish-intent commit atomically; the physical stock
+  **same local transaction**, writes an `order_outbox` row. A **ShedLock-guarded** scheduled
+  relay then **appends the matching event** (`GoodsReceived` / `Picked` / `StockAdjusted`) to
+  the transaction log (correlation = order, stream = line) — the lock ensures only one replica
+  drains the outbox per tick — and records the `event_id` back on the line transaction. So the audit record + publish-intent commit atomically; the physical stock
   change is applied by the inventory projection. `postedQty` rolls up the signed quantities.
 - **Audit:** `actor` (who) is **required** on every line transaction and on every logged
   event (`events.actor` is NOT NULL); until IAM/JWT is wired it is caller-asserted.
@@ -268,7 +268,10 @@ barcode → `NO_ROUTE`. The whole graph is loaded/saved via `GET`/`PUT /conveyor
 admin editor. **Loop capacity**: a node can belong to a named loop with a max HU count; when a
 scan would route an HU into a loop that is at capacity, the WCS either `HOLD`s it (wait upstream,
 re-evaluated next scan) or diverts it to the loop's `OVERFLOW` target — configurable per loop.
-Occupancy is the count of active routes whose last-scanned node is in that loop. An **admin
+Occupancy is the count of active routes whose last-scanned node is in that loop. The
+check-and-enter step uses a **pessimistic row lock** (`lockByWarehouseIdAndCode`) so the
+occupancy count and the decision to enter are atomic across replicas — the capacity limit
+cannot be exceeded by a check-then-act race when flow-orchestrator runs scaled out. An **admin
 schematic editor** (the `ui` app, React Flow) loads/saves the whole graph — drag nodes, draw
 edges, set per-node hardware address, and define loops. (The routing graph is now usually
 **generated from the automation-topology layout** — see §7f — rather than drawn by hand.)
@@ -454,6 +457,12 @@ OUTBOUND = picks (−), COUNT / ADJUSTMENT = signed adjustments.
 ---
 
 ## 9. Testing & CI
+
+**Platform:** `platform/docker-compose.yml` (local dev + `--profile apps` full stack). Starter
+Kubernetes manifests in `deploy/k8s/` (`Deployment`/`Service` for every service, `HPA` for
+high-traffic services, `ConfigMap` + `Secret` placeholders); horizontal scaling safety covered
+by ShedLock (scheduled jobs) and a pessimistic row lock (conveyor loop capacity) — see
+[`docs/SCALING.md`](./SCALING.md).
 
 **CI** runs on GitHub Actions (`.github/workflows/ci.yml`): Java `./gradlew build`
 (Testcontainers tests on the runner's Docker), Go adapter build/vet/test, UI build, and

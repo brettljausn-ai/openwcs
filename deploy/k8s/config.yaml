@@ -1,0 +1,37 @@
+# Shared configuration for all openWCS services. Inter-service URLs use Kubernetes DNS (the Service
+# names below), identical to the docker-compose service names — so no application config changes are
+# needed. Infra (postgres, kafka, keycloak) is assumed to exist as Services in this namespace (run
+# them via your operator/managed service; they are intentionally not defined in these manifests).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openwcs-config
+  namespace: openwcs
+data:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  OPENWCS_SECURITY_ENABLED: "true"
+  # Inter-service base URLs (Kubernetes DNS = <service>.<namespace>.svc; short form works in-namespace).
+  OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
+  OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
+  OPENWCS_ORDER_MANAGEMENT_BASE_URL: http://order-management:8084
+  OPENWCS_FLOW_ORCHESTRATOR_BASE_URL: http://flow-orchestrator:8085
+  OPENWCS_TXLOG_BASE_URL: http://txlog:8086
+  OPENWCS_ALLOCATION_BASE_URL: http://allocation:8091
+  OPENWCS_SLOTTING_BASE_URL: http://slotting:8093
+  OPENWCS_GTP_BASE_URL: http://gtp:8094
+  OPENWCS_COUNTING_BASE_URL: http://counting:8095
+  OPENWCS_IAM_BASE_URL: http://iam:8087
+  OPENWCS_ALLOCATION_HOST_LABEL_BASE_URL: http://integration-sap:8089
+---
+# DB credentials. PLACEHOLDER — replace with a real Secret (or wire to your secrets manager / a
+# SealedSecret). Never commit real credentials.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openwcs-db
+  namespace: openwcs
+type: Opaque
+stringData:
+  SPRING_DATASOURCE_USERNAME: openwcs
+  SPRING_DATASOURCE_PASSWORD: CHANGE_ME

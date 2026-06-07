@@ -4,6 +4,7 @@ import org.openwcs.slotting.domain.BlockPolicy;
 import org.openwcs.slotting.repo.BlockPolicyRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -26,6 +27,7 @@ public class ReslotScheduler {
     }
 
     @Scheduled(cron = "${openwcs.slotting.offpeak-cron:0 0 2 * * *}")
+    @SchedulerLock(name = "slotting-reslot")
     public void reslotEnabledBlocks() {
         for (BlockPolicy p : policies.findByReslotEnabledTrue()) {
             int created = reslot.recommendForBlock(p.getWarehouseId(), p.getBlockId()).size();
