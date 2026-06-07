@@ -152,29 +152,37 @@
     function render(phases) {
       var root = document.getElementById('roadmap');
       root.innerHTML = '';
+      var side = 0;                                     // running counter → alternating left/right
       phases.forEach(function (ph) {
-        var sec = el('section', 'rm-phase');
-        sec.setAttribute('data-reveal', '');
-        sec.appendChild(el('span', 'rm-marker'));
+        // Phase milestone — a labelled station on the spine.
+        var phase = el('div', 'tl-phase');
+        phase.setAttribute('data-reveal', '');
+        var mile = el('div', 'tl-milestone');
+        mile.appendChild(el('span', 'tl-mdot'));
+        var ml = el('div', 'tl-mlabel');
+        ml.appendChild(el('h2', null, ph.title));
+        if (ph.sub) ml.appendChild(el('p', 'tl-msub', ph.sub));
+        mile.appendChild(ml);
+        phase.appendChild(mile);
+        root.appendChild(phase);
 
-        var head = el('div', 'rm-phase-head');
-        head.appendChild(el('h2', null, ph.title));
-        if (ph.sub) head.appendChild(el('p', 'rm-phase-sub', ph.sub));
-        sec.appendChild(head);
-
-        var items = el('div', 'rm-items');
+        // Items — each a card pinned to the spine by a node, alternating sides.
         ph.items.forEach(function (item) {
           var meta = STATUS[item.status] || STATUS.planned;
+          var row = el('div', 'tl-item ' + meta.card + ' ' + (side++ % 2 ? 'tl-right' : 'tl-left'));
+          row.setAttribute('data-reveal', '');
+          row.appendChild(el('span', 'tl-conn'));
+          row.appendChild(el('span', 'tl-node'));
+
           var card = el('article', 'rm-card ' + meta.card);
           var ch = el('div', 'rm-card-head');
           ch.appendChild(el('h3', null, item.title));
           ch.appendChild(el('span', 'pill ' + meta.pill, meta.label));
           card.appendChild(ch);
           if (item.desc) card.appendChild(el('p', null, item.desc));
-          items.appendChild(card);
+          row.appendChild(card);
+          root.appendChild(row);
         });
-        sec.appendChild(items);
-        root.appendChild(sec);
       });
       revealNew(root);
     }
