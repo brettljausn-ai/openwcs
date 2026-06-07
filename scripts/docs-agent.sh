@@ -56,6 +56,12 @@ STEP 3 — Public marketing site (ONLY for a user-facing product capability). Up
   under public/ and public/i18n.js, keeping ALL FOUR languages (en/de/fr/es) in parity. Then run
   \`node public/i18n-check.js\` and fix any missing keys. Skip this step for internal-only changes.
 
+STEP 4 — Roadmap. public/roadmap.md is the single source of truth for the roadmap page
+  (public/roadmap.html renders it verbatim). If THIS PR changes a capability's status — a roadmap item
+  ships, work starts on it, or new planned work is introduced — update the matching \`- [status] Title\`
+  line there (status is done | active | planned | exploring). Keep it honest: never mark something
+  \`done\` before it is built end-to-end. Don't touch roadmap.md for changes with no roadmap impact.
+
 Do NOT touch the GitHub wiki — it is synced separately after merge. Do NOT commit, push, or open a PR
 yourself; the surrounding script commits your edits onto the PR branch. Finish by printing a one-line
 summary of what you updated (or "no changes").
