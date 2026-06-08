@@ -58,6 +58,7 @@ func main() {
 		_, _ = w.Write([]byte("ready"))
 	})
 	mux.HandleFunc("/tasks", handleTask)
+	mux.HandleFunc("/state", handleState)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{
@@ -65,6 +66,7 @@ func main() {
 			"family":    family,
 			"transport": transport,
 			"status":    "skeleton",
+			"emulator":  EmulatorMode(),
 			"version":   version,
 			"commit":    commit,
 			"buildTime": buildTime,
@@ -75,6 +77,9 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Poll the master-data emulator flag so /tasks and deviceLoop know whether to simulate.
+	StartEmulatorPoller(ctx)
 
 	// Device connection loop (stub). Replace with the real protocol client:
 	// maintain the connection/session, frame/parse telegrams or call the
@@ -139,6 +144,18 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The simulator only runs when the hardware emulator is ON. With it OFF there is no live
+	// adapter to drive (no real-hardware code exists yet), so the task fails cleanly.
+	if !EmulatorOn() {
+		log.Printf("%s: task %s rejected, emulator off", serviceName, req.TaskID)
+		_ = json.NewEncoder(w).Encode(deviceTaskResult{
+			Status: "FAILED",
+			Detail: "hardware not connected (emulator off; no live adapter configured)",
+		})
+		return
+	}
+
+	sim.recordCommand(req.Command)
 	log.Printf("%s: executing task %s command=%s equipment=%s", serviceName, req.TaskID, req.Command, req.EquipmentID)
 	_ = json.NewEncoder(w).Encode(deviceTaskResult{
 		Status: "COMPLETED",
@@ -159,8 +176,16 @@ func deviceLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// TODO: poll/heartbeat the equipment; publish telemetry to Kafka.
-			log.Printf("%s: device heartbeat (stub)", serviceName)
+			if EmulatorOn() {
+				// Emulator ON: advance simulated telemetry and emit a heartbeat. No socket is
+				// ever opened in this mode.
+				ticks, throughput, faults := sim.tick(time.Now())
+				log.Printf("%s: emulator heartbeat ticks=%d throughput=%d faults=%d", serviceName, ticks, throughput, faults)
+				continue
+			}
+			// TODO: real hardware connection (emulator off): maintain the PLC connection/session,
+			// frame/parse telegrams, publish telemetry to Kafka, and reconcile in-flight commands.
+			log.Printf("%s: device heartbeat (stub, emulator off)", serviceName)
 		}
 	}
 }
