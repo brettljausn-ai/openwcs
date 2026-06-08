@@ -1343,6 +1343,12 @@ components:
             heightMm: { type: number, format: double, nullable: true }
             weightLimitG: { type: number, format: double, nullable: true }
             nestable: { type: boolean, default: false }
+            shipper:
+              type: boolean
+              default: false
+              description: >
+                Whether this HU type is also a shipper: it leaves the warehouse with the goods and is
+                a candidate target for outbound cubing.
 
     # ------------------------------------------------------------------ Equipment
     Equipment:

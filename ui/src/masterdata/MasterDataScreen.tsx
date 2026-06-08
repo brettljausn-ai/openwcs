@@ -2526,6 +2526,7 @@ function HandlingUnitTypesTab() {
     compartments: 1,
     storableInAutomation: false,
     transportableOnConveyor: false,
+    shipper: false,
     status: 'ACTIVE',
   }
 
@@ -2591,6 +2592,13 @@ function HandlingUnitTypesTab() {
             sortable: true,
             sortValue: (h) => (h.transportableOnConveyor ? 1 : 0),
             render: (h) => (h.transportableOnConveyor ? 'Yes' : 'No'),
+          },
+          {
+            key: 'shipper',
+            header: 'Shipper',
+            sortable: true,
+            sortValue: (h) => (h.shipper ? 1 : 0),
+            render: (h) => (h.shipper ? 'Yes' : 'No'),
           },
           {
             key: 'status',
@@ -2733,6 +2741,15 @@ function HandlingUnitTypeDialog({
           />
           Transportable on conveyor{' '}
           <InfoTip text="When on, this type can be moved on the conveyor network." example="on for a tote or carton" />
+        </label>
+        <label className="md-check">
+          <input
+            type="checkbox"
+            checked={d.shipper}
+            onChange={(e) => setD({ ...d, shipper: e.target.checked })}
+          />
+          Also a shipper{' '}
+          <InfoTip text="When on, this type also acts as a shipper: it leaves the warehouse with the goods and is a candidate target for outbound cubing." example="on for a shipping carton, off for an internal tote" />
         </label>
       </div>
     </EditDialog>
