@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useWarehouse } from '../warehouse/WarehouseContext'
 import Select from '../ui/Select'
 import DatePicker from '../ui/DatePicker'
 import DataTable, { Column } from '../ui/DataTable'
@@ -159,6 +160,23 @@ export default function StockTxnScreen() {
     [skuCodes],
   )
 
+  // Location id → code for the current warehouse. The txlog is global and From/To may be a status
+  // or a compound string, so we only swap a value that exactly matches a known location id.
+  const { currentWarehouseId: warehouseId } = useWarehouse()
+  const [locCodes, setLocCodes] = useState<Record<string, string>>({})
+  useEffect(() => {
+    if (!warehouseId) return
+    fetch(`/api/master-data/locations?warehouseId=${encodeURIComponent(warehouseId)}&size=1000`)
+      .then((r) => (r.ok ? r.json() : { content: [] }))
+      .then((p: { content?: { id: string; code: string }[] }) => {
+        const m: Record<string, string> = {}
+        for (const l of p.content ?? []) m[l.id] = l.code
+        setLocCodes(m)
+      })
+      .catch(() => { /* fall back to the raw value */ })
+  }, [warehouseId])
+  const locFor = useCallback((v: string | null): string => (v ? locCodes[v] ?? v : '—'), [locCodes])
+
   // Filters
   const [fSku, setFSku] = useState('')
   const [fLocation, setFLocation] = useState('')
@@ -264,12 +282,12 @@ export default function StockTxnScreen() {
     {
       key: 'from',
       header: 'From',
-      render: ({ d }) => <span title={d.from ?? undefined}>{d.from ?? '—'}</span>,
+      render: ({ d }) => <span title={d.from ?? undefined}>{locFor(d.from)}</span>,
     },
     {
       key: 'to',
       header: 'To',
-      render: ({ d }) => <span title={d.to ?? undefined}>{d.to ?? '—'}</span>,
+      render: ({ d }) => <span title={d.to ?? undefined}>{locFor(d.to)}</span>,
     },
     {
       key: 'qty',

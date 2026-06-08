@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import { useCatalog } from '../lib/useCatalog'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
@@ -68,6 +69,7 @@ function formatTime(iso: string): string {
 
 export default function TransportScreen() {
   const { currentWarehouseId: warehouseId } = useWarehouse()
+  const catalog = useCatalog(warehouseId)
   const [tasks, setTasks] = useState<DeviceTask[]>([])
   const [status, setStatus] = useState('')
   const [family, setFamily] = useState('')
@@ -297,9 +299,7 @@ export default function TransportScreen() {
             {
               key: 'equipmentId',
               header: 'Equipment',
-              render: (t) => (
-                <span style={{ fontFamily: 'var(--font-mono)' }} title={t.equipmentId ?? ''}>{shortId(t.equipmentId)}</span>
-              ),
+              render: (t) => <span title={t.equipmentId ?? ''}>{catalog.equipmentLabel(t.equipmentId)}</span>,
             },
             {
               key: 'correlationId',
