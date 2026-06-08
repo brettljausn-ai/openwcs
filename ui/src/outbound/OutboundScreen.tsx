@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import { useDemoMode, seedDemoOrders } from '../demo/useDemoMode'
+import { useCatalog } from '../lib/useCatalog'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
@@ -113,6 +114,7 @@ async function readError(res: Response): Promise<string> {
 export default function OutboundScreen() {
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const { enabled: demoEnabled } = useDemoMode()
+  const catalog = useCatalog(warehouseId)
   const [statusFilter, setStatusFilter] = useState<string>('')
 
   const [orders, setOrders] = useState<Order[]>([])
@@ -239,6 +241,7 @@ export default function OutboundScreen() {
           onClose={() => setSelected(null)}
           onChanged={() => { loadOrders() }}
           skuCache={skuById}
+          locationCode={catalog.locationCode}
         />
       )}
 
@@ -268,11 +271,12 @@ function useSkuLabels(skuCache: Map<string, Sku>, skuIds: string[]) {
 }
 
 // ----------------------------------------------------------------- detail modal
-function OrderDetail({ orderId, onClose, onChanged, skuCache }: {
+function OrderDetail({ orderId, onClose, onChanged, skuCache, locationCode }: {
   orderId: string
   onClose: () => void
   onChanged: () => void
   skuCache: Map<string, Sku>
+  locationCode: (id?: string | null) => string
 }) {
   const [order, setOrder] = useState<Order | null>(null)
   const [alloc, setAlloc] = useState<Allocation | null>(null)
@@ -445,7 +449,7 @@ function OrderDetail({ orderId, onClose, onChanged, skuCache }: {
                           <td className="muted" style={{ fontSize: '.8rem' }}>
                             {(l.picks && l.picks.length) ? l.picks.map((p, i) => (
                               <div key={i}>
-                                {fmtNum(p.qty)} @ loc {p.locationId ? p.locationId.slice(0, 8) : '—'}
+                                {fmtNum(p.qty)} @ {locationCode(p.locationId)}
                                 {p.uomBreakdown && Object.keys(p.uomBreakdown).length
                                   ? ` (${Object.entries(p.uomBreakdown).map(([u, q]) => `${q} ${u}`).join(', ')})`
                                   : ''}

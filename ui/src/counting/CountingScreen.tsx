@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import { useDemoMode, seedDemoCountTasks } from '../demo/useDemoMode'
+import { useCatalog, type Catalog } from '../lib/useCatalog'
 import Select from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
 
@@ -191,6 +192,14 @@ function num(v: number | null | undefined): string {
 export default function CountingScreen() {
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const { enabled: demoEnabled } = useDemoMode()
+  const catalog = useCatalog(warehouseId)
+
+  // Resolve a scope reference (a location/SKU id) to its code based on the scope type.
+  function scopeLabel(scopeType?: string, scopeRef?: string): string {
+    if (!scopeRef) return scopeType || '—'
+    const ref = scopeType === 'SKU' ? catalog.skuCode(scopeRef) : scopeType === 'LOCATION' ? catalog.locationCode(scopeRef) : short(scopeRef)
+    return `${scopeType || '—'} · ${ref}`
+  }
   const [statusFilter, setStatusFilter] = useState('')
   const [tasks, setTasks] = useState<CountTask[]>([])
   const [schedules, setSchedules] = useState<CountSchedule[]>([])
@@ -368,10 +377,7 @@ export default function CountingScreen() {
                     </td>
                     <td>{t.countType || '—'}</td>
                     <td>{t.origin || '—'}</td>
-                    <td title={t.scopeRef}>
-                      {t.scopeType || '—'}
-                      {t.scopeRef ? ` · ${short(t.scopeRef)}` : ''}
-                    </td>
+                    <td title={t.scopeRef}>{scopeLabel(t.scopeType, t.scopeRef)}</td>
                     <td>{num(t.tolerance)}</td>
                     <td>{t.assignedTo || '—'}</td>
                     <td title={fmtTime(t.countedAt)}>{t.countedBy || '—'}</td>
@@ -405,6 +411,7 @@ export default function CountingScreen() {
       {captureTask && (
         <CaptureDialog
           task={captureTask}
+          catalog={catalog}
           onClose={() => setCaptureTask(null)}
           onDone={async (msg) => {
             setCaptureTask(null)
@@ -483,11 +490,13 @@ function SchedulesPanel({ schedules }: { schedules: CountSchedule[] }) {
 
 function CaptureDialog({
   task,
+  catalog,
   onClose,
   onDone,
   onError,
 }: {
   task: CountTask
+  catalog: Catalog
   onClose: () => void
   onDone: (msg?: string) => void
   onError: (m: string) => void
@@ -501,6 +510,8 @@ function CaptureDialog({
   // A reconciled task shows final results (expected + variance + adjustment); an open/recount task
   // shows count-capture inputs; a counted task shows the recorded counts read-only.
   const reconciled = task.status === 'RECONCILED'
+  // Blind counts withhold the expected qty until reconciled — the operator must not see it.
+  const showExpected = task.countType !== 'BLIND' || reconciled
   const editable = task.status === 'OPEN' || task.status === 'RECOUNT'
 
   useEffect(() => {
@@ -585,7 +596,7 @@ function CaptureDialog({
                   <th>SKU</th>
                   <th>Batch</th>
                   <th>UoM</th>
-                  <th>Expected</th>
+                  {showExpected && <th>Expected</th>}
                   <th>
                     Counted{' '}
                     <InfoTip
@@ -600,11 +611,11 @@ function CaptureDialog({
               <tbody>
                 {lines.map((l) => (
                   <tr key={l.countLineId}>
-                    <td title={l.locationId}>{short(l.locationId)}</td>
-                    <td title={l.skuId}>{short(l.skuId)}</td>
-                    <td title={l.batchId}>{short(l.batchId)}</td>
+                    <td title={l.locationId}>{catalog.locationCode(l.locationId)}</td>
+                    <td title={l.skuId}>{catalog.skuLabel(l.skuId)}</td>
+                    <td title={l.batchId}>{l.batchId ? short(l.batchId) : '—'}</td>
                     <td>{l.uomCode || '—'}</td>
-                    <td>{num(l.expectedQty)}</td>
+                    {showExpected && <td>{num(l.expectedQty)}</td>}
                     <td>
                       {editable ? (
                         <input
