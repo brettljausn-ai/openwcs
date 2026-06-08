@@ -69,19 +69,26 @@ paths:
   /masterdata/skus:
     post:
       tags: [MasterData]
-      summary: Upsert a SKU (host-driven master-data sync)
-      operationId: upsertHostSku
+      summary: Upsert a list of SKUs (host-driven master-data sync)
+      description: >
+        The host pushes a list of SKUs, each carrying its unit-of-measure hierarchy and barcodes
+        inline. Intra-SKU references are by code (a UoM names its parent by parentCode, a barcode
+        names its packaging level by uomCode). The host is authoritative: the nested UoM and barcode
+        lists fully replace what is stored for the SKU. The whole batch is applied in one transaction.
+      operationId: upsertHostSkus
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/HostSku' }
+            schema:
+              type: array
+              items: { $ref: '#/components/schemas/HostSku' }
       responses:
         "200":
-          description: Upsert result
+          description: Sync report
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/UpsertResponse' }
+              schema: { $ref: '#/components/schemas/SkuSyncReport' }
         "400": { description: Invalid request }
   /inventory/adjustments:
     post:
@@ -236,11 +243,51 @@ components:
         batchTracked: { type: boolean, nullable: true }
         serialTracked: { type: boolean, nullable: true }
         dateTracked: { type: boolean, nullable: true }
-    UpsertResponse:
+        uoms:
+          type: array
+          nullable: true
+          description: The SKU's unit-of-measure hierarchy. Authoritative — fully replaces stored UoMs.
+          items: { $ref: '#/components/schemas/HostUom' }
+        barcodes:
+          type: array
+          nullable: true
+          description: The SKU's barcodes. Authoritative — fully replaces stored barcodes.
+          items: { $ref: '#/components/schemas/HostBarcode' }
+    HostUom:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, description: "Packaging level code, e.g. EACH, INNER, CASE, PALLET." }
+        parentCode: { type: string, nullable: true, description: "Parent UoM code in the hierarchy." }
+        qtyInParent: { type: number, nullable: true, description: "How many of this UoM make one parent." }
+        lengthMm: { type: number, nullable: true }
+        widthMm: { type: number, nullable: true }
+        heightMm: { type: number, nullable: true }
+        weightG: { type: number, nullable: true }
+        baseUnit: { type: boolean, nullable: true, description: "True for the smallest stockable unit." }
+    HostBarcode:
+      type: object
+      required: [value]
+      properties:
+        value: { type: string }
+        uomCode: { type: string, nullable: true, description: "Packaging level (UoM code) this barcode identifies." }
+        type: { type: string, nullable: true, description: "Barcode type name, e.g. EAN13, GTIN14, GS1-128." }
+    SkuSyncReport:
+      type: object
+      properties:
+        received: { type: integer }
+        created: { type: integer }
+        updated: { type: integer }
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/SkuSyncResult' }
+    SkuSyncResult:
       type: object
       properties:
         code: { type: string }
-        result: { type: string, enum: [CREATED, UPDATED] }
+        action: { type: string, enum: [CREATED, UPDATED] }
+        uoms: { type: integer, description: "Number of UoMs stored for the SKU after sync." }
+        barcodes: { type: integer, description: "Number of barcodes stored for the SKU after sync." }
     InventoryAdjustment:
       type: object
       required: [warehouseId, skuId, qtyDelta]

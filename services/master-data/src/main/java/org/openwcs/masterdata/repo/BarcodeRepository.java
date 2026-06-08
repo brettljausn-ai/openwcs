@@ -9,4 +9,6 @@ public interface BarcodeRepository extends JpaRepository<Barcode, UUID> {
     List<Barcode> findBySkuId(UUID skuId);
 
     List<Barcode> findByValue(String value);
+
+    void deleteBySkuId(UUID skuId);
 }

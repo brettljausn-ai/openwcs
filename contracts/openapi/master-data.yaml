@@ -184,6 +184,35 @@ paths:
               schema: { $ref: '#/components/schemas/BulkImportReport' }
         "403": { $ref: '#/components/responses/HostManaged' }
         "422": { $ref: '#/components/responses/ValidationError' }
+  /skus/sync:
+    post:
+      tags: [SKUs]
+      summary: Sync a list of SKUs with nested UoMs and barcodes (host-sync only)
+      description: >
+        Host-driven sync of SKUs that carry their unit-of-measure hierarchy and barcodes inline
+        (build.md §6, §16). Each SKU is upserted by code; intra-SKU references are by code (a UoM
+        names its parent by parentCode, a barcode names its packaging level by uomCode). The host is
+        authoritative, so a SKU's stored UoMs/barcodes absent from the payload are removed and the
+        rest upserted. UoMs are matched by (sku, code) so their ids (and any stock referencing them)
+        survive a re-sync. The whole batch runs in one transaction. SKUs are host-owned master data:
+        interactive (gateway-routed) callers are rejected with 403; only the header-less host-sync
+        path may write.
+      operationId: syncSkus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: '#/components/schemas/SkuSyncRequest' }
+      responses:
+        "200":
+          description: Sync report
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SkuSyncReport' }
+        "403": { $ref: '#/components/responses/HostManaged' }
+        "422": { $ref: '#/components/responses/ValidationError' }
   /skus/{skuId}:
     parameters:
       - $ref: '#/components/parameters/SkuId'
@@ -1318,6 +1347,61 @@ components:
               row: { type: integer }
               code: { type: string }
               message: { type: string }
+    SkuSyncRequest:
+      type: object
+      description: >
+        A SKU pushed by the host with its unit-of-measure hierarchy and barcodes inline. Intra-SKU
+        references are by code. The nested lists are authoritative and fully replace stored values.
+      required: [code]
+      properties:
+        code: { type: string }
+        description: { type: string, nullable: true }
+        ownerClient: { type: string, nullable: true }
+        batchTracked: { type: boolean, nullable: true }
+        serialTracked: { type: boolean, nullable: true }
+        dateTracked: { type: boolean, nullable: true }
+        uoms:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/UomSync' }
+        barcodes:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/BarcodeSync' }
+    UomSync:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, example: CASE }
+        parentCode: { type: string, nullable: true, example: EACH }
+        qtyInParent: { type: number, nullable: true, example: 12 }
+        lengthMm: { type: number, nullable: true }
+        widthMm: { type: number, nullable: true }
+        heightMm: { type: number, nullable: true }
+        weightG: { type: number, nullable: true }
+        baseUnit: { type: boolean, nullable: true }
+    BarcodeSync:
+      type: object
+      required: [value]
+      properties:
+        value: { type: string, example: "4006381333931" }
+        uomCode: { type: string, nullable: true, example: EACH }
+        type: { type: string, nullable: true, example: EAN13 }
+    SkuSyncReport:
+      type: object
+      properties:
+        received: { type: integer }
+        created: { type: integer }
+        updated: { type: integer }
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string }
+              action: { type: string, enum: [CREATED, UPDATED] }
+              uoms: { type: integer }
+              barcodes: { type: integer }
     ShippingService:
       type: object
       description: A dispatch service level (EXPRESS/STANDARD…), optionally tied to a carrier. Code is unique.

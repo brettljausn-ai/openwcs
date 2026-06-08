@@ -77,6 +77,12 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
 - **Catalog**: warehouses, SKUs (+ per-warehouse `SkuProfile` overlays, UoMs, barcodes,
   dangerous-goods), attribute-schemas, barcode-types, handling-unit-types, locations,
   equipment; SKU search/paging; bulk SKU import; soft-archive on delete.
+- **Host SKU sync** (`POST /skus/sync`, host-sync only): a list of SKUs each carrying their
+  **UoM hierarchy and barcodes inline**, referenced by code (UoM `parentCode`, barcode `uomCode`,
+  barcode type by name). The host is authoritative — the nested lists **fully replace** the SKU's
+  stored UoMs/barcodes; UoMs are matched by `(sku, code)` so their ids (and any stock referencing
+  them) survive a re-sync. Whole batch in one transaction. This is the engine behind the Host API's
+  `POST /api/host/masterdata/skus`.
 - **Outbound config** (ADR 0002): **shippers** (`/shippers` — boxes/totes/bags with
   dims, tare, max fill level, max weight, per warehouse) and
   **`WarehouseFulfillmentConfig`** (`/warehouses/{id}/fulfillment-config` — allowed pick
@@ -295,8 +301,13 @@ resolve materials/items to SKUs, then call `/api/host/orders`,`/asns`).
 - `POST /api/host/orders` — outbound order (ship-to, service, route, label template, lines) →
   translated to an order-management OUTBOUND order.
 - `POST /api/host/asns` — ASN / expected receipt → order-management INBOUND order.
-- `POST /api/host/masterdata/skus` — upsert a SKU into master-data by code (host-driven
-  reference-data sync).
+- `POST /api/host/masterdata/skus` — upsert a **list** of SKUs into master-data by code, each
+  carrying its **unit-of-measure hierarchy and barcodes inline** (host-driven reference-data sync).
+  Intra-SKU references are by code (a UoM names its parent by `parentCode`, a barcode names its
+  packaging level by `uomCode`; the barcode type by name). The host is authoritative: the nested
+  UoM/barcode lists **fully replace** what is stored for the SKU (master-data `/skus/sync`,
+  reconciled in one transaction; UoMs are matched by `(sku, code)` so their ids survive a re-sync).
+  Returns a per-SKU created/updated report.
 - `POST /api/host/inventory/adjustments` — a signed stock adjustment → appended to the txlog as
   a **StockAdjusted** event (the inventory projection applies the delta).
 - `GET /api/host/confirmations?cursor=` — pull confirmations (receipts, picks, shipments, stock
