@@ -21,7 +21,8 @@ public interface GtpClient {
 
     /**
      * Queue request: the HU/tote to present, the SKU on it, qty, the operating mode, the equipment
-     * family it is retrieved from, and an optional travel distance ({@code null} = immediate).
+     * family it is retrieved from, an optional travel distance ({@code null} = immediate), and the
+     * count task + line this tote belongs to (so the station can drive the at-station count).
      */
     record EnqueueRequest(
             UUID huId,
@@ -31,6 +32,8 @@ public interface GtpClient {
             BigDecimal qty,
             String mode,
             String family,
-            BigDecimal distanceM) {
+            BigDecimal distanceM,
+            UUID countTaskId,
+            UUID countLineId) {
     }
 }

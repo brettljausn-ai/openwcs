@@ -42,7 +42,7 @@ public class StationQueueService {
     /** Inputs to route an HU to a station's queue. */
     public record EnqueueCommand(
             UUID huId, String huCode, UUID skuId, String skuCode, BigDecimal qty,
-            String mode, String family, Double distanceM) {
+            String mode, String family, Double distanceM, UUID countTaskId, UUID countLineId) {
     }
 
     /** Thrown when a station cannot accept the routed HU; the controller maps it to 409. */
@@ -97,6 +97,8 @@ public class StationQueueService {
         entry.setQty(cmd.qty());
         entry.setMode(mode.name());
         entry.setArrivalAt(arrival);
+        entry.setCountTaskId(cmd.countTaskId());
+        entry.setCountLineId(cmd.countLineId());
         entry.setStatus(arrival.isAfter(now) ? Status.IN_TRANSIT.name() : Status.QUEUED.name());
         return queue.save(entry);
     }
