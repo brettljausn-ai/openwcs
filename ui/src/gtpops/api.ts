@@ -101,6 +101,10 @@ export interface StationQueueEntry {
   mode: OperatingMode
   status: 'IN_TRANSIT' | 'QUEUED' | 'DONE'
   arrivalAt: string
+  // STOCK_COUNT mode: the count task + line this tote belongs to, so an at-station blind count can be
+  // submitted against the host. Absent on manually-enqueued totes (which fall back to "done counting").
+  countTaskId?: string | null
+  countLineId?: string | null
 }
 
 const json = { 'Content-Type': 'application/json' }
@@ -183,6 +187,24 @@ export async function getStationQueue(stationId: string): Promise<StationQueueEn
 
 export async function completeQueueEntry(entryId: string): Promise<StationQueueEntry> {
   return ok(await fetch(`/api/gtp/queue/${entryId}/complete`, { method: 'POST', headers: json }))
+}
+
+// ---- at-station blind count (STOCK_COUNT) ----
+// Submit the operator's counted quantity for one count line. Blind: the request carries only the
+// counted qty (no expected). The host decides the outcome: ACCEPTED (matches), ADJUSTED (variance
+// posted to the host) or RECOUNT (count again, same tote).
+export async function submitStationCount(
+  taskId: string,
+  lineId: string,
+  countedQty: number,
+): Promise<{ outcome: 'ACCEPTED' | 'RECOUNT' | 'ADJUSTED'; message: string }> {
+  return ok(
+    await fetch(`/api/counting/tasks/${taskId}/lines/${lineId}/station-count`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ countedQty }),
+    }),
+  )
 }
 
 export async function deactivateStation(stationId: string): Promise<{ acceptingWork: boolean }> {

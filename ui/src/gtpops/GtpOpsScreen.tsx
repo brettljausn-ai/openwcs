@@ -22,7 +22,9 @@ import {
   listWorkplaces,
   presentStock,
   releaseWorkplace,
+  submitStationCount,
 } from './api'
+import { useDemoMode } from '../demo/useDemoMode'
 
 const HEARTBEAT_MS = 4000
 const QUEUE_POLL_MS = 3000
@@ -646,16 +648,25 @@ function OperatorConsole({
         )
       ) : activeMode === 'STOCK_COUNT' ? (
         head ? (
-          <>
-            <ActiveTotePanel head={head} cycle={null} warehouseId={workplace.warehouseId} error={null} fill />
-            <button
-              className="btn btn-primary btn-lg"
-              style={{ alignSelf: 'flex-start' }}
-              onClick={completeHeadAndAdvance}
-            >
-              Done counting
-            </button>
-          </>
+          head.countTaskId && head.countLineId ? (
+            <CountPanel
+              key={head.id}
+              head={head}
+              warehouseId={workplace.warehouseId}
+              onCounted={completeHeadAndAdvance}
+            />
+          ) : (
+            <>
+              <ActiveTotePanel head={head} cycle={null} warehouseId={workplace.warehouseId} error={null} fill />
+              <button
+                className="btn btn-primary btn-lg"
+                style={{ alignSelf: 'flex-start' }}
+                onClick={completeHeadAndAdvance}
+              >
+                Done counting
+              </button>
+            </>
+          )
         ) : (
           <WaitingForTotes loaded={queueLoaded} />
         )
@@ -991,6 +1002,208 @@ function ActiveTotePanel({
             {qty} {qty === 1 ? 'unit' : 'units'} on the tote
           </div>
         )}
+        {error && (
+          <p className="badge badge-danger" style={{ marginTop: '.4rem', marginBottom: 0 }}>
+            {error}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// --- At-station blind count (STOCK_COUNT) ---------------------------------------------------------
+// A small pool of neutral product photos used only in demo mode when a SKU has no image of its own,
+// so the count panel still has something to show. Picked deterministically per SKU code (below) so a
+// given SKU always shows the same image across totes and reloads.
+const DEMO_IMAGES: string[] = [
+  'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=400&q=60',
+  'https://images.unsplash.com/photo-1556909212-d5b604d0c90d?auto=format&fit=crop&w=400&q=60',
+  'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=400&q=60',
+  'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=400&q=60',
+  'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=400&q=60',
+  'https://images.unsplash.com/photo-1572635196237-14b3f281503f?auto=format&fit=crop&w=400&q=60',
+]
+
+// Stable, simple string hash so the same SKU code always maps to the same demo image.
+function hashString(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) | 0
+  }
+  return Math.abs(h)
+}
+
+function demoImageFor(skuCode: string | null): string {
+  if (!skuCode) return DEMO_IMAGES[0]
+  return DEMO_IMAGES[hashString(skuCode) % DEMO_IMAGES.length]
+}
+
+// The focal full-screen element of STOCK_COUNT mode. Shows the tote barcode, the SKU (code + name)
+// and an image, then takes a blind counted quantity. It never displays any quantity from the system
+// (no expected, no "units on the tote"), and on a RECOUNT outcome it clears the input and keeps the
+// same tote so the operator counts again without seeing their previous entry.
+function CountPanel({
+  head,
+  warehouseId,
+  onCounted,
+}: {
+  head: StationQueueEntry
+  warehouseId: string
+  onCounted: () => void
+}) {
+  const { enabled: demoEnabled } = useDemoMode()
+  const [skus, setSkus] = useState<Sku[]>([])
+  const [hus, setHus] = useState<HandlingUnit[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    listSkus()
+      .then((l) => !cancelled && setSkus(l))
+      .catch(() => !cancelled && setSkus([]))
+    listHandlingUnits(warehouseId)
+      .then((l) => !cancelled && setHus(l))
+      .catch(() => !cancelled && setHus([]))
+    return () => {
+      cancelled = true
+    }
+  }, [warehouseId])
+
+  const sku = useMemo(() => skus.find((s) => s.id === head.skuId) ?? null, [skus, head.skuId])
+  const huCode = useMemo(() => {
+    if (head.huCode) return head.huCode
+    return hus.find((h) => h.huId === head.huId)?.code ?? null
+  }, [hus, head])
+
+  const skuCode = sku?.code ?? head.skuCode ?? null
+  const imageUrl = sku?.imageUrl ?? (demoEnabled ? demoImageFor(skuCode) : null)
+
+  const [qtyText, setQtyText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [note, setNote] = useState<{ tone: 'ok' | 'recount'; text: string } | null>(null)
+
+  const parsed = Number(qtyText)
+  const validQty = qtyText.trim() !== '' && Number.isFinite(parsed) && parsed >= 0
+
+  async function submit() {
+    if (!validQty || busy) return
+    if (!head.countTaskId || !head.countLineId) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await submitStationCount(head.countTaskId, head.countLineId, parsed)
+      if (res.outcome === 'RECOUNT') {
+        // Stay blind: clear the input, keep the same tote, prompt the operator to count again.
+        setQtyText('')
+        setNote({ tone: 'recount', text: res.message })
+      } else {
+        // ACCEPTED or ADJUSTED: show the host message briefly, then complete + advance.
+        setNote({ tone: 'ok', text: res.message })
+        setQtyText('')
+        onCounted()
+      }
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      className="glass"
+      style={{
+        padding: '2.5rem',
+        marginBottom: '1.25rem',
+        display: 'flex',
+        gap: '2.5rem',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderColor: 'rgba(141, 198, 63, .35)',
+        flex: 1,
+        minHeight: '60vh',
+      }}
+    >
+      {imageUrl && (
+        <img
+          src={imageUrl}
+          alt={skuCode ?? 'SKU'}
+          style={{
+            width: 240,
+            height: 240,
+            objectFit: 'cover',
+            borderRadius: 12,
+            border: '1px solid var(--glass-border)',
+          }}
+          onError={(e) => {
+            ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+          }}
+        />
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem', minWidth: 260, flex: 1, maxWidth: 460 }}>
+        <span className="eyebrow">Count this tote</span>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem', flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: '1.7rem' }}>{huCode ?? 'Tote'}</strong>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '.5rem', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '1.15rem', fontWeight: 600 }}>{skuCode ?? 'SKU'}</span>
+          {sku?.description && (
+            <span style={{ color: 'var(--text-dim)', fontSize: '.9rem' }}>{sku.description}</span>
+          )}
+        </div>
+
+        <div style={{ color: 'var(--text-dim)', fontSize: '.9rem', marginTop: '.25rem' }}>
+          Count every unit in this tote and enter the total.
+        </div>
+
+        {note && note.tone === 'recount' && (
+          <div
+            className="glass"
+            style={{
+              padding: '.9rem 1.1rem',
+              borderColor: 'rgba(255, 193, 94, .5)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '.6rem',
+            }}
+          >
+            <span style={{ fontSize: '1.3rem' }}>↻</span>
+            <strong>{note.text}</strong>
+          </div>
+        )}
+        {note && note.tone === 'ok' && (
+          <p className="badge badge-success" style={{ marginBottom: 0 }}>
+            {note.text}
+          </p>
+        )}
+
+        <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center', marginTop: '.4rem', flexWrap: 'wrap' }}>
+          <input
+            className="form-control"
+            type="number"
+            min="0"
+            inputMode="numeric"
+            value={qtyText}
+            placeholder="Counted quantity"
+            disabled={busy}
+            autoFocus
+            onChange={(e) => setQtyText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submit()
+            }}
+            style={{ fontSize: '1.4rem', width: 180, padding: '.6rem .8rem' }}
+          />
+          <button
+            className="btn btn-primary btn-lg"
+            disabled={!validQty || busy}
+            onClick={submit}
+          >
+            {busy ? 'Submitting…' : 'Submit count'}
+          </button>
+        </div>
+
         {error && (
           <p className="badge badge-danger" style={{ marginTop: '.4rem', marginBottom: 0 }}>
             {error}
