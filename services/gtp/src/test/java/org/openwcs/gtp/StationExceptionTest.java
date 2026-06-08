@@ -123,7 +123,7 @@ class StationExceptionTest {
         GtpStation s = station("GTP-X3");
         StationQueueEntry e = queue.enqueue(s.getId(), cmd(UUID.randomUUID()));
 
-        BigDecimal adjusted = exceptions.markBroken(e.getId(), new BigDecimal("2"));
+        BigDecimal adjusted = exceptions.markBroken(e.getId(), new BigDecimal("2"), "op7");
         assertThat(adjusted).isEqualByComparingTo("2");
 
         ArgumentCaptor<TxLogClient.StockAdjustment> captor =
@@ -132,5 +132,6 @@ class StationExceptionTest {
         assertThat(captor.getValue().qtyDelta()).isEqualByComparingTo("-2");
         assertThat(captor.getValue().reason()).isEqualTo("DAMAGED");
         assertThat(captor.getValue().skuId()).isEqualTo(e.getSkuId());
+        assertThat(captor.getValue().actor()).isEqualTo("op7");
     }
 }

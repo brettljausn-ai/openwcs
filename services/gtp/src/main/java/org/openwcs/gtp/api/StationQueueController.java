@@ -84,8 +84,10 @@ public class StationQueueController {
      * adjustment). The tote stays in the queue so the operator keeps working it.
      */
     @PostMapping("/stations/{stationId}/exceptions/broken")
-    public Map<String, Object> broken(@PathVariable UUID stationId, @RequestBody BrokenRequest req) {
-        BigDecimal adjusted = exceptions.markBroken(req.queueEntryId(), req.qty());
+    public Map<String, Object> broken(@PathVariable UUID stationId, @RequestBody BrokenRequest req,
+                                      @org.springframework.web.bind.annotation.RequestHeader(
+                                              name = "X-Auth-User", required = false) String authUser) {
+        BigDecimal adjusted = exceptions.markBroken(req.queueEntryId(), req.qty(), authUser);
         return Map.of("adjusted", adjusted);
     }
 

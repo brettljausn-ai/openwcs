@@ -29,7 +29,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class StationExceptionService {
 
     private static final Logger log = LoggerFactory.getLogger(StationExceptionService.class);
-    private static final String ACTOR = "station";
 
     private final StationQueueEntryRepository queue;
     private final MaintenanceOrderRepository maintenance;
@@ -74,14 +73,14 @@ public class StationExceptionService {
      * adjusted quantity.
      */
     @Transactional
-    public BigDecimal markBroken(UUID queueEntryId, BigDecimal qty) {
+    public BigDecimal markBroken(UUID queueEntryId, BigDecimal qty, String actor) {
         if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("qty must be greater than 0.");
         }
         StationQueueEntry e = entry(queueEntryId);
         txlog.postStockAdjusted(new TxLogClient.StockAdjustment(
                 e.getWarehouseId(), e.getSkuId(), null, e.getLocationId(),
-                qty.negate(), null, "DAMAGED", ACTOR));
+                qty.negate(), null, "DAMAGED", actor == null || actor.isBlank() ? "system" : actor));
         log.info("tote {} (sku {}) reported broken at station; wrote off {} (DAMAGED)",
                 e.getHuCode(), e.getSkuCode(), qty);
         return qty;
