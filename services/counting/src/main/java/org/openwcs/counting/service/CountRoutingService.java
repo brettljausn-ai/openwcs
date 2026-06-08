@@ -184,7 +184,7 @@ public class CountRoutingService {
         BigDecimal qty = tote.qty();
         gtp.enqueue(stationId, new GtpClient.EnqueueRequest(
                 tote.huId(), tote.huCode(), line.getSkuId(), skuCode, qty, MODE, FAMILY, null,
-                line.getCountTaskId(), line.getId()));
+                line.getCountTaskId(), line.getId(), line.getLocationId()));
 
         log.info("routed count tote {} (sku {}) to GTP station {} for stock count; transport {}",
                 tote.huCode(), skuCode, stationId, transportId);

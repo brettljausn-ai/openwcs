@@ -56,7 +56,7 @@ class StationQueueTest {
 
     private EnqueueCommand cmd(String mode, String family, Double distanceM) {
         return new EnqueueCommand(UUID.randomUUID(), "HU-1", UUID.randomUUID(), "SKU-1",
-                new BigDecimal("5"), mode, family, distanceM, null, null);
+                new BigDecimal("5"), mode, family, distanceM, null, null, null);
     }
 
     @Test
@@ -92,7 +92,7 @@ class StationQueueTest {
         // No family/distance on the command -> falls back to the STOCK node distance (20 m / 0.5 = ~40s).
         StationQueueEntry e = queue.enqueue(s.getId(), new EnqueueCommand(
                 UUID.randomUUID(), "HU-9", UUID.randomUUID(), "SKU-9", new BigDecimal("3"),
-                "PICKING", null, null, null, null));
+                "PICKING", null, null, null, null, null));
         assertThat(e.getStatus()).isEqualTo("IN_TRANSIT");
         assertThat(e.getArrivalAt()).isAfter(Instant.now());
     }
