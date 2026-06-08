@@ -11,9 +11,14 @@ import {
   WorkplaceSession,
   WorkCycle,
   PutInstruction,
+  StationQueueEntry,
+  activateStation,
   claimWorkplace,
+  completeQueueEntry,
   closeCycle,
   confirmPut,
+  deactivateStation,
+  getStationQueue,
   heartbeat,
   listWorkplaces,
   presentStock,
@@ -21,6 +26,7 @@ import {
 } from './api'
 
 const HEARTBEAT_MS = 4000
+const QUEUE_POLL_MS = 3000
 
 // Remembered workstation (per device): so an operator who always runs the same station can have it
 // auto-opened on arrival. We keep both id and code so we can show the code without a lookup.
@@ -296,6 +302,14 @@ function OperatorConsole({
   const [activeMode, setActiveMode] = useState<OperatingMode>(() => defaultMode(modes))
   const [remembered, setRemembered] = useState<boolean>(() => readRemembered()?.stationId === stationId)
 
+  // Drain switch. Seed from the workplace if it happens to carry an acceptingWork flag, else default
+  // to accepting work. A deactivated station finishes its queued totes but takes no new ones.
+  const [acceptingWork, setAcceptingWork] = useState<boolean>(
+    seedAcceptingWork(workplace),
+  )
+  const [drainBusy, setDrainBusy] = useState(false)
+  const [drainError, setDrainError] = useState<string | null>(null)
+
   const takenOverRef = useRef(false)
 
   // Focus screen: collapse the app sidebar while the console is mounted, restore the prior choice on
@@ -313,6 +327,19 @@ function OperatorConsole({
     setRemembered(next)
     if (next) writeRemembered({ stationId, code: workplace.code })
     else clearRemembered()
+  }
+
+  async function toggleAccepting() {
+    setDrainBusy(true)
+    setDrainError(null)
+    try {
+      const res = acceptingWork ? await deactivateStation(stationId) : await activateStation(stationId)
+      setAcceptingWork(res.acceptingWork)
+    } catch (e) {
+      setDrainError(String(e instanceof Error ? e.message : e))
+    } finally {
+      setDrainBusy(false)
+    }
   }
 
   // Heartbeat loop: keep the session alive and detect a takeover (superseded) / release.
@@ -392,7 +419,21 @@ function OperatorConsole({
             <input type="checkbox" checked={remembered} onChange={(e) => toggleRemember(e.target.checked)} />
             Remember this workstation on this device
           </label>
-          <span className="badge badge-success">Active</span>
+          <span className={`badge ${acceptingWork ? 'badge-success' : 'badge-warning'}`}>
+            {acceptingWork ? 'Active' : 'Draining'}
+          </span>
+          <button
+            className="btn btn-ghost"
+            onClick={toggleAccepting}
+            disabled={drainBusy}
+            title={
+              acceptingWork
+                ? 'Stop taking new totes; finish the queued work already at this station'
+                : 'Resume taking new totes at this station'
+            }
+          >
+            {drainBusy ? 'Working…' : acceptingWork ? 'Deactivate (drain)' : 'Activate'}
+          </button>
           <button
             className="btn btn-ghost"
             onClick={() => {
@@ -432,6 +473,30 @@ function OperatorConsole({
         </div>
       )}
 
+      {drainError && <p className="badge badge-danger" style={{ marginBottom: '1rem' }}>{drainError}</p>}
+
+      {!acceptingWork && (
+        <div
+          className="glass"
+          style={{
+            padding: '.9rem 1.2rem',
+            marginBottom: '1rem',
+            borderColor: 'rgba(255, 193, 94, .4)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '.6rem',
+          }}
+        >
+          <span style={{ fontSize: '1.3rem' }}>⏸</span>
+          <span>
+            <strong>Draining:</strong> finishing queued work, no new totes. Reactivate to resume
+            taking new totes.
+          </span>
+        </div>
+      )}
+
+      <InboundQueuePanel stationId={stationId} />
+
       {activeMode === 'PICKING' ? (
         cycle ? (
           <CycleView cycle={cycle} onChange={setCycle} warehouseId={workplace.warehouseId} />
@@ -453,6 +518,164 @@ function ModePlaceholder({ mode }: { mode: OperatingMode }) {
       <p style={{ color: 'var(--text-dim)', margin: 0 }}>Guided flow coming soon.</p>
     </div>
   )
+}
+
+// The physical tote queue at the station. Polls the station queue while the console is open and lets
+// the operator work the head QUEUED tote off in arrival sequence with a Done button.
+function InboundQueuePanel({ stationId }: { stationId: string }) {
+  const [entries, setEntries] = useState<StationQueueEntry[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [completing, setCompleting] = useState<string | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+
+  const refresh = useCallback(async () => {
+    try {
+      setEntries(await getStationQueue(stationId))
+      setError(null)
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e))
+    } finally {
+      setLoaded(true)
+    }
+  }, [stationId])
+
+  // Poll the queue every ~3s while mounted; clean up on unmount.
+  useEffect(() => {
+    let cancelled = false
+    const run = () => {
+      if (!cancelled) refresh()
+    }
+    run()
+    const timer = setInterval(run, QUEUE_POLL_MS)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [refresh])
+
+  // Tick a local clock every second so in-transit ETAs count down smoothly between polls.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  async function complete(entry: StationQueueEntry) {
+    setCompleting(entry.id)
+    try {
+      await completeQueueEntry(entry.id)
+      await refresh()
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e))
+    } finally {
+      setCompleting(null)
+    }
+  }
+
+  // The head QUEUED entry is the one the operator should work next.
+  const headId = entries.find((e) => e.status === 'QUEUED')?.id ?? null
+
+  return (
+    <div className="glass" style={{ padding: '1.25rem', marginBottom: '1.25rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.6rem' }}>
+        <span className="eyebrow">Inbound queue</span>
+        <span className="badge badge-info">{entries.length} inbound</span>
+      </div>
+
+      {error && <p className="badge badge-danger" style={{ marginTop: '.8rem' }}>{error}</p>}
+
+      {loaded && entries.length === 0 ? (
+        <p style={{ color: 'var(--text-dim)', marginTop: '.8rem', marginBottom: 0 }}>
+          No totes inbound — the station queue is clear.
+        </p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.55rem', marginTop: '.9rem' }}>
+          {entries.map((entry, i) => (
+            <QueueRow
+              key={entry.id}
+              entry={entry}
+              position={i + 1}
+              isHead={entry.id === headId}
+              now={now}
+              completing={completing === entry.id}
+              onComplete={() => complete(entry)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function QueueRow({
+  entry,
+  position,
+  isHead,
+  now,
+  completing,
+  onComplete,
+}: {
+  entry: StationQueueEntry
+  position: number
+  isHead: boolean
+  now: number
+  completing: boolean
+  onComplete: () => void
+}) {
+  const inTransit = entry.status === 'IN_TRANSIT'
+  const etaSeconds = Math.max(0, Math.round((new Date(entry.arrivalAt).getTime() - now) / 1000))
+  const statusText = inTransit ? `arriving in ${etaSeconds}s` : 'waiting'
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '.85rem',
+        padding: '.65rem .85rem',
+        borderRadius: 10,
+        border: isHead ? '1px solid var(--herbal-lime)' : '1px solid var(--border, rgba(255,255,255,.08))',
+        background: isHead ? 'rgba(168, 230, 108, .08)' : 'rgba(255,255,255,.02)',
+        opacity: inTransit ? 0.7 : 1,
+      }}
+    >
+      <span
+        style={{
+          fontSize: '.85rem',
+          color: 'var(--text-faint)',
+          width: '1.6rem',
+          textAlign: 'right',
+          flexShrink: 0,
+        }}
+      >
+        {position}
+      </span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '.15rem', minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', gap: '.5rem', alignItems: 'baseline', flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: '1rem' }}>{entry.huCode}</strong>
+          <span style={{ color: 'var(--text-dim)', fontSize: '.85rem' }}>{entry.skuCode}</span>
+          <span style={{ color: 'var(--herbal-lime)', fontWeight: 600, fontSize: '.9rem' }}>×{entry.qty}</span>
+        </div>
+        <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span className="badge">{entry.mode}</span>
+          <span className={`badge ${inTransit ? 'badge-info' : isHead ? 'badge-success' : 'badge-warning'}`}>
+            {statusText}
+          </span>
+          {isHead && <span style={{ fontSize: '.75rem', color: 'var(--herbal-lime)' }}>next</span>}
+        </div>
+      </div>
+      {isHead && (
+        <button className="btn btn-primary" onClick={onComplete} disabled={completing} style={{ flexShrink: 0 }}>
+          {completing ? 'Done…' : 'Done'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// A workplace may carry an acceptingWork flag at runtime; read it defensively without widening types.
+function seedAcceptingWork(workplace: Workplace): boolean {
+  const flag = (workplace as { acceptingWork?: unknown }).acceptingWork
+  return typeof flag === 'boolean' ? flag : true
 }
 
 // Present a stock HU to start a PICKING cycle (the put-to-light batch).
