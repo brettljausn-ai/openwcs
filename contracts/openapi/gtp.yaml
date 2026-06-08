@@ -777,6 +777,8 @@ components:
         mode: { $ref: '#/components/schemas/OperatingMode' }
         family: { type: string, nullable: true, description: "Transport family: CONVEYOR | ASRS | AMR | AUTOSTORE. Drives arrival timing." }
         distanceM: { type: number, nullable: true, description: "Conveyor travel distance in metres (arrival = distance / 0.5 m/s)." }
+        countTaskId: { type: string, format: uuid, nullable: true, description: "The count task this tote belongs to (STOCK_COUNT routing only)." }
+        countLineId: { type: string, format: uuid, nullable: true, description: "The count line this tote belongs to (STOCK_COUNT routing only)." }
     StationQueueEntry:
       type: object
       properties:
@@ -790,6 +792,8 @@ components:
         mode: { type: string }
         status: { type: string, enum: [IN_TRANSIT, QUEUED, DONE] }
         arrivalAt: { type: string, format: date-time }
+        countTaskId: { type: string, format: uuid, nullable: true, description: "The count task this tote belongs to (STOCK_COUNT routing only)." }
+        countLineId: { type: string, format: uuid, nullable: true, description: "The count line this tote belongs to (STOCK_COUNT routing only)." }
     Node:
       type: object
       properties:

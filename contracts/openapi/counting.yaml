@@ -160,6 +160,36 @@ paths:
           description: Task is not in a reconcilable state
           content:
             application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+  /tasks/{taskId}/lines/{lineId}/station-count:
+    parameters:
+      - { name: taskId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: lineId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Tasks]
+      summary: Record an at-station blind count for a line
+      description: >
+        The operator works the count tote at the GTP station and counts it blind (they never see the
+        system qty or their prior count). A first count matching the system qty is ACCEPTED with no
+        adjustment; otherwise the tote is recounted until two counts agree. Two agreeing counts that
+        differ from the system qty confirm a variance: a host-visible StockAdjusted adjustment (delta =
+        counted - expected, reason COUNTING) is posted and the line is ADJUSTED. When every line on the
+        task is terminal the task is RECONCILED.
+      operationId: recordStationCount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StationCountRequest' }
+      responses:
+        "200":
+          description: Outcome of the count
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StationCountResult' }
+        "404":
+          description: Task or line not found
+          content:
+            application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
   /tasks/{taskId}/results:
     parameters:
       - { name: taskId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -423,6 +453,16 @@ components:
           type: string
           format: uuid
           description: The follow-up recount task spawned when any line is out of tolerance.
+    StationCountRequest:
+      type: object
+      required: [countedQty]
+      properties:
+        countedQty: { type: number, description: "The operator's blind count of the tote." }
+    StationCountResult:
+      type: object
+      properties:
+        outcome: { type: string, enum: [ACCEPTED, RECOUNT, ADJUSTED] }
+        message: { type: string }
     Problem:
       type: object
       description: RFC 9457 problem detail.

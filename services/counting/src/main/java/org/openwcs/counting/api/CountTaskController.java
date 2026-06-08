@@ -101,6 +101,18 @@ public class CountTaskController {
         return counting.reconcile(taskId, actor(authUser, actor));
     }
 
+    /**
+     * Record one at-station blind count for a line. The operator never sees the system qty or their
+     * prior count; the result tells them what to do next: ACCEPTED (done), RECOUNT (count again), or
+     * ADJUSTED (variance confirmed and posted to the host).
+     */
+    @PostMapping("/{taskId}/lines/{lineId}/station-count")
+    public CountingService.StationCountResult stationCount(@PathVariable UUID taskId,
+                                                           @PathVariable UUID lineId,
+                                                           @Valid @RequestBody StationCountRequest request) {
+        return counting.recordStationCount(taskId, lineId, request.countedQty());
+    }
+
     /** Reconciled results — every line with its final variance/adjustment outcome (expected shown). */
     @GetMapping("/{taskId}/results")
     public List<CountLineView> results(@PathVariable UUID taskId) {

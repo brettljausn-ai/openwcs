@@ -38,6 +38,7 @@ public class HttpTxLogClient implements TxLogClient {
         payload.put("uomCode", a.uomCode());
         payload.put("countTaskId", a.countTaskId());
         payload.put("countLineId", a.countLineId());
+        payload.put("reason", a.reason());
 
         Map<String, Object> body = new HashMap<>();
         // One event stream per warehouse+SKU, mirroring the inventory stock keying.

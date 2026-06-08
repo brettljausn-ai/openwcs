@@ -174,6 +174,118 @@ class CountingServiceTest {
     }
 
     @Test
+    void stationCountFirstCountMatchesExpectedAccepted() {
+        UUID wh = UUID.randomUUID();
+        UUID loc = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        when(inventory.expectedOnHand(wh, sku, loc)).thenReturn(new BigDecimal("10"));
+
+        CountTask created = counting.generate(task(wh, loc, sku, "BLIND", BigDecimal.ZERO));
+        UUID lineId = counting.rawLines(created.getId()).get(0).getId();
+
+        CountingService.StationCountResult result =
+                counting.recordStationCount(created.getId(), lineId, new BigDecimal("10"));
+
+        assertThat(result.outcome()).isEqualTo("ACCEPTED");
+        verify(txlog, never()).postStockAdjusted(any());
+
+        CountLine line = counting.rawLines(created.getId()).get(0);
+        assertThat(line.getStatus()).isEqualTo("APPROVED");
+        assertThat(line.getStationCountState()).isEqualTo("ACCEPTED");
+        assertThat(line.getVariance()).isEqualByComparingTo("0");
+        // All lines terminal -> task reconciled.
+        assertThat(counting.task(created.getId()).getStatus()).isEqualTo("RECONCILED");
+    }
+
+    @Test
+    void stationCountTwoAgreeingCountsConfirmVarianceAndAdjust() {
+        UUID wh = UUID.randomUUID();
+        UUID loc = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        when(inventory.expectedOnHand(wh, sku, loc)).thenReturn(new BigDecimal("10"));
+        when(txlog.postStockAdjusted(any())).thenReturn(eventId);
+
+        CountTask created = counting.generate(task(wh, loc, sku, "BLIND", BigDecimal.ZERO));
+        UUID lineId = counting.rawLines(created.getId()).get(0).getId();
+
+        // First count 8 != expected 10 -> recount.
+        CountingService.StationCountResult first =
+                counting.recordStationCount(created.getId(), lineId, new BigDecimal("8"));
+        assertThat(first.outcome()).isEqualTo("RECOUNT");
+        verify(txlog, never()).postStockAdjusted(any());
+
+        // Recount 8 agrees with the held count and differs from expected -> adjust.
+        CountingService.StationCountResult second =
+                counting.recordStationCount(created.getId(), lineId, new BigDecimal("8"));
+        assertThat(second.outcome()).isEqualTo("ADJUSTED");
+
+        org.mockito.ArgumentCaptor<TxLogClient.StockAdjustment> captor =
+                org.mockito.ArgumentCaptor.forClass(TxLogClient.StockAdjustment.class);
+        verify(txlog).postStockAdjusted(captor.capture());
+        // qtyDelta = counted - expected = 8 - 10 = -2; reason COUNTING.
+        assertThat(captor.getValue().qtyDelta()).isEqualByComparingTo("-2");
+        assertThat(captor.getValue().reason()).isEqualTo("COUNTING");
+
+        CountLine line = counting.rawLines(created.getId()).get(0);
+        assertThat(line.getStatus()).isEqualTo("ADJUSTED");
+        assertThat(line.getStationCountState()).isEqualTo("ADJUSTED");
+        assertThat(line.getVariance()).isEqualByComparingTo("-2");
+        assertThat(line.getAdjustmentEventId()).isEqualTo(eventId);
+        assertThat(counting.task(created.getId()).getStatus()).isEqualTo("RECONCILED");
+    }
+
+    @Test
+    void stationCountThirdCountConfirmsAfterTwoDisagreements() {
+        UUID wh = UUID.randomUUID();
+        UUID loc = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        when(inventory.expectedOnHand(wh, sku, loc)).thenReturn(new BigDecimal("10"));
+        when(txlog.postStockAdjusted(any())).thenReturn(UUID.randomUUID());
+
+        CountTask created = counting.generate(task(wh, loc, sku, "BLIND", BigDecimal.ZERO));
+        UUID lineId = counting.rawLines(created.getId()).get(0).getId();
+
+        // 8 (!= expected) -> recount; 7 (!= held 8) -> count again; 7 (== held 7) -> adjust.
+        assertThat(counting.recordStationCount(created.getId(), lineId, new BigDecimal("8")).outcome())
+                .isEqualTo("RECOUNT");
+        assertThat(counting.recordStationCount(created.getId(), lineId, new BigDecimal("7")).outcome())
+                .isEqualTo("RECOUNT");
+        CountingService.StationCountResult third =
+                counting.recordStationCount(created.getId(), lineId, new BigDecimal("7"));
+        assertThat(third.outcome()).isEqualTo("ADJUSTED");
+
+        org.mockito.ArgumentCaptor<TxLogClient.StockAdjustment> captor =
+                org.mockito.ArgumentCaptor.forClass(TxLogClient.StockAdjustment.class);
+        verify(txlog).postStockAdjusted(captor.capture());
+        assertThat(captor.getValue().qtyDelta()).isEqualByComparingTo("-3"); // 7 - 10
+        assertThat(captor.getValue().reason()).isEqualTo("COUNTING");
+    }
+
+    @Test
+    void stationRecountThatEqualsExpectedAcceptsWithoutAdjustment() {
+        UUID wh = UUID.randomUUID();
+        UUID loc = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        when(inventory.expectedOnHand(wh, sku, loc)).thenReturn(new BigDecimal("10"));
+
+        CountTask created = counting.generate(task(wh, loc, sku, "BLIND", BigDecimal.ZERO));
+        UUID lineId = counting.rawLines(created.getId()).get(0).getId();
+
+        // First count 8 != expected -> recount; recount 10 == expected -> accepted, no adjustment.
+        assertThat(counting.recordStationCount(created.getId(), lineId, new BigDecimal("8")).outcome())
+                .isEqualTo("RECOUNT");
+        CountingService.StationCountResult second =
+                counting.recordStationCount(created.getId(), lineId, new BigDecimal("10"));
+        assertThat(second.outcome()).isEqualTo("ACCEPTED");
+
+        verify(txlog, never()).postStockAdjusted(any());
+        CountLine line = counting.rawLines(created.getId()).get(0);
+        assertThat(line.getStatus()).isEqualTo("APPROVED");
+        assertThat(line.getStationCountState()).isEqualTo("ACCEPTED");
+    }
+
+    @Test
     void blindCountHidesExpectedQtyVarianceShowsIt() {
         UUID wh = UUID.randomUUID();
         UUID loc = UUID.randomUUID();

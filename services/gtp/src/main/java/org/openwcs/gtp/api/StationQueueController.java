@@ -36,7 +36,7 @@ public class StationQueueController {
     public StationQueueEntryView enqueue(@PathVariable UUID stationId, @RequestBody EnqueueRequest req) {
         return StationQueueEntryView.from(queue.enqueue(stationId, new StationQueueService.EnqueueCommand(
                 req.huId(), req.huCode(), req.skuId(), req.skuCode(), req.qty(),
-                req.mode(), req.family(), req.distanceM())));
+                req.mode(), req.family(), req.distanceM(), req.countTaskId(), req.countLineId())));
     }
 
     @GetMapping("/stations/{stationId}/queue")
@@ -66,17 +66,19 @@ public class StationQueueController {
     /** Request to route an HU to a station's queue. */
     public record EnqueueRequest(
             UUID huId, String huCode, UUID skuId, String skuCode, BigDecimal qty,
-            @NotBlank String mode, String family, Double distanceM) {
+            @NotBlank String mode, String family, Double distanceM, UUID countTaskId, UUID countLineId) {
     }
 
     /** A queued/in-transit HU at a station. */
     public record StationQueueEntryView(
             UUID id, UUID stationId, UUID huId, String huCode, UUID skuId, String skuCode,
-            BigDecimal qty, String mode, String status, Instant arrivalAt) {
+            BigDecimal qty, String mode, String status, Instant arrivalAt,
+            UUID countTaskId, UUID countLineId) {
 
         public static StationQueueEntryView from(StationQueueEntry e) {
             return new StationQueueEntryView(e.getId(), e.getStationId(), e.getHuId(), e.getHuCode(),
-                    e.getSkuId(), e.getSkuCode(), e.getQty(), e.getMode(), e.getStatus(), e.getArrivalAt());
+                    e.getSkuId(), e.getSkuCode(), e.getQty(), e.getMode(), e.getStatus(), e.getArrivalAt(),
+                    e.getCountTaskId(), e.getCountLineId());
         }
     }
 }
