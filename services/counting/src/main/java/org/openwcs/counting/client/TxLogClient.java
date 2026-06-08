@@ -26,6 +26,7 @@ public interface TxLogClient {
             String uomCode,
             UUID countTaskId,
             UUID countLineId,
-            String actor) {
+            String actor,
+            String reason) {
     }
 }

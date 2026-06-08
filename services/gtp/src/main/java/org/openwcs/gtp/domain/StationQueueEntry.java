@@ -59,6 +59,14 @@ public class StationQueueEntry extends Auditable {
     @Column(name = "arrival_at", nullable = false)
     private Instant arrivalAt;
 
+    /** The count task this tote belongs to (set only for STOCK_COUNT routing), else null. */
+    @Column(name = "count_task_id")
+    private UUID countTaskId;
+
+    /** The count line this tote belongs to (set only for STOCK_COUNT routing), else null. */
+    @Column(name = "count_line_id")
+    private UUID countLineId;
+
     public UUID getId() {
         return id;
     }
@@ -145,5 +153,21 @@ public class StationQueueEntry extends Auditable {
 
     public void setArrivalAt(Instant arrivalAt) {
         this.arrivalAt = arrivalAt;
+    }
+
+    public UUID getCountTaskId() {
+        return countTaskId;
+    }
+
+    public void setCountTaskId(UUID countTaskId) {
+        this.countTaskId = countTaskId;
+    }
+
+    public UUID getCountLineId() {
+        return countLineId;
+    }
+
+    public void setCountLineId(UUID countLineId) {
+        this.countLineId = countLineId;
     }
 }

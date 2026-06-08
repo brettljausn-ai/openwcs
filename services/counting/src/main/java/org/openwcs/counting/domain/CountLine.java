@@ -64,6 +64,14 @@ public class CountLine extends Auditable {
     @Column(name = "routed", nullable = false)
     private boolean routed = false;
 
+    /** The operator's previous at-station count, held to compare against the next one (blind recount). */
+    @Column(name = "station_last_count")
+    private BigDecimal stationLastCount;
+
+    /** At-station blind count state: PENDING | RECOUNT | ACCEPTED | ADJUSTED. */
+    @Column(name = "station_count_state", nullable = false)
+    private String stationCountState = "PENDING";
+
     public UUID getId() {
         return id;
     }
@@ -166,5 +174,21 @@ public class CountLine extends Auditable {
 
     public void setRouted(boolean routed) {
         this.routed = routed;
+    }
+
+    public BigDecimal getStationLastCount() {
+        return stationLastCount;
+    }
+
+    public void setStationLastCount(BigDecimal stationLastCount) {
+        this.stationLastCount = stationLastCount;
+    }
+
+    public String getStationCountState() {
+        return stationCountState;
+    }
+
+    public void setStationCountState(String stationCountState) {
+        this.stationCountState = stationCountState;
     }
 }

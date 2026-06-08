@@ -28,6 +28,9 @@ public class CountingService {
 
     private static final Logger log = LoggerFactory.getLogger(CountingService.class);
 
+    /** Reason code stamped on every counting-driven stock adjustment (the host webhook carries it). */
+    static final String REASON_COUNTING = "COUNTING";
+
     private final CountTaskRepository tasks;
     private final CountLineRepository lines;
     private final InventoryClient inventory;
@@ -160,7 +163,7 @@ public class CountingService {
                 if (variance.signum() != 0) {
                     UUID eventId = txlog.postStockAdjusted(new TxLogClient.StockAdjustment(
                             line.getWarehouseId(), line.getSkuId(), line.getBatchId(), line.getLocationId(),
-                            variance, line.getUomCode(), task.getId(), line.getId(), actor));
+                            variance, line.getUomCode(), task.getId(), line.getId(), actor, REASON_COUNTING));
                     line.setAdjustmentEventId(eventId);
                     line.setStatus("ADJUSTED");
                     adjusted++;
@@ -191,6 +194,97 @@ public class CountingService {
             task.setStatus("RECONCILED");
         }
         return new ReconciliationResult(task.getId(), task.getStatus(), approved, adjusted, recounts, recountTaskId);
+    }
+
+    /**
+     * Record a single at-station blind count for one line. The operator works the tote in front of
+     * them and never sees the system quantity or their previous count, so the state machine drives a
+     * recount until two counts agree:
+     *
+     * <ul>
+     *   <li>First count == system qty: ACCEPTED, no adjustment.</li>
+     *   <li>First count != system qty: hold it and ask for a recount.</li>
+     *   <li>Recount == system qty: ACCEPTED, no adjustment (the first count was a miscount).</li>
+     *   <li>Recount == the held count (two counts agree and differ from the system qty): post a
+     *       host-visible stock adjustment (delta = counted - expected, reason COUNTING) and mark the
+     *       line ADJUSTED.</li>
+     *   <li>Recount != the held count: hold the new count and ask for a third count.</li>
+     * </ul>
+     *
+     * When the line lands terminal (ACCEPTED/ADJUSTED) and all the task's lines are terminal, the task
+     * goes RECONCILED.
+     */
+    @Transactional
+    public StationCountResult recordStationCount(UUID taskId, UUID lineId, BigDecimal countedQty) {
+        if (countedQty == null) {
+            throw new IllegalArgumentException("countedQty is required");
+        }
+        task(taskId); // 404 if the task does not exist
+        CountLine line = lines.findByCountTaskId(taskId).stream()
+                .filter(l -> l.getId().equals(lineId))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("count line not found on task " + taskId + ": " + lineId));
+
+        BigDecimal expected = line.getExpectedQty() == null ? BigDecimal.ZERO : line.getExpectedQty();
+        String state = line.getStationCountState();
+        boolean firstCount = !"RECOUNT".equals(state) || line.getStationLastCount() == null;
+
+        if (firstCount) {
+            if (countedQty.compareTo(expected) == 0) {
+                return accept(line, countedQty);
+            }
+            line.setStationLastCount(countedQty);
+            line.setStationCountState("RECOUNT");
+            return new StationCountResult("RECOUNT", "Recount this tote.");
+        }
+
+        // RECOUNT: we are comparing this count against the held one.
+        if (countedQty.compareTo(expected) == 0) {
+            return accept(line, countedQty);
+        }
+        if (countedQty.compareTo(line.getStationLastCount()) == 0) {
+            // Two counts agree and they differ from the system qty -> confirmed variance, adjust.
+            BigDecimal delta = countedQty.subtract(expected);
+            UUID eventId = txlog.postStockAdjusted(new TxLogClient.StockAdjustment(
+                    line.getWarehouseId(), line.getSkuId(), line.getBatchId(), line.getLocationId(),
+                    delta, line.getUomCode(), taskId, line.getId(), "station", REASON_COUNTING));
+            line.setCountedQty(countedQty);
+            line.setVariance(delta);
+            line.setAdjustmentEventId(eventId);
+            line.setStatus("ADJUSTED");
+            line.setStationCountState("ADJUSTED");
+            reconcileIfAllTerminal(taskId);
+            return new StationCountResult("ADJUSTED", "Adjusted by " + delta.toPlainString() + "; sent to the host.");
+        }
+        // This count differs from the last one: hold it and count a third time.
+        line.setStationLastCount(countedQty);
+        line.setStationCountState("RECOUNT");
+        return new StationCountResult("RECOUNT", "Counts did not match. Count again.");
+    }
+
+    /** Accept a line at the system qty (no adjustment) and reconcile the task if it is now complete. */
+    private StationCountResult accept(CountLine line, BigDecimal countedQty) {
+        line.setCountedQty(countedQty);
+        line.setVariance(BigDecimal.ZERO);
+        line.setStatus("APPROVED");
+        line.setStationCountState("ACCEPTED");
+        reconcileIfAllTerminal(line.getCountTaskId());
+        return new StationCountResult("ACCEPTED", "Count matches the system quantity.");
+    }
+
+    /** Once every line on a task is terminal (APPROVED/ADJUSTED), mark the task RECONCILED. */
+    private void reconcileIfAllTerminal(UUID taskId) {
+        List<CountLine> taskLines = lines.findByCountTaskId(taskId);
+        boolean allTerminal = taskLines.stream()
+                .allMatch(l -> "APPROVED".equals(l.getStatus()) || "ADJUSTED".equals(l.getStatus()));
+        if (allTerminal) {
+            CountTask task = task(taskId);
+            task.setStatus("RECONCILED");
+        }
+    }
+
+    /** Outcome of an at-station blind count: outcome is ACCEPTED | RECOUNT | ADJUSTED. */
+    public record StationCountResult(String outcome, String message) {
     }
 
     /**
