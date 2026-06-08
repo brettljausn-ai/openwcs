@@ -306,6 +306,33 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /stations/{stationId}/capacity:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Stations]
+      summary: Configure a station's in-transit handling-unit caps
+      description: >
+        "Set how many handling units may have an active transport inbound to the station at once,
+        split into PICKING and OTHER (non-picking) mode classes. Both values must be non-negative.
+        Config only; the enforcement is built separately."
+      operationId: setCapacity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetCapacityRequest' }
+      responses:
+        "200":
+          description: Updated station
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Station' }
+        "404":
+          description: "Station not found"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /stations/{stationId}/demand:
     parameters:
       - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -555,6 +582,15 @@ components:
           type: array
           minItems: 1
           items: { $ref: '#/components/schemas/OperatingMode' }
+    SetCapacityRequest:
+      type: object
+      required: [maxInTransitPicking, maxInTransitOther]
+      description: >
+        "Caps for how many handling units may have an active transport inbound to the station at once,
+        split by mode class. Both values must be non-negative."
+      properties:
+        maxInTransitPicking: { type: integer, minimum: 0, description: "Cap for PICKING transports inbound to the station." }
+        maxInTransitOther: { type: integer, minimum: 0, description: "Cap for all non-PICKING (other) transports inbound to the station." }
     StartCycleRequest:
       type: object
       required: [operatingMode]
@@ -625,6 +661,8 @@ components:
           type: array
           items: { $ref: '#/components/schemas/OperatingMode' }
         status: { type: string }
+        maxInTransitPicking: { type: integer, description: "Max HUs with an active PICKING transport inbound to this station at once." }
+        maxInTransitOther: { type: integer, description: "Max HUs with an active non-PICKING (other) transport inbound to this station at once." }
         nodes:
           type: array
           items: { $ref: '#/components/schemas/Node' }
