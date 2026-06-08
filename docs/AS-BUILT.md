@@ -1,6 +1,6 @@
 # openWCS — As-Built Documentation
 
-_Last updated: 2026-06-08 (operations screens show codes not UUIDs; blind counts hide expected qty)_
+_Last updated: 2026-06-08 (topology projection syncs GTP station nodes + inboundDistanceM; queue timing falls back to projected STOCK node distance)_
 
 What is **actually implemented** today (not the target architecture). Design intent:
 [`build.md`](../build.md); decisions: [`docs/adr/`](./adr); live progress:
@@ -26,7 +26,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | order-management | 8084 | ✅ | Orders (all types) + lifecycle + release management + line transactions; delegates allocation. |
 | allocation | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing, batch picking. |
 | slotting | 8093 | ✅ | Put-away assignment for automated rack/GTP blocks (weighted scorer: velocity-to-exit · same-SKU lane consolidation · aisle redundancy · fill balance), manual pick-face slotting + min/max replenishment (opportunistic top-off), and off-peak re-slotting. ADR 0003. |
-| gtp | 8094 | ✅ | Goods-to-person station execution: configure stations + STOCK/ORDER nodes, open order destinations (bind order HU + demand), present a stock HU → put-to-light put-list across destinations (one HU serves many orders: the batch), confirm puts (incl. short), complete destinations. ORDER_LOCATION (conveyor HU-in-location) and PUT_WALL (lit rack cubbies, typical AMR) destination topology share one engine. Orthogonal **operating modes** (PICKING / DECANTING / STOCK_COUNT / QC / MAINTENANCE): each cycle runs one and carries mode-appropriate task lines (decant-moves / count entries+variance / PASS-FAIL-HOLD verdicts / OK-DEFECTIVE-REPAIR checks); seams to slotting put-away (decant) and inventory StockAdjusted (count). **Station inbound queue** (`station_queue_entry`): transports route HUs to the station via `POST /stations/{id}/queue`; conveyor HUs arrive `IN_TRANSIT` (timed by distance ÷ 0.5 m/s) then transition to `QUEUED`; ASRS/AMR/AutoStore HUs arrive immediately `QUEUED`; operator works entries FIFO and completes them (`POST /queue/{id}/complete` → `DONE`). **Deactivate/drain control**: `POST /stations/{id}/deactivate` flips `acceptingWork=false` — station finishes its queued work but rejects new inbound HUs; `POST /stations/{id}/activate` reopens it. **In-transit capacity caps** (`maxInTransitPicking`, `maxInTransitOther`, configured via `POST /stations/{id}/capacity`): max simultaneous active inbound transports per mode class (default 4 PICKING / 2 OTHER); enqueue rejected with 409 when the cap is reached. ADR 0006. |
+| gtp | 8094 | ✅ | Goods-to-person station execution: configure stations + STOCK/ORDER nodes, open order destinations (bind order HU + demand), present a stock HU → put-to-light put-list across destinations (one HU serves many orders: the batch), confirm puts (incl. short), complete destinations. ORDER_LOCATION (conveyor HU-in-location) and PUT_WALL (lit rack cubbies, typical AMR) destination topology share one engine. Orthogonal **operating modes** (PICKING / DECANTING / STOCK_COUNT / QC / MAINTENANCE): each cycle runs one and carries mode-appropriate task lines (decant-moves / count entries+variance / PASS-FAIL-HOLD verdicts / OK-DEFECTIVE-REPAIR checks); seams to slotting put-away (decant) and inventory StockAdjusted (count). **Station inbound queue** (`station_queue_entry`): transports route HUs to the station via `POST /stations/{id}/queue`; conveyor HUs arrive `IN_TRANSIT` (timed by distance ÷ 0.5 m/s; when neither `family` nor `distanceM` are supplied the queue falls back to the STOCK node's topology-projected `inboundDistanceM`) then transition to `QUEUED`; ASRS/AMR/AutoStore HUs arrive immediately `QUEUED`; operator works entries FIFO and completes them (`POST /queue/{id}/complete` → `DONE`). **Deactivate/drain control**: `POST /stations/{id}/deactivate` flips `acceptingWork=false` — station finishes its queued work but rejects new inbound HUs; `POST /stations/{id}/activate` reopens it. **In-transit capacity caps** (`maxInTransitPicking`, `maxInTransitOther`, configured via `POST /stations/{id}/capacity`): max simultaneous active inbound transports per mode class (default 4 PICKING / 2 OTHER); enqueue rejected with 409 when the cap is reached. **Topology node sync** (`POST /stations/{id}/nodes/sync`): replaces the station's STOCK/ORDER nodes from a topology-projected node set — nodes matched by code preserve their id + bound demand; the feeding conveyor distance (`inboundDistanceM`, `numeric(12,3)`) is carried from the topology function-point's `offsetM` and drives emulator queue arrival timing; called by flow-orchestrator on every topology projection (best-effort — a failure never aborts the routing projection). ADR 0006. |
 | counting | 8095 | ✅ | Cycle / stock counting: count tasks (scope LOCATION/SKU/ZONE/BLOCK, BLIND vs VARIANCE), ABC-cadence schedule generator, capture counts → variance vs an inventory-expected snapshot → within-tolerance auto-approve (posts a `StockAdjusted` event) or out-of-tolerance recount; blind hides expected/variance. Seams: GTP STOCK_COUNT station + cycle-count BPMN (by id), adjustment via txlog. **ASRS count-tote routing** (emulator mode only): when a count task is created, the counting service looks up each cell's storage block (master-data), and for ASRS-family blocks (`SHUTTLE_ASRS`, `CRANE_ASRS`, `AUTOSTORE`, `AMR_GTP`) it creates a flow transport task (ASRS RETRIEVE via flow-orchestrator) and enqueues the tote to an active GTP `STOCK_COUNT` station; best-effort (no-op when emulator is off, no active counting station found, or any downstream call fails — the count task is always created). **Demo quick-seed** (demo-mode only): `POST /api/counting/demo/seed {warehouseId, count?:1}` builds sample count tasks over existing demo stock (cells sourced from the inventory stock overview), returns `{created}`, guarded to demo mode ON; drives the "Add count task" button (one task per click) shown on the stock-counting screen only when demo mode is on. |
 | txlog | 8086 | ✅ | Append-only event log + transactional outbox + relay to `txlog.stream`. |
 | iam | 8087 | ✅ | openWCS authorization model: users → roles → coded permissions; **per-user warehouse access** (allowed warehouses + default; the gateway enforces scope). (Keycloak does auth.) |
@@ -444,9 +444,17 @@ routes a handling unit to a station for work:
 
 - `POST /api/gtp/stations/{id}/queue {huId, huCode, skuId, skuCode, qty, mode, family, distanceM}` —
   enqueue an HU. Conveyor transports supply `distanceM` and arrive `IN_TRANSIT` (timed: arrival = distanceM ÷ 0.5 m/s);
-  ASRS / AMR / AutoStore supply `null` distance and are immediately `QUEUED`. Rejected with 409 when the
-  station is inactive (`acceptingWork=false`), is draining, does not support the requested mode, or the
-  mode-class in-transit cap is reached.
+  when neither `family` nor `distanceM` are given the service falls back to the station's STOCK node's
+  topology-projected `inboundDistanceM` (assuming CONVEYOR family) so the emulator can time tote arrivals
+  without the caller needing to carry the distance. ASRS / AMR / AutoStore supply `null` distance and are
+  immediately `QUEUED`. Rejected with 409 when the station is inactive (`acceptingWork=false`), is draining,
+  does not support the requested mode, or the mode-class in-transit cap is reached.
+- `POST /api/gtp/stations/{id}/nodes/sync {nodes[{role,code,locationId,putLightId,inboundDistanceM}]}` —
+  replace the station's STOCK/ORDER nodes from a topology-projected node set. Nodes are matched by `code`
+  so an existing node keeps its id and any bound order HU / demand; nodes no longer in the topology are
+  removed only when they carry no open demand. The feeding conveyor distance (`inboundDistanceM`) is stored
+  on the node (`station_node.inbound_distance_m`, `V7__station_node_distance.sql`) and is used by the queue
+  timing fallback above. Called by flow-orchestrator's routing projection (best-effort).
 - `GET /api/gtp/stations/{id}/queue` — the station's live inbound queue in arrival order (all
   IN_TRANSIT + QUEUED entries).
 - `POST /api/gtp/queue/{entryId}/complete` — mark the worked-off entry `DONE`.
@@ -507,7 +515,12 @@ authoring source the conveyor routing graph (§7b) is now generated from.
   — so an ASRS infeed stub meeting a conveyor, or a divert stub landing on another conveyor, merges
   automatically with no hand-drawn connection. Hand-drawn connections are still honoured if present,
   but the editor no longer offers a "Connect" tool; GTP workstation role-interactions stay explicit.
-  The projection returns a `ProjectionResult` (node/edge counts + non-fatal warnings).
+  The projection returns a `ProjectionResult` (node/edge counts + non-fatal warnings). As a side-effect of
+  projection, **every GTP workstation's STOCK/ORDER conveyor interactions** (connections tagged with a role
+  in the topology editor's Properties panel) are projected into the corresponding `gtp_station`'s nodes via
+  `GtpClient.syncStationNodes` — the function-point's `offsetM` is carried as `inboundDistanceM` so the
+  emulator can time tote arrivals without caller-supplied distances. This is best-effort: a gtp call
+  failing never aborts the routing projection.
 
 ---
 
@@ -578,7 +591,10 @@ run green); the first run surfaced one test-isolation bug, now fixed.
   pick-and-put with put-to-light, ORDER_LOCATION vs PUT_WALL destination topology, plus orthogonal
   operating modes (PICKING / DECANTING / STOCK_COUNT / QC / MAINTENANCE) on a generalised work-cycle
   with mode-appropriate task lines + outcomes. **Station inbound queue** (IN_TRANSIT → QUEUED → DONE
-  lifecycle), **deactivate/drain control**, and **in-transit capacity caps** are built. Physical
+  lifecycle), **deactivate/drain control**, and **in-transit capacity caps** are built.
+  **Topology-projected station nodes** (`POST /stations/{id}/nodes/sync`, `inboundDistanceM`): the
+  automation-topology projection automatically syncs STOCK/ORDER nodes into GTP stations and carries
+  the feeding conveyor distance for emulator queue timing — built. Physical
   put-lights + picking-HU retrieval + demand auto-wire from allocation, and the
   decant→slotting-putaway / count→inventory-StockAdjusted integrations, are seams (not built). ASRS
   count-tote routing to the station queue is wired via the counting service (emulator mode only).
@@ -586,10 +602,12 @@ run green); the first run surfaced one test-isolation bug, now fixed.
   equipment with conveyor path/sections, function points placeable anywhere on a run, ASRS port stubs,
   GTP workstations linked to conveyor function points by role), and a deterministic **routing
   projection** that generates the §7b conveyor graph from the layout with geometry-inferred
-  connections. Not yet built: equipment family/type is not visible to the projection (classification
-  is structural/by category), the projection is a manual action (no auto-reproject on save), and the
-  placed-equipment ↔ live-device binding (driving real moves through these nodes) is still the
-  flow-orchestrator/adapter seam.
+  connections. On projection, STOCK/ORDER conveyor interactions of each GTP workstation are also
+  **projected into the GTP station's nodes** (function-point `offsetM` → `inboundDistanceM` on the
+  node) — this part is built. Not yet built: equipment family/type is not visible to the projection
+  (classification is structural/by category), the projection is a manual action (no auto-reproject on
+  save), and the placed-equipment ↔ live-device binding for physical device moves (driving real conveyor/
+  ASRS moves through these nodes) is still the flow-orchestrator/adapter seam.
 - Scaffold-only: notification, integration-*. The asrs/amr/autostore device adapters now carry a
   **hardware emulator mode** (admin toggle, simulates their family + telemetry/state, OFF by default;
   §3, §7b) but still have **no real-hardware protocol client** (emulator OFF is the seam for that).

@@ -282,6 +282,29 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Node' }
+  /stations/{stationId}/nodes/sync:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Stations]
+      summary: Project the station's STOCK/ORDER nodes from the automation topology
+      description: >
+        Replaces the station's nodes from the topology's STOCK/ORDER conveyor interactions. Nodes are
+        matched by code (an existing node keeps its id + bound order HU/demand); the feeding conveyor
+        distance is carried so the emulator can time tote arrivals. Called by the flow-orchestrator on
+        topology projection.
+      operationId: syncStationNodes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SyncNodesRequest' }
+      responses:
+        "200":
+          description: Updated station (with its projected nodes)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Station' }
   /stations/{stationId}/operating-modes:
     parameters:
       - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -777,7 +800,21 @@ components:
         locationId: { type: string, format: uuid, nullable: true }
         orderHuId: { type: string, format: uuid, nullable: true }
         position: { type: integer }
+        inboundDistanceM: { type: number, nullable: true, description: "Conveyor distance (m) feeding this node, projected from the topology; drives emulator arrival timing." }
         status: { type: string }
+    SyncNodesRequest:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            type: object
+            properties:
+              role: { type: string, enum: [STOCK, ORDER] }
+              code: { type: string }
+              locationId: { type: string, format: uuid, nullable: true }
+              putLightId: { type: string, nullable: true }
+              inboundDistanceM: { type: number, nullable: true }
     Demand:
       type: object
       properties:

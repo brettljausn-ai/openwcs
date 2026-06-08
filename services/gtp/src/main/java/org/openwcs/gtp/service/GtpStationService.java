@@ -191,6 +191,52 @@ public class GtpStationService {
         nodes.delete(node);
     }
 
+    /** A node projected from the automation topology's STOCK/ORDER conveyor interactions. */
+    public record NodeSyncSpec(String role, String code, UUID locationId, String putLightId,
+                               java.math.BigDecimal inboundDistanceM) {
+    }
+
+    /**
+     * Replace a station's nodes from the automation topology (projected STOCK/ORDER conveyor
+     * interactions). Nodes are matched by code so an existing node keeps its id and any bound order
+     * HU/demand; nodes the topology no longer defines are removed when they carry no open demand.
+     */
+    @Transactional
+    public GtpStation syncNodes(UUID stationId, List<NodeSyncSpec> specs) {
+        GtpStation station = requireStation(stationId);
+        List<StationNode> existing = nodes.findByStationIdOrderByPositionAsc(stationId);
+        java.util.Map<String, StationNode> byCode = new java.util.HashMap<>();
+        for (StationNode n : existing) {
+            byCode.putIfAbsent(n.getCode(), n);
+        }
+        java.util.Set<String> wanted = new java.util.HashSet<>();
+        int pos = 0;
+        for (NodeSyncSpec s : specs) {
+            if (!"STOCK".equals(s.role()) && !"ORDER".equals(s.role())) {
+                continue;
+            }
+            wanted.add(s.code());
+            StationNode node = byCode.getOrDefault(s.code(), new StationNode());
+            node.setStationId(stationId);
+            node.setRole(s.role());
+            node.setCode(s.code());
+            node.setPutLightId(s.putLightId());
+            if (s.locationId() != null) {
+                node.setLocationId(s.locationId());
+            }
+            node.setInboundDistanceM(s.inboundDistanceM());
+            node.setPosition(pos++);
+            nodes.save(node);
+        }
+        // Drop nodes the topology no longer defines, but only when nothing depends on them.
+        for (StationNode n : existing) {
+            if (!wanted.contains(n.getCode()) && demands.findByStationNodeId(n.getId()).isEmpty()) {
+                nodes.delete(n);
+            }
+        }
+        return station;
+    }
+
     private StationNode saveNode(UUID stationId, String role, String code, String putLightId,
                                  UUID locationId, UUID orderHuId, Integer position) {
         if (!"STOCK".equals(role) && !"ORDER".equals(role)) {
