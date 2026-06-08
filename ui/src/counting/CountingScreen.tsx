@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import { useDemoMode, seedDemoCountTasks } from '../demo/useDemoMode'
 import Select from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
 
@@ -189,10 +190,12 @@ function num(v: number | null | undefined): string {
 
 export default function CountingScreen() {
   const { currentWarehouseId: warehouseId } = useWarehouse()
+  const { enabled: demoEnabled } = useDemoMode()
   const [statusFilter, setStatusFilter] = useState('')
   const [tasks, setTasks] = useState<CountTask[]>([])
   const [schedules, setSchedules] = useState<CountSchedule[]>([])
   const [loading, setLoading] = useState(false)
+  const [seeding, setSeeding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -239,6 +242,22 @@ export default function CountingScreen() {
       await loadTasks()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  // Demo-only: create one sample count task over existing demo stock.
+  async function addDemoCountTask() {
+    if (!warehouseId.trim()) return
+    setSeeding(true)
+    setError(null)
+    try {
+      const res = await seedDemoCountTasks(warehouseId.trim(), 1)
+      flash(`Added ${res.created} demo count task.`)
+      await loadTasks()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSeeding(false)
     }
   }
 
@@ -290,6 +309,16 @@ export default function CountingScreen() {
         <button className="btn btn-ghost" onClick={onGenerate} title="Run the ABC-cadence sweep for due schedules">
           Run ABC sweep
         </button>
+        {demoEnabled && (
+          <button
+            className="btn btn-outline"
+            onClick={addDemoCountTask}
+            disabled={!warehouseId.trim() || seeding}
+            title="Demo mode: create a sample count task over existing demo stock"
+          >
+            {seeding ? 'Adding…' : 'Add count task'}
+          </button>
+        )}
       </div>
 
       {error && <div className="alert alert-danger">{error}</div>}

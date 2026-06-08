@@ -236,12 +236,12 @@ paths:
       summary: Bulk-create demo count tasks (demo mode only)
       description: >
         Creates `count` sample count tasks over existing demo stock buckets (sourced from the
-        inventory stock projection). Backs the stock-counting "Add 10 count tasks" button, shown
-        only while demo mode is on. Returns 409 if there is no stock to count.
+        inventory stock projection). Backs the stock-counting "Add count task" button, shown only
+        while demo mode is on (defaults to a single task). Returns 409 if there is no stock to count.
       operationId: seedDemoCountTasks
       parameters:
         - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
-        - { name: count, in: query, required: false, schema: { type: integer, default: 10 } }
+        - { name: count, in: query, required: false, schema: { type: integer, default: 1 } }
       responses:
         "200":
           description: How many count tasks were created

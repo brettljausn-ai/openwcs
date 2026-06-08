@@ -60,18 +60,21 @@ public class DemoSeedService {
 
     private CreateOrderRequest buildOrder(UUID warehouseId, OrderType type, List<UUID> demoSkus) {
         String ref = "DEMO-" + type + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        boolean outbound = type == OrderType.OUTBOUND;
 
-        int lineCount = 1 + rnd.nextInt(5);
+        // Outbound demo orders are deliberately small (a single line, low quantity) so cubing fits
+        // them into one shipper. Inbound (expected receipts) can be larger, multi-line.
+        int lineCount = outbound ? 1 : 1 + rnd.nextInt(5);
         Set<UUID> chosen = new LinkedHashSet<>();
         while (chosen.size() < lineCount && chosen.size() < demoSkus.size()) {
             chosen.add(demoSkus.get(rnd.nextInt(demoSkus.size())));
         }
         List<CreateOrderRequest.Line> lines = new ArrayList<>();
         for (UUID skuId : chosen) {
-            lines.add(new CreateOrderRequest.Line(skuId, BigDecimal.valueOf(10L + rnd.nextInt(91))));
+            long qty = outbound ? 1L + rnd.nextInt(3) : 10L + rnd.nextInt(91);
+            lines.add(new CreateOrderRequest.Line(skuId, BigDecimal.valueOf(qty)));
         }
 
-        boolean outbound = type == OrderType.OUTBOUND;
         Integer priority = outbound ? 1 + rnd.nextInt(10) : 5;
         Instant dispatchBy = outbound ? Instant.now().plus(1 + rnd.nextInt(7), ChronoUnit.DAYS) : null;
         return new CreateOrderRequest(ref, warehouseId, type.name(), "DEMO", priority, dispatchBy,

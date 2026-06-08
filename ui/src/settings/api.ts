@@ -280,6 +280,23 @@ export async function disableDemo(warehouseId: string): Promise<DemoResult> {
   return (await demoPost('/api/master-data/demo/disable')) as DemoResult
 }
 
+// ---- hardware emulator mode (global admin toggle) ----
+export interface EmulatorStatus {
+  enabled: boolean
+}
+
+export async function getEmulatorStatus(): Promise<EmulatorStatus> {
+  return ok(await fetch('/api/master-data/emulator'))
+}
+
+export async function enableEmulator(): Promise<EmulatorStatus> {
+  return (await demoPost('/api/master-data/emulator/enable')) as EmulatorStatus
+}
+
+export async function disableEmulator(): Promise<EmulatorStatus> {
+  return (await demoPost('/api/master-data/emulator/disable')) as EmulatorStatus
+}
+
 /** Reads the gateway's own actuator health (not proxied; permitted under edge security). */
 export async function getGatewayHealth(): Promise<HealthStatus> {
   try {

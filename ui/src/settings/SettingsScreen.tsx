@@ -10,16 +10,20 @@ import {
   CountSchedule,
   DemoResult,
   DemoStatus,
+  EmulatorStatus,
   HealthStatus,
   StorageBlock,
   Warehouse,
   createSchedule,
   defaultBlockPolicy,
   disableDemo,
+  disableEmulator,
   enableDemo,
+  enableEmulator,
   generateDueTasks,
   getBlockPolicy,
   getDemoStatus,
+  getEmulatorStatus,
   getGatewayHealth,
   listAdapters,
   listSchedules,
@@ -28,7 +32,7 @@ import {
   saveBlockPolicy,
 } from './api'
 
-type Tab = 'slotting' | 'counting' | 'integration' | 'system' | 'demo'
+type Tab = 'slotting' | 'counting' | 'integration' | 'system' | 'demo' | 'emulator'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'slotting', label: 'Slotting policy' },
@@ -36,6 +40,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'integration', label: 'Integrations' },
   { key: 'system', label: 'System status' },
   { key: 'demo', label: 'Demo mode' },
+  { key: 'emulator', label: 'Hardware emulator' },
 ]
 
 // Settings / Configuration (ADMIN). A UI-only console over existing service endpoints:
@@ -107,6 +112,7 @@ export default function SettingsScreen() {
           {tab === 'integration' && <Integrations />}
           {tab === 'system' && <SystemStatus />}
           {tab === 'demo' && <DemoMode warehouseId={warehouseId} />}
+          {tab === 'emulator' && <EmulatorMode />}
         </div>
       </div>
     </div>
@@ -706,6 +712,71 @@ function DemoMode({ warehouseId }: { warehouseId: string }) {
           .
         </div>
       )}
+    </section>
+  )
+}
+
+// Hardware emulator mode (ADMIN). A global switch: when ON the device adapters simulate all
+// equipment and the system never connects to physical hardware; when OFF the adapters use the
+// real connection path. Defaults OFF.
+function EmulatorMode() {
+  const [status, setStatus] = useState<EmulatorStatus | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function refresh() {
+    getEmulatorStatus()
+      .then(setStatus)
+      .catch((e) => setError(String(e)))
+  }
+  useEffect(refresh, [])
+
+  async function toggle(next: boolean) {
+    setBusy(true)
+    setError(null)
+    try {
+      setStatus(next ? await enableEmulator() : await disableEmulator())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const enabled = status?.enabled ?? false
+
+  return (
+    <section className={`glass ${styles.section}`}>
+      <div className={styles.sectionHead}>
+        <div>
+          <h2>Hardware emulator</h2>
+          <p>
+            Run the whole automation flow against simulated equipment. When ON, the device adapters
+            (conveyor, ASRS, AMR, AutoStore) emulate their commands and the system never connects to
+            physical hardware. Turn it OFF once real adapters are configured. Global, not per warehouse.
+          </p>
+        </div>
+      </div>
+
+      {error && <div className="alert-danger" style={{ marginBottom: '1rem' }}>{error}</div>}
+
+      <div className={styles.toggleRow} style={{ marginBottom: '1rem' }}>
+        <Toggle checked={enabled} onChange={(v) => !busy && toggle(v)} />
+        <div>
+          <div>
+            {busy ? 'Working…' : enabled ? 'Emulator is ON' : 'Emulator is OFF'}{' '}
+            <InfoTip
+              text="When ON, device adapters simulate all equipment and never open a connection to physical hardware. When OFF, the adapters use the real hardware connection path."
+              example="Off (connects to real hardware when configured)"
+            />
+          </div>
+          <span className={styles.fieldHint}>
+            {enabled
+              ? 'Simulated hardware: every device command is emulated and no physical connection is opened. Ideal for evaluation, onboarding and CI.'
+              : 'Live hardware: adapters use the real connection path. Switch ON to run with no physical equipment.'}
+          </span>
+        </div>
+      </div>
     </section>
   )
 }

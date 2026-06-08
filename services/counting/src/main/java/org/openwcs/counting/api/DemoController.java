@@ -45,7 +45,7 @@ public class DemoController {
     @PostMapping("/seed")
     public DemoSeedResult seed(
             @RequestParam UUID warehouseId,
-            @RequestParam(defaultValue = "10") int count) {
+            @RequestParam(defaultValue = "1") int count) {
         try {
             return seed.seed(warehouseId, count);
         } catch (IllegalStateException e) {
