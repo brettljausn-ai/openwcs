@@ -211,6 +211,42 @@ export async function deactivateStation(stationId: string): Promise<{ acceptingW
   return ok(await fetch(`/api/gtp/stations/${stationId}/deactivate`, { method: 'POST', headers: json }))
 }
 
+// ---- exceptions (operator-raised, any mode) ----
+// Mark the current head tote as dirty: the tote is removed from the station / sent to maintenance.
+export async function markToteDirty(stationId: string, queueEntryId: string): Promise<void> {
+  const res = await fetch(`/api/gtp/stations/${stationId}/exceptions/dirty-tote`, {
+    method: 'POST',
+    headers: json,
+    body: JSON.stringify({ queueEntryId }),
+  })
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`
+    try {
+      const body = await res.json()
+      if (body && body.error) detail = String(body.error)
+    } catch {
+      /* keep status line */
+    }
+    throw new Error(detail)
+  }
+}
+
+// Mark units on the current head tote as broken: posts a damage stock adjustment. The tote stays at
+// the station so the operator keeps working it.
+export async function markProductBroken(
+  stationId: string,
+  queueEntryId: string,
+  qty: number,
+): Promise<{ adjusted: number }> {
+  return ok(
+    await fetch(`/api/gtp/stations/${stationId}/exceptions/broken`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ queueEntryId, qty }),
+    }),
+  )
+}
+
 export async function activateStation(stationId: string): Promise<{ acceptingWork: boolean }> {
   return ok(await fetch(`/api/gtp/stations/${stationId}/activate`, { method: 'POST', headers: json }))
 }
