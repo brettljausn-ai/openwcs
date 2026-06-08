@@ -23,13 +23,15 @@ public record CountTaskView(
         String countedBy,
         Instant countedAt,
         String reconciledBy,
-        Instant reconciledAt) {
+        Instant reconciledAt,
+        String routingStatus,
+        String routingReason) {
 
     public static CountTaskView from(CountTask t) {
         return new CountTaskView(
                 t.getId(), t.getWarehouseId(), t.getScopeType(), t.getScopeRef(), t.getCountType(),
                 t.getOrigin(), t.getScheduleId(), t.getParentTaskId(), t.getTolerance(), t.getGtpStationId(),
                 t.getProcessInstanceId(), t.getStatus(), t.getAssignedTo(), t.getCountedBy(), t.getCountedAt(),
-                t.getReconciledBy(), t.getReconciledAt());
+                t.getReconciledBy(), t.getReconciledAt(), t.getRoutingStatus(), t.getRoutingReason());
     }
 }

@@ -81,6 +81,22 @@ public class CountTask extends Auditable {
     @Column(name = "reconciled_at")
     private Instant reconciledAt;
 
+    /** ASRS count-tote routing outcome: PENDING | ROUTED | NOT_REQUIRED | FAILED. */
+    @Column(name = "routing_status", nullable = false)
+    private String routingStatus = "PENDING";
+
+    /** Human-readable reason for the current routing status (shown in the UI). */
+    @Column(name = "routing_reason")
+    private String routingReason;
+
+    /** How many routing attempts have run for this task (the background retry increments it). */
+    @Column(name = "routing_attempts", nullable = false)
+    private int routingAttempts = 0;
+
+    /** When routing was last attempted. */
+    @Column(name = "routing_attempt_at")
+    private Instant routingAttemptAt;
+
     public UUID getId() {
         return id;
     }
@@ -215,5 +231,37 @@ public class CountTask extends Auditable {
 
     public void setReconciledAt(Instant reconciledAt) {
         this.reconciledAt = reconciledAt;
+    }
+
+    public String getRoutingStatus() {
+        return routingStatus;
+    }
+
+    public void setRoutingStatus(String routingStatus) {
+        this.routingStatus = routingStatus;
+    }
+
+    public String getRoutingReason() {
+        return routingReason;
+    }
+
+    public void setRoutingReason(String routingReason) {
+        this.routingReason = routingReason;
+    }
+
+    public int getRoutingAttempts() {
+        return routingAttempts;
+    }
+
+    public void setRoutingAttempts(int routingAttempts) {
+        this.routingAttempts = routingAttempts;
+    }
+
+    public Instant getRoutingAttemptAt() {
+        return routingAttemptAt;
+    }
+
+    public void setRoutingAttemptAt(Instant routingAttemptAt) {
+        this.routingAttemptAt = routingAttemptAt;
     }
 }
