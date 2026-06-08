@@ -297,10 +297,17 @@ public class RoutingProjectionService {
             }
         }
 
-        // Also project each workstation's STOCK/ORDER conveyor interactions into its GTP station nodes.
-        syncStationNodes(model);
-
-        return persist(warehouseId, stagedByCode, stagedEdges, stagedLoops, warnings);
+        // Persist the routing graph FIRST so the projection always succeeds and returns, then project
+        // the GTP station nodes as a fully isolated, best-effort side effect. The node sync must never
+        // slow down or break "Generate routing" (a slow/unreachable gtp is bounded by a short timeout
+        // in GtpClient, and any failure is swallowed here).
+        ProjectionResult result = persist(warehouseId, stagedByCode, stagedEdges, stagedLoops, warnings);
+        try {
+            syncStationNodes(model);
+        } catch (Throwable t) {
+            log.warn("station-node projection failed (ignored): {}", t.toString());
+        }
+        return result;
     }
 
     /**

@@ -251,6 +251,8 @@ services:
       SPRING_DATASOURCE_USERNAME: openwcs
       SPRING_DATASOURCE_PASSWORD: openwcs
       OPENWCS_ADAPTER_CONVEYOR: http://conveyor-adapter:9091
+      # Project topology STOCK/ORDER interactions into GTP station nodes (best-effort on routing projection).
+      OPENWCS_GTP_BASE_URL: http://gtp:8094
 
   txlog:
     restart: unless-stopped
