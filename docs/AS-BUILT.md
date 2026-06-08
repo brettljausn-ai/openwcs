@@ -26,8 +26,8 @@ What is **actually implemented** today (not the target architecture). Design int
 | order-management | 8084 | ✅ | Orders (all types) + lifecycle + release management + line transactions; delegates allocation. |
 | allocation | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing, batch picking. |
 | slotting | 8093 | ✅ | Put-away assignment for automated rack/GTP blocks (weighted scorer: velocity-to-exit · same-SKU lane consolidation · aisle redundancy · fill balance), manual pick-face slotting + min/max replenishment (opportunistic top-off), and off-peak re-slotting. ADR 0003. |
-| gtp | 8094 | ✅ | Goods-to-person station execution: configure stations + STOCK/ORDER nodes, open order destinations (bind order HU + demand), present a stock HU → put-to-light put-list across destinations (one HU serves many orders: the batch), confirm puts (incl. short), complete destinations. ORDER_LOCATION (conveyor HU-in-location) and PUT_WALL (lit rack cubbies, typical AMR) destination topology share one engine. Orthogonal **operating modes** (PICKING / DECANTING / STOCK_COUNT / QC / MAINTENANCE): each cycle runs one and carries mode-appropriate task lines (decant-moves / count entries+variance / PASS-FAIL-HOLD verdicts / OK-DEFECTIVE-REPAIR checks); seams to slotting put-away (decant) and inventory StockAdjusted (count). ADR 0006. |
-| counting | 8095 | ✅ | Cycle / stock counting: count tasks (scope LOCATION/SKU/ZONE/BLOCK, BLIND vs VARIANCE), ABC-cadence schedule generator, capture counts → variance vs an inventory-expected snapshot → within-tolerance auto-approve (posts a `StockAdjusted` event) or out-of-tolerance recount; blind hides expected/variance. Seams: GTP STOCK_COUNT station + cycle-count BPMN (by id), adjustment via txlog. **Demo quick-seed** (demo-mode only): `POST /api/counting/demo/seed {warehouseId, count?:1}` builds sample count tasks over existing demo stock (cells sourced from the inventory stock overview), returns `{created}`, guarded to demo mode ON; drives the "Add count task" button (one task per click) shown on the stock-counting screen only when demo mode is on. |
+| gtp | 8094 | ✅ | Goods-to-person station execution: configure stations + STOCK/ORDER nodes, open order destinations (bind order HU + demand), present a stock HU → put-to-light put-list across destinations (one HU serves many orders: the batch), confirm puts (incl. short), complete destinations. ORDER_LOCATION (conveyor HU-in-location) and PUT_WALL (lit rack cubbies, typical AMR) destination topology share one engine. Orthogonal **operating modes** (PICKING / DECANTING / STOCK_COUNT / QC / MAINTENANCE): each cycle runs one and carries mode-appropriate task lines (decant-moves / count entries+variance / PASS-FAIL-HOLD verdicts / OK-DEFECTIVE-REPAIR checks); seams to slotting put-away (decant) and inventory StockAdjusted (count). **Station inbound queue** (`station_queue_entry`): transports route HUs to the station via `POST /stations/{id}/queue`; conveyor HUs arrive `IN_TRANSIT` (timed by distance ÷ 0.5 m/s) then transition to `QUEUED`; ASRS/AMR/AutoStore HUs arrive immediately `QUEUED`; operator works entries FIFO and completes them (`POST /queue/{id}/complete` → `DONE`). **Deactivate/drain control**: `POST /stations/{id}/deactivate` flips `acceptingWork=false` — station finishes its queued work but rejects new inbound HUs; `POST /stations/{id}/activate` reopens it. **In-transit capacity caps** (`maxInTransitPicking`, `maxInTransitOther`, configured via `POST /stations/{id}/capacity`): max simultaneous active inbound transports per mode class (default 4 PICKING / 2 OTHER); enqueue rejected with 409 when the cap is reached. ADR 0006. |
+| counting | 8095 | ✅ | Cycle / stock counting: count tasks (scope LOCATION/SKU/ZONE/BLOCK, BLIND vs VARIANCE), ABC-cadence schedule generator, capture counts → variance vs an inventory-expected snapshot → within-tolerance auto-approve (posts a `StockAdjusted` event) or out-of-tolerance recount; blind hides expected/variance. Seams: GTP STOCK_COUNT station + cycle-count BPMN (by id), adjustment via txlog. **ASRS count-tote routing** (emulator mode only): when a count task is created, the counting service looks up each cell's storage block (master-data), and for ASRS-family blocks (`SHUTTLE_ASRS`, `CRANE_ASRS`, `AUTOSTORE`, `AMR_GTP`) it creates a flow transport task (ASRS RETRIEVE via flow-orchestrator) and enqueues the tote to an active GTP `STOCK_COUNT` station; best-effort (no-op when emulator is off, no active counting station found, or any downstream call fails — the count task is always created). **Demo quick-seed** (demo-mode only): `POST /api/counting/demo/seed {warehouseId, count?:1}` builds sample count tasks over existing demo stock (cells sourced from the inventory stock overview), returns `{created}`, guarded to demo mode ON; drives the "Add count task" button (one task per click) shown on the stock-counting screen only when demo mode is on. |
 | txlog | 8086 | ✅ | Append-only event log + transactional outbox + relay to `txlog.stream`. |
 | iam | 8087 | ✅ | openWCS authorization model: users → roles → coded permissions; **per-user warehouse access** (allowed warehouses + default; the gateway enforces scope). (Keycloak does auth.) |
 | flow-orchestrator | 8085 | 🟡 | Device-task lifecycle over the uniform device contract; routes to adapters by family (below). |
@@ -61,7 +61,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 | `orders` | order-management | outbound_order (all order types), order_line, order_line_transaction, order_outbox |
 | `allocation` | allocation | order_allocation, allocation_line, pick_batch |
 | `slotting` | slotting | storage_profile, pick_slot, block_policy, putaway_assignment (+ sku_ids for multi-compartment), replenishment_task, reslot_recommendation, sku_velocity (+ velocity offset/processed-event for the auto-ABC EWMA) |
-| `gtp` | gtp | gtp_station (+ supported_modes), station_node, destination_demand, work_cycle (+ operating_mode, target_hu_id), put_instruction, task_line |
+| `gtp` | gtp | gtp_station (+ supported_modes + accepting_work + max_in_transit_picking/other), station_node, destination_demand, work_cycle (+ operating_mode, target_hu_id), put_instruction, task_line, **station_queue_entry** |
 | `counting` | counting | count_task, count_line, count_schedule |
 | `iam` | iam | role, role_permission, app_user, user_role, screen_access (+ _role/_user), user_warehouse |
 | `flow` | flow-orchestrator | device_task, conveyor_node, conveyor_edge, conveyor_loop, conveyor_controller, topology_observation, **warehouse_level**, **placed_equipment** (+ path/sections/category/**station_id**), **equipment_function_point**, **equipment_connection** |
@@ -437,9 +437,38 @@ a slotting put-away call (`decantedTargetReady`); STOCK_COUNT exposes non-zero c
 `StockAdjusted` intents (`stockCountAdjustment`). GTP records both; it does not call slotting or
 adjust inventory itself.
 
-**Seams (fast-follow, not built):** the physical lights and retrieving stock/order HUs to the
-station (ASRS/AMR/conveyor) are device-adapter + flow-orchestrator concerns — gtp only records
-`put_light_id`/`stock_hu_id`/`order_hu_id` and exposes the instructions. Demand origination
+### Station inbound queue, drain control & capacity
+
+The **station inbound queue** (`station_queue_entry`) is the mechanism through which any transport
+routes a handling unit to a station for work:
+
+- `POST /api/gtp/stations/{id}/queue {huId, huCode, skuId, skuCode, qty, mode, family, distanceM}` —
+  enqueue an HU. Conveyor transports supply `distanceM` and arrive `IN_TRANSIT` (timed: arrival = distanceM ÷ 0.5 m/s);
+  ASRS / AMR / AutoStore supply `null` distance and are immediately `QUEUED`. Rejected with 409 when the
+  station is inactive (`acceptingWork=false`), is draining, does not support the requested mode, or the
+  mode-class in-transit cap is reached.
+- `GET /api/gtp/stations/{id}/queue` — the station's live inbound queue in arrival order (all
+  IN_TRANSIT + QUEUED entries).
+- `POST /api/gtp/queue/{entryId}/complete` — mark the worked-off entry `DONE`.
+
+**Deactivate / drain control** (`acceptingWork` flag, `V5__station_in_transit_caps.sql`):
+- `POST /api/gtp/stations/{id}/deactivate` — sets `acceptingWork=false`: the station finishes its
+  already-queued work but rejects new inbound HUs (409). Useful for a clean switchover.
+- `POST /api/gtp/stations/{id}/activate` — restores `acceptingWork=true`.
+
+**In-transit capacity caps** (`maxInTransitPicking`, `maxInTransitOther`, defaults 4 / 2):
+- `POST /api/gtp/stations/{id}/capacity {maxInTransitPicking, maxInTransitOther}` — replaces the
+  station's caps. Controls how many HUs may have an active inbound transport at once, split by mode
+  class (PICKING vs all others). Schema: `V5__station_in_transit_caps.sql`; queue entries: `V6__station_queue.sql`.
+
+**ASRS count-tote wiring (counting service):** when the hardware emulator is ON and a count task
+is created for ASRS-family stock cells, the counting service calls the GTP queue endpoint to pin
+the tote to an active `STOCK_COUNT` station and calls flow-orchestrator to create the retrieval
+transport — so the move appears on the Transport screen. This is the first end-to-end wiring of
+the counting→GTP seam (emulator mode only).
+
+**Seams (fast-follow, not built):** physical put-lights and retrieving stock/order HUs for picking
+(ASRS/AMR/conveyor device tasks) are still flow-orchestrator concerns. Demand origination
 (auto-wire from allocation batches) and stock decrement → txlog are follow-ups.
 
 Per-endpoint RBAC (`RbacFilter`, gated by `openwcs.security.enabled`): reads → `ORDER_VIEW`,
@@ -548,9 +577,11 @@ run green); the first run surfaced one test-isolation bug, now fixed.
 - **GTP station execution** (`gtp`, ADR 0006): built — STOCK + ORDER/PUT_WALL nodes, batch
   pick-and-put with put-to-light, ORDER_LOCATION vs PUT_WALL destination topology, plus orthogonal
   operating modes (PICKING / DECANTING / STOCK_COUNT / QC / MAINTENANCE) on a generalised work-cycle
-  with mode-appropriate task lines + outcomes. Physical lights + stock/order-HU retrieval + demand
-  auto-wire from allocation, and the decant→slotting-putaway / count→inventory-StockAdjusted
-  integrations, are seams (not built).
+  with mode-appropriate task lines + outcomes. **Station inbound queue** (IN_TRANSIT → QUEUED → DONE
+  lifecycle), **deactivate/drain control**, and **in-transit capacity caps** are built. Physical
+  put-lights + picking-HU retrieval + demand auto-wire from allocation, and the
+  decant→slotting-putaway / count→inventory-StockAdjusted integrations, are seams (not built). ASRS
+  count-tote routing to the station queue is wired via the counting service (emulator mode only).
 - **Automation topology** (flow-orchestrator §7f): built — 3D/2D placement editor (levels, placed
   equipment with conveyor path/sections, function points placeable anywhere on a run, ASRS port stubs,
   GTP workstations linked to conveyor function points by role), and a deterministic **routing

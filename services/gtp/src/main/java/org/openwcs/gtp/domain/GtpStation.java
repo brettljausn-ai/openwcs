@@ -52,6 +52,21 @@ public class GtpStation extends Auditable {
     @Column(name = "status", nullable = false)
     private String status = "ACTIVE";
 
+    /**
+     * Deactivate/drain switch. A deactivated station finishes work already queued/assigned to it
+     * but accepts no new inbound units; it does not close the operator session.
+     */
+    @Column(name = "accepting_work", nullable = false)
+    private boolean acceptingWork = true;
+
+    /** Max HUs with an active PICKING transport inbound to this station at once. */
+    @Column(name = "max_in_transit_picking", nullable = false)
+    private int maxInTransitPicking = 4;
+
+    /** Max HUs with an active non-PICKING (other) transport inbound to this station at once. */
+    @Column(name = "max_in_transit_other", nullable = false)
+    private int maxInTransitOther = 2;
+
     public UUID getId() {
         return id;
     }
@@ -127,5 +142,29 @@ public class GtpStation extends Auditable {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public boolean isAcceptingWork() {
+        return acceptingWork;
+    }
+
+    public void setAcceptingWork(boolean acceptingWork) {
+        this.acceptingWork = acceptingWork;
+    }
+
+    public int getMaxInTransitPicking() {
+        return maxInTransitPicking;
+    }
+
+    public void setMaxInTransitPicking(int maxInTransitPicking) {
+        this.maxInTransitPicking = maxInTransitPicking;
+    }
+
+    public int getMaxInTransitOther() {
+        return maxInTransitOther;
+    }
+
+    public void setMaxInTransitOther(int maxInTransitOther) {
+        this.maxInTransitOther = maxInTransitOther;
     }
 }

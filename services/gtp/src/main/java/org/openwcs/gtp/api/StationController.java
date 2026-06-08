@@ -92,6 +92,15 @@ public class StationController {
         return StationView.from(station, service.nodesOf(stationId));
     }
 
+    /** Configure the station's in-transit HU caps (max inbound transports, split PICKING vs OTHER). */
+    @PostMapping("/{stationId}/capacity")
+    public StationView setCapacity(@PathVariable UUID stationId,
+                                   @Valid @RequestBody SetCapacityRequest request) {
+        GtpStation station = service.setCapacity(stationId,
+                request.maxInTransitPicking(), request.maxInTransitOther());
+        return StationView.from(station, service.nodesOf(stationId));
+    }
+
     @GetMapping("/{stationId}/demand")
     public List<DemandView> demand(@PathVariable UUID stationId) {
         service.requireStation(stationId);

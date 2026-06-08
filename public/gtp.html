@@ -166,6 +166,37 @@
   <section>
     <div class="wrap">
       <div class="section-head">
+        <p class="eyebrow" data-i18n="gtp.eyebrow7">Inbound queue &amp; station control</p>
+        <h2 data-i18n="gtp.h18">HUs arrive, <span class="lime">queue, get worked.</span></h2>
+        <p data-i18n="gtp.p16">
+          A station's inbound queue tracks every handling unit routed to it — whether it's still
+          on its way or waiting for the operator. Deactivating a station drains it cleanly
+          without losing any queued work.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag" data-i18n="gtp.tag12">IN_TRANSIT</div>
+          <h3 data-i18n="gtp.h19">En route to the station</h3>
+          <p data-i18n="gtp.p17">Conveyor HUs enter the queue as IN_TRANSIT with a computed arrival time (distance ÷ 0.5 m/s). They flip to QUEUED when due — the operator sees only what's ready to work.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="gtp.tag13">QUEUED</div>
+          <h3 data-i18n="gtp.h20">Ready to work</h3>
+          <p data-i18n="gtp.p18">ASRS, AMR and AutoStore HUs arrive immediately QUEUED. The operator works entries in arrival order; completing one marks it DONE. The live queue view shows all IN_TRANSIT and QUEUED entries.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="gtp.tag14">Drain control</div>
+          <h3 data-i18n="gtp.h21">Finish cleanly, then re-open</h3>
+          <p data-i18n="gtp.p19">Deactivating a station stops new HUs from being routed in while the operator finishes the existing queue. Re-activating reopens it — useful for shift changes or maintenance windows.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
         <p class="eyebrow" data-i18n="gtp.eyebrow5">At a glance</p>
         <h2 data-i18n="gtp.h5">Present → put-list → confirm.</h2>
       </div>

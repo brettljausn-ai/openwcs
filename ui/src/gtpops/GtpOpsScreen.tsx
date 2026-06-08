@@ -1,15 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Select from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import { useSidebar } from '../shell/SidebarContext'
+import { HandlingUnit, listHandlingUnits } from '../inventory/api'
+import { HandlingUnitType, Sku, listHandlingUnitTypes, listSkus } from '../masterdata/api'
 import {
+  OperatingMode,
   Workplace,
   WorkplaceSession,
   WorkCycle,
   PutInstruction,
+  StationQueueEntry,
+  activateStation,
   claimWorkplace,
+  completeQueueEntry,
   closeCycle,
   confirmPut,
+  deactivateStation,
+  getStationQueue,
   heartbeat,
   listWorkplaces,
   presentStock,
@@ -17,6 +26,50 @@ import {
 } from './api'
 
 const HEARTBEAT_MS = 4000
+const QUEUE_POLL_MS = 3000
+
+// Remembered workstation (per device): so an operator who always runs the same station can have it
+// auto-opened on arrival. We keep both id and code so we can show the code without a lookup.
+const REMEMBER_KEY = 'openwcs.gtp.rememberedStation'
+
+interface RememberedStation {
+  stationId: string
+  code: string
+}
+
+function readRemembered(): RememberedStation | null {
+  try {
+    const raw = localStorage.getItem(REMEMBER_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as RememberedStation
+    if (parsed && typeof parsed.stationId === 'string' && parsed.stationId) return parsed
+  } catch {
+    /* corrupt value, treat as none */
+  }
+  return null
+}
+
+function writeRemembered(s: RememberedStation): void {
+  try {
+    localStorage.setItem(REMEMBER_KEY, JSON.stringify(s))
+  } catch {
+    /* storage unavailable, best effort */
+  }
+}
+
+function clearRemembered(): void {
+  try {
+    localStorage.removeItem(REMEMBER_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+// Pick the default active mode for a multi-mode workplace: prefer PICKING (the only mode with a
+// guided flow today), otherwise the first supported mode.
+function defaultMode(modes: OperatingMode[]): OperatingMode {
+  return modes.includes('PICKING') ? 'PICKING' : modes[0]
+}
 
 // GTP operator console (ADR 0006). A launcher lists goods-to-person workplaces; opening one CLAIMS
 // a single-active session for that workplace and shows the operator console (present a stock HU ->
@@ -59,6 +112,8 @@ function Launcher({ onOpen }: { onOpen: (s: WorkplaceSession) => void }) {
   const [loading, setLoading] = useState(false)
   const [opening, setOpening] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [remembered, setRemembered] = useState<RememberedStation | null>(() => readRemembered())
+  const autoTried = useRef(false)
 
   async function load() {
     if (!warehouseId.trim()) return
@@ -91,6 +146,40 @@ function Launcher({ onOpen }: { onOpen: (s: WorkplaceSession) => void }) {
     }
   }
 
+  function forget() {
+    clearRemembered()
+    setRemembered(null)
+  }
+
+  // Auto-open the remembered station once (per Launcher mount), after workplaces have loaded so we
+  // can confirm it still exists. If the claim fails or the station is gone, clear the key and fall
+  // back to the launcher so the operator is never stuck.
+  useEffect(() => {
+    if (autoTried.current || !remembered) return
+    if (loading || workplaces.length === 0) return
+    autoTried.current = true
+    const match = workplaces.find((w) => w.id === remembered.stationId)
+    if (!match) {
+      forget()
+      return
+    }
+    let cancelled = false
+    setOpening(match.id)
+    claimWorkplace(match.id)
+      .then((s) => {
+        if (!cancelled) onOpen(s)
+      })
+      .catch(() => {
+        if (cancelled) return
+        forget()
+        setOpening(null)
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workplaces, loading, remembered])
+
   return (
     <div className="app-content">
       <div className="page-head">
@@ -100,6 +189,27 @@ function Launcher({ onOpen }: { onOpen: (s: WorkplaceSession) => void }) {
           a workplace at a time, so opening it elsewhere takes over this session.
         </p>
       </div>
+
+      {remembered && (
+        <div
+          className="glass"
+          style={{
+            padding: '.75rem 1rem',
+            marginBottom: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '.75rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ color: 'var(--text-dim)', fontSize: '.9rem' }}>
+            This device remembers workstation <strong style={{ color: 'var(--text)' }}>{remembered.code}</strong> and opens it automatically.
+          </span>
+          <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={forget}>
+            Forget this device's workstation
+          </button>
+        </div>
+      )}
 
       {!warehouseId.trim() && (
         <p style={{ color: 'var(--text-dim)', marginBottom: '1.25rem' }}>
@@ -188,8 +298,49 @@ function OperatorConsole({
   const { stationId, sessionId } = { stationId: session.stationId, sessionId: session.sessionId }
   const workplace = session.workplace
   const [cycle, setCycle] = useState<WorkCycle | null>(null)
+  const modes = workplace.supportedModes
+  const [activeMode, setActiveMode] = useState<OperatingMode>(() => defaultMode(modes))
+  const [remembered, setRemembered] = useState<boolean>(() => readRemembered()?.stationId === stationId)
+
+  // Drain switch. Seed from the workplace if it happens to carry an acceptingWork flag, else default
+  // to accepting work. A deactivated station finishes its queued totes but takes no new ones.
+  const [acceptingWork, setAcceptingWork] = useState<boolean>(
+    seedAcceptingWork(workplace),
+  )
+  const [drainBusy, setDrainBusy] = useState(false)
+  const [drainError, setDrainError] = useState<string | null>(null)
 
   const takenOverRef = useRef(false)
+
+  // Focus screen: collapse the app sidebar while the console is mounted, restore the prior choice on
+  // exit (captured once on mount so we don't fight the operator's manual toggles in between).
+  const { collapsed, setCollapsed } = useSidebar()
+  const collapsedOnMount = useRef(collapsed)
+  useEffect(() => {
+    collapsedOnMount.current = collapsed
+    setCollapsed(true)
+    return () => setCollapsed(collapsedOnMount.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function toggleRemember(next: boolean) {
+    setRemembered(next)
+    if (next) writeRemembered({ stationId, code: workplace.code })
+    else clearRemembered()
+  }
+
+  async function toggleAccepting() {
+    setDrainBusy(true)
+    setDrainError(null)
+    try {
+      const res = acceptingWork ? await deactivateStation(stationId) : await activateStation(stationId)
+      setAcceptingWork(res.acceptingWork)
+    } catch (e) {
+      setDrainError(String(e instanceof Error ? e.message : e))
+    } finally {
+      setDrainBusy(false)
+    }
+  }
 
   // Heartbeat loop: keep the session alive and detect a takeover (superseded) / release.
   useEffect(() => {
@@ -260,8 +411,29 @@ function OperatorConsole({
             session live
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-          <span className="badge badge-success">Active</span>
+        <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <label
+            style={{ display: 'flex', alignItems: 'center', gap: '.4rem', color: 'var(--text-dim)', fontSize: '.85rem', cursor: 'pointer' }}
+            title="Auto-open this workstation on this device next time"
+          >
+            <input type="checkbox" checked={remembered} onChange={(e) => toggleRemember(e.target.checked)} />
+            Remember this workstation on this device
+          </label>
+          <span className={`badge ${acceptingWork ? 'badge-success' : 'badge-warning'}`}>
+            {acceptingWork ? 'Active' : 'Draining'}
+          </span>
+          <button
+            className="btn btn-ghost"
+            onClick={toggleAccepting}
+            disabled={drainBusy}
+            title={
+              acceptingWork
+                ? 'Stop taking new totes; finish the queued work already at this station'
+                : 'Resume taking new totes at this station'
+            }
+          >
+            {drainBusy ? 'Working…' : acceptingWork ? 'Deactivate (drain)' : 'Activate'}
+          </button>
           <button
             className="btn btn-ghost"
             onClick={() => {
@@ -275,13 +447,235 @@ function OperatorConsole({
         </div>
       </div>
 
-      {cycle ? (
-        <CycleView cycle={cycle} onChange={setCycle} />
+      {modes.length > 1 && (
+        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginBottom: '1rem' }} role="group" aria-label="Operating mode">
+          {modes.map((m) => {
+            const on = m === activeMode
+            return (
+              <button
+                key={m}
+                type="button"
+                className={`badge ${on ? 'badge-info' : ''}`}
+                aria-pressed={on}
+                onClick={() => setActiveMode(m)}
+                style={{
+                  cursor: 'pointer',
+                  border: on ? '1px solid var(--herbal-lime)' : '1px solid var(--glass-border)',
+                  background: on ? undefined : 'transparent',
+                  color: on ? undefined : 'var(--text-dim)',
+                  fontWeight: on ? 600 : 400,
+                }}
+              >
+                {m}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {drainError && <p className="badge badge-danger" style={{ marginBottom: '1rem' }}>{drainError}</p>}
+
+      {!acceptingWork && (
+        <div
+          className="glass"
+          style={{
+            padding: '.9rem 1.2rem',
+            marginBottom: '1rem',
+            borderColor: 'rgba(255, 193, 94, .4)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '.6rem',
+          }}
+        >
+          <span style={{ fontSize: '1.3rem' }}>⏸</span>
+          <span>
+            <strong>Draining:</strong> finishing queued work, no new totes. Reactivate to resume
+            taking new totes.
+          </span>
+        </div>
+      )}
+
+      <InboundQueuePanel stationId={stationId} />
+
+      {activeMode === 'PICKING' ? (
+        cycle ? (
+          <CycleView cycle={cycle} onChange={setCycle} warehouseId={workplace.warehouseId} />
+        ) : (
+          <PresentPanel workplace={workplace} onStarted={setCycle} />
+        )
       ) : (
-        <PresentPanel workplace={workplace} onStarted={setCycle} />
+        <ModePlaceholder mode={activeMode} />
       )}
     </div>
   )
+}
+
+function ModePlaceholder({ mode }: { mode: OperatingMode }) {
+  return (
+    <div className="glass" style={{ padding: '2.5rem', maxWidth: 560, textAlign: 'center' }}>
+      <div style={{ fontSize: '2rem', marginBottom: '.5rem' }}>🛠</div>
+      <h2 style={{ marginTop: 0 }}>{mode} mode is active.</h2>
+      <p style={{ color: 'var(--text-dim)', margin: 0 }}>Guided flow coming soon.</p>
+    </div>
+  )
+}
+
+// The physical tote queue at the station. Polls the station queue while the console is open and lets
+// the operator work the head QUEUED tote off in arrival sequence with a Done button.
+function InboundQueuePanel({ stationId }: { stationId: string }) {
+  const [entries, setEntries] = useState<StationQueueEntry[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [completing, setCompleting] = useState<string | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+
+  const refresh = useCallback(async () => {
+    try {
+      setEntries(await getStationQueue(stationId))
+      setError(null)
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e))
+    } finally {
+      setLoaded(true)
+    }
+  }, [stationId])
+
+  // Poll the queue every ~3s while mounted; clean up on unmount.
+  useEffect(() => {
+    let cancelled = false
+    const run = () => {
+      if (!cancelled) refresh()
+    }
+    run()
+    const timer = setInterval(run, QUEUE_POLL_MS)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [refresh])
+
+  // Tick a local clock every second so in-transit ETAs count down smoothly between polls.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  async function complete(entry: StationQueueEntry) {
+    setCompleting(entry.id)
+    try {
+      await completeQueueEntry(entry.id)
+      await refresh()
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e))
+    } finally {
+      setCompleting(null)
+    }
+  }
+
+  // The head QUEUED entry is the one the operator should work next.
+  const headId = entries.find((e) => e.status === 'QUEUED')?.id ?? null
+
+  return (
+    <div className="glass" style={{ padding: '1.25rem', marginBottom: '1.25rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.6rem' }}>
+        <span className="eyebrow">Inbound queue</span>
+        <span className="badge badge-info">{entries.length} inbound</span>
+      </div>
+
+      {error && <p className="badge badge-danger" style={{ marginTop: '.8rem' }}>{error}</p>}
+
+      {loaded && entries.length === 0 ? (
+        <p style={{ color: 'var(--text-dim)', marginTop: '.8rem', marginBottom: 0 }}>
+          No totes inbound — the station queue is clear.
+        </p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.55rem', marginTop: '.9rem' }}>
+          {entries.map((entry, i) => (
+            <QueueRow
+              key={entry.id}
+              entry={entry}
+              position={i + 1}
+              isHead={entry.id === headId}
+              now={now}
+              completing={completing === entry.id}
+              onComplete={() => complete(entry)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function QueueRow({
+  entry,
+  position,
+  isHead,
+  now,
+  completing,
+  onComplete,
+}: {
+  entry: StationQueueEntry
+  position: number
+  isHead: boolean
+  now: number
+  completing: boolean
+  onComplete: () => void
+}) {
+  const inTransit = entry.status === 'IN_TRANSIT'
+  const etaSeconds = Math.max(0, Math.round((new Date(entry.arrivalAt).getTime() - now) / 1000))
+  const statusText = inTransit ? `arriving in ${etaSeconds}s` : 'waiting'
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '.85rem',
+        padding: '.65rem .85rem',
+        borderRadius: 10,
+        border: isHead ? '1px solid var(--herbal-lime)' : '1px solid var(--border, rgba(255,255,255,.08))',
+        background: isHead ? 'rgba(168, 230, 108, .08)' : 'rgba(255,255,255,.02)',
+        opacity: inTransit ? 0.7 : 1,
+      }}
+    >
+      <span
+        style={{
+          fontSize: '.85rem',
+          color: 'var(--text-faint)',
+          width: '1.6rem',
+          textAlign: 'right',
+          flexShrink: 0,
+        }}
+      >
+        {position}
+      </span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '.15rem', minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', gap: '.5rem', alignItems: 'baseline', flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: '1rem' }}>{entry.huCode}</strong>
+          <span style={{ color: 'var(--text-dim)', fontSize: '.85rem' }}>{entry.skuCode}</span>
+          <span style={{ color: 'var(--herbal-lime)', fontWeight: 600, fontSize: '.9rem' }}>×{entry.qty}</span>
+        </div>
+        <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span className="badge">{entry.mode}</span>
+          <span className={`badge ${inTransit ? 'badge-info' : isHead ? 'badge-success' : 'badge-warning'}`}>
+            {statusText}
+          </span>
+          {isHead && <span style={{ fontSize: '.75rem', color: 'var(--herbal-lime)' }}>next</span>}
+        </div>
+      </div>
+      {isHead && (
+        <button className="btn btn-primary" onClick={onComplete} disabled={completing} style={{ flexShrink: 0 }}>
+          {completing ? 'Done…' : 'Done'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// A workplace may carry an acceptingWork flag at runtime; read it defensively without widening types.
+function seedAcceptingWork(workplace: Workplace): boolean {
+  const flag = (workplace as { acceptingWork?: unknown }).acceptingWork
+  return typeof flag === 'boolean' ? flag : true
 }
 
 // Present a stock HU to start a PICKING cycle (the put-to-light batch).
@@ -293,6 +687,45 @@ function PresentPanel({ workplace, onStarted }: { workplace: Workplace; onStarte
   const [qty, setQty] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hus, setHus] = useState<HandlingUnit[]>([])
+  const [skus, setSkus] = useState<Sku[]>([])
+
+  // Load the warehouse's handling units and SKUs so the operator picks by code (not raw UUIDs).
+  useEffect(() => {
+    let cancelled = false
+    listHandlingUnits(workplace.warehouseId)
+      .then((list) => {
+        if (!cancelled) setHus(list)
+      })
+      .catch(() => {
+        if (!cancelled) setHus([])
+      })
+    listSkus()
+      .then((list) => {
+        if (!cancelled) setSkus(list)
+      })
+      .catch(() => {
+        if (!cancelled) setSkus([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [workplace.warehouseId])
+
+  const huOptions = useMemo(
+    () =>
+      hus
+        .filter((h): h is HandlingUnit & { huId: string } => !!h.huId)
+        .map((h) => ({ value: h.huId, label: h.code })),
+    [hus],
+  )
+  const skuOptions = useMemo(
+    () =>
+      skus
+        .filter((s): s is Sku & { id: string } => !!s.id)
+        .map((s) => ({ value: s.id, label: s.code + (s.description ? ' (' + s.description + ')' : '') })),
+    [skus],
+  )
 
   async function present() {
     setBusy(true)
@@ -331,11 +764,23 @@ function PresentPanel({ workplace, onStarted }: { workplace: Workplace; onStarte
             />
           </Field>
         )}
-        <Field label={<>Stock HU <InfoTip text="Identifier of the stock handling unit (carton/tote/pallet) presented at the station to be distributed across the open destinations." example="a1b2c3d4-5e6f-7890-abcd-ef1234567890" /></>}>
-          <input className="form-control" value={stockHuId} onChange={(e) => setStockHuId(e.target.value)} placeholder="HU UUID" />
+        <Field label={<>Stock HU <InfoTip text="The stock handling unit (carton/tote/pallet) presented at the station to be distributed across the open destinations. Pick it by its code." example="HU-000123" /></>}>
+          <Select
+            ariaLabel="Stock HU"
+            value={stockHuId}
+            onChange={(v) => setStockHuId(v)}
+            options={huOptions}
+            placeholder="Select a handling unit…"
+          />
         </Field>
-        <Field label={<>SKU <InfoTip text="The article contained in the presented stock HU. Its open demand drives which put-to-light tasks are generated." example="3f9a7c2b-1d4e-4a6f-8b3c-0e5d2f1a9c8b" /></>}>
-          <input className="form-control" value={skuId} onChange={(e) => setSkuId(e.target.value)} placeholder="SKU UUID" />
+        <Field label={<>SKU <InfoTip text="The article contained in the presented stock HU. Its open demand drives which put-to-light tasks are generated. Pick it by its code." example="SKU-1001" /></>}>
+          <Select
+            ariaLabel="SKU"
+            value={skuId}
+            onChange={(v) => setSkuId(v)}
+            options={skuOptions}
+            placeholder="Select a SKU…"
+          />
         </Field>
         <Field label={<>Quantity <InfoTip text="How many units of this SKU are available in the presented stock HU to distribute across the puts." example="24" /></>}>
           <input className="form-control" type="number" min="0" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="0" />
@@ -353,10 +798,22 @@ function PresentPanel({ workplace, onStarted }: { workplace: Workplace; onStarte
   )
 }
 
-function CycleView({ cycle, onChange }: { cycle: WorkCycle; onChange: (c: WorkCycle | null) => void }) {
+function CycleView({
+  cycle,
+  onChange,
+  warehouseId,
+}: {
+  cycle: WorkCycle
+  onChange: (c: WorkCycle | null) => void
+  warehouseId: string
+}) {
   const openPuts = cycle.puts.filter((p) => p.status === 'OPEN')
   const done = cycle.puts.length > 0 && openPuts.length === 0
   const [error, setError] = useState<string | null>(null)
+
+  // The active put is the next OPEN instruction; we visualise its destination tote.
+  const activePut = openPuts[0] ?? null
+  const activeIndex = activePut ? cycle.puts.findIndex((p) => p.id === activePut.id) : -1
 
   async function confirm(p: PutInstruction, qty?: number) {
     setError(null)
@@ -391,6 +848,15 @@ function CycleView({ cycle, onChange }: { cycle: WorkCycle; onChange: (c: WorkCy
 
       {error && <p className="badge badge-danger">{error}</p>}
 
+      {activePut && (
+        <ToteView
+          put={activePut}
+          putIndex={activeIndex < 0 ? 0 : activeIndex}
+          skuId={cycle.skuId}
+          warehouseId={warehouseId}
+        />
+      )}
+
       {cycle.puts.length === 0 ? (
         <p style={{ color: 'var(--text-dim)' }}>No matching demand — nothing to put for this stock HU.</p>
       ) : (
@@ -406,6 +872,158 @@ function CycleView({ cycle, onChange }: { cycle: WorkCycle; onChange: (c: WorkCy
       </button>
     </div>
   )
+}
+
+// --- Tote top-view: the focal element of the active cycle -----------------------------------------
+// Renders a top-down graphic of the destination tote for the active put. The tote's compartment
+// count comes from its HU type (orderHuId -> huTypeId -> compartments); we highlight the active
+// compartment in lime. The backend does not expose which compartment is the target, so we pick one
+// deterministically (active put index modulo compartments) and label it clearly.
+function ToteView({
+  put,
+  putIndex,
+  skuId,
+  warehouseId,
+}: {
+  put: PutInstruction
+  putIndex: number
+  skuId: string | null
+  warehouseId: string
+}) {
+  const [hus, setHus] = useState<HandlingUnit[]>([])
+  const [huTypes, setHuTypes] = useState<HandlingUnitType[]>([])
+  const [skus, setSkus] = useState<Sku[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    listHandlingUnits(warehouseId)
+      .then((l) => !cancelled && setHus(l))
+      .catch(() => !cancelled && setHus([]))
+    listHandlingUnitTypes()
+      .then((l) => !cancelled && setHuTypes(l))
+      .catch(() => !cancelled && setHuTypes([]))
+    listSkus()
+      .then((l) => !cancelled && setSkus(l))
+      .catch(() => !cancelled && setSkus([]))
+    return () => {
+      cancelled = true
+    }
+  }, [warehouseId])
+
+  const destHu = useMemo(() => hus.find((h) => h.huId === put.orderHuId) ?? null, [hus, put.orderHuId])
+  const huType = useMemo(
+    () => (destHu?.huTypeId ? huTypes.find((t) => t.id === destHu.huTypeId) ?? null : null),
+    [huTypes, destHu],
+  )
+  const sku = useMemo(() => (skuId ? skus.find((s) => s.id === skuId) ?? null : null), [skus, skuId])
+
+  // Compartments clamp to 1..8 (single-compartment totes show one cell). Default to 1 when unknown.
+  const compartments = Math.max(1, Math.min(8, huType?.compartments ?? 1))
+  // Deterministic active compartment (backend exposes no target slot): stable per put.
+  const activeCompartment = (putIndex % compartments) + 1
+  const { cols, rows } = gridFor(compartments)
+
+  return (
+    <div
+      className="glass"
+      style={{
+        padding: '1.5rem',
+        display: 'flex',
+        gap: '1.75rem',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        borderColor: 'rgba(141, 198, 63, .35)',
+      }}
+    >
+      <div>
+        <div style={{ fontSize: '.7rem', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--text-faint)', marginBottom: '.5rem' }}>
+          Destination tote {destHu ? `· ${destHu.code}` : ''}
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${cols}, 1fr)`,
+            gridTemplateRows: `repeat(${rows}, 1fr)`,
+            gap: 6,
+            width: Math.min(360, 84 * cols),
+            aspectRatio: `${cols} / ${rows}`,
+            padding: 8,
+            borderRadius: 12,
+            border: '2px solid var(--glass-border)',
+            background: 'rgba(255,255,255,.03)',
+          }}
+        >
+          {Array.from({ length: compartments }, (_, i) => {
+            const slot = i + 1
+            const on = slot === activeCompartment
+            return (
+              <div
+                key={slot}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  fontSize: '.95rem',
+                  minHeight: 56,
+                  color: on ? '#0b0f0a' : 'var(--text-dim)',
+                  background: on ? 'var(--herbal-lime)' : 'rgba(255,255,255,.04)',
+                  border: on ? '2px solid var(--herbal-lime)' : '1px solid var(--glass-border)',
+                  boxShadow: on ? '0 0 18px rgba(141, 198, 63, .45)' : 'none',
+                }}
+              >
+                {slot}
+              </div>
+            )
+          })}
+        </div>
+        <div style={{ marginTop: '.5rem', fontSize: '.8rem', color: 'var(--text-dim)' }}>
+          Put into compartment <strong style={{ color: 'var(--herbal-lime)' }}>{activeCompartment}</strong>
+          {compartments > 1 ? ` of ${compartments}` : ''}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem', minWidth: 200 }}>
+        <span className="eyebrow">Active put</span>
+        {sku?.imageUrl && (
+          <img
+            src={sku.imageUrl}
+            alt={sku.code}
+            style={{ width: 132, height: 132, objectFit: 'cover', borderRadius: 12, border: '1px solid var(--glass-border)' }}
+            onError={(e) => {
+              ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+            }}
+          />
+        )}
+        <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{sku ? sku.code : 'SKU'}</div>
+        {sku?.description && <div style={{ color: 'var(--text-dim)', fontSize: '.85rem' }}>{sku.description}</div>}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem', marginTop: '.25rem' }}>
+          <span style={{ fontSize: '.8rem', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--text-faint)' }}>PUT</span>
+          <span style={{ fontSize: '2.4rem', fontWeight: 700, color: 'var(--herbal-lime)', lineHeight: 1 }}>{put.qty}</span>
+        </div>
+        <div style={{ color: 'var(--text-dim)', fontSize: '.8rem' }}>
+          Order {put.orderRef}
+          {put.putLightId ? ` · Light ${put.putLightId}` : ''}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Lay out 1..8 compartments in a sensible top-view grid (cols x rows).
+function gridFor(n: number): { cols: number; rows: number } {
+  switch (n) {
+    case 1: return { cols: 1, rows: 1 }
+    case 2: return { cols: 2, rows: 1 }
+    case 3: return { cols: 3, rows: 1 }
+    case 4: return { cols: 2, rows: 2 }
+    case 5:
+    case 6: return { cols: 3, rows: 2 }
+    case 7:
+    case 8: return { cols: 4, rows: 2 }
+    default: return { cols: 4, rows: 2 }
+  }
 }
 
 function PutCard({ put, onConfirm }: { put: PutInstruction; onConfirm: (p: PutInstruction, qty?: number) => void }) {

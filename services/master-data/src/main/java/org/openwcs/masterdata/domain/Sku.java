@@ -28,6 +28,10 @@ public class Sku extends Auditable {
     @Column(name = "description")
     private String description;
 
+    /** Optional product image URL (shown e.g. on the GTP console when an HU with this SKU is active). */
+    @Column(name = "image_url")
+    private String imageUrl;
+
     @Column(name = "status", nullable = false)
     private String status = "ACTIVE";
 
@@ -65,6 +69,14 @@ public class Sku extends Auditable {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     public String getStatus() {

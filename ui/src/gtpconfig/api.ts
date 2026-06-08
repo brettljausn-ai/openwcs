@@ -42,6 +42,8 @@ export interface Station {
   mode: StationMode
   supportedModes: OperatingMode[]
   status: string
+  maxInTransitPicking: number
+  maxInTransitOther: number
   nodes: StationNode[]
 }
 
@@ -132,6 +134,23 @@ export async function setSupportedModes(stationId: string, supportedModes: Opera
       method: 'POST',
       headers: json,
       body: JSON.stringify({ supportedModes }),
+    }),
+  )
+}
+
+// ---- in-transit capacity ----
+// Cap how many HUs may have an active transport inbound to the station at once, split by mode class
+// (PICKING vs OTHER / non-picking). Config only; the enforcement is built separately.
+export async function setCapacity(
+  stationId: string,
+  maxInTransitPicking: number,
+  maxInTransitOther: number,
+): Promise<Station> {
+  return unwrap(
+    await fetch(`${base}/${stationId}/capacity`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ maxInTransitPicking, maxInTransitOther }),
     }),
   )
 }

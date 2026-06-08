@@ -122,6 +122,22 @@ public class GtpStationService {
         return station;
     }
 
+    /**
+     * Set a station's in-transit HU caps: how many HUs may have an active transport inbound to the
+     * station at once, split into PICKING and OTHER (non-picking) mode classes. Both values must be
+     * non-negative. This is configuration only; the enforcement is built separately.
+     */
+    @Transactional
+    public GtpStation setCapacity(UUID stationId, int maxInTransitPicking, int maxInTransitOther) {
+        if (maxInTransitPicking < 0 || maxInTransitOther < 0) {
+            throw new IllegalArgumentException("in-transit caps must be non-negative");
+        }
+        GtpStation station = requireStation(stationId);
+        station.setMaxInTransitPicking(maxInTransitPicking);
+        station.setMaxInTransitOther(maxInTransitOther);
+        return station;
+    }
+
     /** Parse a list of operating-mode names into an ordered set; null/empty defaults to PICKING. */
     private Set<OperatingMode> parseModes(List<String> modes) {
         Set<OperatingMode> parsed = new LinkedHashSet<>();
