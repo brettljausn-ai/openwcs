@@ -43,6 +43,8 @@ export default function StockOverviewScreen() {
   const [blocks, setBlocks] = useState<StorageBlock[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [marking, setMarking] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!warehouseId) {
@@ -81,6 +83,35 @@ export default function StockOverviewScreen() {
     return blocks.find((b) => b.id === loc.blockId)?.code ?? '—'
   }
 
+  // Create an ad-hoc count task (a counting order) for a single stock line's location + SKU.
+  async function markForCounting(row: StockOverviewRow) {
+    if (!row.locationId || !row.skuId || !warehouseId) return
+    const key = `${row.huId ?? '·'}|${row.locationId}|${row.skuId}`
+    setMarking(key)
+    setError(null)
+    setNotice(null)
+    try {
+      const res = await fetch('/api/counting/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          warehouseId,
+          scopeType: 'LOCATION',
+          scopeRef: row.locationId,
+          countType: 'BLIND',
+          tolerance: 1,
+          cells: [{ locationId: row.locationId, skuId: row.skuId }],
+        }),
+      })
+      if (!res.ok) throw new Error((await res.text()) || `Request failed (${res.status})`)
+      setNotice(`Count task created for ${skuCode(row.skuId)} at ${locationCode(row.locationId)}.`)
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setMarking(null)
+    }
+  }
+
   return (
     <div className="app-content">
       <div className="page-head">
@@ -99,6 +130,7 @@ export default function StockOverviewScreen() {
       ) : (
         <div className="glass card-pad so-panel">
           {error && <div className="alert alert-danger">{error}</div>}
+          {notice && <div className="alert alert-success">{notice}</div>}
           <DataTable
             rows={rows}
             rowKey={(r) => `${r.huId ?? '·'}|${r.locationId ?? '·'}|${r.skuId ?? '·'}`}
@@ -159,6 +191,24 @@ export default function StockOverviewScreen() {
                 sortable: true,
                 sortValue: (r) => r.status ?? '',
                 render: (r) => <StatusBadge status={r.status} />,
+              },
+              {
+                key: 'actions',
+                header: '',
+                align: 'right',
+                render: (r) => {
+                  const key = `${r.huId ?? '·'}|${r.locationId ?? '·'}|${r.skuId ?? '·'}`
+                  return (
+                    <button
+                      className="btn btn-sm btn-ghost"
+                      disabled={!r.locationId || !r.skuId || marking === key}
+                      onClick={() => markForCounting(r)}
+                      title="Create a count task (counting order) for this location and SKU"
+                    >
+                      {marking === key ? 'Adding…' : 'Mark for counting'}
+                    </button>
+                  )
+                },
               },
             ]}
           />
