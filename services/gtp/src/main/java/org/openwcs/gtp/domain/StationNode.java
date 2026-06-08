@@ -48,8 +48,23 @@ public class StationNode extends Auditable {
     @Column(name = "position", nullable = false)
     private int position = 0;
 
+    /**
+     * Conveyor travel distance (metres) from the feeding conveyor point to this node, projected from
+     * the automation-topology STOCK/ORDER interactions. Drives the emulator arrival timing.
+     */
+    @Column(name = "inbound_distance_m")
+    private java.math.BigDecimal inboundDistanceM;
+
     @Column(name = "status", nullable = false)
     private String status = "ACTIVE";
+
+    public java.math.BigDecimal getInboundDistanceM() {
+        return inboundDistanceM;
+    }
+
+    public void setInboundDistanceM(java.math.BigDecimal inboundDistanceM) {
+        this.inboundDistanceM = inboundDistanceM;
+    }
 
     public UUID getId() {
         return id;

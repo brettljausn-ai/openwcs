@@ -84,6 +84,28 @@ public class StationController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Replace a station's STOCK/ORDER nodes from the automation topology (projected conveyor
+     * interactions). Called by the flow-orchestrator when the topology is projected; carries the
+     * feeding conveyor distance so the emulator can time tote arrivals.
+     */
+    @PostMapping("/{stationId}/nodes/sync")
+    public StationView syncNodes(@PathVariable UUID stationId, @RequestBody SyncNodesRequest request) {
+        List<GtpStationService.NodeSyncSpec> specs = (request.nodes() == null ? List.<SyncNodesRequest.NodeSpec>of() : request.nodes())
+                .stream()
+                .map(n -> new GtpStationService.NodeSyncSpec(n.role(), n.code(), n.locationId(), n.putLightId(), n.inboundDistanceM()))
+                .toList();
+        GtpStation station = service.syncNodes(stationId, specs);
+        return StationView.from(station, service.nodesOf(stationId));
+    }
+
+    /** The topology-projected node set for a station. */
+    public record SyncNodesRequest(List<NodeSpec> nodes) {
+        public record NodeSpec(String role, String code, UUID locationId, String putLightId,
+                               java.math.BigDecimal inboundDistanceM) {
+        }
+    }
+
     /** Configure the operating modes a station supports (PICKING is always retained). */
     @PostMapping("/{stationId}/operating-modes")
     public StationView setSupportedModes(@PathVariable UUID stationId,

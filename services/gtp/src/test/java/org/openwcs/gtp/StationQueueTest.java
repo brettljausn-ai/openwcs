@@ -82,6 +82,22 @@ class StationQueueTest {
     }
 
     @Test
+    void enqueueUsesProjectedStockNodeDistanceWhenCallerGivesNoTiming() {
+        GtpStation s = station("GTP-Q4", 4);
+        // Project nodes from the topology: a STOCK node fed by a 20 m conveyor run.
+        stations.syncNodes(s.getId(), List.of(
+                new GtpStationService.NodeSyncSpec("STOCK", "Pick_01", null, null, new BigDecimal("20")),
+                new GtpStationService.NodeSyncSpec("ORDER", "Pick_01_Order", null, null, new BigDecimal("2"))));
+
+        // No family/distance on the command -> falls back to the STOCK node distance (20 m / 0.5 = ~40s).
+        StationQueueEntry e = queue.enqueue(s.getId(), new EnqueueCommand(
+                UUID.randomUUID(), "HU-9", UUID.randomUUID(), "SKU-9", new BigDecimal("3"),
+                "PICKING", null, null));
+        assertThat(e.getStatus()).isEqualTo("IN_TRANSIT");
+        assertThat(e.getArrivalAt()).isAfter(Instant.now());
+    }
+
+    @Test
     void deactivatedStationTakesNoNewWorkThenCompletes() {
         GtpStation s = station("GTP-Q3", 4);
         StationQueueEntry e = queue.enqueue(s.getId(), cmd("PICKING", "ASRS", null));
