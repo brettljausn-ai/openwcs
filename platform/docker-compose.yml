@@ -257,6 +257,11 @@ services:
       SPRING_DATASOURCE_USERNAME: openwcs
       SPRING_DATASOURCE_PASSWORD: openwcs
       OPENWCS_ADAPTER_CONVEYOR: http://conveyor-adapter:9091
+      # Per-family device adapters so flow can dispatch ASRS/AMR/AutoStore tasks (e.g. ASRS count-tote
+      # retrievals). Without these flow returns 422 "No adapter configured for family: ASRS".
+      OPENWCS_ADAPTER_ASRS: http://asrs-adapter:9096
+      OPENWCS_ADAPTER_AMR: http://amr-geekplus-adapter:9093
+      OPENWCS_ADAPTER_AUTOSTORE: http://autostore-adapter:9094
       # Project topology STOCK/ORDER interactions into GTP station nodes (best-effort on routing projection).
       OPENWCS_GTP_BASE_URL: http://gtp:8094
 
