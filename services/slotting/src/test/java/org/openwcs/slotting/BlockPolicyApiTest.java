@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -50,18 +51,18 @@ class BlockPolicyApiTest {
     @Test
     void scorerWeightsRoundTripThroughJson() throws Exception {
         UUID block = UUID.randomUUID();
-        var body = Map.of(
-                "warehouseId", UUID.randomUUID().toString(),
-                "wVelocity", 2.5,
-                "wConsolidation", 0.25,
-                "wRedundancy", 0.75,
-                "wBalance", 1.5,
-                "defaultMaxAislePct", 0.5,
-                "minAislesA", 3,
-                "minAislesB", 2,
-                "minAislesC", 1,
-                "reslotEnabled", true,
-                "reslotShiftPct", 0.2);
+        Map<String, Object> body = new HashMap<>();
+        body.put("warehouseId", UUID.randomUUID().toString());
+        body.put("wVelocity", 2.5);
+        body.put("wConsolidation", 0.25);
+        body.put("wRedundancy", 0.75);
+        body.put("wBalance", 1.5);
+        body.put("defaultMaxAislePct", 0.5);
+        body.put("minAislesA", 3);
+        body.put("minAislesB", 2);
+        body.put("minAislesC", 1);
+        body.put("reslotEnabled", true);
+        body.put("reslotShiftPct", 0.2);
 
         // PUT must accept the lowercase weight keys...
         mockMvc.perform(put("/api/slotting/block-policies/{blockId}", block)
