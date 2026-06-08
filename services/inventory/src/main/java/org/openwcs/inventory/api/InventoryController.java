@@ -72,6 +72,23 @@ public class InventoryController {
                 handlingUnits.countByLocationIdIn(locationIds));
     }
 
+    /**
+     * Per-location occupancy: returns which of the given locations currently hold any stock row or
+     * handling unit. Slotting put-away uses this to score only genuinely-empty locations as
+     * candidates, rather than trusting its own assignment ledger.
+     */
+    @PostMapping("/locations/occupied")
+    public OccupiedLocationsResult occupiedLocations(@RequestBody OccupiedLocationsRequest request) {
+        List<UUID> locationIds = request.locationIds();
+        if (locationIds == null || locationIds.isEmpty()) {
+            return new OccupiedLocationsResult(List.of());
+        }
+        java.util.Set<UUID> occupied = new java.util.LinkedHashSet<>(
+                stock.findDistinctLocationIdByLocationIdIn(locationIds));
+        occupied.addAll(handlingUnits.findDistinctLocationIdByLocationIdIn(locationIds));
+        return new OccupiedLocationsResult(new java.util.ArrayList<>(occupied));
+    }
+
     @PostMapping("/reservations")
     public ResponseEntity<ReservationView> reserve(@Valid @RequestBody ReserveRequest request) {
         Reservation reservation = service.reserve(request.toCommand());

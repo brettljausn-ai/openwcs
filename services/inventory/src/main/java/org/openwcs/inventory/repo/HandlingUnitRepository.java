@@ -17,4 +17,11 @@ public interface HandlingUnitRepository extends JpaRepository<HandlingUnit, UUID
 
     /** Count of handling units parked at any of the given locations (occupancy check for block deletion). */
     long countByLocationIdIn(java.util.Collection<UUID> locationIds);
+
+    /** The subset of the given locations that hold at least one handling unit (per-location occupancy). */
+    @org.springframework.data.jpa.repository.Query(
+            "select distinct h.locationId from HandlingUnit h where h.locationId in :locationIds")
+    List<UUID> findDistinctLocationIdByLocationIdIn(
+            @org.springframework.data.repository.query.Param("locationIds")
+            java.util.Collection<UUID> locationIds);
 }
