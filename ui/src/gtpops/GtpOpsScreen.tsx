@@ -20,6 +20,8 @@ import {
   getStationQueue,
   heartbeat,
   listWorkplaces,
+  markProductBroken,
+  markToteDirty,
   presentStock,
   releaseWorkplace,
   submitStationCount,
@@ -333,6 +335,7 @@ function OperatorConsole({
   const [queue, setQueue] = useState<StationQueueEntry[]>([])
   const [queueLoaded, setQueueLoaded] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [exceptionsOpen, setExceptionsOpen] = useState(false)
   const [presentError, setPresentError] = useState<string | null>(null)
 
   // The head tote = first QUEUED entry (a tote that has physically arrived and waits to be worked).
@@ -682,7 +685,265 @@ function OperatorConsole({
         open={drawerOpen}
         onToggle={() => setDrawerOpen((v) => !v)}
       />
+
+      <ExceptionsDrawer
+        stationId={stationId}
+        head={head}
+        open={exceptionsOpen}
+        onToggle={() => setExceptionsOpen((v) => !v)}
+        onToteRemoved={() => {
+          setExceptionsOpen(false)
+          completeHeadAndAdvance()
+        }}
+      />
     </div>
+  )
+}
+
+// --- Exceptions drawer: a second right-edge fold-out, stacked below the Queue handle --------------
+// Folded by default; opens over a backdrop like QueueDrawer. Shown in every work mode while a session
+// is live. Two operator-raised actions on the current head tote: mark the tote dirty (sent to
+// maintenance, then advance) or mark some units broken (damage adjustment, tote stays in place).
+function ExceptionsDrawer({
+  stationId,
+  head,
+  open,
+  onToggle,
+  onToteRemoved,
+}: {
+  stationId: string
+  head: StationQueueEntry | null
+  open: boolean
+  onToggle: () => void
+  onToteRemoved: () => void
+}) {
+  const hasHead = head != null
+
+  const [dirtyBusy, setDirtyBusy] = useState(false)
+  const [dirtyError, setDirtyError] = useState<string | null>(null)
+  const [dirtyNote, setDirtyNote] = useState<string | null>(null)
+
+  const [brokenOpen, setBrokenOpen] = useState(false)
+  const [brokenQty, setBrokenQty] = useState('')
+  const [brokenBusy, setBrokenBusy] = useState(false)
+  const [brokenError, setBrokenError] = useState<string | null>(null)
+  const [brokenNote, setBrokenNote] = useState<string | null>(null)
+
+  // Digits-only quantity, no spinner (mirrors the count panel's input). 1..N where N is on the tote.
+  const parsedBroken = Number(brokenQty)
+  const validBroken =
+    brokenQty.trim() !== '' && Number.isInteger(parsedBroken) && parsedBroken > 0
+
+  async function onDirty() {
+    if (!head || dirtyBusy) return
+    setDirtyBusy(true)
+    setDirtyError(null)
+    setDirtyNote(null)
+    try {
+      await markToteDirty(stationId, head.id)
+      setDirtyNote('Tote sent to maintenance.')
+      onToteRemoved()
+    } catch (e) {
+      setDirtyError(String(e instanceof Error ? e.message : e))
+    } finally {
+      setDirtyBusy(false)
+    }
+  }
+
+  async function onBroken() {
+    if (!head || !validBroken || brokenBusy) return
+    setBrokenBusy(true)
+    setBrokenError(null)
+    setBrokenNote(null)
+    try {
+      const res = await markProductBroken(stationId, head.id, parsedBroken)
+      setBrokenNote(`Adjusted ${res.adjusted} damaged unit(s).`)
+      setBrokenQty('')
+    } catch (e) {
+      setBrokenError(String(e instanceof Error ? e.message : e))
+    } finally {
+      setBrokenBusy(false)
+    }
+  }
+
+  return (
+    <>
+      {/* Slim handle pinned to the right edge, stacked below the Queue handle so the two don't overlap. */}
+      {!open && (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label="Exceptions"
+          style={{
+            position: 'fixed',
+            top: 'calc(50% + 120px)',
+            right: 0,
+            transform: 'translateY(-50%)',
+            zIndex: 40,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '.4rem',
+            padding: '.9rem .55rem',
+            border: '1px solid var(--herbal-lime)',
+            borderRight: 'none',
+            borderRadius: '12px 0 0 12px',
+            background: 'rgba(14, 20, 12, .85)',
+            backdropFilter: 'blur(10px)',
+            color: 'var(--text)',
+            cursor: 'pointer',
+            writingMode: 'vertical-rl',
+            fontSize: '.85rem',
+            fontWeight: 600,
+            letterSpacing: '.04em',
+            boxShadow: '0 0 18px rgba(141, 198, 63, .25)',
+          }}
+        >
+          <span style={{ transform: 'rotate(180deg)' }}>Exceptions</span>
+        </button>
+      )}
+
+      {/* Backdrop + sliding panel. */}
+      {open && (
+        <div
+          onClick={onToggle}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 45,
+            background: 'rgba(0, 0, 0, .4)',
+          }}
+        />
+      )}
+      <aside
+        aria-hidden={!open}
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 46,
+          width: 'min(380px, 92vw)',
+          transform: open ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform .25s ease',
+          background: 'rgba(14, 20, 12, .96)',
+          backdropFilter: 'blur(14px)',
+          borderLeft: '1px solid var(--herbal-lime)',
+          boxShadow: '-12px 0 40px rgba(0, 0, 0, .45)',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '1.25rem',
+          overflowY: 'auto',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.6rem', marginBottom: '1rem' }}>
+          <span className="eyebrow">Exceptions</span>
+          <button className="btn btn-ghost btn-sm" onClick={onToggle} aria-label="Close exceptions">
+            ✕
+          </button>
+        </div>
+
+        {hasHead ? (
+          <div style={{ marginBottom: '1rem', color: 'var(--text-dim)', fontSize: '.85rem' }}>
+            Current tote <strong style={{ color: 'var(--text)' }}>{head?.huCode ?? 'Tote'}</strong>
+            {head?.skuCode ? ` · ${head.skuCode}` : ''}
+          </div>
+        ) : (
+          <p className="badge badge-warning" style={{ marginBottom: '1rem' }}>
+            No tote at the station.
+          </p>
+        )}
+
+        {/* Mark tote as dirty */}
+        <div
+          className="glass"
+          style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '.6rem', marginBottom: '1rem' }}
+        >
+          <strong style={{ fontSize: '1.05rem' }}>Mark tote as dirty</strong>
+          <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: '.85rem' }}>
+            Sends this tote to maintenance and advances to the next tote.
+          </p>
+          <button
+            className="btn btn-primary btn-block"
+            disabled={!hasHead || dirtyBusy}
+            onClick={onDirty}
+          >
+            {dirtyBusy ? 'Working…' : 'Mark tote as dirty'}
+          </button>
+          {dirtyNote && (
+            <p className="badge badge-success" style={{ margin: 0 }}>
+              {dirtyNote}
+            </p>
+          )}
+          {dirtyError && (
+            <p className="badge badge-danger" style={{ margin: 0 }}>
+              {dirtyError}
+            </p>
+          )}
+        </div>
+
+        {/* Mark product as broken */}
+        <div
+          className="glass"
+          style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '.6rem' }}
+        >
+          <strong style={{ fontSize: '1.05rem' }}>Mark product as broken</strong>
+          <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: '.85rem' }}>
+            Posts a damage adjustment for the broken units. The tote stays so you keep working it.
+          </p>
+          {!brokenOpen ? (
+            <button
+              className="btn btn-ghost btn-block"
+              disabled={!hasHead}
+              onClick={() => {
+                setBrokenOpen(true)
+                setBrokenError(null)
+                setBrokenNote(null)
+              }}
+            >
+              Mark product as broken
+            </button>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
+              <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  className="form-control"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={brokenQty}
+                  placeholder="Broken qty"
+                  disabled={brokenBusy || !hasHead}
+                  autoFocus
+                  onChange={(e) => setBrokenQty(e.target.value.replace(/[^0-9]/g, ''))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') onBroken()
+                  }}
+                  style={{ fontSize: '1.2rem', width: 140, padding: '.5rem .7rem' }}
+                />
+                <button
+                  className="btn btn-primary"
+                  disabled={!hasHead || !validBroken || brokenBusy}
+                  onClick={onBroken}
+                >
+                  {brokenBusy ? 'Sending…' : 'Send adjustment'}
+                </button>
+              </div>
+            </div>
+          )}
+          {brokenNote && (
+            <p className="badge badge-success" style={{ margin: 0 }}>
+              {brokenNote}
+            </p>
+          )}
+          {brokenError && (
+            <p className="badge badge-danger" style={{ margin: 0 }}>
+              {brokenError}
+            </p>
+          )}
+        </div>
+      </aside>
+    </>
   )
 }
 
