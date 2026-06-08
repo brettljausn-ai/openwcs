@@ -27,6 +27,7 @@ export interface Sku {
   id?: string
   code: string
   description?: string
+  imageUrl?: string | null
   status: string
   ownerClient?: string
   batchTracked: boolean

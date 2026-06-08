@@ -763,6 +763,16 @@ function ToteView({
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem', minWidth: 200 }}>
         <span className="eyebrow">Active put</span>
+        {sku?.imageUrl && (
+          <img
+            src={sku.imageUrl}
+            alt={sku.code}
+            style={{ width: 132, height: 132, objectFit: 'cover', borderRadius: 12, border: '1px solid var(--glass-border)' }}
+            onError={(e) => {
+              ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+            }}
+          />
+        )}
         <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{sku ? sku.code : 'SKU'}</div>
         {sku?.description && <div style={{ color: 'var(--text-dim)', fontSize: '.85rem' }}>{sku.description}</div>}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem', marginTop: '.25rem' }}>
