@@ -34,6 +34,8 @@ interface CountTask {
   countedAt?: string
   reconciledBy?: string
   reconciledAt?: string
+  routingStatus?: string
+  routingReason?: string
 }
 
 interface CountLine {
@@ -170,6 +172,26 @@ function lineBadge(status: LineStatus): string {
     default:
       return 'badge'
   }
+}
+
+// ASRS count-tote routing status: ROUTED ok, FAILED bad (retried in the background), PENDING in
+// flight, NOT_REQUIRED shown as a plain "n/a" badge. The routingReason rides along as a tooltip.
+function routingBadge(status?: string): string {
+  switch (status) {
+    case 'ROUTED':
+      return 'badge-success'
+    case 'FAILED':
+      return 'badge-danger'
+    case 'PENDING':
+      return 'badge-warning'
+    default:
+      return 'badge'
+  }
+}
+
+function routingLabel(status?: string): string {
+  if (!status) return '—'
+  return status === 'NOT_REQUIRED' ? 'n/a' : status
 }
 
 // A variance of 0 is "ok"; anything non-zero is a discrepancy.
@@ -376,6 +398,7 @@ export default function CountingScreen() {
                 <tr>
                   <th>Task</th>
                   <th>Status</th>
+                  <th>Routing</th>
                   <th>Type</th>
                   <th>Origin</th>
                   <th>Scope</th>
@@ -391,6 +414,11 @@ export default function CountingScreen() {
                     <td title={t.id}>{short(t.id)}</td>
                     <td>
                       <span className={`badge ${taskBadge(t.status)}`}>{t.status}</span>
+                    </td>
+                    <td title={t.routingReason || undefined}>
+                      <span className={`badge ${routingBadge(t.routingStatus)}`}>
+                        {routingLabel(t.routingStatus)}
+                      </span>
                     </td>
                     <td>{t.countType || '—'}</td>
                     <td>{t.origin || '—'}</td>

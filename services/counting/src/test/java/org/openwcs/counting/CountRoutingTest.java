@@ -1,8 +1,9 @@
 package org.openwcs.counting;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -16,6 +17,8 @@ import org.openwcs.counting.client.GtpClient;
 import org.openwcs.counting.client.InventoryClient;
 import org.openwcs.counting.client.MasterDataClient;
 import org.openwcs.counting.client.TxLogClient;
+import org.openwcs.counting.domain.CountTask;
+import org.openwcs.counting.service.CountRoutingService;
 import org.openwcs.counting.service.CountTaskScope;
 import org.openwcs.counting.service.CountingService;
 import org.openwcs.counting.service.CreateCountTaskCommand;
@@ -30,10 +33,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Boots the counting service against PostgreSQL with every outbound client mocked, and verifies the
- * ASRS count-tote routing that runs at the end of {@code generate(...)}: with the emulator ON, an
- * ASRS-family cell holding a handling unit, and an active STOCK_COUNT station, the tote is enqueued
- * to the station; with the emulator OFF nothing is routed; and a routing failure never breaks
- * count-task creation.
+ * ASRS count-tote routing performed by {@link CountRoutingService#routeTask}. A new task is created
+ * PENDING (generate no longer routes synchronously); routeTask then computes and persists the
+ * outcome. With the emulator ON, an ASRS-family cell holding a handling unit, and an active
+ * STOCK_COUNT station, the tote is enqueued once and the task becomes ROUTED; with the emulator OFF
+ * nothing is routed and the task is FAILED; and routing is idempotent (a second routeTask does not
+ * enqueue again).
  */
 @SpringBootTest
 @Testcontainers
@@ -67,6 +72,9 @@ class CountRoutingTest {
     @Autowired
     CountingService counting;
 
+    @Autowired
+    CountRoutingService routing;
+
     private CreateCountTaskCommand task(UUID wh, UUID loc, UUID sku) {
         return new CreateCountTaskCommand(
                 wh, "LOCATION", loc, "BLIND", "AD_HOC", null, null, BigDecimal.ZERO, null,
@@ -74,7 +82,21 @@ class CountRoutingTest {
     }
 
     @Test
-    void emulatorOnAsrsCellWithHuEnqueuesToCountingStation() {
+    void newTaskStartsPendingAndGenerateDoesNotRoute() {
+        UUID wh = UUID.randomUUID();
+        UUID loc = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        when(inventory.expectedOnHand(wh, sku, loc)).thenReturn(new BigDecimal("5"));
+
+        CountTask created = counting.generate(task(wh, loc, sku));
+
+        // generate() no longer routes — the task is left PENDING for the background sweep / routeTask.
+        assertThat(created.getRoutingStatus()).isEqualTo("PENDING");
+        verify(gtp, org.mockito.Mockito.never()).enqueue(any(), any());
+    }
+
+    @Test
+    void emulatorOnAsrsCellWithHuEnqueuesAndMarksRouted() {
         UUID wh = UUID.randomUUID();
         UUID loc = UUID.randomUUID();
         UUID sku = UUID.randomUUID();
@@ -89,21 +111,24 @@ class CountRoutingTest {
         when(inventory.findHuAt(wh, sku, loc))
                 .thenReturn(Optional.of(new InventoryClient.HandlingUnit(huId, "HU-1", new BigDecimal("12"))));
 
-        counting.generate(task(wh, loc, sku));
+        CountTask created = counting.generate(task(wh, loc, sku));
+        routing.routeTask(counting.task(created.getId()));
 
         // Transport requested for the ASRS family and the tote enqueued in STOCK_COUNT mode.
         verify(flow).createTransport(eq(wh), eq("ASRS"), any(), any(), eq(huId));
         org.mockito.ArgumentCaptor<GtpClient.EnqueueRequest> captor =
                 org.mockito.ArgumentCaptor.forClass(GtpClient.EnqueueRequest.class);
         verify(gtp).enqueue(eq(station), captor.capture());
-        org.assertj.core.api.Assertions.assertThat(captor.getValue().huId()).isEqualTo(huId);
-        org.assertj.core.api.Assertions.assertThat(captor.getValue().mode()).isEqualTo("STOCK_COUNT");
-        org.assertj.core.api.Assertions.assertThat(captor.getValue().family()).isEqualTo("ASRS");
-        org.assertj.core.api.Assertions.assertThat(captor.getValue().distanceM()).isNull();
+        assertThat(captor.getValue().huId()).isEqualTo(huId);
+        assertThat(captor.getValue().mode()).isEqualTo("STOCK_COUNT");
+        assertThat(captor.getValue().family()).isEqualTo("ASRS");
+        assertThat(captor.getValue().distanceM()).isNull();
+
+        assertThat(counting.task(created.getId()).getRoutingStatus()).isEqualTo("ROUTED");
     }
 
     @Test
-    void emulatorOffDoesNotRoute() {
+    void emulatorOffDoesNotRouteAndMarksFailed() {
         UUID wh = UUID.randomUUID();
         UUID loc = UUID.randomUUID();
         UUID sku = UUID.randomUUID();
@@ -111,24 +136,40 @@ class CountRoutingTest {
         when(inventory.expectedOnHand(wh, sku, loc)).thenReturn(new BigDecimal("5"));
         when(masterData.emulatorEnabled()).thenReturn(false);
 
-        counting.generate(task(wh, loc, sku));
+        CountTask created = counting.generate(task(wh, loc, sku));
+        routing.routeTask(counting.task(created.getId()));
 
-        verify(gtp, never()).findActiveCountingStation(any());
-        verify(gtp, never()).enqueue(any(), any());
-        verify(flow, never()).createTransport(any(), any(), any(), any(), any());
+        verify(gtp, org.mockito.Mockito.never()).enqueue(any(), any());
+        verify(flow, org.mockito.Mockito.never()).createTransport(any(), any(), any(), any(), any());
+
+        CountTask after = counting.task(created.getId());
+        assertThat(after.getRoutingStatus()).isEqualTo("FAILED");
+        assertThat(after.getRoutingReason()).containsIgnoringCase("emulator");
     }
 
     @Test
-    void routingFailureDoesNotBreakCountTaskCreation() {
+    void routeTaskIsIdempotentAndEnqueuesOnlyOnce() {
         UUID wh = UUID.randomUUID();
         UUID loc = UUID.randomUUID();
         UUID sku = UUID.randomUUID();
+        UUID station = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
 
-        when(inventory.expectedOnHand(wh, sku, loc)).thenReturn(new BigDecimal("5"));
-        when(masterData.emulatorEnabled()).thenThrow(new RuntimeException("master-data down"));
+        when(inventory.expectedOnHand(wh, sku, loc)).thenReturn(new BigDecimal("12"));
+        when(masterData.emulatorEnabled()).thenReturn(true);
+        when(gtp.findActiveCountingStation(wh)).thenReturn(Optional.of(station));
+        when(masterData.storageTypeOfLocation(wh, loc)).thenReturn(Optional.of("SHUTTLE_ASRS"));
+        when(masterData.skuCode(sku)).thenReturn(Optional.of("SKU-1"));
+        when(inventory.findHuAt(wh, sku, loc))
+                .thenReturn(Optional.of(new InventoryClient.HandlingUnit(huId, "HU-1", new BigDecimal("12"))));
 
-        // generate() must still succeed and persist a line despite the routing blow-up.
-        var created = counting.generate(task(wh, loc, sku));
-        org.assertj.core.api.Assertions.assertThat(counting.rawLines(created.getId())).hasSize(1);
+        CountTask created = counting.generate(task(wh, loc, sku));
+        routing.routeTask(counting.task(created.getId()));
+        // A second pass must not re-route: the line is already marked routed.
+        routing.routeTask(counting.task(created.getId()));
+
+        verify(gtp, times(1)).enqueue(eq(station), any());
+        verify(flow, times(1)).createTransport(eq(wh), eq("ASRS"), any(), any(), eq(huId));
+        assertThat(counting.task(created.getId()).getRoutingStatus()).isEqualTo("ROUTED");
     }
 }

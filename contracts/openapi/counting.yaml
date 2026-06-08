@@ -354,6 +354,18 @@ components:
         countedAt: { type: string, format: date-time }
         reconciledBy: { type: string }
         reconciledAt: { type: string, format: date-time }
+        routingStatus:
+          type: string
+          enum: [PENDING, ROUTED, NOT_REQUIRED, FAILED]
+          description: >-
+            ASRS count-tote routing outcome. PENDING (not yet attempted), ROUTED (totes sent to a
+            counting station), NOT_REQUIRED (no ASRS-stored stock / no handling unit to move), or
+            FAILED (emulator off, no active station, or a transport request failed). Failed routing is
+            retried in the background every minute.
+        routingReason:
+          type: string
+          nullable: true
+          description: Human-readable reason for the current routingStatus (shown in the UI tooltip).
     CountLine:
       type: object
       properties:
