@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import { SCREENS, SECTION_ORDER, ScreenDef, Section } from '../auth/screens'
 import WarehouseSwitcher from '../warehouse/WarehouseSwitcher'
 import HelpButton from '../help/HelpButton'
+import { SidebarProvider, useSidebar } from './SidebarContext'
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/)
@@ -12,6 +13,14 @@ function initials(name: string): string {
 }
 
 export default function AppShell() {
+  return (
+    <SidebarProvider>
+      <AppShellInner />
+    </SidebarProvider>
+  )
+}
+
+function AppShellInner() {
   const { can, session, logout, roles } = useAuth()
   const { pathname } = useLocation()
 
@@ -45,10 +54,7 @@ export default function AppShell() {
     </NavLink>
   )
 
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('openwcs.sidebarCollapsed') === '1')
-  useEffect(() => {
-    localStorage.setItem('openwcs.sidebarCollapsed', collapsed ? '1' : '0')
-  }, [collapsed])
+  const { collapsed, setCollapsed } = useSidebar()
 
   return (
     <div className={`app-shell${collapsed ? ' sidebar-collapsed' : ''}`}>
