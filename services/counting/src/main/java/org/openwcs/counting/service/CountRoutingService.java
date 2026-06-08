@@ -18,7 +18,6 @@ import org.openwcs.counting.repo.CountTaskRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Routes count cells whose stock lives in an ASRS-family storage block to a goods-to-person counting
@@ -69,8 +68,12 @@ public class CountRoutingService {
      * Compute and persist the ASRS routing outcome for a single task. Idempotent and never throws:
      * already-routed lines are skipped, and any I/O blow-up is captured as a FAILED status instead of
      * propagating (so the retry scheduler and count-task creation are never broken).
+     *
+     * <p>Deliberately NOT {@code @Transactional}: each line's {@code routed} flag is saved in its own
+     * transaction the moment its tote is routed, so a later line failing (or a downstream error) can
+     * never roll back an already-routed line and cause a duplicate transport on the next retry. The
+     * transport/enqueue calls are non-transactional HTTP side effects.
      */
-    @Transactional
     public void routeTask(CountTask task) {
         String status;
         String reason;
