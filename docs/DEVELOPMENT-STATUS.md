@@ -20,7 +20,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | Component | Lang | Port | Status | Notes |
 |---|---|---|---|---|
 | gateway | Java | 8080 | ✅ | Routes `/api/<service>/**`; JWT validation (toggleable) + forwards/strips X-Auth-* identity. |
-| master-data | Java | 8081 | ✅ | Catalog CRUD + outbound config: shippers, fulfillment config (pick types, cubing mode, batch config); dispatch reference data: shipping-service + route catalogs, label templates (+ ZPL/PDF render). **Host SKU sync** (`POST /skus/sync`): list of SKUs with UoM hierarchy + barcodes inline (by code), host-authoritative full-replace of nested data in one transaction. |
+| master-data | Java | 8081 | ✅ | Catalog CRUD + outbound config: shippers, fulfillment config (pick types, cubing mode, batch config); dispatch reference data: shipping-service + route catalogs, label templates (+ ZPL/PDF render). **Host SKU sync** (`POST /skus/sync`): upsert (not full-catalog replace) — SKUs absent from the batch are left untouched; within each synced SKU the host is authoritative and its nested UoMs/barcodes fully replace what is stored. Whole batch in one transaction. |
 | inventory | Java | 8082 | ✅ | Stock projection + SKU- and location-scoped availability/reservations. |
 | order-management | Java | 8084 | ✅ | Orders of all types (INBOUND/OUTBOUND/COUNT/ADJUSTMENT), lifecycle, release mgmt, dispatch service/route + ship-to + label-template (validated against master-data), line stock transactions via a local outbox → txlog (audit: actor required); delegates allocation. |
 | allocation | Java | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing (APP multi-size largest-first / 1:1) with per-line carton traceability + per-carton dispatch labels (host barcode per shipper), batch picking. |
@@ -71,7 +71,7 @@ scaling — see [`SCALING.md`](./SCALING.md)); Helm ⬜.
 
 | Service | Tests | Kind |
 |---|---|---|
-| master-data | `MasterDataPersistenceTest`, `MasterDataApiTest`, `MasterDataRbacTest`, `DispatchCatalogApiTest`, `LabelTemplateApiTest`, `HostManagedMasterDataTest`, `SkuSyncApiTest` | Testcontainers + MockMvc (incl. RBAC: read=VIEW, write=EDIT; shipping-service + route catalogs; label-template CRUD + ZPL/PDF render; host SKU sync with nested UoMs/barcodes + full-replace re-sync) |
+| master-data | `MasterDataPersistenceTest`, `MasterDataApiTest`, `MasterDataRbacTest`, `DispatchCatalogApiTest`, `LabelTemplateApiTest`, `HostManagedMasterDataTest`, `SkuSyncApiTest` | Testcontainers + MockMvc (incl. RBAC: read=VIEW, write=EDIT; shipping-service + route catalogs; label-template CRUD + ZPL/PDF render; host SKU sync upsert semantics (absent SKUs untouched; within a synced SKU nested UoMs/barcodes fully replaced)) |
 | txlog | `TransactionLogServiceTest`, `OutboxRelayTest` | Testcontainers + Mockito |
 | inventory | `InventoryPersistenceTest`, `StockProjectionServiceTest`, `InventoryServiceTest` | Testcontainers |
 | allocation | `AllocationEngineTest`, `AllocationServiceTest` | Pure logic (incl. multi-size cubing: largest-first + line split across cartons with `lineNo`/`shipperUnitId` links) + Testcontainers (allocate → cancel releases reservations; oversized SKU → `CUBING_FAILED` + reservation released; per-carton dispatch labels with a host barcode per shipper) |
