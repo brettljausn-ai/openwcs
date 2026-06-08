@@ -45,6 +45,7 @@
 - [done] Canonical Host API :: One vendor-neutral API for orders, ASNs, SKUs and adjustments in; confirmations out via cursor feed or webhooks; SAP and Manhattan adapters translate in.
 - [done] Security — JWT · RBAC · Keycloak :: Gateway JWT validation and per-endpoint role-based access from a shared catalog, with Keycloak — all toggleable from simple to locked-down.
 - [done] Horizontal scaling :: Every service is stateless and replica-safe — relays and schedulers run across replicas, with Kubernetes manifests for scaling out behind any load balancer.
+- [done] Hardware emulator mode :: Every device adapter (conveyors, ASRS, AMR, AutoStore) simulates its machines and telemetry behind a single admin toggle — run the full automation flow with zero physical hardware for evaluation, onboarding, or CI.
 
 ## In progress
 > Active development
