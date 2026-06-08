@@ -39,13 +39,16 @@ public class StationQueueService {
     private final StationQueueEntryRepository queue;
     private final org.openwcs.gtp.repo.StationNodeRepository nodes;
     private final FlowClient flow;
+    private final org.openwcs.gtp.client.SlottingClient slotting;
 
     public StationQueueService(GtpStationRepository stations, StationQueueEntryRepository queue,
-                               org.openwcs.gtp.repo.StationNodeRepository nodes, FlowClient flow) {
+                               org.openwcs.gtp.repo.StationNodeRepository nodes, FlowClient flow,
+                               org.openwcs.gtp.client.SlottingClient slotting) {
         this.stations = stations;
         this.queue = queue;
         this.nodes = nodes;
         this.flow = flow;
+        this.slotting = slotting;
     }
 
     /** Inputs to route an HU to a station's queue. */
@@ -158,7 +161,7 @@ public class StationQueueService {
      */
     private void storeBack(StationQueueEntry e) {
         try {
-            if (e.getHuId() == null || e.getLocationId() == null) {
+            if (e.getHuId() == null) {
                 return;
             }
             long others = queue.countByWarehouseIdAndHuIdAndStatusInAndIdNot(
@@ -166,16 +169,24 @@ public class StationQueueService {
             if (others > 0) {
                 return; // the tote still has open work at a station, keep it out.
             }
+            // Don't return it to its source slot: ask slotting for the currently-best storage location
+            // (an empty, unreserved slot scored for this SKU).
+            java.util.Optional<UUID> destination =
+                    slotting.bestLocation(e.getWarehouseId(), e.getHuId(), e.getSkuId(), e.getQty());
+            if (destination.isEmpty()) {
+                log.warn("no put-away location available for tote {}; store-back skipped", e.getHuCode());
+                return;
+            }
             Map<String, Object> payload = new HashMap<>();
             payload.put("huId", e.getHuId());
             payload.put("huCode", e.getHuCode());
             payload.put("skuId", e.getSkuId());
             payload.put("skuCode", e.getSkuCode());
-            payload.put("destinationLocationId", e.getLocationId());
+            payload.put("destinationLocationId", destination.get());
             payload.put("reason", "STORE");
             UUID transportId = flow.createTransport(e.getWarehouseId(), "ASRS", "STORE", payload, e.getHuId());
-            log.info("stored tote {} back to location {}; transport {}",
-                    e.getHuCode(), e.getLocationId(), transportId);
+            log.info("stored tote {} to best location {}; transport {}",
+                    e.getHuCode(), destination.get(), transportId);
         } catch (Exception ex) {
             log.warn("store-back for tote {} failed (best-effort, ignored): {}", e.getHuCode(), ex.toString());
         }

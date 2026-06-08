@@ -58,6 +58,9 @@ class StationExceptionTest {
     @MockBean
     TxLogClient txlog;
 
+    @MockBean
+    org.openwcs.gtp.client.SlottingClient slotting;
+
     @Autowired
     GtpStationService stations;
 
@@ -82,10 +85,15 @@ class StationExceptionTest {
     }
 
     @Test
-    void completeWithNoOtherEntryAndLocationStoresBack() {
+    void completeWithNoOtherEntryStoresBackToTheBestSlot() {
         GtpStation s = station("GTP-X1");
-        UUID locationId = UUID.randomUUID();
-        StationQueueEntry e = queue.enqueue(s.getId(), cmd(locationId));
+        UUID bestLocation = UUID.randomUUID();
+        // Slotting picks the currently-best put-away slot (not the tote's source location).
+        org.mockito.Mockito.when(slotting.bestLocation(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of(bestLocation));
+        StationQueueEntry e = queue.enqueue(s.getId(), cmd(UUID.randomUUID()));
 
         assertThat(queue.complete(e.getId()).getStatus()).isEqualTo("DONE");
 
@@ -93,7 +101,7 @@ class StationExceptionTest {
         ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass((Class) Map.class);
         verify(flow).createTransport(eq(s.getWarehouseId()), eq("ASRS"), eq("STORE"),
                 payload.capture(), eq(e.getHuId()));
-        assertThat(payload.getValue()).containsEntry("destinationLocationId", locationId);
+        assertThat(payload.getValue()).containsEntry("destinationLocationId", bestLocation);
     }
 
     @Test
