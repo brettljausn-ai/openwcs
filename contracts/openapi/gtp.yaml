@@ -888,6 +888,7 @@ components:
           type: array
           items: { $ref: '#/components/schemas/OperatingMode' }
         status: { type: string }
+        acceptingWork: { type: boolean, description: "False when the station is deactivated (draining); lets the console restore the drain state on reload." }
         inUse: { type: boolean, description: "True when the workplace currently has an active operator session." }
         nodes:
           type: array

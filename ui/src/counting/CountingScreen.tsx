@@ -213,6 +213,7 @@ export default function CountingScreen() {
   const [notice, setNotice] = useState<string | null>(null)
 
   const [captureTask, setCaptureTask] = useState<CountTask | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<CountTask | null>(null)
   const [scheduleOpen, setScheduleOpen] = useState(false)
 
   const loadTasks = useCallback(async () => {
@@ -290,7 +291,7 @@ export default function CountingScreen() {
   }
 
   async function onDelete(task: CountTask) {
-    if (!window.confirm(`Delete count task ${short(task.id)}? This is only allowed before it is counted.`)) return
+    setPendingDelete(null)
     setError(null)
     try {
       await deleteTask(task.id)
@@ -418,7 +419,7 @@ export default function CountingScreen() {
                       {t.status === 'OPEN' && (
                         <button
                           className="btn btn-sm btn-ghost"
-                          onClick={() => onDelete(t)}
+                          onClick={() => setPendingDelete(t)}
                           style={{ marginLeft: 6 }}
                           title="Delete this count task (only allowed before it is counted)"
                         >
@@ -433,6 +434,16 @@ export default function CountingScreen() {
           </div>
         )}
       </section>
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Delete count task"
+          message={`Delete count task ${short(pendingDelete.id)}? This is only allowed before it is counted, and cannot be undone.`}
+          confirmLabel="Delete"
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => onDelete(pendingDelete)}
+        />
+      )}
 
       {captureTask && (
         <CaptureDialog
@@ -909,6 +920,40 @@ const backdrop: React.CSSProperties = {
   justifyContent: 'center',
   zIndex: 1000,
   padding: '1rem',
+}
+
+// In-app confirm dialog (matches the CaptureDialog/ScheduleDialog modal styling) — replaces native confirm().
+function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+}: {
+  title: string
+  message: string
+  confirmLabel: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="dialog-backdrop" style={backdrop} onClick={onCancel}>
+      <div className="dialog" style={{ maxWidth: 460, width: '92%' }} onClick={(e) => e.stopPropagation()}>
+        <h2>{title}</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          {message}
+        </p>
+        <div className="dialog-actions">
+          <button className="btn btn-ghost" onClick={onCancel}>
+            Cancel
+          </button>
+          <button className="btn btn-danger" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 const fieldLabel: React.CSSProperties = {

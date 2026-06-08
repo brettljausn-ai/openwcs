@@ -25,6 +25,7 @@ export interface Workplace {
   mode: 'ORDER_LOCATION' | 'PUT_WALL'
   supportedModes: OperatingMode[]
   status: string
+  acceptingWork?: boolean
   inUse: boolean
   nodes: WorkplaceNode[]
 }
