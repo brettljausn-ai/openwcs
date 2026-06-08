@@ -12,6 +12,7 @@ import org.openwcs.counting.service.CountingService;
 import org.openwcs.counting.service.ReconciliationResult;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -104,6 +105,17 @@ public class CountTaskController {
     @GetMapping("/{taskId}/results")
     public List<CountLineView> results(@PathVariable UUID taskId) {
         return counting.rawLines(taskId).stream().map(l -> CountLineView.of(l, false)).toList();
+    }
+
+    /** Delete a count task that has not started yet (status OPEN); 409 once it is active. */
+    @DeleteMapping("/{taskId}")
+    public ResponseEntity<Void> delete(@PathVariable UUID taskId) {
+        try {
+            counting.deleteTask(taskId);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+        }
     }
 
     private static String actor(String forwarded, String fallback) {

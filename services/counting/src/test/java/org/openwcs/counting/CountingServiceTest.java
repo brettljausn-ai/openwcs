@@ -1,6 +1,7 @@
 package org.openwcs.counting;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -76,6 +77,25 @@ class CountingServiceTest {
         return new CreateCountTaskCommand(
                 wh, "LOCATION", loc, countType, "AD_HOC", null, null, tolerance, null,
                 List.of(new CountTaskScope(loc, sku, null, "EACH")));
+    }
+
+    @Test
+    void deletesOpenTaskButRejectsActiveOne() {
+        UUID wh = UUID.randomUUID();
+        UUID loc = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        when(inventory.expectedOnHand(wh, sku, loc)).thenReturn(new BigDecimal("5"));
+
+        // An OPEN task can be deleted.
+        CountTask open = counting.generate(task(wh, loc, sku, "BLIND", BigDecimal.ZERO));
+        counting.deleteTask(open.getId());
+        assertThatThrownBy(() -> counting.task(open.getId())).isInstanceOf(RuntimeException.class);
+
+        // Once counted (no longer OPEN) it cannot be deleted.
+        CountTask counted = counting.generate(task(wh, loc, sku, "BLIND", BigDecimal.ZERO));
+        CountLine line = counting.rawLines(counted.getId()).get(0);
+        counting.submitCounts(counted.getId(), List.of(new CountEntry(line.getId(), new BigDecimal("5"))), "op1");
+        assertThatThrownBy(() -> counting.deleteTask(counted.getId())).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
