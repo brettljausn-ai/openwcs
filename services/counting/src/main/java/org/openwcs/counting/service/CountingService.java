@@ -223,4 +223,19 @@ public class CountingService {
         return tasks.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("count task not found: " + taskId));
     }
+
+    /**
+     * Delete a count task that has not started yet. Only OPEN tasks can be removed (once counting has
+     * begun the task carries operational history); its lines are removed with it.
+     */
+    @Transactional
+    public void deleteTask(UUID taskId) {
+        CountTask task = task(taskId);
+        if (!"OPEN".equals(task.getStatus())) {
+            throw new IllegalStateException(
+                    "Only OPEN count tasks can be deleted; this one is " + task.getStatus() + ".");
+        }
+        lines.deleteAll(lines.findByCountTaskId(taskId));
+        tasks.delete(task);
+    }
 }

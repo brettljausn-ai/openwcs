@@ -73,6 +73,17 @@ paths:
           description: Not found
           content:
             application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+    delete:
+      tags: [Tasks]
+      summary: Delete a count task that has not started yet
+      description: >
+        Removes a count task (and its lines) while it is still OPEN. Once counting has begun
+        (any non-OPEN status) it is rejected with 409.
+      operationId: deleteCountTask
+      responses:
+        "204": { description: Deleted }
+        "404": { description: Not found }
+        "409": { description: Task is already active and cannot be deleted }
   /tasks/{taskId}/lines:
     parameters:
       - { name: taskId, in: path, required: true, schema: { type: string, format: uuid } }

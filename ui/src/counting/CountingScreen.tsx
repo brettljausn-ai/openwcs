@@ -102,6 +102,10 @@ function listTasks(warehouseId: string, status?: string): Promise<CountTask[]> {
 function getLines(taskId: string): Promise<CountLine[]> {
   return fetch(`${BASE}/tasks/${taskId}/lines`).then((r) => jsonOrThrow<CountLine[]>(r))
 }
+async function deleteTask(taskId: string): Promise<void> {
+  const res = await fetch(`${BASE}/tasks/${taskId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await readError(res))
+}
 function getResults(taskId: string): Promise<CountLine[]> {
   return fetch(`${BASE}/tasks/${taskId}/results`).then((r) => jsonOrThrow<CountLine[]>(r))
 }
@@ -285,6 +289,18 @@ export default function CountingScreen() {
     }
   }
 
+  async function onDelete(task: CountTask) {
+    if (!window.confirm(`Delete count task ${short(task.id)}? This is only allowed before it is counted.`)) return
+    setError(null)
+    try {
+      await deleteTask(task.id)
+      flash(`Deleted count task ${short(task.id)}.`)
+      await loadTasks()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   return (
     <div className="app-content">
       <div className="page-head">
@@ -399,6 +415,16 @@ export default function CountingScreen() {
                       <button className="btn btn-sm btn-ghost" onClick={() => setCaptureTask(t)} style={{ marginLeft: 6 }}>
                         Lines
                       </button>
+                      {t.status === 'OPEN' && (
+                        <button
+                          className="btn btn-sm btn-ghost"
+                          onClick={() => onDelete(t)}
+                          style={{ marginLeft: 6 }}
+                          title="Delete this count task (only allowed before it is counted)"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
