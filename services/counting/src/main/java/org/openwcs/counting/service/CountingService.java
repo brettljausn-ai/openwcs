@@ -32,13 +32,15 @@ public class CountingService {
     private final CountLineRepository lines;
     private final InventoryClient inventory;
     private final TxLogClient txlog;
+    private final CountRoutingService routing;
 
     public CountingService(CountTaskRepository tasks, CountLineRepository lines,
-                           InventoryClient inventory, TxLogClient txlog) {
+                           InventoryClient inventory, TxLogClient txlog, CountRoutingService routing) {
         this.tasks = tasks;
         this.lines = lines;
         this.inventory = inventory;
         this.txlog = txlog;
+        this.routing = routing;
     }
 
     /**
@@ -79,6 +81,15 @@ public class CountingService {
             line.setExpectedQty(inventory.expectedOnHand(cmd.warehouseId(), cell.skuId(), cell.locationId()));
             line.setStatus("PENDING");
             lines.save(line);
+        }
+
+        // Best-effort: when the emulator is on, route any ASRS-stored count totes to a GTP counting
+        // station. A routing problem must never break count-task creation, so swallow everything.
+        try {
+            routing.routeAsrsCells(cmd.warehouseId(), cmd.cells());
+        } catch (Throwable t) {
+            log.warn("ASRS count-tote routing failed for task {} (count task still created): {}",
+                    saved.getId(), t.toString());
         }
         return saved;
     }

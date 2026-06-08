@@ -2,6 +2,7 @@ package org.openwcs.counting.client;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -31,19 +32,29 @@ public class HttpInventoryClient implements InventoryClient {
 
     @Override
     public List<StockCell> listStockCells(UUID warehouseId) {
+        return overview(warehouseId).stream()
+                .filter(r -> r.locationId() != null && r.skuId() != null)
+                .map(r -> new StockCell(r.locationId(), r.skuId()))
+                .distinct()
+                .toList();
+    }
+
+    @Override
+    public Optional<HandlingUnit> findHuAt(UUID warehouseId, UUID skuId, UUID locationId) {
+        return overview(warehouseId).stream()
+                .filter(r -> skuId.equals(r.skuId()) && locationId.equals(r.locationId()))
+                .filter(r -> r.huId() != null)
+                .map(r -> new HandlingUnit(r.huId(), r.huCode(), r.qty()))
+                .findFirst();
+    }
+
+    private List<OverviewRow> overview(UUID warehouseId) {
         List<OverviewRow> rows = http.get()
                 .uri("/api/inventory/stock/overview?warehouseId={w}", warehouseId)
                 .retrieve()
                 .body(new ParameterizedTypeReference<List<OverviewRow>>() {
                 });
-        if (rows == null) {
-            return List.of();
-        }
-        return rows.stream()
-                .filter(r -> r.locationId() != null && r.skuId() != null)
-                .map(r -> new StockCell(r.locationId(), r.skuId()))
-                .distinct()
-                .toList();
+        return rows == null ? List.of() : rows;
     }
 
     /** Subset of the inventory service's Availability response. */
@@ -51,6 +62,6 @@ public class HttpInventoryClient implements InventoryClient {
     }
 
     /** Subset of the inventory stock-overview row. */
-    private record OverviewRow(UUID skuId, UUID locationId) {
+    private record OverviewRow(UUID skuId, UUID locationId, UUID huId, String huCode, BigDecimal qty) {
     }
 }
