@@ -1,6 +1,11 @@
 package org.openwcs.masterdata.service;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -109,6 +114,7 @@ public class DemoSeedService {
                 .orElseThrow(() -> new IllegalStateException("EAN13 barcode type is missing from reference data."));
 
         Random rnd = new Random(42); // reproducible demo data
+        List<String> demoImages = loadDemoImages();
         long seq = 1;
         int skuN = 0;
         int uomN = 0;
@@ -120,6 +126,9 @@ public class DemoSeedService {
             sku.setDescription(demoItemName(i));
             sku.setOwnerClient("DEMO");
             sku.setStatus("ACTIVE");
+            if (!demoImages.isEmpty()) {
+                sku.setImageUrl(demoImages.get(rnd.nextInt(demoImages.size())));
+            }
             sku = skus.save(sku);
             skuN++;
 
@@ -267,6 +276,28 @@ public class DemoSeedService {
         s.setStatus("ACTIVE");
         shippers.save(s);
         return 1;
+    }
+
+    /** Demo product image URLs bundled as a classpath resource; empty if absent. */
+    private List<String> loadDemoImages() {
+        List<String> urls = new ArrayList<>();
+        try (InputStream in = getClass().getResourceAsStream("/demo-sku-images.txt")) {
+            if (in == null) {
+                return urls;
+            }
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = r.readLine()) != null) {
+                    String url = line.trim();
+                    if (url.startsWith("http")) {
+                        urls.add(url);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            // Demo images are best-effort; fall back to none.
+        }
+        return urls;
     }
 
     private void setFlag(boolean on) {

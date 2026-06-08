@@ -1133,6 +1133,7 @@ components:
             id: { type: string, format: uuid, readOnly: true }
             code: { type: string, example: TS-001-BLK-M }
             description: { type: string, example: "Black t-shirt, size M" }
+            imageUrl: { type: string, nullable: true, description: Optional product image URL. }
             status: { $ref: '#/components/schemas/LifecycleStatus' }
             ownerClient:
               type: string
