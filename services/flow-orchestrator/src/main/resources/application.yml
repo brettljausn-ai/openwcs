@@ -27,10 +27,14 @@ openwcs:
   security:
     enabled: ${OPENWCS_SECURITY_ENABLED:false}
   flow:
-    # Device adapter base URLs by equipment family (build.md §8 uniform device contract).
-    # The first adapter is the conveyor simulator; others are added as they come online.
+    # Device adapter base URLs by equipment family (build.md §8 uniform device contract). Keys are the
+    # task family (uppercase) so they match DeviceTask.getFamily(); values are env-overridable so
+    # compose can point them at the in-cluster adapter hostnames.
     adapters:
       CONVEYOR: ${OPENWCS_ADAPTER_CONVEYOR:http://localhost:9091}
+      ASRS: ${OPENWCS_ADAPTER_ASRS:http://localhost:9096}
+      AMR: ${OPENWCS_ADAPTER_AMR:http://localhost:9093}
+      AUTOSTORE: ${OPENWCS_ADAPTER_AUTOSTORE:http://localhost:9094}
     # gtp service base URL — projecting topology STOCK/ORDER interactions into station nodes.
     gtp-base-url: ${OPENWCS_GTP_BASE_URL:http://localhost:8094}
 
