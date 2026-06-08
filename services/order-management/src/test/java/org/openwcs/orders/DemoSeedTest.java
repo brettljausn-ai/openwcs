@@ -13,6 +13,7 @@ import org.openwcs.orders.client.MasterDataClient;
 import org.openwcs.orders.domain.OrderType;
 import org.openwcs.orders.repo.OutboundOrderRepository;
 import org.openwcs.orders.service.DemoSeedService;
+import org.openwcs.orders.service.OrderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -53,6 +54,9 @@ class DemoSeedTest {
     @Autowired
     OutboundOrderRepository orders;
 
+    @Autowired
+    OrderService service;
+
     @Test
     void seedsOutboundOrdersFromDemoSkus() {
         when(masterData.listDemoSkus()).thenReturn(List.of(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()));
@@ -61,11 +65,12 @@ class DemoSeedTest {
         DemoSeedResult result = seed.seed(warehouse, "OUTBOUND", 10);
 
         assertThat(result.created()).isEqualTo(10);
-        assertThat(orders.findByWarehouseId(warehouse)).hasSize(10)
-                .allSatisfy(o -> {
-                    assertThat(o.getOrderType()).isEqualTo(OrderType.OUTBOUND);
-                    assertThat(o.getLines()).isNotEmpty();
-                });
+        var saved = orders.findByWarehouseId(warehouse);
+        assertThat(saved).hasSize(10)
+                .allSatisfy(o -> assertThat(o.getOrderType()).isEqualTo(OrderType.OUTBOUND));
+        // Read lines through the order view (mapped inside the service transaction) to avoid a lazy
+        // collection access outside a session.
+        assertThat(service.get(saved.get(0).getId()).lines()).isNotEmpty();
     }
 
     @Test
