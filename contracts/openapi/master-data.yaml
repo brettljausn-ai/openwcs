@@ -191,12 +191,13 @@ paths:
       description: >
         Host-driven sync of SKUs that carry their unit-of-measure hierarchy and barcodes inline
         (build.md §6, §16). Each SKU is upserted by code; intra-SKU references are by code (a UoM
-        names its parent by parentCode, a barcode names its packaging level by uomCode). The host is
-        authoritative, so a SKU's stored UoMs/barcodes absent from the payload are removed and the
-        rest upserted. UoMs are matched by (sku, code) so their ids (and any stock referencing them)
-        survive a re-sync. The whole batch runs in one transaction. SKUs are host-owned master data:
-        interactive (gateway-routed) callers are rejected with 403; only the header-less host-sync
-        path may write.
+        names its parent by parentCode, a barcode names its packaging level by uomCode). This is an
+        upsert, not a full-catalog replace: SKUs absent from the batch are left untouched (never
+        removed). Within a synced SKU, the host is authoritative over its nested data, so that SKU's
+        stored UoMs/barcodes absent from the payload are removed and the rest upserted. UoMs are
+        matched by (sku, code) so their ids (and any stock referencing them) survive a re-sync. The
+        whole batch runs in one transaction. SKUs are host-owned master data: interactive
+        (gateway-routed) callers are rejected with 403; only the header-less host-sync path may write.
       operationId: syncSkus
       requestBody:
         required: true

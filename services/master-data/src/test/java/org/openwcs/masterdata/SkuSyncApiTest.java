@@ -142,6 +142,39 @@ class SkuSyncApiTest {
     }
 
     @Test
+    void skuAbsentFromAlaterBatchKeepsItsUomsAndBarcodes() throws Exception {
+        // Seed a SKU with a UoM + barcode.
+        var seed = List.of(Map.of(
+                "code", "SKU-KEEP-1",
+                "uoms", List.of(Map.of("code", "EACH", "baseUnit", true)),
+                "barcodes", List.of(Map.of("value", "9111111111119", "uomCode", "EACH", "type", "EAN13"))));
+        mockMvc.perform(post("/api/master-data/skus/sync")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(seed)))
+                .andExpect(status().isOk());
+        String keepId = idByCode("SKU-KEEP-1");
+
+        // A later batch syncs a *different* SKU and does not mention SKU-KEEP-1 at all.
+        var other = List.of(Map.of(
+                "code", "SKU-KEEP-OTHER",
+                "uoms", List.of(Map.of("code", "EACH", "baseUnit", true))));
+        mockMvc.perform(post("/api/master-data/skus/sync")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(other)))
+                .andExpect(status().isOk());
+
+        // SKU-KEEP-1 is untouched: still present, and its UoM + barcode are intact (not removed).
+        mockMvc.perform(get("/api/master-data/skus/{id}/uoms", keepId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].code").value("EACH"));
+        mockMvc.perform(get("/api/master-data/skus/{id}/barcodes", keepId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].value").value("9111111111119"));
+    }
+
+    @Test
     void interactiveSyncIsForbidden() throws Exception {
         mockMvc.perform(post("/api/master-data/skus/sync")
                         .header(INTERACTIVE, "alice")
