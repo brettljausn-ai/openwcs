@@ -79,10 +79,12 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
   equipment; SKU search/paging; bulk SKU import; soft-archive on delete.
 - **Host SKU sync** (`POST /skus/sync`, host-sync only): a list of SKUs each carrying their
   **UoM hierarchy and barcodes inline**, referenced by code (UoM `parentCode`, barcode `uomCode`,
-  barcode type by name). The host is authoritative — the nested lists **fully replace** the SKU's
-  stored UoMs/barcodes; UoMs are matched by `(sku, code)` so their ids (and any stock referencing
-  them) survive a re-sync. Whole batch in one transaction. This is the engine behind the Host API's
-  `POST /api/host/masterdata/skus`.
+  barcode type by name). This is an **upsert, not a full-catalog replace** — SKUs absent from the
+  batch are left untouched (and so are *their* UoMs/barcodes). Within a synced SKU the host is
+  authoritative over its nested data: that SKU's stored UoMs/barcodes **fully replace** to match the
+  payload (omitted ones removed); UoMs are matched by `(sku, code)` so their ids (and any stock
+  referencing them) survive a re-sync. Whole batch in one transaction. This is the engine behind the
+  Host API's `POST /api/host/masterdata/skus`.
 - **Outbound config** (ADR 0002): **shippers** (`/shippers` — boxes/totes/bags with
   dims, tare, max fill level, max weight, per warehouse) and
   **`WarehouseFulfillmentConfig`** (`/warehouses/{id}/fulfillment-config` — allowed pick
