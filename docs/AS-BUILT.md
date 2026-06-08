@@ -91,6 +91,10 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
   types CASE/SPLIT_CASE/EACH, cubing mode APP/ONE_TO_ONE, default shipper, and batch
   config: `batchEnabled`, `batchMaxPieces`, `batchMaxOrders`, `pickToteShipperId`).
 - SKU/UoM **dimensions & weight** (per packaging level) drive cubing.
+- **Cubing config UI**: a **Settings → Cubing** tab edits the warehouse's cubing rules
+  (cubing mode, allowed pick types, default shipper) and provides full **shipper CRUD**
+  (add/edit/archive), showing each shipper's fill rate and usable volume. This is the first
+  UI surface for the fulfillment-config and shipper endpoints.
 - **Dispatch reference data**: the **shipping-service** catalog (`/shipping-services` —
   service levels like EXPRESS/STANDARD, by carrier) and the **route** catalog (`/routes` —
   regions/depots, with `hostRef`; routes are fed from a host system). Both are global,

@@ -11,11 +11,16 @@ import {
   DemoResult,
   DemoStatus,
   EmulatorStatus,
+  FulfillmentConfig,
   HealthStatus,
+  Shipper,
   StorageBlock,
   Warehouse,
+  archiveShipper,
   createSchedule,
+  createShipper,
   defaultBlockPolicy,
+  defaultFulfillmentConfig,
   disableDemo,
   disableEmulator,
   enableDemo,
@@ -24,18 +29,23 @@ import {
   getBlockPolicy,
   getDemoStatus,
   getEmulatorStatus,
+  getFulfillmentConfig,
   getGatewayHealth,
   listAdapters,
   listSchedules,
+  listShippers,
   listStorageBlocks,
   listWarehouses,
   saveBlockPolicy,
+  saveFulfillmentConfig,
+  updateShipper,
 } from './api'
 
-type Tab = 'slotting' | 'counting' | 'integration' | 'system' | 'demo' | 'emulator'
+type Tab = 'slotting' | 'cubing' | 'counting' | 'integration' | 'system' | 'demo' | 'emulator'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'slotting', label: 'Slotting policy' },
+  { key: 'cubing', label: 'Cubing' },
   { key: 'counting', label: 'Counting' },
   { key: 'integration', label: 'Integrations' },
   { key: 'system', label: 'System status' },
@@ -61,7 +71,7 @@ export default function SettingsScreen() {
       .catch((e) => setWhError(String(e)))
   }, [])
 
-  const needsWarehouse = tab === 'slotting' || tab === 'counting' || tab === 'demo'
+  const needsWarehouse = tab === 'slotting' || tab === 'cubing' || tab === 'counting' || tab === 'demo'
 
   return (
     <div className="app-content">
@@ -108,6 +118,7 @@ export default function SettingsScreen() {
           )}
 
           {tab === 'slotting' && <SlottingPolicy warehouseId={warehouseId} />}
+          {tab === 'cubing' && <CubingSettings warehouseId={warehouseId} />}
           {tab === 'counting' && <CountingSettings warehouseId={warehouseId} />}
           {tab === 'integration' && <Integrations />}
           {tab === 'system' && <SystemStatus />}
@@ -635,6 +646,393 @@ function SystemStatus() {
           ))}
       </div>
     </section>
+  )
+}
+
+// Cubing (per warehouse). The cubing rules (from WarehouseFulfillmentConfig) plus the shipper
+// catalog cubing packs into, with each shipper's fill rate and usable volume.
+function CubingSettings({ warehouseId }: { warehouseId: string }) {
+  const [config, setConfig] = useState<FulfillmentConfig | null>(null)
+  const [shippers, setShippers] = useState<Shipper[]>([])
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Shipper | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  function reloadShippers() {
+    if (!warehouseId) return
+    listShippers(warehouseId)
+      .then(setShippers)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }
+
+  async function onArchive(s: Shipper) {
+    if (!s.id) return
+    setBusyId(s.id)
+    setError(null)
+    try {
+      await archiveShipper(s.id)
+      reloadShippers()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  function newShipper(): Shipper {
+    return { code: '', shipperType: 'CARTON', maxFillLevel: 1, status: 'ACTIVE', warehouseId }
+  }
+
+  useEffect(() => {
+    if (!warehouseId) {
+      setConfig(null)
+      setShippers([])
+      return
+    }
+    setLoading(true)
+    setError(null)
+    setSaved(false)
+    setEditing(null)
+    Promise.all([
+      getFulfillmentConfig(warehouseId).catch(() => null),
+      listShippers(warehouseId).catch(() => [] as Shipper[]),
+    ])
+      .then(([c, s]) => {
+        setConfig(c ?? defaultFulfillmentConfig(warehouseId))
+        setShippers(s)
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false))
+  }, [warehouseId])
+
+  function patch(p: Partial<FulfillmentConfig>) {
+    setConfig((c) => (c ? { ...c, ...p } : c))
+    setSaved(false)
+  }
+
+  function togglePickType(t: string) {
+    if (!config) return
+    const has = config.allowedPickTypes.includes(t)
+    patch({
+      allowedPickTypes: has ? config.allowedPickTypes.filter((x) => x !== t) : [...config.allowedPickTypes, t],
+    })
+  }
+
+  async function save() {
+    if (!config) return
+    setSaving(true)
+    setError(null)
+    try {
+      setConfig(await saveFulfillmentConfig(warehouseId, config))
+      setSaved(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const active = shippers.filter((s) => s.status !== 'ARCHIVED')
+
+  function fillPct(s: Shipper): string {
+    return s.maxFillLevel == null ? '100%' : `${Math.round(s.maxFillLevel * 100)}%`
+  }
+  function usableVolumeL(s: Shipper): string {
+    if (s.lengthMm == null || s.widthMm == null || s.heightMm == null) return '—'
+    const litres = (s.lengthMm * s.widthMm * s.heightMm * (s.maxFillLevel ?? 1)) / 1_000_000
+    return litres.toFixed(1)
+  }
+
+  if (!warehouseId) {
+    return (
+      <section className={`glass ${styles.section}`}>
+        <p className={styles.muted}>Select a warehouse to view its cubing configuration.</p>
+      </section>
+    )
+  }
+
+  return (
+    <section className={`glass ${styles.section}`}>
+      <div className={styles.sectionHead}>
+        <div>
+          <h2>Cubing</h2>
+          <p>
+            How outbound orders are packed into shippers. In APP mode the cubing engine packs each
+            order into the active shippers below, largest usable volume first, then downsizes the
+            remainder into the smallest shipper that still fits (both volume and net weight). An item
+            that does not fit the largest shipper fails the order.
+          </p>
+        </div>
+      </div>
+
+      {error && <div className="alert-danger" style={{ marginBottom: '1rem' }}>{error}</div>}
+
+      {loading || !config ? (
+        <p className={styles.muted}>Loading…</p>
+      ) : (
+        <>
+          <div className={styles.grid}>
+            <div className={styles.field}>
+              <label>
+                Cubing mode{' '}
+                <InfoTip
+                  text="APP packs orders automatically (largest-first bin packing). ONE_TO_ONE uses the host-supplied carton instructions instead."
+                  example="APP"
+                />
+              </label>
+              <Select
+                ariaLabel="Cubing mode"
+                value={config.cubingMode}
+                onChange={(v) => patch({ cubingMode: v })}
+                options={[
+                  { value: 'APP', label: 'APP — automatic bin packing' },
+                  { value: 'ONE_TO_ONE', label: 'ONE_TO_ONE — host carton instructions' },
+                ]}
+              />
+            </div>
+            <div className={styles.field}>
+              <label>
+                Default shipper{' '}
+                <InfoTip
+                  text="Optional fallback shipper for the warehouse. Cubing still chooses per order from all active shippers."
+                  example="None"
+                />
+              </label>
+              <Select
+                ariaLabel="Default shipper"
+                value={config.defaultShipperId ?? ''}
+                onChange={(v) => patch({ defaultShipperId: v || null })}
+                options={[
+                  { value: '', label: 'None' },
+                  ...active.map((s) => ({ value: s.id ?? '', label: s.code })),
+                ]}
+              />
+            </div>
+          </div>
+
+          <div className={styles.field} style={{ marginTop: '.5rem' }}>
+            <label>
+              Allowed pick types{' '}
+              <InfoTip
+                text="Which pick granularities allocation may break an order line down into before cubing."
+                example="CASE, SPLIT_CASE, EACH"
+              />
+            </label>
+            <div className={styles.toggleRow}>
+              {['CASE', 'SPLIT_CASE', 'EACH'].map((t) => (
+                <label key={t} className="md-check">
+                  <input
+                    type="checkbox"
+                    checked={config.allowedPickTypes.includes(t)}
+                    onChange={() => togglePickType(t)}
+                  />
+                  {t.replace(/_/g, ' ')}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.actions}>
+            <button className="btn btn-primary" onClick={save} disabled={saving}>
+              {saving ? 'Saving…' : 'Save cubing rules'}
+            </button>
+            {saved && <span className={styles.savedNote}>Saved.</span>}
+          </div>
+
+          <div className={styles.sectionHead} style={{ marginTop: '1.5rem' }}>
+            <div>
+              <h3>Shippers ({active.length} active)</h3>
+              <p className={styles.fieldHint}>
+                The containers cubing packs into. Fill rate is the usable fraction of inner volume;
+                the usable volume column already applies it. Archived shippers are excluded from cubing.
+              </p>
+            </div>
+            <button className="btn btn-outline btn-sm" onClick={() => setEditing(newShipper())}>
+              Add shipper
+            </button>
+          </div>
+
+          {editing && (
+            <ShipperForm
+              warehouseId={warehouseId}
+              shipper={editing}
+              onCancel={() => setEditing(null)}
+              onSaved={() => {
+                setEditing(null)
+                reloadShippers()
+              }}
+            />
+          )}
+
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Type</th>
+                <th>Inner L×W×H (mm)</th>
+                <th>Fill rate</th>
+                <th>Usable vol (L)</th>
+                <th>Tare (g)</th>
+                <th>Max gross (g)</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shippers.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className={styles.muted}>
+                    No shippers for this warehouse. Add one above, or enable demo mode to seed some.
+                  </td>
+                </tr>
+              ) : (
+                [...shippers]
+                  .sort(
+                    (a, b) =>
+                      (a.status === 'ARCHIVED' ? 1 : 0) - (b.status === 'ARCHIVED' ? 1 : 0) ||
+                      a.code.localeCompare(b.code),
+                  )
+                  .map((s) => (
+                    <tr key={s.id ?? s.code} style={s.status === 'ARCHIVED' ? { opacity: 0.5 } : undefined}>
+                      <td>{s.code}</td>
+                      <td>{s.shipperType ?? '—'}</td>
+                      <td>
+                        {s.lengthMm ?? '·'}×{s.widthMm ?? '·'}×{s.heightMm ?? '·'}
+                      </td>
+                      <td>{fillPct(s)}</td>
+                      <td>{usableVolumeL(s)}</td>
+                      <td>{s.tareWeightG ?? '—'}</td>
+                      <td>{s.maxWeightG ?? '—'}</td>
+                      <td>{s.status ?? 'ACTIVE'}</td>
+                      <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setEditing({ ...s })}>
+                          Edit
+                        </button>{' '}
+                        {s.status !== 'ARCHIVED' && (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => onArchive(s)}
+                            disabled={busyId === s.id}
+                          >
+                            {busyId === s.id ? '…' : 'Archive'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+              )}
+            </tbody>
+          </table>
+        </>
+      )}
+    </section>
+  )
+}
+
+// Inline add/edit form for a shipper (cubing container). Fill rate is entered as a percentage and
+// stored as a 0..1 fraction.
+function ShipperForm({
+  warehouseId,
+  shipper,
+  onCancel,
+  onSaved,
+}: {
+  warehouseId: string
+  shipper: Shipper
+  onCancel: () => void
+  onSaved: () => void
+}) {
+  const [s, setS] = useState<Shipper>(shipper)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const isNew = !s.id
+
+  function set(p: Partial<Shipper>) {
+    setS((cur) => ({ ...cur, ...p }))
+  }
+
+  async function save() {
+    if (!s.code.trim()) {
+      setError('Code is required.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      if (isNew) await createShipper(warehouseId, s)
+      else await updateShipper(warehouseId, s.id as string, s)
+      onSaved()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const fillPctValue = Math.round((s.maxFillLevel ?? 1) * 100)
+
+  return (
+    <div className="glass" style={{ padding: '1rem 1.25rem', margin: '0 0 1rem' }}>
+      <h3 style={{ marginTop: 0 }}>{isNew ? 'Add shipper' : `Edit ${s.code}`}</h3>
+      {error && <div className="alert-danger" style={{ marginBottom: '.75rem' }}>{error}</div>}
+      <div className={styles.grid}>
+        <div className={styles.field}>
+          <label>Code</label>
+          <input className="form-control" value={s.code} onChange={(e) => set({ code: e.target.value })} />
+        </div>
+        <div className={styles.field}>
+          <label>Name</label>
+          <input className="form-control" value={s.name ?? ''} onChange={(e) => set({ name: e.target.value })} />
+        </div>
+        <div className={styles.field}>
+          <label>Type</label>
+          <Select
+            ariaLabel="Shipper type"
+            value={s.shipperType ?? 'CARTON'}
+            onChange={(v) => set({ shipperType: v })}
+            options={['BOX', 'TOTE', 'BAG', 'CARTON', 'PALLET'].map((t) => ({ value: t, label: t }))}
+          />
+        </div>
+      </div>
+      <div className={styles.grid}>
+        <NumberField label="Inner length (mm)" value={s.lengthMm ?? 0} step="1" onChange={(v) => set({ lengthMm: v })} />
+        <NumberField label="Inner width (mm)" value={s.widthMm ?? 0} step="1" onChange={(v) => set({ widthMm: v })} />
+        <NumberField label="Inner height (mm)" value={s.heightMm ?? 0} step="1" onChange={(v) => set({ heightMm: v })} />
+      </div>
+      <div className={styles.grid}>
+        <NumberField
+          label={<>Fill rate (%) <InfoTip text="Usable fraction of the inner volume cubing may fill (accounts for void/dunnage)." example="85" /></>}
+          value={fillPctValue}
+          step="1"
+          onChange={(v) => set({ maxFillLevel: Math.max(0, Math.min(100, v)) / 100 })}
+        />
+        <NumberField label="Tare weight (g)" value={s.tareWeightG ?? 0} step="1" onChange={(v) => set({ tareWeightG: v })} />
+        <NumberField label="Max gross weight (g)" value={s.maxWeightG ?? 0} step="1" onChange={(v) => set({ maxWeightG: v })} />
+      </div>
+      <div className={styles.field} style={{ maxWidth: 220 }}>
+        <label>Status</label>
+        <Select
+          ariaLabel="Status"
+          value={s.status ?? 'ACTIVE'}
+          onChange={(v) => set({ status: v })}
+          options={[
+            { value: 'ACTIVE', label: 'ACTIVE' },
+            { value: 'ARCHIVED', label: 'ARCHIVED' },
+          ]}
+        />
+      </div>
+      <div className={styles.actions}>
+        <button className="btn btn-primary" onClick={save} disabled={saving}>
+          {saving ? 'Saving…' : isNew ? 'Create shipper' : 'Save shipper'}
+        </button>
+        <button className="btn btn-ghost" onClick={onCancel} disabled={saving}>
+          Cancel
+        </button>
+      </div>
+    </div>
   )
 }
 

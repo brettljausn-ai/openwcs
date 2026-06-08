@@ -280,6 +280,99 @@ export async function disableDemo(warehouseId: string): Promise<DemoResult> {
   return (await demoPost('/api/master-data/demo/disable')) as DemoResult
 }
 
+// ---- cubing config (warehouse fulfillment config + shipper catalog) ----
+export interface FulfillmentConfig {
+  id?: string
+  warehouseId?: string
+  allowedPickTypes: string[]
+  cubingMode: string // APP | ONE_TO_ONE
+  defaultShipperId?: string | null
+  batchEnabled: boolean
+  batchMaxPieces: number
+  batchMaxOrders: number
+  pickToteShipperId?: string | null
+  defaultLabelTemplateCode?: string | null
+}
+
+export interface Shipper {
+  id?: string
+  warehouseId?: string
+  code: string
+  name?: string | null
+  shipperType?: string | null
+  lengthMm?: number | null
+  widthMm?: number | null
+  heightMm?: number | null
+  tareWeightG?: number | null
+  maxFillLevel?: number | null // usable fraction 0..1
+  maxWeightG?: number | null
+  status?: string
+}
+
+export function defaultFulfillmentConfig(warehouseId: string): FulfillmentConfig {
+  return {
+    warehouseId,
+    allowedPickTypes: ['CASE', 'SPLIT_CASE', 'EACH'],
+    cubingMode: 'APP',
+    defaultShipperId: null,
+    batchEnabled: false,
+    batchMaxPieces: 1,
+    batchMaxOrders: 12,
+    pickToteShipperId: null,
+    defaultLabelTemplateCode: null,
+  }
+}
+
+export async function getFulfillmentConfig(warehouseId: string): Promise<FulfillmentConfig | null> {
+  const res = await fetch(`/api/master-data/warehouses/${encodeURIComponent(warehouseId)}/fulfillment-config`)
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return (await res.json()) as FulfillmentConfig
+}
+
+export async function saveFulfillmentConfig(
+  warehouseId: string,
+  config: FulfillmentConfig,
+): Promise<FulfillmentConfig> {
+  return ok(
+    await fetch(`/api/master-data/warehouses/${encodeURIComponent(warehouseId)}/fulfillment-config`, {
+      method: 'PUT',
+      headers: json,
+      body: JSON.stringify({ ...config, warehouseId }),
+    }),
+  )
+}
+
+export async function listShippers(warehouseId: string): Promise<Shipper[]> {
+  return ok(await fetch(`/api/master-data/shippers?warehouseId=${encodeURIComponent(warehouseId)}`))
+}
+
+export async function createShipper(warehouseId: string, shipper: Shipper): Promise<Shipper> {
+  return ok(
+    await fetch('/api/master-data/shippers', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ ...shipper, warehouseId }),
+    }),
+  )
+}
+
+export async function updateShipper(warehouseId: string, id: string, shipper: Shipper): Promise<Shipper> {
+  return ok(
+    await fetch(`/api/master-data/shippers/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: json,
+      body: JSON.stringify({ ...shipper, warehouseId }),
+    }),
+  )
+}
+
+/** Soft-delete (sets status ARCHIVED). */
+export async function archiveShipper(id: string): Promise<void> {
+  const res = await fetch(`/api/master-data/shippers/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+}
+
 // ---- hardware emulator mode (global admin toggle) ----
 export interface EmulatorStatus {
   enabled: boolean
