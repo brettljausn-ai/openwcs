@@ -236,6 +236,12 @@ services:
       SPRING_DATASOURCE_PASSWORD: openwcs
       OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
       OPENWCS_TXLOG_BASE_URL: http://txlog:8086
+      # ASRS count-tote routing (emulator mode): check the emulator flag + resolve storage block/SKU
+      # (master-data), request the tote retrieval (flow-orchestrator) and pin it to a GTP counting
+      # station (gtp). Without these the routing silently no-ops (in-container default is localhost).
+      OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
+      OPENWCS_GTP_BASE_URL: http://gtp:8094
+      OPENWCS_FLOW_ORCHESTRATOR_BASE_URL: http://flow-orchestrator:8085
 
   flow-orchestrator:
     restart: unless-stopped
