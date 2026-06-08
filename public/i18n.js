@@ -4231,9 +4231,31 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') open(false); });
   }
 
+  function initNavMenu() {
+    var nav = document.querySelector('header.nav');
+    var toggle = document.getElementById('nav-toggle');
+    if (!nav || !toggle) return;
+
+    function set(open) {
+      nav.classList.toggle('open', open);
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      set(!nav.classList.contains('open'));
+    });
+    var links = nav.querySelectorAll('.nav-links a');
+    for (var i = 0; i < links.length; i++) {
+      links[i].addEventListener('click', function () { set(false); });
+    }
+    document.addEventListener('click', function (e) { if (!nav.contains(e.target)) set(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') set(false); });
+  }
+
   function init() {
     apply(detect(), false);
     initLangMenu();
+    initNavMenu();
     reveal();
   }
 
