@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Select from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import { useSidebar } from '../shell/SidebarContext'
@@ -302,6 +301,104 @@ function OperatorConsole({
   const [activeMode, setActiveMode] = useState<OperatingMode>(() => defaultMode(modes))
   const [remembered, setRemembered] = useState<boolean>(() => readRemembered()?.stationId === stationId)
 
+  // --- Inbound queue (lifted from the old top panel). We poll the station queue here so the console
+  // can auto-present the arrived head tote, and pass the entries down to the right-side drawer.
+  const [queue, setQueue] = useState<StationQueueEntry[]>([])
+  const [queueLoaded, setQueueLoaded] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [presentError, setPresentError] = useState<string | null>(null)
+
+  // The head tote = first QUEUED entry (a tote that has physically arrived and waits to be worked).
+  const head = useMemo(() => queue.find((e) => e.status === 'QUEUED') ?? null, [queue])
+  const inboundCount = queue.length
+
+  // Guard so we present each head exactly once: holds the entry id we have already presented (or are
+  // presenting). Cleared when the cycle closes so the next head auto-presents.
+  const presentedIdRef = useRef<string | null>(null)
+  // Guards a single in-flight present call (the poll fires every 3s; don't stack presents).
+  const presentingRef = useRef(false)
+
+  const refreshQueue = useCallback(async () => {
+    try {
+      setQueue(await getStationQueue(stationId))
+    } catch {
+      /* transient — keep the last good snapshot, try again next tick */
+    } finally {
+      setQueueLoaded(true)
+    }
+  }, [stationId])
+
+  useEffect(() => {
+    let cancelled = false
+    const run = () => {
+      if (!cancelled) refreshQueue()
+    }
+    run()
+    const timer = setInterval(run, QUEUE_POLL_MS)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [refreshQueue])
+
+  // Auto-present the arrived head tote for PICKING: when no cycle is active and we have not already
+  // presented this head, start a cycle from it. The presented-id ref makes this run once per head.
+  useEffect(() => {
+    if (activeMode !== 'PICKING') return
+    if (cycle) return
+    if (!head) return
+    if (presentedIdRef.current === head.id) return
+    if (presentingRef.current) return
+    presentingRef.current = true
+    presentedIdRef.current = head.id
+    setPresentError(null)
+    let cancelled = false
+    presentStock(stationId, { stockNodeId: null, stockHuId: head.huId, skuId: head.skuId, qty: head.qty })
+      .then((c) => {
+        if (!cancelled) setCycle(c)
+      })
+      .catch((e) => {
+        // No open demand in the demo, etc. Surface it but still show the tote so the operator can
+        // mark it done (which completes the entry and advances). Keep the presented-id set so we do
+        // not loop re-presenting the same failing head every tick.
+        if (!cancelled) setPresentError(String(e instanceof Error ? e.message : e))
+      })
+      .finally(() => {
+        presentingRef.current = false
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeMode, cycle, head, stationId])
+
+  // Complete the current head entry and reset the present guards so the next QUEUED head auto-presents.
+  const completeHeadAndAdvance = useCallback(async () => {
+    const id = head?.id ?? presentedIdRef.current
+    setCycle(null)
+    presentedIdRef.current = null
+    setPresentError(null)
+    if (id) {
+      try {
+        await completeQueueEntry(id)
+      } catch {
+        /* best effort; the next poll reconciles the queue */
+      }
+    }
+    await refreshQueue()
+  }, [head, refreshQueue])
+
+  // When a PICKING cycle is closed (CycleView signals onChange(null)), complete + advance.
+  const handleCycleChange = useCallback(
+    (c: WorkCycle | null) => {
+      if (c) {
+        setCycle(c)
+        return
+      }
+      completeHeadAndAdvance()
+    },
+    [completeHeadAndAdvance],
+  )
+
   // Drain switch. Seed from the workplace if it happens to carry an acceptingWork flag, else default
   // to accepting work. A deactivated station finishes its queued totes but takes no new ones.
   const [acceptingWork, setAcceptingWork] = useState<boolean>(
@@ -495,17 +592,72 @@ function OperatorConsole({
         </div>
       )}
 
-      <InboundQueuePanel stationId={stationId} />
-
       {activeMode === 'PICKING' ? (
-        cycle ? (
-          <CycleView cycle={cycle} onChange={setCycle} warehouseId={workplace.warehouseId} />
+        head || cycle ? (
+          <>
+            <ActiveTotePanel
+              head={head}
+              cycle={cycle}
+              warehouseId={workplace.warehouseId}
+              error={presentError}
+            />
+            {cycle && (
+              <CycleView cycle={cycle} onChange={handleCycleChange} warehouseId={workplace.warehouseId} />
+            )}
+            {!cycle && presentError && (
+              <button
+                className="btn btn-primary btn-lg"
+                style={{ alignSelf: 'flex-start' }}
+                onClick={completeHeadAndAdvance}
+              >
+                Mark tote done & advance
+              </button>
+            )}
+          </>
         ) : (
-          <PresentPanel workplace={workplace} onStarted={setCycle} />
+          <WaitingForTotes loaded={queueLoaded} />
+        )
+      ) : activeMode === 'STOCK_COUNT' ? (
+        head ? (
+          <>
+            <ActiveTotePanel head={head} cycle={null} warehouseId={workplace.warehouseId} error={null} />
+            <button
+              className="btn btn-primary btn-lg"
+              style={{ alignSelf: 'flex-start' }}
+              onClick={completeHeadAndAdvance}
+            >
+              Done counting
+            </button>
+          </>
+        ) : (
+          <WaitingForTotes loaded={queueLoaded} />
         )
       ) : (
         <ModePlaceholder mode={activeMode} />
       )}
+
+      <QueueDrawer
+        entries={queue}
+        headId={head?.id ?? null}
+        count={inboundCount}
+        open={drawerOpen}
+        onToggle={() => setDrawerOpen((v) => !v)}
+      />
+    </div>
+  )
+}
+
+// Calm idle state shown when no tote is at the station and nothing is in progress.
+function WaitingForTotes({ loaded }: { loaded: boolean }) {
+  return (
+    <div className="glass" style={{ padding: '2.5rem', maxWidth: 560, textAlign: 'center' }}>
+      <div style={{ fontSize: '2rem', marginBottom: '.5rem' }}>📦</div>
+      <h2 style={{ marginTop: 0 }}>Waiting for totes</h2>
+      <p style={{ color: 'var(--text-dim)', margin: 0 }}>
+        {loaded
+          ? 'None inbound at this station yet.'
+          : 'Checking the station queue…'}
+      </p>
     </div>
   )
 }
@@ -520,39 +672,23 @@ function ModePlaceholder({ mode }: { mode: OperatingMode }) {
   )
 }
 
-// The physical tote queue at the station. Polls the station queue while the console is open and lets
-// the operator work the head QUEUED tote off in arrival sequence with a Done button.
-function InboundQueuePanel({ stationId }: { stationId: string }) {
-  const [entries, setEntries] = useState<StationQueueEntry[]>([])
-  const [loaded, setLoaded] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [completing, setCompleting] = useState<string | null>(null)
+// --- Inbound queue drawer: a right-side fold-out, folded by default -------------------------------
+// A slim handle on the right edge shows the inbound count; clicking folds the panel out from the
+// right over a backdrop. It lists the inbound totes in arrival order with the head highlighted.
+function QueueDrawer({
+  entries,
+  headId,
+  count,
+  open,
+  onToggle,
+}: {
+  entries: StationQueueEntry[]
+  headId: string | null
+  count: number
+  open: boolean
+  onToggle: () => void
+}) {
   const [now, setNow] = useState(() => Date.now())
-
-  const refresh = useCallback(async () => {
-    try {
-      setEntries(await getStationQueue(stationId))
-      setError(null)
-    } catch (e) {
-      setError(String(e instanceof Error ? e.message : e))
-    } finally {
-      setLoaded(true)
-    }
-  }, [stationId])
-
-  // Poll the queue every ~3s while mounted; clean up on unmount.
-  useEffect(() => {
-    let cancelled = false
-    const run = () => {
-      if (!cancelled) refresh()
-    }
-    run()
-    const timer = setInterval(run, QUEUE_POLL_MS)
-    return () => {
-      cancelled = true
-      clearInterval(timer)
-    }
-  }, [refresh])
 
   // Tick a local clock every second so in-transit ETAs count down smoothly between polls.
   useEffect(() => {
@@ -560,50 +696,99 @@ function InboundQueuePanel({ stationId }: { stationId: string }) {
     return () => clearInterval(timer)
   }, [])
 
-  async function complete(entry: StationQueueEntry) {
-    setCompleting(entry.id)
-    try {
-      await completeQueueEntry(entry.id)
-      await refresh()
-    } catch (e) {
-      setError(String(e instanceof Error ? e.message : e))
-    } finally {
-      setCompleting(null)
-    }
-  }
-
-  // The head QUEUED entry is the one the operator should work next.
-  const headId = entries.find((e) => e.status === 'QUEUED')?.id ?? null
-
   return (
-    <div className="glass" style={{ padding: '1.25rem', marginBottom: '1.25rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.6rem' }}>
-        <span className="eyebrow">Inbound queue</span>
-        <span className="badge badge-info">{entries.length} inbound</span>
-      </div>
-
-      {error && <p className="badge badge-danger" style={{ marginTop: '.8rem' }}>{error}</p>}
-
-      {loaded && entries.length === 0 ? (
-        <p style={{ color: 'var(--text-dim)', marginTop: '.8rem', marginBottom: 0 }}>
-          No totes inbound — the station queue is clear.
-        </p>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '.55rem', marginTop: '.9rem' }}>
-          {entries.map((entry, i) => (
-            <QueueRow
-              key={entry.id}
-              entry={entry}
-              position={i + 1}
-              isHead={entry.id === headId}
-              now={now}
-              completing={completing === entry.id}
-              onComplete={() => complete(entry)}
-            />
-          ))}
-        </div>
+    <>
+      {/* Slim handle pinned to the right edge. Hidden behind the panel when open. */}
+      {!open && (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={`Inbound queue, ${count} totes`}
+          style={{
+            position: 'fixed',
+            top: '50%',
+            right: 0,
+            transform: 'translateY(-50%)',
+            zIndex: 40,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '.4rem',
+            padding: '.9rem .55rem',
+            border: '1px solid var(--herbal-lime)',
+            borderRight: 'none',
+            borderRadius: '12px 0 0 12px',
+            background: 'rgba(14, 20, 12, .85)',
+            backdropFilter: 'blur(10px)',
+            color: 'var(--text)',
+            cursor: 'pointer',
+            writingMode: 'vertical-rl',
+            fontSize: '.85rem',
+            fontWeight: 600,
+            letterSpacing: '.04em',
+            boxShadow: '0 0 18px rgba(141, 198, 63, .25)',
+          }}
+        >
+          <span style={{ transform: 'rotate(180deg)' }}>Queue ({count})</span>
+        </button>
       )}
-    </div>
+
+      {/* Backdrop + sliding panel. */}
+      {open && (
+        <div
+          onClick={onToggle}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 45,
+            background: 'rgba(0, 0, 0, .4)',
+          }}
+        />
+      )}
+      <aside
+        aria-hidden={!open}
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 46,
+          width: 'min(380px, 92vw)',
+          transform: open ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform .25s ease',
+          background: 'rgba(14, 20, 12, .96)',
+          backdropFilter: 'blur(14px)',
+          borderLeft: '1px solid var(--herbal-lime)',
+          boxShadow: '-12px 0 40px rgba(0, 0, 0, .45)',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '1.25rem',
+          overflowY: 'auto',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.6rem', marginBottom: '1rem' }}>
+          <span className="eyebrow">Inbound queue</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+            <span className="badge badge-info">{count} inbound</span>
+            <button className="btn btn-ghost btn-sm" onClick={onToggle} aria-label="Close inbound queue">
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {entries.length === 0 ? (
+          <p style={{ color: 'var(--text-dim)', margin: 0 }}>
+            No totes inbound. The station queue is clear.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.55rem' }}>
+            {entries.map((entry, i) => (
+              <QueueRow key={entry.id} entry={entry} position={i + 1} isHead={entry.id === headId} now={now} />
+            ))}
+          </div>
+        )}
+      </aside>
+    </>
   )
 }
 
@@ -612,15 +797,11 @@ function QueueRow({
   position,
   isHead,
   now,
-  completing,
-  onComplete,
 }: {
   entry: StationQueueEntry
   position: number
   isHead: boolean
   now: number
-  completing: boolean
-  onComplete: () => void
 }) {
   const inTransit = entry.status === 'IN_TRANSIT'
   const etaSeconds = Math.max(0, Math.round((new Date(entry.arrivalAt).getTime() - now) / 1000))
@@ -663,11 +844,6 @@ function QueueRow({
           {isHead && <span style={{ fontSize: '.75rem', color: 'var(--herbal-lime)' }}>next</span>}
         </div>
       </div>
-      {isHead && (
-        <button className="btn btn-primary" onClick={onComplete} disabled={completing} style={{ flexShrink: 0 }}>
-          {completing ? 'Done…' : 'Done'}
-        </button>
-      )}
     </div>
   )
 }
@@ -678,122 +854,100 @@ function seedAcceptingWork(workplace: Workplace): boolean {
   return typeof flag === 'boolean' ? flag : true
 }
 
-// Present a stock HU to start a PICKING cycle (the put-to-light batch).
-function PresentPanel({ workplace, onStarted }: { workplace: Workplace; onStarted: (c: WorkCycle) => void }) {
-  const stockNodes = workplace.nodes.filter((n) => n.role === 'STOCK')
-  const [stockNodeId, setStockNodeId] = useState(stockNodes[0]?.id ?? '')
-  const [stockHuId, setStockHuId] = useState('')
-  const [skuId, setSkuId] = useState('')
-  const [qty, setQty] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [hus, setHus] = useState<HandlingUnit[]>([])
+// --- Active tote at the station: the focal element of the queue-driven console --------------------
+// Shows the SKU that is "on the tote" so the operator reads what to do; they do not pick it. The HU
+// code, qty and SKU come from the head queue entry; the SKU code/description/image are resolved from
+// master data. When a cycle is running we prefer the cycle's HU/SKU/qty so the panel stays correct
+// after the head entry has been worked off the queue.
+function ActiveTotePanel({
+  head,
+  cycle,
+  warehouseId,
+  error,
+}: {
+  head: StationQueueEntry | null
+  cycle: WorkCycle | null
+  warehouseId: string
+  error: string | null
+}) {
   const [skus, setSkus] = useState<Sku[]>([])
+  const [hus, setHus] = useState<HandlingUnit[]>([])
 
-  // Load the warehouse's handling units and SKUs so the operator picks by code (not raw UUIDs).
   useEffect(() => {
     let cancelled = false
-    listHandlingUnits(workplace.warehouseId)
-      .then((list) => {
-        if (!cancelled) setHus(list)
-      })
-      .catch(() => {
-        if (!cancelled) setHus([])
-      })
     listSkus()
-      .then((list) => {
-        if (!cancelled) setSkus(list)
-      })
-      .catch(() => {
-        if (!cancelled) setSkus([])
-      })
+      .then((l) => !cancelled && setSkus(l))
+      .catch(() => !cancelled && setSkus([]))
+    listHandlingUnits(warehouseId)
+      .then((l) => !cancelled && setHus(l))
+      .catch(() => !cancelled && setHus([]))
     return () => {
       cancelled = true
     }
-  }, [workplace.warehouseId])
+  }, [warehouseId])
 
-  const huOptions = useMemo(
-    () =>
-      hus
-        .filter((h): h is HandlingUnit & { huId: string } => !!h.huId)
-        .map((h) => ({ value: h.huId, label: h.code })),
-    [hus],
-  )
-  const skuOptions = useMemo(
-    () =>
-      skus
-        .filter((s): s is Sku & { id: string } => !!s.id)
-        .map((s) => ({ value: s.id, label: s.code + (s.description ? ' (' + s.description + ')' : '') })),
-    [skus],
-  )
+  // Prefer the live cycle values once a cycle is running; otherwise read from the head entry.
+  const skuId = cycle?.skuId ?? head?.skuId ?? null
+  const huId = cycle?.stockHuId ?? head?.huId ?? null
+  const qty = cycle?.presentedQty ?? head?.qty ?? null
 
-  async function present() {
-    setBusy(true)
-    setError(null)
-    try {
-      const cycle = await presentStock(workplace.id, {
-        stockNodeId: stockNodeId || null,
-        stockHuId: stockHuId.trim(),
-        skuId: skuId.trim(),
-        qty: Number(qty),
-      })
-      onStarted(cycle)
-    } catch (e) {
-      setError(String(e instanceof Error ? e.message : e))
-    } finally {
-      setBusy(false)
-    }
-  }
+  const sku = useMemo(() => (skuId ? skus.find((s) => s.id === skuId) ?? null : null), [skus, skuId])
+  const huCode = useMemo(() => {
+    if (head?.huId === huId && head?.huCode) return head.huCode
+    const match = hus.find((h) => h.huId === huId)
+    return match?.code ?? null
+  }, [hus, huId, head])
 
-  const ready = stockHuId.trim() && skuId.trim() && Number(qty) > 0
+  const skuCode = sku?.code ?? head?.skuCode ?? null
+
   return (
-    <div className="glass" style={{ padding: '1.5rem', maxWidth: 640 }}>
-      <span className="eyebrow">Present stock</span>
-      <p style={{ color: 'var(--text-dim)', marginTop: '.5rem' }}>
-        Scan a stock HU presented at the station to build its put-to-light list across the open
-        destinations.
-      </p>
-      <div style={{ display: 'grid', gap: '.9rem', marginTop: '1rem' }}>
-        {stockNodes.length > 1 && (
-          <Field label={<>Stock node <InfoTip text="The station feed location where the presented stock handling unit sits. Only shown when the workplace has more than one stock node." example="STOCK-IN-1" /></>}>
-            <Select
-              ariaLabel="Stock node"
-              value={stockNodeId}
-              onChange={(v) => setStockNodeId(v)}
-              options={stockNodes.map((n) => ({ value: n.id, label: n.code }))}
-            />
-          </Field>
-        )}
-        <Field label={<>Stock HU <InfoTip text="The stock handling unit (carton/tote/pallet) presented at the station to be distributed across the open destinations. Pick it by its code." example="HU-000123" /></>}>
-          <Select
-            ariaLabel="Stock HU"
-            value={stockHuId}
-            onChange={(v) => setStockHuId(v)}
-            options={huOptions}
-            placeholder="Select a handling unit…"
-          />
-        </Field>
-        <Field label={<>SKU <InfoTip text="The article contained in the presented stock HU. Its open demand drives which put-to-light tasks are generated. Pick it by its code." example="SKU-1001" /></>}>
-          <Select
-            ariaLabel="SKU"
-            value={skuId}
-            onChange={(v) => setSkuId(v)}
-            options={skuOptions}
-            placeholder="Select a SKU…"
-          />
-        </Field>
-        <Field label={<>Quantity <InfoTip text="How many units of this SKU are available in the presented stock HU to distribute across the puts." example="24" /></>}>
-          <input className="form-control" type="number" min="0" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="0" />
-        </Field>
-      </div>
-      {error && (
-        <p className="badge badge-danger" style={{ marginTop: '.9rem' }}>
-          {error}
-        </p>
+    <div
+      className="glass"
+      style={{
+        padding: '1.5rem',
+        marginBottom: '1.25rem',
+        display: 'flex',
+        gap: '1.75rem',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        borderColor: 'rgba(141, 198, 63, .35)',
+      }}
+    >
+      {sku?.imageUrl && (
+        <img
+          src={sku.imageUrl}
+          alt={skuCode ?? 'SKU'}
+          style={{ width: 132, height: 132, objectFit: 'cover', borderRadius: 12, border: '1px solid var(--glass-border)' }}
+          onError={(e) => {
+            ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+          }}
+        />
       )}
-      <button className="btn btn-primary btn-lg btn-block" style={{ marginTop: '1.1rem' }} onClick={present} disabled={!ready || busy}>
-        {busy ? 'Presenting…' : 'Present & light puts'}
-      </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '.45rem', minWidth: 220, flex: 1 }}>
+        <span className="eyebrow">Active tote at station</span>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem', flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: '1.4rem' }}>{huCode ?? 'Tote'}</strong>
+          {qty != null && (
+            <span style={{ color: 'var(--herbal-lime)', fontWeight: 700, fontSize: '1.1rem' }}>×{qty}</span>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '.5rem', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>{skuCode ?? 'SKU'}</span>
+          {sku?.description && (
+            <span style={{ color: 'var(--text-dim)', fontSize: '.9rem' }}>{sku.description}</span>
+          )}
+        </div>
+        {qty != null && (
+          <div style={{ color: 'var(--text-dim)', fontSize: '.85rem' }}>
+            {qty} {qty === 1 ? 'unit' : 'units'} on the tote
+          </div>
+        )}
+        {error && (
+          <p className="badge badge-danger" style={{ marginTop: '.4rem', marginBottom: 0 }}>
+            {error}
+          </p>
+        )}
+      </div>
     </div>
   )
 }
@@ -1084,15 +1238,6 @@ function PutCard({ put, onConfirm }: { put: PutInstruction; onConfirm: (p: PutIn
 }
 
 // --- small helpers --------------------------------------------------------------------------------
-
-function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
-      <span style={{ fontSize: '.8rem', color: 'var(--text-dim)' }}>{label}</span>
-      {children}
-    </label>
-  )
-}
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
