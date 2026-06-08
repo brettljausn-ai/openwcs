@@ -50,6 +50,28 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Availability' }
 
+  /locations/occupied:
+    post:
+      tags: [Stock]
+      summary: Which of the given locations are physically occupied
+      description: >
+        Returns the subset of the requested locations that currently hold any stock row or
+        handling unit (live occupancy, not a slotting ledger). Slotting put-away uses this to
+        score only genuinely-empty locations as candidates. Empty / null input returns an
+        empty list.
+      operationId: occupiedLocations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OccupiedLocationsRequest' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OccupiedLocationsResult' }
+
   /reservations:
     post:
       tags: [Reservations]
@@ -166,6 +188,20 @@ components:
         onHand: { type: number, description: Sum of AVAILABLE stock. }
         reserved: { type: number, description: Sum of HELD reservations. }
         availableToPromise: { type: number, description: onHand − reserved. }
+    OccupiedLocationsRequest:
+      type: object
+      properties:
+        locationIds:
+          type: array
+          items: { type: string, format: uuid }
+          description: The locations to test for physical occupancy.
+    OccupiedLocationsResult:
+      type: object
+      properties:
+        occupiedLocationIds:
+          type: array
+          items: { type: string, format: uuid }
+          description: The subset of the requested locations that hold any stock row or handling unit.
     ReserveRequest:
       type: object
       required: [warehouseId, skuId, qty]

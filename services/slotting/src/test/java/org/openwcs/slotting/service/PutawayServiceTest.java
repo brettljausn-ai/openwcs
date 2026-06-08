@@ -94,6 +94,33 @@ class PutawayServiceTest {
     }
 
     @Test
+    void skipsPhysicallyOccupiedLocationEvenWithoutAnAssignment() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID block = UUID.randomUUID();
+        UUID near = UUID.randomUUID();
+        UUID far = UUID.randomUUID();
+
+        StorageProfile profile = new StorageProfile();
+        profile.setWarehouseId(wh);
+        profile.setSkuId(sku);
+        profile.setBlockId(block);
+        profile.setVelocityClass("A"); // fast mover → would prefer the nearest exit
+        profiles.save(profile);
+
+        when(masterData.storageLocations(eq(wh), eq(block)))
+                .thenReturn(List.of(loc(far, "A1", 3, 10.0), loc(near, "A1", 3, 1.0)));
+        // The preferred (near) slot physically holds stock/HU despite having no slotting assignment.
+        when(inventory.occupiedLocations(eq(wh), any())).thenReturn(java.util.Set.of(near));
+
+        PutawayDecision decision = service.assign(
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, null, null, false, null));
+
+        assertThat(decision.mode()).isEqualTo("RESERVE");
+        assertThat(decision.locationId()).isEqualTo(far);   // near is occupied → fall back to far
+    }
+
+    @Test
     void directToPickWhenForwardFaceHasHeadroom() {
         UUID wh = UUID.randomUUID();
         UUID sku = UUID.randomUUID();
