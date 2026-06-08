@@ -227,6 +227,16 @@ public class CountingService {
 
         BigDecimal expected = line.getExpectedQty() == null ? BigDecimal.ZERO : line.getExpectedQty();
         String state = line.getStationCountState();
+
+        // Already finished: never re-process a terminal line (guards against a double stock adjustment
+        // to the host if the endpoint is called again after the tote was completed).
+        if ("ADJUSTED".equals(state)) {
+            return new StationCountResult("ADJUSTED", "This tote was already counted and adjusted.");
+        }
+        if ("ACCEPTED".equals(state)) {
+            return new StationCountResult("ACCEPTED", "This tote was already counted.");
+        }
+
         boolean firstCount = !"RECOUNT".equals(state) || line.getStationLastCount() == null;
 
         if (firstCount) {
