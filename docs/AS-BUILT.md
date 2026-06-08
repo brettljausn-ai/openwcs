@@ -1,6 +1,6 @@
 # openWCS — As-Built Documentation
 
-_Last updated: 2026-06-07_
+_Last updated: 2026-06-08 (hardware emulator mode + demo quick-seed)_
 
 What is **actually implemented** today (not the target architecture). Design intent:
 [`build.md`](../build.md); decisions: [`docs/adr/`](./adr); live progress:
@@ -27,7 +27,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | allocation | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing, batch picking. |
 | slotting | 8093 | ✅ | Put-away assignment for automated rack/GTP blocks (weighted scorer: velocity-to-exit · same-SKU lane consolidation · aisle redundancy · fill balance), manual pick-face slotting + min/max replenishment (opportunistic top-off), and off-peak re-slotting. ADR 0003. |
 | gtp | 8094 | ✅ | Goods-to-person station execution: configure stations + STOCK/ORDER nodes, open order destinations (bind order HU + demand), present a stock HU → put-to-light put-list across destinations (one HU serves many orders: the batch), confirm puts (incl. short), complete destinations. ORDER_LOCATION (conveyor HU-in-location) and PUT_WALL (lit rack cubbies, typical AMR) destination topology share one engine. Orthogonal **operating modes** (PICKING / DECANTING / STOCK_COUNT / QC / MAINTENANCE): each cycle runs one and carries mode-appropriate task lines (decant-moves / count entries+variance / PASS-FAIL-HOLD verdicts / OK-DEFECTIVE-REPAIR checks); seams to slotting put-away (decant) and inventory StockAdjusted (count). ADR 0006. |
-| counting | 8095 | ✅ | Cycle / stock counting: count tasks (scope LOCATION/SKU/ZONE/BLOCK, BLIND vs VARIANCE), ABC-cadence schedule generator, capture counts → variance vs an inventory-expected snapshot → within-tolerance auto-approve (posts a `StockAdjusted` event) or out-of-tolerance recount; blind hides expected/variance. Seams: GTP STOCK_COUNT station + cycle-count BPMN (by id), adjustment via txlog. |
+| counting | 8095 | ✅ | Cycle / stock counting: count tasks (scope LOCATION/SKU/ZONE/BLOCK, BLIND vs VARIANCE), ABC-cadence schedule generator, capture counts → variance vs an inventory-expected snapshot → within-tolerance auto-approve (posts a `StockAdjusted` event) or out-of-tolerance recount; blind hides expected/variance. Seams: GTP STOCK_COUNT station + cycle-count BPMN (by id), adjustment via txlog. **Demo quick-seed** (demo-mode only): `POST /api/counting/demo/seed {warehouseId, count?:1}` builds sample count tasks over existing demo stock (cells sourced from the inventory stock overview), returns `{created}`, guarded to demo mode ON; drives the "Add count task" button (one task per click) shown on the stock-counting screen only when demo mode is on. |
 | txlog | 8086 | ✅ | Append-only event log + transactional outbox + relay to `txlog.stream`. |
 | iam | 8087 | ✅ | openWCS authorization model: users → roles → coded permissions; **per-user warehouse access** (allowed warehouses + default; the gateway enforces scope). (Keycloak does auth.) |
 | flow-orchestrator | 8085 | 🟡 | Device-task lifecycle over the uniform device contract; routes to adapters by family (below). |
@@ -91,6 +91,10 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
   types CASE/SPLIT_CASE/EACH, cubing mode APP/ONE_TO_ONE, default shipper, and batch
   config: `batchEnabled`, `batchMaxPieces`, `batchMaxOrders`, `pickToteShipperId`).
 - SKU/UoM **dimensions & weight** (per packaging level) drive cubing.
+- **Cubing config UI**: a **Settings → Cubing** tab edits the warehouse's cubing rules
+  (cubing mode, allowed pick types, default shipper) and provides full **shipper CRUD**
+  (add/edit/archive), showing each shipper's fill rate and usable volume. This is the first
+  UI surface for the fulfillment-config and shipper endpoints.
 - **Dispatch reference data**: the **shipping-service** catalog (`/shipping-services` —
   service levels like EXPRESS/STANDARD, by carrier) and the **route** catalog (`/routes` —
   regions/depots, with `hostRef`; routes are fed from a host system). Both are global,
@@ -103,6 +107,16 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
   Template selection inputs: a **shipping-service** carries a `labelTemplateCode` and a
   warehouse a `defaultLabelTemplateCode` (effective template = order override → service →
   warehouse default, resolved at release).
+- **System configuration** (`system_configuration` key/value table): global runtime flags.
+  - **Demo mode** (`DEMO_MODE_ENABLED`, `/api/master-data/demo`): seeds/removes a sample catalog
+    (`POST /demo/enable?warehouseId=`, `POST /demo/disable`, `GET /demo?warehouseId=`), ADMIN-gated,
+    may only seed onto a fresh, host-free system.
+  - **Hardware emulator** (`HARDWARE_EMULATOR_ENABLED`, **default OFF**): a global flag, same
+    key/value table, read/flipped via `GET /api/master-data/emulator` → `{enabled}`,
+    `POST /api/master-data/emulator/enable` and `/disable` (ADMIN-gated on `X-Auth-Roles`). The Go
+    device adapters poll it to decide whether to simulate or fail device commands (see §7b). It lets
+    the whole automation flow run end-to-end with no physical hardware; an admin flips it OFF once
+    real adapters are configured.
 
 ## 4. inventory (stock)
 
@@ -150,6 +164,10 @@ default) and passes the dispatch context to allocation.
   event (`events.actor` is NOT NULL); until IAM/JWT is wired it is caller-asserted.
 - The `outbound_order` table now holds all order types (legacy name retained; a rename is a
   documented follow-up).
+- **Demo quick-seed** (demo-mode only): `POST /api/orders/demo/seed {warehouseId, type:"INBOUND"|"OUTBOUND", count?:10}`
+  bulk-builds sample orders from the seeded DEMO catalog and returns `{created}`. Guarded so it only
+  works while demo mode is ON (§3). Drives the "Add 10 Orders" buttons that appear on the inbound and
+  outbound screens only when demo mode is on (the UI bulk-creates 10 records, then refreshes the list).
 
 ## 7. allocation (pick-location allocation + cubing + batching) — ADR 0002
 
@@ -257,6 +275,18 @@ actor).
 - **Conveyor adapter** (`services/adapters/conveyor`, Go): `POST /tasks` simulates a move,
   accepting CONVEY/DIVERT/MERGE/SCAN (→ COMPLETED with a result payload) and rejecting unknown
   commands (→ FAILED).
+- **Hardware emulator mode** (all four Go adapter families: conveyor, asrs, amr-geekplus,
+  autostore): each adapter polls master-data's `HARDWARE_EMULATOR_ENABLED` flag (§3) and exposes its
+  current mode at `GET /` (new `"emulator":"ON|OFF"` field).
+  - **ON**: the adapter **simulates** its family's device commands (conveyor CONVEY/DIVERT/MERGE/SCAN,
+    ASRS STORE/RETRIEVE, AMR TRANSPORT/MOVE, AutoStore BIN_STORE/BIN_RETRIEVE), returning simulated
+    COMPLETED results, maintains **in-memory device state**, emits **synthetic telemetry** on its loop,
+    and **never opens a hardware connection**. The in-memory state + telemetry are readable at a new
+    `GET /state`.
+  - **OFF** (the default): `/tasks` returns **FAILED** ("hardware not connected"), since no
+    real-hardware protocol client exists yet. This OFF branch is the deliberate **seam** for future
+    real device protocol clients; an admin flips emulator OFF once a real adapter is wired.
+  - Purpose: run the entire automation flow with zero physical hardware (evaluation, onboarding, CI).
 - **RBAC catalog**: `DEVICE_VIEW`/`DEVICE_OPERATE` added to `Permission` + `RoleCatalog`
   (VIEWER sees, OPERATOR operates) and seeded in IAM (`iam/V2__device_permissions.sql`).
 
@@ -529,7 +559,9 @@ run green); the first run surfaced one test-isolation bug, now fixed.
   is structural/by category), the projection is a manual action (no auto-reproject on save), and the
   placed-equipment ↔ live-device binding (driving real moves through these nodes) is still the
   flow-orchestrator/adapter seam.
-- Scaffold-only: notification, integration-*, the asrs/amr/autostore device adapters.
+- Scaffold-only: notification, integration-*. The asrs/amr/autostore device adapters now carry a
+  **hardware emulator mode** (admin toggle, simulates their family + telemetry/state, OFF by default;
+  §3, §7b) but still have **no real-hardware protocol client** (emulator OFF is the seam for that).
 - flow-orchestrator dispatches device tasks but **no BPMN process originates them yet**
   (process-engine is still a scaffold); the device contract is synchronous HTTP, not the
   production Kafka transport.

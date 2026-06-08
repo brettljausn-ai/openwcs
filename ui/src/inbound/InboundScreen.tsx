@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import { useDemoMode, seedDemoOrders } from '../demo/useDemoMode'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
@@ -141,9 +142,11 @@ export default function InboundScreen() {
   const canReceive = roles.includes('ADMIN') || roles.includes('SUPERVISOR') || roles.includes('OPERATOR')
 
   const { currentWarehouseId: warehouseId, current: currentWarehouse } = useWarehouse()
+  const { enabled: demoEnabled } = useDemoMode()
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(false)
+  const [seeding, setSeeding] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [skus, setSkus] = useState<Sku[]>([])
@@ -223,6 +226,21 @@ export default function InboundScreen() {
     loadOrders()
   }, [loadOrders])
 
+  // Demo-only: bulk-create 10 sample inbound orders.
+  async function addDemoOrders() {
+    if (!warehouseId) return
+    setSeeding(true)
+    setError(null)
+    try {
+      await seedDemoOrders(warehouseId, 'INBOUND', 10)
+      await loadOrders()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to add demo orders.')
+    } finally {
+      setSeeding(false)
+    }
+  }
+
   // --- refresh a single order (after receiving) and keep the detail pane in sync
   const refreshOrder = useCallback(async (id: string): Promise<Order | null> => {
     const res = await fetch(`/api/orders/${id}`)
@@ -259,6 +277,18 @@ export default function InboundScreen() {
         <button type="button" className="btn btn-ghost btn-sm" onClick={loadOrders} disabled={!warehouseId || loading}>
           Refresh
         </button>
+
+        {demoEnabled && (
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={addDemoOrders}
+            disabled={!warehouseId || seeding}
+            title="Demo mode: create 10 sample inbound orders"
+          >
+            {seeding ? 'Adding…' : 'Add 10 Orders'}
+          </button>
+        )}
 
         <div className="spacer" />
 

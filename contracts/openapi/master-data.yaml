@@ -30,6 +30,47 @@ tags:
   - name: Dispatch
 
 paths:
+  # ---------------------------------------------------------------- Hardware emulator mode
+  /emulator:
+    get:
+      tags: [Equipment]
+      summary: Hardware emulator mode status
+      description: >
+        Global flag. When ON, the device adapters simulate all equipment and never connect to
+        physical hardware; when OFF, the adapters use the real connection path. Defaults OFF. The
+        Go adapters poll this endpoint to learn the current value.
+      operationId: getEmulatorStatus
+      responses:
+        "200":
+          description: Emulator status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmulatorStatus' }
+    # enable/disable are admin-only writes (X-Auth-Roles must contain ADMIN).
+  /emulator/enable:
+    post:
+      tags: [Equipment]
+      summary: Turn hardware emulator mode ON (admin-only)
+      operationId: enableEmulator
+      responses:
+        "200":
+          description: Emulator status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmulatorStatus' }
+        "403": { description: Not an ADMIN }
+  /emulator/disable:
+    post:
+      tags: [Equipment]
+      summary: Turn hardware emulator mode OFF (admin-only)
+      operationId: disableEmulator
+      responses:
+        "200":
+          description: Emulator status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmulatorStatus' }
+        "403": { description: Not an ADMIN }
   # ---------------------------------------------------------------- Warehouses
   /warehouses:
     get:
@@ -1027,6 +1068,10 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    EmulatorStatus:
+      type: object
+      properties:
+        enabled: { type: boolean, description: True when the system runs against simulated hardware. }
     # --------------------------------------------------------------- Enumerations
     LifecycleStatus:
       type: string

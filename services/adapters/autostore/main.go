@@ -57,6 +57,8 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ready"))
 	})
+	mux.HandleFunc("/tasks", handleTask)
+	mux.HandleFunc("/state", handleState)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{
@@ -64,6 +66,7 @@ func main() {
 			"family":    family,
 			"transport": transport,
 			"status":    "skeleton",
+			"emulator":  EmulatorMode(),
 			"version":   version,
 			"commit":    commit,
 			"buildTime": buildTime,
@@ -74,6 +77,9 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Poll the master-data emulator flag so /tasks and deviceLoop know whether to simulate.
+	StartEmulatorPoller(ctx)
 
 	// Device connection loop (stub). Replace with the real protocol client:
 	// maintain the connection/session, frame/parse telegrams or call the
@@ -102,8 +108,16 @@ func deviceLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// TODO: poll/heartbeat the equipment; publish telemetry to Kafka.
-			log.Printf("%s: device heartbeat (stub)", serviceName)
+			if EmulatorOn() {
+				// Emulator ON: advance simulated telemetry and emit a heartbeat. No socket is
+				// ever opened in this mode.
+				ticks, throughput, faults := sim.tick(time.Now())
+				log.Printf("%s: emulator heartbeat ticks=%d throughput=%d faults=%d", serviceName, ticks, throughput, faults)
+				continue
+			}
+			// TODO: real hardware connection (emulator off): maintain the grid controller REST
+			// session, publish telemetry to Kafka, and reconcile in-flight bin moves on reconnect.
+			log.Printf("%s: device heartbeat (stub, emulator off)", serviceName)
 		}
 	}
 }

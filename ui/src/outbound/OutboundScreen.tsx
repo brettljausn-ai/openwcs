@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import { useDemoMode, seedDemoOrders } from '../demo/useDemoMode'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
@@ -111,10 +112,12 @@ async function readError(res: Response): Promise<string> {
 // ----------------------------------------------------------------- component
 export default function OutboundScreen() {
   const { currentWarehouseId: warehouseId } = useWarehouse()
+  const { enabled: demoEnabled } = useDemoMode()
   const [statusFilter, setStatusFilter] = useState<string>('')
 
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(false)
+  const [seeding, setSeeding] = useState(false)
   const [error, setError] = useState<string>('')
 
   const [selected, setSelected] = useState<Order | null>(null)
@@ -139,6 +142,21 @@ export default function OutboundScreen() {
   }, [warehouseId, statusFilter])
 
   useEffect(() => { loadOrders() }, [loadOrders])
+
+  // Demo-only: bulk-create 10 small sample outbound orders.
+  async function addDemoOrders() {
+    if (!warehouseId) return
+    setSeeding(true)
+    setError('')
+    try {
+      await seedDemoOrders(warehouseId, 'OUTBOUND', 10)
+      loadOrders()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not add demo orders.')
+    } finally {
+      setSeeding(false)
+    }
+  }
 
   const outbound = orders.filter((o) => o.orderType === 'OUTBOUND')
 
@@ -170,6 +188,16 @@ export default function OutboundScreen() {
           <span className="muted" style={{ fontSize: '.82rem' }}>
             Outbound orders are owned by the host system — released &amp; fulfilled here, not created.
           </span>
+          {demoEnabled && (
+            <button
+              className="btn btn-outline"
+              onClick={addDemoOrders}
+              disabled={!warehouseId || seeding}
+              title="Demo mode: create 10 small sample outbound orders"
+            >
+              {seeding ? 'Adding…' : 'Add 10 Orders'}
+            </button>
+          )}
           <button className="btn btn-ghost" onClick={loadOrders} disabled={!warehouseId || loading}>
             Refresh
           </button>
