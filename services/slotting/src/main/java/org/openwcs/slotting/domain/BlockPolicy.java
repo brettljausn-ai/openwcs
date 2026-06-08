@@ -1,5 +1,6 @@
 package org.openwcs.slotting.domain;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -29,15 +30,22 @@ public class BlockPolicy extends Auditable {
     @Column(name = "warehouse_id", nullable = false)
     private UUID warehouseId;
 
+    // Explicit lowercase JSON names: a getter like getWVelocity() would otherwise serialize as
+    // "WVelocity" (bean naming keeps the first two upper-case letters), breaking the round-trip
+    // with the UI, which uses "wVelocity".
+    @JsonProperty("wVelocity")
     @Column(name = "w_velocity", nullable = false)
     private BigDecimal wVelocity = BigDecimal.ONE;
 
+    @JsonProperty("wConsolidation")
     @Column(name = "w_consolidation", nullable = false)
     private BigDecimal wConsolidation = BigDecimal.ONE;
 
+    @JsonProperty("wRedundancy")
     @Column(name = "w_redundancy", nullable = false)
     private BigDecimal wRedundancy = BigDecimal.ONE;
 
+    @JsonProperty("wBalance")
     @Column(name = "w_balance", nullable = false)
     private BigDecimal wBalance = BigDecimal.ONE;
 
