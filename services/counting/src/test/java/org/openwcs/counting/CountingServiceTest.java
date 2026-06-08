@@ -10,7 +10,10 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.openwcs.counting.client.FlowClient;
+import org.openwcs.counting.client.GtpClient;
 import org.openwcs.counting.client.InventoryClient;
+import org.openwcs.counting.client.MasterDataClient;
 import org.openwcs.counting.client.TxLogClient;
 import org.openwcs.counting.domain.CountLine;
 import org.openwcs.counting.domain.CountTask;
@@ -56,6 +59,15 @@ class CountingServiceTest {
 
     @MockBean
     TxLogClient txlog;
+
+    @MockBean
+    MasterDataClient masterData;
+
+    @MockBean
+    GtpClient gtp;
+
+    @MockBean
+    FlowClient flow;
 
     @Autowired
     CountingService counting;
