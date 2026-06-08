@@ -219,6 +219,11 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
       SPRING_DATASOURCE_USERNAME: openwcs
       SPRING_DATASOURCE_PASSWORD: openwcs
+      # Store-back transports go to flow-orchestrator; broken-product write-offs go to txlog;
+      # store-back asks slotting for the best put-away location.
+      OPENWCS_FLOW_ORCHESTRATOR_BASE_URL: http://flow-orchestrator:8085
+      OPENWCS_TXLOG_BASE_URL: http://txlog:8086
+      OPENWCS_SLOTTING_BASE_URL: http://slotting:8093
 
   counting:
     restart: unless-stopped

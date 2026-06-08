@@ -19,6 +19,8 @@ import org.openwcs.slotting.repo.BlockPolicyRepository;
 import org.openwcs.slotting.repo.PickSlotRepository;
 import org.openwcs.slotting.repo.PutawayAssignmentRepository;
 import org.openwcs.slotting.repo.StorageProfileRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,12 +33,19 @@ import org.springframework.transaction.annotation.Transactional;
  *       storage location from the block pool.</li>
  * </ol>
  *
- * <p>Lane / aisle occupancy is derived from this service's own active assignment ledger
- * ({@code putaway_assignment}); reconciling that against live inventory truth is a fast-follow
- * once physical move execution is wired.
+ * <p>Candidate locations are filtered against live inventory truth before scoring: the engine asks
+ * inventory which of the block's locations physically hold stock or a handling unit
+ * ({@link InventoryClient#occupiedLocations}) and drops those, so a seeded/occupied slot with no
+ * slotting assignment is never chosen. That call is best-effort: if inventory is unreachable the
+ * engine logs and proceeds without filtering rather than blocking put-away. Lane / aisle <i>depth</i>
+ * occupancy is still derived from this service's own active assignment ledger
+ * ({@code putaway_assignment}); fully reconciling that against live inventory is a fast-follow once
+ * physical move execution is wired.
  */
 @Service
 public class PutawayService {
+
+    private static final Logger log = LoggerFactory.getLogger(PutawayService.class);
 
     private static final List<String> ACTIVE = List.of("PLANNED", "DISPATCHED");
 
@@ -102,6 +111,10 @@ public class PutawayService {
                 .toList();
         if (locations.isEmpty()) {
             throw new IllegalStateException("no storage locations in block " + blockId + " accept HU type " + req.huType());
+        }
+        locations = excludePhysicallyOccupied(req.warehouseId(), locations);
+        if (locations.isEmpty()) {
+            throw new IllegalStateException("no feasible empty-HU location in block " + blockId);
         }
 
         Map<UUID, Integer> occupied = new HashMap<>();
@@ -186,6 +199,10 @@ public class PutawayService {
         if (locations.isEmpty()) {
             throw new IllegalStateException("no storage locations in block " + blockId + " accept HU type " + req.huType());
         }
+        locations = excludePhysicallyOccupied(req.warehouseId(), locations);
+        if (locations.isEmpty()) {
+            throw new IllegalStateException("no feasible storage location in block " + blockId);
+        }
 
         List<PutawayAssignment> active =
                 assignments.findByWarehouseIdAndBlockIdAndStatusIn(req.warehouseId(), blockId, ACTIVE);
@@ -260,6 +277,26 @@ public class PutawayService {
         a.setFactors(factors);
         a.setStatus("PLANNED");
         return assignments.save(a);
+    }
+
+    /**
+     * Drop any candidate that physically holds stock or a handling unit, per live inventory truth
+     * (not this service's assignment ledger): only genuinely-empty locations should be scored.
+     * Best-effort — if inventory is unreachable, log and keep all candidates so put-away still works.
+     */
+    private List<StorageLocation> excludePhysicallyOccupied(UUID warehouseId, List<StorageLocation> locations) {
+        List<UUID> ids = locations.stream().map(StorageLocation::id).toList();
+        try {
+            java.util.Set<UUID> occupied = inventory.occupiedLocations(warehouseId, ids);
+            if (occupied.isEmpty()) {
+                return locations;
+            }
+            return locations.stream().filter(l -> !occupied.contains(l.id())).toList();
+        } catch (RuntimeException e) {
+            log.warn("inventory occupancy check failed; not filtering occupied locations for warehouse {}: {}",
+                    warehouseId, e.toString());
+            return locations;
+        }
     }
 
     /** An empty / null allow-list accepts any HU type; otherwise the type must be listed. */

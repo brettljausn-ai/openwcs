@@ -34,6 +34,7 @@ public interface GtpClient {
             String family,
             BigDecimal distanceM,
             UUID countTaskId,
-            UUID countLineId) {
+            UUID countLineId,
+            UUID locationId) {
     }
 }

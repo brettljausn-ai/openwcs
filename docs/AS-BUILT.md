@@ -123,7 +123,9 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
 Durable `stock` (qty per warehouse × SKU × batch × location × HU × status), kept current
 by consuming `txlog.stream` (idempotent via `processed_event`, cursor in
 `projection_offset`). REST (`/api/inventory`): stock list, **availability / ATP**
-(SKU-wide *and* location-scoped via `?locationId=`), reservation create/release/consume.
+(SKU-wide *and* location-scoped via `?locationId=`), reservation create/release/consume,
+**per-location occupancy** (`POST /locations/occupied` → which of a set of locations physically
+hold any stock row or handling unit; consumed by slotting put-away to skip occupied slots).
 Reservations check ATP under a pessimistic lock so concurrent allocations can't over-commit.
 
 ## 5. txlog (system of record)
@@ -583,9 +585,14 @@ run green); the first run surfaced one test-isolation bug, now fixed.
   (aisle/side/x/y/z), and **self-taught recency-weighted ABC** (EWMA from `txlog.stream`,
   off-peak classify, `manual_override`). **Fast-follows:** the engine computes put-away/
   replenishment/re-slot *plans* and exposes them over REST (+ the goods-in `assignPutaway`
-  delegate) but does not yet **dispatch** moves as device tasks via flow-orchestrator; lane/aisle
-  occupancy comes from the service's own assignment ledger (not yet reconciled against live
-  inventory); the engine doesn't yet group cells into deep lanes (deepest-empty-first); the goods-in
+  delegate) but does not yet **dispatch** moves as device tasks via flow-orchestrator;
+  **put-away candidate locations are now filtered against live inventory truth** — before scoring,
+  the engine asks inventory `POST /api/inventory/locations/occupied` (which of these locations hold
+  any stock row or handling unit) and drops the physically-occupied ones, so a seeded/occupied slot
+  with no slotting assignment can no longer be chosen (best-effort: if inventory is unreachable the
+  call is logged and skipped so put-away still proceeds). Lane/aisle *depth* occupancy still comes
+  from the service's own assignment ledger (not yet fully reconciled against live inventory); the
+  engine doesn't yet group cells into deep lanes (deepest-empty-first); the goods-in
   **decant** step, HU live-location/on-conveyor booking, FEFO replenishment sourcing and txlog audit
   events (`PutawayAssigned`/`ReplenishmentPlanned`/`ReslotRecommended`) are pending.
 - **GTP station execution** (`gtp`, ADR 0006): built — STOCK + ORDER/PUT_WALL nodes, batch

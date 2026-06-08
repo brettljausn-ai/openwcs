@@ -27,6 +27,13 @@ openwcs:
   # Per-endpoint RBAC (build.md §4.8); off by default so the stack runs before a Keycloak realm.
   security:
     enabled: ${OPENWCS_SECURITY_ENABLED:false}
+  gtp:
+    # Downstream write seams: flow-orchestrator (store-back transports) and txlog (broken-product
+    # stock write-offs). Bound from the OPENWCS_*_BASE_URL env so docker-compose can override them.
+    flow-base-url: ${OPENWCS_FLOW_ORCHESTRATOR_BASE_URL:http://localhost:8085}
+    txlog-base-url: ${OPENWCS_TXLOG_BASE_URL:http://localhost:8086}
+    # Store-back asks slotting for the currently-best put-away location for a finished tote.
+    slotting-base-url: ${OPENWCS_SLOTTING_BASE_URL:http://localhost:8093}
 
 management:
   endpoints:
