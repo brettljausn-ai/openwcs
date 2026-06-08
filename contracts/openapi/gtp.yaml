@@ -405,6 +405,52 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StationQueueEntry' }
+  /stations/{stationId}/exceptions/dirty-tote:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Stations]
+      summary: Dirty-tote exception, pull the tote for cleaning and complete its entry without store-back
+      description: >
+        Opens a CLEANING maintenance order from the queue entry and completes the entry WITHOUT a
+        store-back: the tote goes to maintenance rather than returning to its storage location.
+      operationId: stationDirtyTote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExceptionRequest' }
+      responses:
+        "200":
+          description: The opened maintenance order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MaintenanceOrder' }
+  /stations/{stationId}/exceptions/broken:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Stations]
+      summary: Broken-product exception, write off damaged qty (negative stock adjustment)
+      description: >
+        Posts a negative StockAdjusted (reason DAMAGED) for the tote's SKU so inventory writes the loss
+        off. The tote stays in the queue so the operator keeps working it. qty must be greater than 0.
+      operationId: stationBrokenProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BrokenRequest' }
+      responses:
+        "200":
+          description: The quantity adjusted off
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  adjusted: { type: number, description: "The (positive) quantity written off." }
+        "400": { description: qty was not greater than 0 }
   /stations/{stationId}/deactivate:
     parameters:
       - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -779,6 +825,7 @@ components:
         distanceM: { type: number, nullable: true, description: "Conveyor travel distance in metres (arrival = distance / 0.5 m/s)." }
         countTaskId: { type: string, format: uuid, nullable: true, description: "The count task this tote belongs to (STOCK_COUNT routing only)." }
         countLineId: { type: string, format: uuid, nullable: true, description: "The count line this tote belongs to (STOCK_COUNT routing only)." }
+        locationId: { type: string, format: uuid, nullable: true, description: "The storage location the tote came from; used to store it back when its station work is done." }
     StationQueueEntry:
       type: object
       properties:
@@ -794,6 +841,30 @@ components:
         arrivalAt: { type: string, format: date-time }
         countTaskId: { type: string, format: uuid, nullable: true, description: "The count task this tote belongs to (STOCK_COUNT routing only)." }
         countLineId: { type: string, format: uuid, nullable: true, description: "The count line this tote belongs to (STOCK_COUNT routing only)." }
+        locationId: { type: string, format: uuid, nullable: true, description: "The storage location the tote came from; used to store it back when its station work is done." }
+    ExceptionRequest:
+      type: object
+      required: [queueEntryId]
+      properties:
+        queueEntryId: { type: string, format: uuid, description: "The queue entry the exception is raised against." }
+    BrokenRequest:
+      type: object
+      required: [queueEntryId, qty]
+      properties:
+        queueEntryId: { type: string, format: uuid, description: "The queue entry the exception is raised against." }
+        qty: { type: number, description: "Quantity of the tote's SKU to write off (must be greater than 0)." }
+    MaintenanceOrder:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        warehouseId: { type: string, format: uuid }
+        huId: { type: string, format: uuid, nullable: true }
+        huCode: { type: string, nullable: true }
+        stationId: { type: string, format: uuid, nullable: true }
+        skuId: { type: string, format: uuid, nullable: true }
+        skuCode: { type: string, nullable: true }
+        reason: { type: string, enum: [CLEANING], description: "Why the tote was pulled from circulation." }
+        status: { type: string, enum: [OPEN, CLOSED] }
     Node:
       type: object
       properties:

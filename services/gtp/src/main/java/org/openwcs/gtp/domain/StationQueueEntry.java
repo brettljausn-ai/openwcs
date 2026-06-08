@@ -48,6 +48,10 @@ public class StationQueueEntry extends Auditable {
     @Column(name = "qty")
     private BigDecimal qty;
 
+    /** The storage location this tote was retrieved from; used to store it back when work is done. */
+    @Column(name = "location_id")
+    private UUID locationId;
+
     /** The operating mode this HU is routed for (PICKING / STOCK_COUNT / ...). */
     @Column(name = "mode", nullable = false)
     private String mode;
@@ -129,6 +133,14 @@ public class StationQueueEntry extends Auditable {
 
     public void setQty(BigDecimal qty) {
         this.qty = qty;
+    }
+
+    public UUID getLocationId() {
+        return locationId;
+    }
+
+    public void setLocationId(UUID locationId) {
+        this.locationId = locationId;
     }
 
     public String getMode() {

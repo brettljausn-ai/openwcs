@@ -2,15 +2,20 @@ package org.openwcs.gtp.service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.openwcs.gtp.client.FlowClient;
 import org.openwcs.gtp.domain.GtpStation;
 import org.openwcs.gtp.domain.OperatingMode;
 import org.openwcs.gtp.domain.StationQueueEntry;
 import org.openwcs.gtp.domain.StationQueueEntry.Status;
 import org.openwcs.gtp.repo.GtpStationRepository;
 import org.openwcs.gtp.repo.StationQueueEntryRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class StationQueueService {
 
+    private static final Logger log = LoggerFactory.getLogger(StationQueueService.class);
+
     /** Conveyor transport speed used by the emulator to time arrivals. */
     private static final double CONVEYOR_MPS = 0.5;
     private static final List<String> ACTIVE = List.of(Status.IN_TRANSIT.name(), Status.QUEUED.name());
@@ -31,18 +38,21 @@ public class StationQueueService {
     private final GtpStationRepository stations;
     private final StationQueueEntryRepository queue;
     private final org.openwcs.gtp.repo.StationNodeRepository nodes;
+    private final FlowClient flow;
 
     public StationQueueService(GtpStationRepository stations, StationQueueEntryRepository queue,
-                               org.openwcs.gtp.repo.StationNodeRepository nodes) {
+                               org.openwcs.gtp.repo.StationNodeRepository nodes, FlowClient flow) {
         this.stations = stations;
         this.queue = queue;
         this.nodes = nodes;
+        this.flow = flow;
     }
 
     /** Inputs to route an HU to a station's queue. */
     public record EnqueueCommand(
             UUID huId, String huCode, UUID skuId, String skuCode, BigDecimal qty,
-            String mode, String family, Double distanceM, UUID countTaskId, UUID countLineId) {
+            String mode, String family, Double distanceM, UUID countTaskId, UUID countLineId,
+            UUID locationId) {
     }
 
     /** Thrown when a station cannot accept the routed HU; the controller maps it to 409. */
@@ -95,6 +105,7 @@ public class StationQueueService {
         entry.setSkuId(cmd.skuId());
         entry.setSkuCode(cmd.skuCode());
         entry.setQty(cmd.qty());
+        entry.setLocationId(cmd.locationId());
         entry.setMode(mode.name());
         entry.setArrivalAt(arrival);
         entry.setCountTaskId(cmd.countTaskId());
@@ -119,10 +130,55 @@ public class StationQueueService {
 
     @Transactional
     public StationQueueEntry complete(UUID entryId) {
+        return complete(entryId, true);
+    }
+
+    /** Mark the entry DONE but never store it back (the tote is going to maintenance, not storage). */
+    @Transactional
+    public StationQueueEntry completeWithoutStoreBack(UUID entryId) {
+        return complete(entryId, false);
+    }
+
+    private StationQueueEntry complete(UUID entryId, boolean storeBack) {
         StationQueueEntry e = queue.findById(entryId)
                 .orElseThrow(() -> new QueueRejectedException("Queue entry not found."));
         e.setStatus(Status.DONE.name());
-        return queue.save(e);
+        StationQueueEntry saved = queue.save(e);
+        if (storeBack) {
+            storeBack(saved);
+        }
+        return saved;
+    }
+
+    /**
+     * Best-effort store-back: when a tote has finished all of its station work (no other IN_TRANSIT or
+     * QUEUED entry for the same HU in the warehouse) and we know where it came from, dispatch an ASRS
+     * STORE transport to return it to its source storage location. Never throws (a store-back failure
+     * must not break completion).
+     */
+    private void storeBack(StationQueueEntry e) {
+        try {
+            if (e.getHuId() == null || e.getLocationId() == null) {
+                return;
+            }
+            long others = queue.countByWarehouseIdAndHuIdAndStatusInAndIdNot(
+                    e.getWarehouseId(), e.getHuId(), ACTIVE, e.getId());
+            if (others > 0) {
+                return; // the tote still has open work at a station, keep it out.
+            }
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("huId", e.getHuId());
+            payload.put("huCode", e.getHuCode());
+            payload.put("skuId", e.getSkuId());
+            payload.put("skuCode", e.getSkuCode());
+            payload.put("destinationLocationId", e.getLocationId());
+            payload.put("reason", "STORE");
+            UUID transportId = flow.createTransport(e.getWarehouseId(), "ASRS", "STORE", payload, e.getHuId());
+            log.info("stored tote {} back to location {}; transport {}",
+                    e.getHuCode(), e.getLocationId(), transportId);
+        } catch (Exception ex) {
+            log.warn("store-back for tote {} failed (best-effort, ignored): {}", e.getHuCode(), ex.toString());
+        }
     }
 
     @Transactional

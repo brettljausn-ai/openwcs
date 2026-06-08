@@ -10,5 +10,9 @@ public interface StationQueueEntryRepository extends JpaRepository<StationQueueE
 
     List<StationQueueEntry> findByStationIdAndStatusInOrderByArrivalAtAsc(UUID stationId, Collection<String> statuses);
 
+    /** Count entries (excluding one) still active for an HU in the warehouse — drives the store-back gate. */
+    long countByWarehouseIdAndHuIdAndStatusInAndIdNot(
+            UUID warehouseId, UUID huId, Collection<String> statuses, UUID excludeId);
+
     void deleteByWarehouseId(UUID warehouseId);
 }
