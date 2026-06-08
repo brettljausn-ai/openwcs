@@ -5,6 +5,7 @@ import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
 import { DeviceTask, listDeviceTasks } from './api'
+import { listWorkplaces } from '../gtpops/api'
 
 // Transport overview (build.md §8): a live view of the device tasks the flow-orchestrator
 // dispatches to equipment adapters. Lists active and recent tasks with their lifecycle
@@ -45,17 +46,25 @@ function field(task: DeviceTask, keys: string[]): string | undefined {
   return undefined
 }
 
+function huCode(task: DeviceTask): string {
+  return field(task, ['huCode', 'hu', 'handlingUnitCode']) ?? '—'
+}
+
 function origin(task: DeviceTask): string {
-  return field(task, ['from', 'origin', 'fromNode', 'source', 'sourceNode']) ?? '—'
+  return field(task, ['from', 'origin', 'fromNode', 'source', 'sourceNode', 'locationId', 'fromLocationId', 'sourceLocationId']) ?? '—'
 }
 
 function destination(task: DeviceTask): string {
-  return field(task, ['to', 'destination', 'toNode', 'target', 'targetNode']) ?? '—'
+  return field(task, ['to', 'destination', 'toNode', 'target', 'targetNode', 'destinationStationId', 'toStationId', 'stationId']) ?? '—'
 }
 
 function nextHop(task: DeviceTask): string {
-  return field(task, ['nextHop', 'next', 'exitCode', 'route']) ?? '—'
+  // For conveyor routes this is the exit/route hop; ASRS/AMR/AutoStore deliver straight to the
+  // destination, so fall back to that so the column is never blank for them.
+  return field(task, ['nextHop', 'next', 'exitCode', 'route']) ?? destination(task)
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function shortId(id?: string | null): string {
   return id ? id.slice(0, 8) : '—'
@@ -79,6 +88,42 @@ export default function TransportScreen() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [stationsById, setStationsById] = useState<Record<string, string>>({})
+
+  // GTP stations (workplaces) so a destinationStationId (e.g. an ASRS retrieval to a pick station)
+  // shows the station code instead of a UUID.
+  useEffect(() => {
+    if (!warehouseId) {
+      setStationsById({})
+      return
+    }
+    let cancelled = false
+    listWorkplaces(warehouseId)
+      .then((ws) => {
+        if (cancelled) return
+        const m: Record<string, string> = {}
+        ws.forEach((w) => (m[w.id] = w.code))
+        setStationsById(m)
+      })
+      .catch(() => !cancelled && setStationsById({}))
+    return () => {
+      cancelled = true
+    }
+  }, [warehouseId])
+
+  // Resolve a node reference to a readable code: a UUID becomes its location/station code (or a short
+  // id if unknown); an already-readable code/name passes through unchanged.
+  const resolveNode = useCallback(
+    (raw: string): string => {
+      if (!raw || raw === '—') return '—'
+      if (!UUID_RE.test(raw)) return raw
+      const lc = catalog.locationCode(raw)
+      if (lc && lc !== '—' && lc !== raw) return lc
+      if (stationsById[raw]) return stationsById[raw]
+      return shortId(raw)
+    },
+    [catalog, stationsById],
+  )
 
   // Keep the latest filters in a ref so the polling interval always reads fresh values
   // without being torn down and recreated on every keystroke.
@@ -244,7 +289,7 @@ export default function TransportScreen() {
           rows={tasks}
           rowKey={(t) => t.id}
           search={(t) =>
-            `${t.id} ${t.status} ${t.family} ${t.command} ${origin(t)} ${destination(t)} ${nextHop(t)} ${t.equipmentId ?? ''} ${t.correlationId ?? ''} ${t.detail ?? ''}`
+            `${t.id} ${t.status} ${t.family} ${t.command} ${huCode(t)} ${resolveNode(origin(t))} ${resolveNode(destination(t))} ${t.equipmentId ?? ''} ${t.correlationId ?? ''} ${t.detail ?? ''}`
           }
           searchPlaceholder="Search tasks…"
           initialSort={{ key: 'createdAt', dir: 'desc' }}
@@ -283,17 +328,26 @@ export default function TransportScreen() {
               ),
             },
             {
+              key: 'hu',
+              header: 'HU',
+              sortable: true,
+              sortValue: (t) => huCode(t),
+              render: (t) => (
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{huCode(t)}</span>
+              ),
+            },
+            {
               key: 'route',
               header: 'Origin → Destination',
               render: (t) => (
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{origin(t)} → {destination(t)}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{resolveNode(origin(t))} → {resolveNode(destination(t))}</span>
               ),
             },
             {
               key: 'nextHop',
               header: 'Next hop',
               render: (t) => (
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{nextHop(t)}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{resolveNode(nextHop(t))}</span>
               ),
             },
             {
