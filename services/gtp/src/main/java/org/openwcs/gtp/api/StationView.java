@@ -35,11 +35,12 @@ public record StationView(
             UUID locationId,
             UUID orderHuId,
             int position,
+            java.math.BigDecimal inboundDistanceM,
             String status) {
 
         public static NodeView from(StationNode n) {
             return new NodeView(n.getId(), n.getRole(), n.getCode(), n.getPutLightId(),
-                    n.getLocationId(), n.getOrderHuId(), n.getPosition(), n.getStatus());
+                    n.getLocationId(), n.getOrderHuId(), n.getPosition(), n.getInboundDistanceM(), n.getStatus());
         }
     }
 }

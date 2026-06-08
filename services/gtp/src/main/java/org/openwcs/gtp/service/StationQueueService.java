@@ -30,10 +30,13 @@ public class StationQueueService {
 
     private final GtpStationRepository stations;
     private final StationQueueEntryRepository queue;
+    private final org.openwcs.gtp.repo.StationNodeRepository nodes;
 
-    public StationQueueService(GtpStationRepository stations, StationQueueEntryRepository queue) {
+    public StationQueueService(GtpStationRepository stations, StationQueueEntryRepository queue,
+                               org.openwcs.gtp.repo.StationNodeRepository nodes) {
         this.stations = stations;
         this.queue = queue;
+        this.nodes = nodes;
     }
 
     /** Inputs to route an HU to a station's queue. */
@@ -72,7 +75,18 @@ public class StationQueueService {
         }
 
         Instant now = Instant.now();
-        Instant arrival = arrivalAt(now, cmd.family(), cmd.distanceM());
+        // When the caller gives no transport timing, fall back to the station's STOCK node conveyor
+        // distance projected from the automation topology (so the topology drives arrival timing).
+        String family = cmd.family();
+        Double distanceM = cmd.distanceM();
+        if (family == null && distanceM == null) {
+            Double stockDistance = stockNodeDistance(stationId);
+            if (stockDistance != null) {
+                family = "CONVEYOR";
+                distanceM = stockDistance;
+            }
+        }
+        Instant arrival = arrivalAt(now, family, distanceM);
         StationQueueEntry entry = new StationQueueEntry();
         entry.setStationId(stationId);
         entry.setWarehouseId(station.getWarehouseId());
@@ -136,6 +150,16 @@ public class StationQueueService {
 
     private List<StationQueueEntry> activeEntries(UUID stationId) {
         return queue.findByStationIdAndStatusInOrderByArrivalAtAsc(stationId, ACTIVE);
+    }
+
+    /** The conveyor distance of the station's STOCK node, projected from topology, or null. */
+    private Double stockNodeDistance(UUID stationId) {
+        return nodes.findByStationIdAndRole(stationId, "STOCK").stream()
+                .map(org.openwcs.gtp.domain.StationNode::getInboundDistanceM)
+                .filter(java.util.Objects::nonNull)
+                .map(java.math.BigDecimal::doubleValue)
+                .findFirst()
+                .orElse(null);
     }
 
     private static Instant arrivalAt(Instant now, String family, Double distanceM) {
