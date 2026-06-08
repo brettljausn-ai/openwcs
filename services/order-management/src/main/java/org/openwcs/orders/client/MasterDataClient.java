@@ -20,4 +20,7 @@ public interface MasterDataClient {
 
     /** The warehouse's default label-template code (from fulfillment config), or null. */
     String warehouseDefaultLabelTemplate(java.util.UUID warehouseId);
+
+    /** Ids of the seeded demo SKUs (ownerClient=DEMO). Empty when demo mode has not been enabled. */
+    java.util.List<java.util.UUID> listDemoSkus();
 }

@@ -68,9 +68,28 @@ public class HttpMasterDataClient implements MasterDataClient {
         return hits == null ? List.of() : hits;
     }
 
+    @Override
+    public List<java.util.UUID> listDemoSkus() {
+        SkuPage page = http.get()
+                .uri(uri -> uri.path("/api/master-data/skus")
+                        .queryParam("ownerClient", "DEMO").queryParam("size", 500).build())
+                .retrieve()
+                .body(SkuPage.class);
+        if (page == null || page.content() == null) {
+            return List.of();
+        }
+        return page.content().stream().map(SkuRef::id).toList();
+    }
+
     private record CatalogEntry(String code, String status, String labelTemplateCode) {
     }
 
     private record ConfigEntry(String defaultLabelTemplateCode) {
+    }
+
+    private record SkuPage(List<SkuRef> content) {
+    }
+
+    private record SkuRef(java.util.UUID id) {
     }
 }
