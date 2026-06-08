@@ -108,6 +108,26 @@ header.nav {
 .nav-links a:hover::after { width: 100%; }
 .nav-right { display: flex; align-items: center; gap: .8rem; margin-left: 1rem; }
 
+/* Hamburger toggle — hidden on desktop, shown on the mobile fold-down nav. */
+.nav-toggle {
+  display: none; align-items: center; justify-content: center;
+  width: 42px; height: 38px; padding: 0; margin-left: auto; cursor: pointer;
+  background: var(--glass-bg-strong); border: 1px solid var(--glass-border);
+  border-radius: 10px; color: var(--text); transition: border-color .15s ease, background .15s ease;
+}
+.nav-toggle:hover { border-color: var(--glass-border-bright); background: rgba(141,198,63,.08); }
+.nav-toggle .bars, .nav-toggle .bars::before, .nav-toggle .bars::after {
+  content: ''; display: block; width: 18px; height: 2px; border-radius: 2px;
+  background: currentColor; transition: transform .2s ease, top .2s ease, background .15s ease;
+}
+.nav-toggle .bars { position: relative; }
+.nav-toggle .bars::before, .nav-toggle .bars::after { position: absolute; left: 0; }
+.nav-toggle .bars::before { top: -6px; }
+.nav-toggle .bars::after { top: 6px; }
+.nav.open .nav-toggle .bars { background: transparent; }
+.nav.open .nav-toggle .bars::before { top: 0; transform: rotate(45deg); }
+.nav.open .nav-toggle .bars::after { top: 0; transform: rotate(-45deg); }
+
 /* Custom language dropdown */
 .lang { position: relative; }
 .lang-toggle {
@@ -457,6 +477,8 @@ footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; g
   .pill-active::before { animation: none; }
 }
 
+@keyframes navFold { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
 /* ---- Reveal-on-scroll ---- */
 [data-reveal] { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
 [data-reveal].in { opacity: 1; transform: none; }
@@ -468,7 +490,25 @@ footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; g
 }
 @media (max-width: 820px) {
   .grid-2 { grid-template-columns: 1fr; }
-  .nav-links { display: none; }
+
+  /* Mobile fold-down nav: brand + hamburger on the top row, links and
+     actions drop into full-width stacked rows when the menu is open. */
+  .nav-inner { flex-wrap: wrap; gap: 0; row-gap: 0; }
+  .nav-toggle { display: inline-flex; }
+  .nav-links, .nav-right { display: none; flex-basis: 100%; width: 100%; }
+  .nav.open .nav-links, .nav.open .nav-right { display: flex; animation: navFold .22s ease; }
+  .nav.open .nav-links {
+    flex-direction: column; align-items: stretch; gap: 0; margin: .7rem 0 0;
+    padding-top: .5rem; border-top: 1px solid var(--glass-border);
+  }
+  .nav.open .nav-links a { padding: .75rem .2rem; font-size: 1rem; }
+  .nav.open .nav-links a::after { display: none; }
+  .nav.open .nav-right {
+    margin: .8rem 0 .3rem; gap: .7rem; flex-wrap: wrap; align-items: stretch;
+  }
+  .nav.open .nav-right .lang { flex-basis: 100%; }
+  .nav.open .nav-right .lang-toggle { width: 100%; justify-content: flex-start; }
+  .nav.open .nav-right .btn-nav { flex: 1; min-width: 0; }
   .compare thead { display: none; }
   .compare td { display: block; border: none; padding: .25rem 1.3rem; }
   .compare td.us { border-left: none; }
