@@ -87,6 +87,21 @@ export interface WorkCycle {
   taskLines: TaskLine[]
 }
 
+// Inbound work queue: the physical tote queue at a station. Entries are IN_TRANSIT (tote still
+// travelling, arrivalAt in the future) or QUEUED (arrived, waiting to be worked) in arrival order.
+export interface StationQueueEntry {
+  id: string
+  stationId: string
+  huId: string
+  huCode: string
+  skuId: string
+  skuCode: string
+  qty: number
+  mode: OperatingMode
+  status: 'IN_TRANSIT' | 'QUEUED' | 'DONE'
+  arrivalAt: string
+}
+
 const json = { 'Content-Type': 'application/json' }
 
 async function ok<T>(res: Response): Promise<T> {
@@ -158,4 +173,21 @@ export async function confirmPut(putInstructionId: string, qty?: number): Promis
 
 export async function closeCycle(cycleId: string): Promise<WorkCycle> {
   return ok(await fetch(`/api/gtp/cycles/${cycleId}/close`, { method: 'POST', headers: json }))
+}
+
+// ---- inbound work queue + station drain ----
+export async function getStationQueue(stationId: string): Promise<StationQueueEntry[]> {
+  return ok(await fetch(`/api/gtp/stations/${stationId}/queue`))
+}
+
+export async function completeQueueEntry(entryId: string): Promise<StationQueueEntry> {
+  return ok(await fetch(`/api/gtp/queue/${entryId}/complete`, { method: 'POST', headers: json }))
+}
+
+export async function deactivateStation(stationId: string): Promise<{ acceptingWork: boolean }> {
+  return ok(await fetch(`/api/gtp/stations/${stationId}/deactivate`, { method: 'POST', headers: json }))
+}
+
+export async function activateStation(stationId: string): Promise<{ acceptingWork: boolean }> {
+  return ok(await fetch(`/api/gtp/stations/${stationId}/activate`, { method: 'POST', headers: json }))
 }
