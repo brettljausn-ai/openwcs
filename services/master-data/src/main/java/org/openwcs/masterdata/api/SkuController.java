@@ -1,6 +1,7 @@
 package org.openwcs.masterdata.api;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,6 +17,7 @@ import org.openwcs.masterdata.repo.DangerousGoodsRepository;
 import org.openwcs.masterdata.repo.SkuProfileRepository;
 import org.openwcs.masterdata.repo.SkuRepository;
 import org.openwcs.masterdata.repo.UnitOfMeasureRepository;
+import org.openwcs.masterdata.service.SkuSyncService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -48,14 +50,17 @@ public class SkuController {
     private final UnitOfMeasureRepository uoms;
     private final BarcodeRepository barcodes;
     private final DangerousGoodsRepository dangerousGoods;
+    private final SkuSyncService skuSync;
 
     public SkuController(SkuRepository skus, SkuProfileRepository profiles, UnitOfMeasureRepository uoms,
-                         BarcodeRepository barcodes, DangerousGoodsRepository dangerousGoods) {
+                         BarcodeRepository barcodes, DangerousGoodsRepository dangerousGoods,
+                         SkuSyncService skuSync) {
         this.skus = skus;
         this.profiles = profiles;
         this.uoms = uoms;
         this.barcodes = barcodes;
         this.dangerousGoods = dangerousGoods;
+        this.skuSync = skuSync;
     }
 
     // ---------------------------------------------------------------- SKU core
@@ -139,6 +144,19 @@ public class SkuController {
             }
         }
         return new BulkImportReport(incoming.size(), created, updated, errors.size(), errors);
+    }
+
+    /**
+     * Host-driven sync of a list of SKUs, each carrying its unit-of-measure hierarchy and barcodes
+     * inline. The host is authoritative: a SKU's stored UoMs/barcodes absent from the push are
+     * removed, the rest upserted (see {@link SkuSyncService}). Host-owned, so interactive callers
+     * are rejected; only the header-less host-sync path may write.
+     */
+    @PostMapping("/sync")
+    public SkuSyncService.SyncReport sync(@RequestBody List<@Valid SkuSyncRequest> incoming,
+                                          HttpServletRequest request) {
+        HostManagedGuard.rejectInteractiveWrite(request, "SKU");
+        return skuSync.sync(incoming);
     }
 
     // --------------------------------------------------------- SkuProfile (per warehouse)

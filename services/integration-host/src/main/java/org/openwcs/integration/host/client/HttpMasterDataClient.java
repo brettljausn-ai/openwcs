@@ -1,14 +1,17 @@
 package org.openwcs.integration.host.client;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-/** {@link MasterDataClient} backed by the master-data SKU API (upsert by code). */
+/**
+ * {@link MasterDataClient} backed by the master-data SKU sync API. The DTO field names match the
+ * {@code SkuSyncRequest} contract, so the batch is forwarded as-is and master-data performs the
+ * upsert-by-code plus full reconcile of UoMs and barcodes in one transaction. This is a direct
+ * service-to-service call (no gateway), so it carries no identity header and is allowed to write
+ * host-owned master data (see master-data {@code HostManagedGuard}).
+ */
 @Component
 public class HttpMasterDataClient implements MasterDataClient {
 
@@ -20,38 +23,11 @@ public class HttpMasterDataClient implements MasterDataClient {
     }
 
     @Override
-    public UpsertResult upsertSku(SkuDto sku) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("code", sku.code());
-        body.put("description", sku.description());
-        body.put("ownerClient", sku.ownerClient());
-        body.put("batchTracked", sku.batchTracked());
-        body.put("serialTracked", sku.serialTracked());
-        body.put("dateTracked", sku.dateTracked());
-
-        String existingId = findIdByCode(sku.code());
-        if (existingId != null) {
-            http.put().uri("/api/master-data/skus/{id}", existingId).body(body).retrieve().toBodilessEntity();
-            return UpsertResult.UPDATED;
-        }
-        http.post().uri("/api/master-data/skus").body(body).retrieve().toBodilessEntity();
-        return UpsertResult.CREATED;
-    }
-
-    private String findIdByCode(String code) {
-        SkuPage page = http.get()
-                .uri(uri -> uri.path("/api/master-data/skus").queryParam("code", code).build())
+    public SyncReport syncSkus(List<SkuDto> skus) {
+        return http.post()
+                .uri("/api/master-data/skus/sync")
+                .body(skus)
                 .retrieve()
-                .body(SkuPage.class);
-        if (page == null || page.content() == null || page.content().isEmpty()) {
-            return null;
-        }
-        return page.content().get(0).id();
-    }
-
-    private record SkuPage(List<SkuRef> content) {
-    }
-
-    private record SkuRef(String id, String code) {
+                .body(SyncReport.class);
     }
 }
