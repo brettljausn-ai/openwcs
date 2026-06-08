@@ -18,12 +18,13 @@ public record WorkplaceView(
         String mode,
         List<String> supportedModes,
         String status,
+        boolean acceptingWork,
         boolean inUse,
         List<StationView.NodeView> nodes) {
 
     public static WorkplaceView from(GtpStation s, List<StationNode> nodes, boolean inUse) {
         return new WorkplaceView(s.getId(), s.getWarehouseId(), s.getCode(), s.getMode(),
                 s.supportedModeSet().stream().map(OperatingMode::name).toList(), s.getStatus(),
-                inUse, nodes.stream().map(StationView.NodeView::from).toList());
+                s.isAcceptingWork(), inUse, nodes.stream().map(StationView.NodeView::from).toList());
     }
 }

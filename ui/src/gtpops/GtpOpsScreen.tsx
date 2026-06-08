@@ -70,6 +70,27 @@ function defaultMode(modes: OperatingMode[]): OperatingMode {
   return modes.includes('PICKING') ? 'PICKING' : modes[0]
 }
 
+// Remember the operator's chosen mode per station on this device so a reload keeps it.
+const MODE_KEY = 'openwcs.gtp.mode'
+
+function readMode(stationId: string, modes: OperatingMode[]): OperatingMode {
+  try {
+    const saved = localStorage.getItem(`${MODE_KEY}.${stationId}`)
+    if (saved && modes.includes(saved as OperatingMode)) return saved as OperatingMode
+  } catch {
+    /* storage unavailable */
+  }
+  return defaultMode(modes)
+}
+
+function writeMode(stationId: string, mode: OperatingMode): void {
+  try {
+    localStorage.setItem(`${MODE_KEY}.${stationId}`, mode)
+  } catch {
+    /* best effort */
+  }
+}
+
 // GTP operator console (ADR 0006). A launcher lists goods-to-person workplaces; opening one CLAIMS
 // a single-active session for that workplace and shows the operator console (present a stock HU ->
 // put-to-light tasks -> confirm puts). The console heartbeats; if the server reports the session was
@@ -298,7 +319,11 @@ function OperatorConsole({
   const workplace = session.workplace
   const [cycle, setCycle] = useState<WorkCycle | null>(null)
   const modes = workplace.supportedModes
-  const [activeMode, setActiveMode] = useState<OperatingMode>(() => defaultMode(modes))
+  const [activeMode, setActiveMode] = useState<OperatingMode>(() => readMode(stationId, modes))
+  function chooseMode(mode: OperatingMode) {
+    setActiveMode(mode)
+    writeMode(stationId, mode)
+  }
   const [remembered, setRemembered] = useState<boolean>(() => readRemembered()?.stationId === stationId)
 
   // --- Inbound queue (lifted from the old top panel). We poll the station queue here so the console
@@ -554,7 +579,7 @@ function OperatorConsole({
                 type="button"
                 className={`badge ${on ? 'badge-info' : ''}`}
                 aria-pressed={on}
-                onClick={() => setActiveMode(m)}
+                onClick={() => chooseMode(m)}
                 style={{
                   cursor: 'pointer',
                   border: on ? '1px solid var(--herbal-lime)' : '1px solid var(--glass-border)',
@@ -592,6 +617,7 @@ function OperatorConsole({
         </div>
       )}
 
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 16rem)' }}>
       {activeMode === 'PICKING' ? (
         head || cycle ? (
           <>
@@ -600,6 +626,7 @@ function OperatorConsole({
               cycle={cycle}
               warehouseId={workplace.warehouseId}
               error={presentError}
+              fill={!cycle}
             />
             {cycle && (
               <CycleView cycle={cycle} onChange={handleCycleChange} warehouseId={workplace.warehouseId} />
@@ -620,7 +647,7 @@ function OperatorConsole({
       ) : activeMode === 'STOCK_COUNT' ? (
         head ? (
           <>
-            <ActiveTotePanel head={head} cycle={null} warehouseId={workplace.warehouseId} error={null} />
+            <ActiveTotePanel head={head} cycle={null} warehouseId={workplace.warehouseId} error={null} fill />
             <button
               className="btn btn-primary btn-lg"
               style={{ alignSelf: 'flex-start' }}
@@ -635,6 +662,7 @@ function OperatorConsole({
       ) : (
         <ModePlaceholder mode={activeMode} />
       )}
+      </div>
 
       <QueueDrawer
         entries={queue}
@@ -650,10 +678,22 @@ function OperatorConsole({
 // Calm idle state shown when no tote is at the station and nothing is in progress.
 function WaitingForTotes({ loaded }: { loaded: boolean }) {
   return (
-    <div className="glass" style={{ padding: '2.5rem', maxWidth: 560, textAlign: 'center' }}>
-      <div style={{ fontSize: '2rem', marginBottom: '.5rem' }}>📦</div>
-      <h2 style={{ marginTop: 0 }}>Waiting for totes</h2>
-      <p style={{ color: 'var(--text-dim)', margin: 0 }}>
+    <div
+      className="glass"
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        padding: '3rem',
+        minHeight: '60vh',
+      }}
+    >
+      <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>📦</div>
+      <h2 style={{ marginTop: 0, fontSize: '2rem' }}>Waiting for totes</h2>
+      <p style={{ color: 'var(--text-dim)', margin: 0, fontSize: '1.05rem' }}>
         {loaded
           ? 'None inbound at this station yet.'
           : 'Checking the station queue…'}
@@ -848,10 +888,9 @@ function QueueRow({
   )
 }
 
-// A workplace may carry an acceptingWork flag at runtime; read it defensively without widening types.
+// Seed the drain switch from the station's real acceptingWork flag so a reload restores it.
 function seedAcceptingWork(workplace: Workplace): boolean {
-  const flag = (workplace as { acceptingWork?: unknown }).acceptingWork
-  return typeof flag === 'boolean' ? flag : true
+  return workplace.acceptingWork ?? true
 }
 
 // --- Active tote at the station: the focal element of the queue-driven console --------------------
@@ -864,11 +903,13 @@ function ActiveTotePanel({
   cycle,
   warehouseId,
   error,
+  fill,
 }: {
   head: StationQueueEntry | null
   cycle: WorkCycle | null
   warehouseId: string
   error: string | null
+  fill?: boolean
 }) {
   const [skus, setSkus] = useState<Sku[]>([])
   const [hus, setHus] = useState<HandlingUnit[]>([])
@@ -904,20 +945,28 @@ function ActiveTotePanel({
     <div
       className="glass"
       style={{
-        padding: '1.5rem',
+        padding: fill ? '2.5rem' : '1.5rem',
         marginBottom: '1.25rem',
         display: 'flex',
-        gap: '1.75rem',
+        gap: fill ? '2.5rem' : '1.75rem',
         flexWrap: 'wrap',
         alignItems: 'center',
+        justifyContent: fill ? 'center' : 'flex-start',
         borderColor: 'rgba(141, 198, 63, .35)',
+        ...(fill ? { flex: 1, minHeight: '60vh' } : {}),
       }}
     >
       {sku?.imageUrl && (
         <img
           src={sku.imageUrl}
           alt={skuCode ?? 'SKU'}
-          style={{ width: 132, height: 132, objectFit: 'cover', borderRadius: 12, border: '1px solid var(--glass-border)' }}
+          style={{
+            width: fill ? 240 : 132,
+            height: fill ? 240 : 132,
+            objectFit: 'cover',
+            borderRadius: 12,
+            border: '1px solid var(--glass-border)',
+          }}
           onError={(e) => {
             ;(e.currentTarget as HTMLImageElement).style.display = 'none'
           }}
