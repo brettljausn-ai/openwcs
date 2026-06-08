@@ -60,6 +60,10 @@ public class CountLine extends Auditable {
     @Column(name = "adjustment_event_id")
     private UUID adjustmentEventId;
 
+    /** True once this cell's tote has been routed to a counting station (makes routing idempotent). */
+    @Column(name = "routed", nullable = false)
+    private boolean routed = false;
+
     public UUID getId() {
         return id;
     }
@@ -154,5 +158,13 @@ public class CountLine extends Auditable {
 
     public void setAdjustmentEventId(UUID adjustmentEventId) {
         this.adjustmentEventId = adjustmentEventId;
+    }
+
+    public boolean isRouted() {
+        return routed;
+    }
+
+    public void setRouted(boolean routed) {
+        this.routed = routed;
     }
 }

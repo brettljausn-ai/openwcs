@@ -9,6 +9,9 @@ public interface CountTaskRepository extends JpaRepository<CountTask, UUID> {
 
     List<CountTask> findByWarehouseIdAndStatus(UUID warehouseId, String status);
 
+    /** Tasks in a given lifecycle status whose routing still needs attention (PENDING / FAILED). */
+    List<CountTask> findByStatusAndRoutingStatusIn(String status, java.util.Collection<String> routingStatuses);
+
     List<CountTask> findByWarehouseId(UUID warehouseId);
 
     List<CountTask> findByScheduleId(UUID scheduleId);
