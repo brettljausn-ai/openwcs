@@ -48,20 +48,25 @@ public class RoutingProjectionService {
      *  — an edge is inferred across the touchpoint, so connections need not be drawn by hand. */
     private static final double ADJACENCY_M = 1.5;
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(RoutingProjectionService.class);
+
     private final AutomationTopologyService automation;
     private final ConveyorNodeRepository nodes;
     private final ConveyorEdgeRepository edges;
     private final ConveyorLoopRepository loops;
     private final ConveyorControllerRepository controllers;
+    private final org.openwcs.flow.client.GtpClient gtp;
 
     public RoutingProjectionService(AutomationTopologyService automation, ConveyorNodeRepository nodes,
                                     ConveyorEdgeRepository edges, ConveyorLoopRepository loops,
-                                    ConveyorControllerRepository controllers) {
+                                    ConveyorControllerRepository controllers,
+                                    org.openwcs.flow.client.GtpClient gtp) {
         this.automation = automation;
         this.nodes = nodes;
         this.edges = edges;
         this.loops = loops;
         this.controllers = controllers;
+        this.gtp = gtp;
     }
 
     /** Result of a projection: how many nodes/edges were generated and any non-fatal warnings. */
@@ -292,7 +297,59 @@ public class RoutingProjectionService {
             }
         }
 
+        // Also project each workstation's STOCK/ORDER conveyor interactions into its GTP station nodes.
+        syncStationNodes(model);
+
         return persist(warehouseId, stagedByCode, stagedEdges, stagedLoops, warnings);
+    }
+
+    /**
+     * For every workstation placement bound to a GTP station, turn its STOCK/ORDER conveyor
+     * interactions (connections tagged in {@code label}) into the station's STOCK/ORDER nodes, with
+     * the feeding conveyor point's offset carried as the inbound distance. Best-effort: a gtp call
+     * failing (or no station bound) never fails the routing projection.
+     */
+    private void syncStationNodes(AutomationTopologyDto model) {
+        if (model.connections() == null || model.equipment() == null) {
+            return;
+        }
+        Map<UUID, FunctionPointDto> fpById = new HashMap<>();
+        if (model.functionPoints() != null) {
+            for (FunctionPointDto fp : model.functionPoints()) {
+                fpById.put(fp.id(), fp);
+            }
+        }
+        for (PlacedEquipmentDto e : model.equipment()) {
+            if (e.stationId() == null || !"workstation".equals(category(e))) {
+                continue;
+            }
+            List<org.openwcs.flow.client.GtpClient.NodeSpec> specs = new ArrayList<>();
+            for (var c : model.connections()) {
+                String role = c.label() == null ? null : c.label().trim().toUpperCase();
+                if (!"STOCK".equals(role) && !"ORDER".equals(role)) {
+                    continue;
+                }
+                UUID pointId;
+                if (e.id().equals(c.fromPlacedId())) {
+                    pointId = c.toPointId();
+                } else if (e.id().equals(c.toPlacedId())) {
+                    pointId = c.fromPointId();
+                } else {
+                    continue;
+                }
+                FunctionPointDto fp = pointId == null ? null : fpById.get(pointId);
+                if (fp == null) {
+                    continue;
+                }
+                String code = fp.nodeCode() != null && !fp.nodeCode().isBlank() ? fp.nodeCode() : fp.name();
+                specs.add(new org.openwcs.flow.client.GtpClient.NodeSpec(role, code, null, null, fp.offsetM()));
+            }
+            try {
+                gtp.syncStationNodes(e.stationId(), specs);
+            } catch (RuntimeException ex) {
+                log.warn("could not project topology nodes to gtp station {}: {}", e.stationId(), ex.toString());
+            }
+        }
     }
 
     /**

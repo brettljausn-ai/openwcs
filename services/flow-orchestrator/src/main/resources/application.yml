@@ -31,6 +31,8 @@ openwcs:
     # The first adapter is the conveyor simulator; others are added as they come online.
     adapters:
       CONVEYOR: ${OPENWCS_ADAPTER_CONVEYOR:http://localhost:9091}
+    # gtp service base URL — projecting topology STOCK/ORDER interactions into station nodes.
+    gtp-base-url: ${OPENWCS_GTP_BASE_URL:http://localhost:8094}
 
 management:
   endpoints:
