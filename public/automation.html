@@ -96,6 +96,38 @@
   <section>
     <div class="wrap">
       <div class="section-head">
+        <p class="eyebrow" data-i18n="auto.eyebrowEmu">No hardware? No problem</p>
+        <h2 data-i18n="auto.hEmu">Run the whole automation flow with zero physical hardware.</h2>
+        <p data-i18n="auto.pEmu1">
+          openWCS ships a built-in <strong>hardware emulator mode</strong>: an admin flips one global
+          switch and every device adapter (conveyors, ASRS, AMR, AutoStore) simulates its machine,
+          returning completed device tasks and synthetic telemetry without ever touching real hardware.
+          When real adapters are configured, the admin flips it off.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="auto.tagEmu1">Emulator mode</div><span class="pill pill-built" data-i18n="auto.pillEmu1">Built</span></div>
+          <h3 data-i18n="auto.hEmu1">One admin toggle</h3>
+          <p data-i18n="auto.pEmu2">A single global switch turns the emulator on across all four adapter families. With it on, no adapter opens a hardware connection: each simulates its commands and reports its mode back to the UI.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="auto.tagEmu2">End-to-end</div><span class="pill pill-built" data-i18n="auto.pillEmu2">Built</span></div>
+          <h3 data-i18n="auto.hEmu2">Conveyors, ASRS, AMR, AutoStore</h3>
+          <p data-i18n="auto.pEmu3">Every family simulates its real commands and keeps in-memory device state, so the full flow runs against virtual equipment. Great for evaluation, onboarding new teams, and CI.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="auto.tagEmu3">Real-hardware seam</div><span class="pill pill-built" data-i18n="auto.pillEmu3">Built</span></div>
+          <h3 data-i18n="auto.hEmu3">Off when the floor is live</h3>
+          <p data-i18n="auto.pEmu4">Emulator off is the clean seam where real device protocol clients plug in. Flip it off once your physical adapters are wired, and the same flows drive the real machines.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
         <p class="eyebrow" data-i18n="auto.eyebrow3">Under the hood</p>
         <h2 data-i18n="auto.h3">One uniform device contract, many adapters.</h2>
         <p data-i18n="auto.p5">
