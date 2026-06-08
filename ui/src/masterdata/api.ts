@@ -130,7 +130,6 @@ export interface HandlingUnitType {
   compartments: number
   storableInAutomation: boolean
   transportableOnConveyor: boolean
-  shipper: boolean
   status?: 'ACTIVE' | 'ARCHIVED'
 }
 

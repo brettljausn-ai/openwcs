@@ -55,7 +55,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 
 | Schema | Owner | Tables |
 |---|---|---|
-| `master_data` | master-data | warehouse, attribute_schema, sku, sku_profile, dangerous_goods, unit_of_measure, barcode_type, barcode, handling_unit_type (+ compartments/storable-in-automation/conveyable/is-shipper), equipment, location (+ block/aisle/lane-depth/distance-to-exit + **cell coords side/pos_x/pos_y/pos_z**), **storage_block** (+ allowed_hu_types), **shipper**, **warehouse_fulfillment_config**, **shipping_service**, **route**, **label_template** |
+| `master_data` | master-data | warehouse, attribute_schema, sku, sku_profile, dangerous_goods, unit_of_measure, barcode_type, barcode, handling_unit_type (+ compartments/storable-in-automation/conveyable), equipment, location (+ block/aisle/lane-depth/distance-to-exit + **cell coords side/pos_x/pos_y/pos_z**), **storage_block** (+ allowed_hu_types), **shipper**, **warehouse_fulfillment_config**, **shipping_service**, **route**, **label_template** |
 | `transaction_log` | txlog | events (append-only; UPDATE/DELETE blocked by trigger), outbox |
 | `inventory` | inventory | batch, serial_unit, stock, reservation, projection_offset, processed_event |
 | `orders` | order-management | outbound_order (all order types), order_line, order_line_transaction, order_outbox |

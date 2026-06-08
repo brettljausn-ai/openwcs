@@ -49,13 +49,6 @@ public class HandlingUnitType extends Auditable {
     @Column(name = "transportable_on_conveyor", nullable = false)
     private boolean transportableOnConveyor = true;
 
-    /**
-     * Whether this HU type is also a shipper: a unit that leaves the warehouse with the goods
-     * (e.g. a shipping carton/tote) and is therefore a candidate target for outbound cubing.
-     */
-    @Column(name = "is_shipper", nullable = false)
-    private boolean shipper = false;
-
     /** Lifecycle status: ACTIVE or ARCHIVED. Archived types are kept for history but no longer used. */
     @Column(name = "status", nullable = false)
     private String status = "ACTIVE";
@@ -138,14 +131,6 @@ public class HandlingUnitType extends Auditable {
 
     public void setTransportableOnConveyor(boolean transportableOnConveyor) {
         this.transportableOnConveyor = transportableOnConveyor;
-    }
-
-    public boolean isShipper() {
-        return shipper;
-    }
-
-    public void setShipper(boolean shipper) {
-        this.shipper = shipper;
     }
 
     public String getStatus() {
