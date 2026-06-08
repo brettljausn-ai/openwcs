@@ -21,6 +21,7 @@ import {
   deleteNode,
   deleteStation,
   listStations,
+  setCapacity,
   setSupportedModes,
   updateNode,
   updateStation,
@@ -551,6 +552,7 @@ function NodesPanel({ station, onChanged }: { station: Station; onChanged: () =>
   const [editing, setEditing] = useState<StationNode | 'new' | null>(null)
   const [deleting, setDeleting] = useState<StationNode | null>(null)
   const [modesOpen, setModesOpen] = useState(false)
+  const [capacityOpen, setCapacityOpen] = useState(false)
 
   const nodes = [...station.nodes].sort((a, b) => a.position - b.position)
 
@@ -565,6 +567,9 @@ function NodesPanel({ station, onChanged }: { station: Station; onChanged: () =>
           <div className="spacer" />
           <button className="btn btn-ghost btn-sm" onClick={() => setModesOpen(true)}>
             Operating modes
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setCapacityOpen(true)}>
+            Capacity
           </button>
           <button className="btn btn-primary btn-sm" onClick={() => setEditing('new')}>
             + New node
@@ -646,6 +651,9 @@ function NodesPanel({ station, onChanged }: { station: Station; onChanged: () =>
       )}
       {modesOpen && (
         <OperatingModesDialog station={station} onClose={() => setModesOpen(false)} onSaved={onChanged} />
+      )}
+      {capacityOpen && (
+        <CapacityDialog station={station} onClose={() => setCapacityOpen(false)} onSaved={onChanged} />
       )}
     </>
   )
@@ -857,6 +865,94 @@ function OperatingModesDialog({
         What the operator can do at this workplace when an HU is presented. PICKING is always available.
       </p>
       <ModeCheckboxes value={modes} onChange={setModes} />
+    </EditDialog>
+  )
+}
+
+// =========================================================================
+// In-transit capacity dialog (dedicated endpoint): caps how many HUs may be
+// en route to this workplace at once, split into PICKING vs OTHER mode classes.
+// =========================================================================
+
+function CapacityDialog({
+  station,
+  onClose,
+  onSaved,
+}: {
+  station: Station
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [picking, setPicking] = useState(String(station.maxInTransitPicking))
+  const [other, setOther] = useState(String(station.maxInTransitOther))
+
+  const pickingNum = Number(picking)
+  const otherNum = Number(other)
+  const valid =
+    picking.trim() !== '' &&
+    other.trim() !== '' &&
+    Number.isInteger(pickingNum) &&
+    Number.isInteger(otherNum) &&
+    pickingNum >= 0 &&
+    otherNum >= 0
+
+  return (
+    <EditDialog
+      title={`In-transit capacity — ${station.code}`}
+      canSave={valid}
+      onClose={onClose}
+      onSave={async () => {
+        await setCapacity(station.id, pickingNum, otherNum)
+        onSaved()
+      }}
+    >
+      <p className="muted" style={{ fontSize: '.85rem', marginTop: 0 }}>
+        How many handling units (totes) may have a transport en route to this workplace at once, capped
+        separately per mode class. Picking is the high-throughput case; Other covers decant, count, QC and
+        maintenance work.
+      </p>
+      <div className="gtp-grid-2">
+        <Field
+          label={
+            <>
+              Max in-transit HUs — Picking{' '}
+              <InfoTip
+                text="Caps how many HUs may have an active PICKING transport inbound to this workplace at once. Higher keeps the operator fed; too high backs up the inbound buffer."
+                example="4"
+              />
+            </>
+          }
+          required
+        >
+          <input
+            className="form-control"
+            type="number"
+            min={0}
+            value={picking}
+            onChange={(e) => setPicking(e.target.value)}
+          />
+        </Field>
+        <Field
+          label={
+            <>
+              Max in-transit HUs — Other (non-picking){' '}
+              <InfoTip
+                text="Caps how many HUs may have an active non-picking transport (decant, count, QC, maintenance) inbound to this workplace at once."
+                example="2"
+              />
+            </>
+          }
+          required
+        >
+          <input
+            className="form-control"
+            type="number"
+            min={0}
+            value={other}
+            onChange={(e) => setOther(e.target.value)}
+          />
+        </Field>
+      </div>
     </EditDialog>
   )
 }
