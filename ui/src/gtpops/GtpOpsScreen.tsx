@@ -1131,10 +1131,10 @@ function CountPanel({
           src={imageUrl}
           alt={skuCode ?? 'SKU'}
           style={{
-            width: 240,
-            height: 240,
+            width: 'min(42vw, 460px)',
+            height: 'min(42vw, 460px)',
             objectFit: 'cover',
-            borderRadius: 12,
+            borderRadius: 18,
             border: '1px solid var(--glass-border)',
           }}
           onError={(e) => {
@@ -1142,19 +1142,19 @@ function CountPanel({
           }}
         />
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem', minWidth: 260, flex: 1, maxWidth: 460 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', minWidth: 320, flex: 1, maxWidth: 620 }}>
         <span className="eyebrow">Count this tote</span>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem', flexWrap: 'wrap' }}>
-          <strong style={{ fontSize: '1.7rem' }}>{huCode ?? 'Tote'}</strong>
+          <strong style={{ fontSize: '3rem', lineHeight: 1.05 }}>{huCode ?? 'Tote'}</strong>
         </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '.5rem', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '1.15rem', fontWeight: 600 }}>{skuCode ?? 'SKU'}</span>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '1.9rem', fontWeight: 600 }}>{skuCode ?? 'SKU'}</span>
           {sku?.description && (
-            <span style={{ color: 'var(--text-dim)', fontSize: '.9rem' }}>{sku.description}</span>
+            <span style={{ color: 'var(--text-dim)', fontSize: '1.2rem' }}>{sku.description}</span>
           )}
         </div>
 
-        <div style={{ color: 'var(--text-dim)', fontSize: '.9rem', marginTop: '.25rem' }}>
+        <div style={{ color: 'var(--text-dim)', fontSize: '1.1rem', marginTop: '.25rem' }}>
           Count every unit in this tote and enter the total.
         </div>
 
@@ -1179,26 +1179,26 @@ function CountPanel({
           </p>
         )}
 
-        <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center', marginTop: '.4rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '.8rem', alignItems: 'center', marginTop: '.6rem', flexWrap: 'wrap' }}>
           <input
             className="form-control"
-            type="number"
-            min="0"
+            type="text"
             inputMode="numeric"
             value={qtyText}
             placeholder="Counted quantity"
             disabled={busy}
             autoFocus
-            onChange={(e) => setQtyText(e.target.value)}
+            onChange={(e) => setQtyText(e.target.value.replace(/[^0-9.]/g, ''))}
             onKeyDown={(e) => {
               if (e.key === 'Enter') submit()
             }}
-            style={{ fontSize: '1.4rem', width: 180, padding: '.6rem .8rem' }}
+            style={{ fontSize: '2rem', width: 240, padding: '.8rem 1rem' }}
           />
           <button
             className="btn btn-primary btn-lg"
             disabled={!validQty || busy}
             onClick={submit}
+            style={{ fontSize: '1.2rem', padding: '.9rem 1.6rem' }}
           >
             {busy ? 'Submitting…' : 'Submit count'}
           </button>
