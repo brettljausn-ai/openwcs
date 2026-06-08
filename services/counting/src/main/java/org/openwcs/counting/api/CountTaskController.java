@@ -109,8 +109,10 @@ public class CountTaskController {
     @PostMapping("/{taskId}/lines/{lineId}/station-count")
     public CountingService.StationCountResult stationCount(@PathVariable UUID taskId,
                                                            @PathVariable UUID lineId,
-                                                           @Valid @RequestBody StationCountRequest request) {
-        return counting.recordStationCount(taskId, lineId, request.countedQty());
+                                                           @Valid @RequestBody StationCountRequest request,
+                                                           @RequestHeader(name = "X-Auth-User", required = false) String authUser,
+                                                           @RequestParam(required = false) String operator) {
+        return counting.recordStationCount(taskId, lineId, request.countedQty(), actor(authUser, operator));
     }
 
     /** Reconciled results — every line with its final variance/adjustment outcome (expected shown). */

@@ -184,7 +184,7 @@ class CountingServiceTest {
         UUID lineId = counting.rawLines(created.getId()).get(0).getId();
 
         CountingService.StationCountResult result =
-                counting.recordStationCount(created.getId(), lineId, new BigDecimal("10"));
+                counting.recordStationCount(created.getId(), lineId, new BigDecimal("10"), "op1");
 
         assertThat(result.outcome()).isEqualTo("ACCEPTED");
         verify(txlog, never()).postStockAdjusted(any());
@@ -211,13 +211,13 @@ class CountingServiceTest {
 
         // First count 8 != expected 10 -> recount.
         CountingService.StationCountResult first =
-                counting.recordStationCount(created.getId(), lineId, new BigDecimal("8"));
+                counting.recordStationCount(created.getId(), lineId, new BigDecimal("8"), "op1");
         assertThat(first.outcome()).isEqualTo("RECOUNT");
         verify(txlog, never()).postStockAdjusted(any());
 
         // Recount 8 agrees with the held count and differs from expected -> adjust.
         CountingService.StationCountResult second =
-                counting.recordStationCount(created.getId(), lineId, new BigDecimal("8"));
+                counting.recordStationCount(created.getId(), lineId, new BigDecimal("8"), "op1");
         assertThat(second.outcome()).isEqualTo("ADJUSTED");
 
         org.mockito.ArgumentCaptor<TxLogClient.StockAdjustment> captor =
@@ -226,6 +226,8 @@ class CountingServiceTest {
         // qtyDelta = counted - expected = 8 - 10 = -2; reason COUNTING.
         assertThat(captor.getValue().qtyDelta()).isEqualByComparingTo("-2");
         assertThat(captor.getValue().reason()).isEqualTo("COUNTING");
+        // The adjustment is attributed to the operator, not a literal "station".
+        assertThat(captor.getValue().actor()).isEqualTo("op1");
 
         CountLine line = counting.rawLines(created.getId()).get(0);
         assertThat(line.getStatus()).isEqualTo("ADJUSTED");
@@ -247,12 +249,12 @@ class CountingServiceTest {
         UUID lineId = counting.rawLines(created.getId()).get(0).getId();
 
         // 8 (!= expected) -> recount; 7 (!= held 8) -> count again; 7 (== held 7) -> adjust.
-        assertThat(counting.recordStationCount(created.getId(), lineId, new BigDecimal("8")).outcome())
+        assertThat(counting.recordStationCount(created.getId(), lineId, new BigDecimal("8"), "op1").outcome())
                 .isEqualTo("RECOUNT");
-        assertThat(counting.recordStationCount(created.getId(), lineId, new BigDecimal("7")).outcome())
+        assertThat(counting.recordStationCount(created.getId(), lineId, new BigDecimal("7"), "op1").outcome())
                 .isEqualTo("RECOUNT");
         CountingService.StationCountResult third =
-                counting.recordStationCount(created.getId(), lineId, new BigDecimal("7"));
+                counting.recordStationCount(created.getId(), lineId, new BigDecimal("7"), "op1");
         assertThat(third.outcome()).isEqualTo("ADJUSTED");
 
         org.mockito.ArgumentCaptor<TxLogClient.StockAdjustment> captor =
@@ -273,10 +275,10 @@ class CountingServiceTest {
         UUID lineId = counting.rawLines(created.getId()).get(0).getId();
 
         // First count 8 != expected -> recount; recount 10 == expected -> accepted, no adjustment.
-        assertThat(counting.recordStationCount(created.getId(), lineId, new BigDecimal("8")).outcome())
+        assertThat(counting.recordStationCount(created.getId(), lineId, new BigDecimal("8"), "op1").outcome())
                 .isEqualTo("RECOUNT");
         CountingService.StationCountResult second =
-                counting.recordStationCount(created.getId(), lineId, new BigDecimal("10"));
+                counting.recordStationCount(created.getId(), lineId, new BigDecimal("10"), "op1");
         assertThat(second.outcome()).isEqualTo("ACCEPTED");
 
         verify(txlog, never()).postStockAdjusted(any());

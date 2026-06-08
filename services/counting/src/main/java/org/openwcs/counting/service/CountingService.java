@@ -215,7 +215,7 @@ public class CountingService {
      * goes RECONCILED.
      */
     @Transactional
-    public StationCountResult recordStationCount(UUID taskId, UUID lineId, BigDecimal countedQty) {
+    public StationCountResult recordStationCount(UUID taskId, UUID lineId, BigDecimal countedQty, String actor) {
         if (countedQty == null) {
             throw new IllegalArgumentException("countedQty is required");
         }
@@ -257,7 +257,8 @@ public class CountingService {
             BigDecimal delta = countedQty.subtract(expected);
             UUID eventId = txlog.postStockAdjusted(new TxLogClient.StockAdjustment(
                     line.getWarehouseId(), line.getSkuId(), line.getBatchId(), line.getLocationId(),
-                    delta, line.getUomCode(), taskId, line.getId(), "station", REASON_COUNTING));
+                    delta, line.getUomCode(), taskId, line.getId(),
+                    actor == null || actor.isBlank() ? "system" : actor, REASON_COUNTING));
             line.setCountedQty(countedQty);
             line.setVariance(delta);
             line.setAdjustmentEventId(eventId);
