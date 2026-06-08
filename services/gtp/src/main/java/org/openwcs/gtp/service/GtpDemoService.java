@@ -14,6 +14,7 @@ import org.openwcs.gtp.repo.DestinationDemandRepository;
 import org.openwcs.gtp.repo.GtpStationRepository;
 import org.openwcs.gtp.repo.PutInstructionRepository;
 import org.openwcs.gtp.repo.StationNodeRepository;
+import org.openwcs.gtp.repo.StationQueueEntryRepository;
 import org.openwcs.gtp.repo.TaskLineRepository;
 import org.openwcs.gtp.repo.WorkCycleRepository;
 import org.openwcs.gtp.repo.WorkplaceSessionRepository;
@@ -39,11 +40,12 @@ public class GtpDemoService {
     private final TaskLineRepository taskLines;
     private final WorkplaceSessionRepository sessions;
     private final DestinationDemandRepository demands;
+    private final StationQueueEntryRepository queue;
 
     public GtpDemoService(GtpStationRepository stations, StationNodeRepository nodes,
                           WorkCycleRepository workCycles, PutInstructionRepository putInstructions,
                           TaskLineRepository taskLines, WorkplaceSessionRepository sessions,
-                          DestinationDemandRepository demands) {
+                          DestinationDemandRepository demands, StationQueueEntryRepository queue) {
         this.stations = stations;
         this.nodes = nodes;
         this.workCycles = workCycles;
@@ -51,6 +53,7 @@ public class GtpDemoService {
         this.taskLines = taskLines;
         this.sessions = sessions;
         this.demands = demands;
+        this.queue = queue;
     }
 
     /**
@@ -64,6 +67,8 @@ public class GtpDemoService {
         List<UUID> stationIds = stations.findByWarehouseId(warehouseId).stream()
                 .map(GtpStation::getId)
                 .toList();
+
+        queue.deleteByWarehouseId(warehouseId);
 
         if (stationIds.isEmpty()) {
             return new DemoClearResult(0, 0, 0, 0, 0);

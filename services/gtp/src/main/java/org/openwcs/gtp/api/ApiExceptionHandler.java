@@ -24,4 +24,10 @@ public class ApiExceptionHandler {
     public ResponseEntity<Map<String, String>> conflict(IllegalStateException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
     }
+
+    @ExceptionHandler(org.openwcs.gtp.service.StationQueueService.QueueRejectedException.class)
+    public ResponseEntity<Map<String, String>> queueRejected(
+            org.openwcs.gtp.service.StationQueueService.QueueRejectedException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
+    }
 }

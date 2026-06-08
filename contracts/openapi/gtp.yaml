@@ -333,6 +333,81 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /stations/{stationId}/queue:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Stations]
+      summary: Route a handling unit to the station's inbound queue
+      description: >
+        Enqueues an HU inbound to the station. Conveyor transports arrive after distance / 0.5 m/s
+        (IN_TRANSIT until due); ASRS / AMR / AutoStore arrive immediately (QUEUED). Rejected with 409
+        if the station is not active, is draining, does not support the mode, or its in-transit cap
+        (PICKING vs OTHER) is reached.
+      operationId: enqueueStationHu
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EnqueueRequest' }
+      responses:
+        "200":
+          description: Queue entry
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StationQueueEntry' }
+        "409": { description: Station cannot accept the HU }
+    get:
+      tags: [Stations]
+      summary: The station's live inbound queue (FIFO by arrival)
+      operationId: getStationQueue
+      responses:
+        "200":
+          description: Queue entries (IN_TRANSIT + QUEUED), arrival order
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/StationQueueEntry' }
+  /queue/{entryId}/complete:
+    parameters:
+      - { name: entryId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Stations]
+      summary: Mark a queued HU as worked off (DONE)
+      operationId: completeQueueEntry
+      responses:
+        "200":
+          description: Updated entry
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StationQueueEntry' }
+  /stations/{stationId}/deactivate:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Stations]
+      summary: Deactivate (drain) a station — finishes queued work, takes no new HUs
+      operationId: deactivateStation
+      responses:
+        "200":
+          description: Updated station
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Station' }
+  /stations/{stationId}/activate:
+    parameters:
+      - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Stations]
+      summary: Re-activate a drained station so it accepts new HUs again
+      operationId: activateStation
+      responses:
+        "200":
+          description: Updated station
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Station' }
   /stations/{stationId}/demand:
     parameters:
       - { name: stationId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -661,11 +736,37 @@ components:
           type: array
           items: { $ref: '#/components/schemas/OperatingMode' }
         status: { type: string }
+        acceptingWork: { type: boolean, description: "False when the station is deactivated (draining): finishes queued work, takes no new HUs." }
         maxInTransitPicking: { type: integer, description: "Max HUs with an active PICKING transport inbound to this station at once." }
         maxInTransitOther: { type: integer, description: "Max HUs with an active non-PICKING (other) transport inbound to this station at once." }
         nodes:
           type: array
           items: { $ref: '#/components/schemas/Node' }
+    EnqueueRequest:
+      type: object
+      required: [mode]
+      properties:
+        huId: { type: string, format: uuid, nullable: true }
+        huCode: { type: string, nullable: true }
+        skuId: { type: string, format: uuid, nullable: true }
+        skuCode: { type: string, nullable: true }
+        qty: { type: number, nullable: true }
+        mode: { $ref: '#/components/schemas/OperatingMode' }
+        family: { type: string, nullable: true, description: "Transport family: CONVEYOR | ASRS | AMR | AUTOSTORE. Drives arrival timing." }
+        distanceM: { type: number, nullable: true, description: "Conveyor travel distance in metres (arrival = distance / 0.5 m/s)." }
+    StationQueueEntry:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        stationId: { type: string, format: uuid }
+        huId: { type: string, format: uuid, nullable: true }
+        huCode: { type: string, nullable: true }
+        skuId: { type: string, format: uuid, nullable: true }
+        skuCode: { type: string, nullable: true }
+        qty: { type: number, nullable: true }
+        mode: { type: string }
+        status: { type: string, enum: [IN_TRANSIT, QUEUED, DONE] }
+        arrivalAt: { type: string, format: date-time }
     Node:
       type: object
       properties:
