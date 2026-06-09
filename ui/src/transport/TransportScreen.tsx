@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
-import { useCatalog } from '../lib/useCatalog'
+import { useCatalog, type Catalog } from '../lib/useCatalog'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
-import { DeviceTask, listDeviceTasks } from './api'
+import { DeviceTask, listDeviceTasks, listTaskTrace } from './api'
 import { listWorkplaces } from '../gtpops/api'
 
 // Transport overview (build.md §8): a live view of the device tasks the flow-orchestrator
@@ -13,7 +13,6 @@ import { listWorkplaces } from '../gtpops/api'
 // and route/next-hop pulled from the task payload, plus summary tiles and auto-refresh.
 // UI-only against the existing /api/flow/device-tasks read endpoint.
 
-const STATUSES = ['REQUESTED', 'DISPATCHED', 'COMPLETED', 'FAILED'] as const
 const FAMILIES = ['CONVEYOR', 'ASRS', 'AMR', 'AUTOSTORE'] as const
 const REFRESH_MS = 4000
 
@@ -28,6 +27,54 @@ const STATUS_BADGE: Record<string, StatusKind> = {
 
 // Tasks that are not yet in a terminal state count as "active".
 const ACTIVE_STATUSES = new Set(['REQUESTED', 'DISPATCHED'])
+
+// What slice of transports to show. The screen opens on "open-today" — everything still running
+// plus anything that finished today — which is the operator's working set. Switchable from the UI.
+const SCOPES = [
+  { value: 'open-today', label: 'Open + finished today' },
+  { value: 'active', label: 'Open (active) only' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'all', label: 'All recent' },
+] as const
+type Scope = (typeof SCOPES)[number]['value']
+const DEFAULT_SCOPE: Scope = 'open-today'
+
+// What "correlation" means, surfaced as hover help and in the trace dialog.
+const CORRELATION_HELP =
+  'Correlation id groups every device task that belongs to one logical transport / process ' +
+  'instance — e.g. a tote retrieved from the ASRS and then conveyed to a station share one id. ' +
+  'Click a row to see the full trace.'
+
+function isToday(iso: string): boolean {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return false
+  const now = new Date()
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  )
+}
+
+// Client-side scope filter — the backend list is a single newest-first window, so the working-set
+// scopes (which span multiple statuses) are applied here.
+function inScope(task: DeviceTask, scope: Scope): boolean {
+  const active = ACTIVE_STATUSES.has(task.status)
+  switch (scope) {
+    case 'open-today':
+      return active || isToday(task.createdAt)
+    case 'active':
+      return active
+    case 'completed':
+      return task.status === 'COMPLETED'
+    case 'failed':
+      return task.status === 'FAILED'
+    case 'all':
+    default:
+      return true
+  }
+}
 
 function badgeClass(status: string): string {
   const kind = STATUS_BADGE[status] ?? 'muted'
@@ -80,9 +127,10 @@ export default function TransportScreen() {
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const catalog = useCatalog(warehouseId)
   const [tasks, setTasks] = useState<DeviceTask[]>([])
-  const [status, setStatus] = useState('')
+  const [scope, setScope] = useState<Scope>(DEFAULT_SCOPE)
   const [family, setFamily] = useState('')
   const [equipmentId, setEquipmentId] = useState('')
+  const [selected, setSelected] = useState<DeviceTask | null>(null)
   const [equipment, setEquipment] = useState<{ id: string; code?: string; name?: string }[]>([])
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -125,15 +173,17 @@ export default function TransportScreen() {
     [catalog, stationsById],
   )
 
-  // Keep the latest filters in a ref so the polling interval always reads fresh values
-  // without being torn down and recreated on every keystroke.
-  const filtersRef = useRef({ warehouseId, status, family, equipmentId })
-  filtersRef.current = { warehouseId, status, family, equipmentId }
+  // Keep the latest server-side filters in a ref so the polling interval always reads fresh values
+  // without being torn down and recreated on every keystroke. Scope is applied client-side, so it
+  // is not part of the backend query (which is a single newest-first window).
+  const filtersRef = useRef({ warehouseId, family, equipmentId })
+  filtersRef.current = { warehouseId, family, equipmentId }
 
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await listDeviceTasks({ ...filtersRef.current, limit: 200 })
+      // Pull a wide window so the "finished today" scope isn't truncated by the newest-first cap.
+      const data = await listDeviceTasks({ ...filtersRef.current, limit: 500 })
       setTasks(data)
       setError(null)
       setLastUpdated(new Date())
@@ -144,10 +194,10 @@ export default function TransportScreen() {
     }
   }, [])
 
-  // Initial load + reload when filters change.
+  // Initial load + reload when the server-side filters change.
   useEffect(() => {
     refresh()
-  }, [refresh, warehouseId, status, family, equipmentId])
+  }, [refresh, warehouseId, family, equipmentId])
 
   // Load the equipment list for the active warehouse so the filter is a pick-list, not a raw UUID.
   useEffect(() => {
@@ -178,14 +228,17 @@ export default function TransportScreen() {
     return () => window.clearInterval(id)
   }, [autoRefresh, refresh])
 
+  // The visible rows: backend window narrowed to the chosen scope, client-side.
+  const scoped = useMemo(() => tasks.filter((t) => inScope(t, scope)), [tasks, scope])
+
   const counts = useMemo(() => {
-    const c = { REQUESTED: 0, DISPATCHED: 0, COMPLETED: 0, FAILED: 0, active: 0, total: tasks.length }
-    for (const t of tasks) {
+    const c = { REQUESTED: 0, DISPATCHED: 0, COMPLETED: 0, FAILED: 0, active: 0, total: scoped.length }
+    for (const t of scoped) {
       if (t.status in c) c[t.status as keyof typeof c] += 1
       if (ACTIVE_STATUSES.has(t.status)) c.active += 1
     }
     return c
-  }, [tasks])
+  }, [scoped])
 
   const tiles: { label: string; value: number; kind: StatusKind }[] = [
     { label: 'Active', value: counts.active, kind: 'info' },
@@ -210,7 +263,7 @@ export default function TransportScreen() {
         <div>
           <span className="eyebrow">Flow orchestrator</span>
           <h1>Transport overview</h1>
-          <p>Live device-task / transport view across equipment — origin → destination, route and lifecycle status.</p>
+          <p>Live device-task / transport view across equipment — origin → destination, route and lifecycle status. Click a transport for its full trace.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem' }}>
           {lastUpdated && (
@@ -242,12 +295,13 @@ export default function TransportScreen() {
 
       {/* Filters */}
       <div className="glass" style={{ padding: '1rem 1.25rem', marginBottom: '1.25rem', display: 'flex', flexWrap: 'wrap', gap: '.75rem', alignItems: 'flex-end' }}>
-        <Field label={<>Status <InfoTip text="Filter device tasks by lifecycle state: REQUESTED → DISPATCHED → COMPLETED or FAILED. Leave on 'All statuses' to see every task." example="DISPATCHED" /></>}>
+        <Field label={<>Show <InfoTip text="Which transports to list. Opens on 'Open + finished today' — everything still running plus whatever finished today, the live working set. Switch to a single status or 'All recent' to widen the view." example="Open + finished today" /></>}>
           <Select
-            ariaLabel="Status"
-            value={status}
-            onChange={(v) => setStatus(v)}
-            options={[{ value: '', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: s }))]}
+            ariaLabel="Show"
+            value={scope}
+            onChange={(v) => setScope(v as Scope)}
+            style={{ width: 220 }}
+            options={SCOPES.map((s) => ({ value: s.value, label: s.label }))}
           />
         </Field>
         <Field label={<>Equipment family <InfoTip text="Filter by the type of transport equipment handling the task. Each family maps to its own adapter." example="ASRS" /></>}>
@@ -274,9 +328,9 @@ export default function TransportScreen() {
             ]}
           />
         </Field>
-        {(status || family || equipmentId) && (
-          <button className="btn btn-ghost btn-sm" onClick={() => { setStatus(''); setFamily(''); setEquipmentId('') }}>
-            Clear filters
+        {(scope !== DEFAULT_SCOPE || family || equipmentId) && (
+          <button className="btn btn-ghost btn-sm" onClick={() => { setScope(DEFAULT_SCOPE); setFamily(''); setEquipmentId('') }}>
+            Reset filters
           </button>
         )}
       </div>
@@ -286,14 +340,15 @@ export default function TransportScreen() {
       {/* Task table */}
       <div className="glass" style={{ padding: 0, overflow: 'auto' }}>
         <DataTable<DeviceTask>
-          rows={tasks}
+          rows={scoped}
           rowKey={(t) => t.id}
+          onRowClick={(t) => setSelected(t)}
           search={(t) =>
-            `${t.id} ${t.status} ${t.family} ${t.command} ${huCode(t)} ${resolveNode(origin(t))} ${resolveNode(destination(t))} ${t.equipmentId ?? ''} ${t.correlationId ?? ''} ${t.detail ?? ''}`
+            `${t.id} ${t.status} ${t.family} ${t.command} ${huCode(t)} ${resolveNode(origin(t))} ${resolveNode(destination(t))} ${catalog.equipmentLabel(t.equipmentId)} ${t.correlationId ?? ''} ${t.detail ?? ''}`
           }
           searchPlaceholder="Search tasks…"
           initialSort={{ key: 'createdAt', dir: 'desc' }}
-          empty={`No device tasks${(status || family || equipmentId) ? ' match the current filters' : ' yet'}.`}
+          empty={`No transports${(scope !== DEFAULT_SCOPE || family || equipmentId) ? ' match the current filters' : ' yet'}.`}
           columns={[
             {
               key: 'id',
@@ -359,7 +414,7 @@ export default function TransportScreen() {
               key: 'correlationId',
               header: 'Correlation',
               render: (t) => (
-                <span style={{ fontFamily: 'var(--font-mono)' }} title={t.correlationId ?? ''}>{shortId(t.correlationId)}</span>
+                <span style={{ fontFamily: 'var(--font-mono)' }} title={t.correlationId ? `${t.correlationId}\n\n${CORRELATION_HELP}` : CORRELATION_HELP}>{shortId(t.correlationId)}</span>
               ),
             },
             {
@@ -381,6 +436,15 @@ export default function TransportScreen() {
           ]}
         />
       </div>
+
+      {selected && (
+        <TransportTraceDialog
+          task={selected}
+          resolveNode={resolveNode}
+          equipmentLabel={catalog.equipmentLabel}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   )
 }
@@ -391,5 +455,193 @@ function Field({ label, children }: { label: React.ReactNode; children: React.Re
       <span className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.65rem', letterSpacing: '.12em', textTransform: 'uppercase' }}>{label}</span>
       {children}
     </label>
+  )
+}
+
+const dialogBackdrop: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(0,0,0,.55)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 1000,
+  padding: '1rem',
+}
+
+// One labelled value in the detail grid.
+function Detail({ label, value, mono = true }: { label: string; value: React.ReactNode; mono?: boolean }) {
+  return (
+    <div>
+      <div className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '.15rem' }}>{label}</div>
+      <div style={{ fontFamily: mono ? 'var(--font-mono)' : 'inherit', fontSize: '.85rem', wordBreak: 'break-word' }}>{value ?? '—'}</div>
+    </div>
+  )
+}
+
+// Detail + trace dialog for a single transport. Shows the clicked task's full, code-resolved
+// fields and — when it carries a correlation id — the ordered trace of every device task in the
+// same logical transport (fetched on open). Pretty-prints the raw payload/result for the technical
+// detail an operator may need when a task fails.
+function TransportTraceDialog({
+  task,
+  resolveNode,
+  equipmentLabel,
+  onClose,
+}: {
+  task: DeviceTask
+  resolveNode: (raw: string) => string
+  equipmentLabel: Catalog['equipmentLabel']
+  onClose: () => void
+}) {
+  const [trace, setTrace] = useState<DeviceTask[] | null>(null)
+  const [traceError, setTraceError] = useState<string | null>(null)
+  const [loadingTrace, setLoadingTrace] = useState(false)
+
+  useEffect(() => {
+    if (!task.correlationId) {
+      setTrace([task])
+      return
+    }
+    let cancelled = false
+    setLoadingTrace(true)
+    setTraceError(null)
+    listTaskTrace(task.correlationId)
+      .then((rows) => {
+        if (cancelled) return
+        setTrace(rows.length ? rows : [task])
+      })
+      .catch((e) => {
+        if (cancelled) return
+        setTraceError(e instanceof Error ? e.message : String(e))
+        setTrace([task])
+      })
+      .finally(() => !cancelled && setLoadingTrace(false))
+    return () => {
+      cancelled = true
+    }
+  }, [task])
+
+  // Close on Escape.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const payload = task.payload && Object.keys(task.payload).length ? task.payload : null
+  const result = task.result && Object.keys(task.result).length ? task.result : null
+
+  return (
+    <div className="dialog-backdrop" style={dialogBackdrop} onClick={onClose}>
+      <div className="dialog" style={{ maxWidth: 720, width: '94%', maxHeight: '88vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+          <div>
+            <span className="eyebrow">Transport</span>
+            <h2 style={{ margin: '.1rem 0 .25rem' }}>
+              {task.command} · {task.family}
+            </h2>
+            <span className={badgeClass(task.status)}>{task.status}</span>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+
+        {/* Code-resolved fields */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '.9rem', marginTop: '1.1rem' }}>
+          <Detail label="Task id" value={task.id} />
+          <Detail label="HU" value={huCode(task)} />
+          <Detail label="Origin" value={resolveNode(origin(task))} />
+          <Detail label="Destination" value={resolveNode(destination(task))} />
+          <Detail label="Next hop" value={resolveNode(nextHop(task))} />
+          <Detail label="Equipment" value={equipmentLabel(task.equipmentId)} mono={false} />
+          <Detail label="Actor" value={task.actor || '—'} />
+          <Detail label="Created" value={formatTime(task.createdAt)} mono={false} />
+        </div>
+
+        {task.detail && (
+          <div style={{ marginTop: '1rem' }}>
+            <Detail label="Detail" value={task.detail} mono={false} />
+          </div>
+        )}
+
+        {/* Correlation + trace */}
+        <div style={{ marginTop: '1.4rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0 }}>Trace</h3>
+            <InfoTip text={CORRELATION_HELP} example="Retrieve → Convey → Store" />
+            {task.correlationId && (
+              <span className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.72rem' }}>
+                correlation {task.correlationId}
+              </span>
+            )}
+          </div>
+          <p className="muted" style={{ marginTop: '.35rem', fontSize: '.8rem' }}>
+            {task.correlationId
+              ? 'Every device task that shares this transport’s correlation id, in dispatch order.'
+              : 'This task has no correlation id, so it stands on its own — no linked steps.'}
+          </p>
+
+          {loadingTrace && <p className="muted">Loading trace…</p>}
+          {traceError && (
+            <div className="alert" style={{ background: 'rgba(255,107,94,.15)', color: '#ff8a80', border: '1px solid rgba(255,107,94,.3)' }}>
+              Couldn’t load the full trace: {traceError}
+            </div>
+          )}
+
+          {trace && (
+            <ol style={{ listStyle: 'none', margin: '.5rem 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+              {trace.map((step, i) => {
+                const isCurrent = step.id === task.id
+                return (
+                  <li
+                    key={step.id}
+                    className="glass"
+                    style={{
+                      padding: '.6rem .8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '.75rem',
+                      flexWrap: 'wrap',
+                      outline: isCurrent ? '1px solid var(--accent, #8DC63F)' : 'none',
+                    }}
+                  >
+                    <span className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.75rem', minWidth: '1.4rem' }}>{i + 1}</span>
+                    <span className={badgeClass(step.status)}>{step.status}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{step.family} · {step.command}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.78rem' }}>
+                      {resolveNode(origin(step))} → {resolveNode(destination(step))}
+                    </span>
+                    <span className="muted" style={{ fontSize: '.75rem', marginLeft: 'auto', whiteSpace: 'nowrap' }}>{formatTime(step.createdAt)}</span>
+                    {isCurrent && <span className="muted" style={{ fontSize: '.7rem' }}>(this task)</span>}
+                  </li>
+                )
+              })}
+            </ol>
+          )}
+        </div>
+
+        {/* Raw technical payload/result */}
+        {(payload || result) && (
+          <div style={{ marginTop: '1.4rem', display: 'grid', gap: '1rem' }}>
+            {payload && (
+              <div>
+                <div className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '.3rem' }}>Payload</div>
+                <pre style={{ margin: 0, padding: '.7rem .8rem', background: 'rgba(0,0,0,.25)', borderRadius: 8, fontSize: '.75rem', overflow: 'auto' }}>{JSON.stringify(payload, null, 2)}</pre>
+              </div>
+            )}
+            {result && (
+              <div>
+                <div className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '.3rem' }}>Result</div>
+                <pre style={{ margin: 0, padding: '.7rem .8rem', background: 'rgba(0,0,0,.25)', borderRadius: 8, fontSize: '.75rem', overflow: 'auto' }}>{JSON.stringify(result, null, 2)}</pre>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="dialog-actions" style={{ marginTop: '1.4rem' }}>
+          <button className="btn btn-ghost" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
   )
 }

@@ -38,3 +38,12 @@ export async function listDeviceTasks(filters: TaskFilters): Promise<DeviceTask[
   if (!res.ok) throw new Error(`Failed to load device tasks: ${res.status}`)
   return (await res.json()) as DeviceTask[]
 }
+
+// Fetches every device task that shares a correlation id, oldest-first — the "trace" of one
+// logical transport (a process instance can dispatch several tasks under the same correlation).
+// Backed by the same list endpoint, which returns the correlation group when `correlationId` is set.
+export async function listTaskTrace(correlationId: string): Promise<DeviceTask[]> {
+  const res = await fetch(`/api/flow/device-tasks?correlationId=${encodeURIComponent(correlationId)}`)
+  if (!res.ok) throw new Error(`Failed to load transport trace: ${res.status}`)
+  return (await res.json()) as DeviceTask[]
+}
