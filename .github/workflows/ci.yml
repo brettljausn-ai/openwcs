@@ -96,7 +96,11 @@ jobs:
             echo "No screenshot changes."
           else
             git commit -m "chore(ui): update screenshot gallery [skip ci]"
-            git push origin HEAD:main
+            # main is a protected branch (PRs + required checks), so a direct push from CI is
+            # rejected. Keep that non-fatal so it doesn't fail the build — the gallery is still
+            # uploaded as an artifact above; refresh it via PR when needed.
+            git push origin HEAD:main \
+              || echo "push to protected main rejected (branch protection); gallery not committed"
           fi
 
   contracts:
