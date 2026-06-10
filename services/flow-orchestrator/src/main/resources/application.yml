@@ -35,6 +35,11 @@ openwcs:
       ASRS: ${OPENWCS_ADAPTER_ASRS:http://localhost:9096}
       AMR: ${OPENWCS_ADAPTER_AMR:http://localhost:9093}
       AUTOSTORE: ${OPENWCS_ADAPTER_AUTOSTORE:http://localhost:9094}
+    # Single equipment-emulator: when HARDWARE_EMULATOR_ENABLED is on, every family is dispatched
+    # here instead of to the per-family adapters above.
+    emulator-url: ${OPENWCS_EMULATOR_URL:http://localhost:9097}
+    # master-data base URL — read the hardware-emulator flag to choose emulator vs real adapters.
+    master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
     # gtp service base URL — projecting topology STOCK/ORDER interactions into station nodes.
     gtp-base-url: ${OPENWCS_GTP_BASE_URL:http://localhost:8094}
 

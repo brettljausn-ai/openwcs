@@ -29,10 +29,10 @@ MANUAL_PICK/RESERVE_RACK→none (operator-handled, not routed).
 
 ---
 
-## Phase 1 — resolve dispatch family from storage type (no new service) — CODE COMPLETE, NOT YET VERIFIED
+## Phase 1 — resolve dispatch family from storage type (no new service) — DONE (merged, PR #186)
 
-Branch: `feat/dispatch-family-from-storage-type`. Goal: stop hardcoding `ASRS`; dispatch each device
-task to the adapter family that actually services the cell's storage.
+Branch: `feat/dispatch-family-from-storage-type` (merged). Goal: stop hardcoding `ASRS`; dispatch
+each device task to the adapter family that actually services the cell's storage.
 
 - [x] Add `MasterDataClient.deviceFamilyOf(storageType)` mapping helper (counting)
       — `services/counting/.../client/MasterDataClient.java`
@@ -66,15 +66,34 @@ task to the adapter family that actually services the cell's storage.
 
 ---
 
-## Phase 2 — emulator service skeleton at the boundary — NOT STARTED
+## Phase 2 — emulator service at the boundary — CODE COMPLETE in PR (branch `feat/equipment-emulator-service`), NOT VERIFIED
 
-- [ ] New `services/equipment-emulator` (Go) implementing the `/tasks` contract for all families.
-- [ ] `flow-orchestrator`: when `HARDWARE_EMULATOR_ENABLED` is on, route ALL families to the emulator
-      URL; when off, route to the real per-family adapters. (Flag-aware resolution in
-      `HttpDeviceClient`/`FlowProperties`, single `OPENWCS_EMULATOR_URL`.)
-- [ ] Lift the duplicated `emumode.go`/`tasks.go` emulation out of the four Go adapters; adapters
-      become pure real-hardware drivers (or thin "not connected" stubs when emulator off).
-- [ ] Keep behaviour-equivalent to today first (instant COMPLETED) for parity, just centralized.
+Split into 2 (this PR) and 2b (follow-up). This PR stands up the single emulator and routes to it;
+stripping the now-bypassed adapter emu is 2b (kept separate — reviewable, and harmless to leave:
+when the flag is on the adapters get no traffic, when off they behave the same as a stripped one).
+
+- [x] New `services/equipment-emulator` (Go, stdlib only) implementing `POST /tasks` for ALL families
+      (union of the adapters' command sets), `/state`, health probes. Always simulates (no flag gate —
+      flow only routes here while the flag is on). Tests: `tasks_test.go`. Dockerfile + README.
+- [x] `flow-orchestrator` flag-aware routing: emulator ON → all families to `emulator-url`; OFF →
+      per-family adapter. New `EmulatorModeClient`/`HttpEmulatorModeClient` (TTL-cached read of
+      master-data `/api/master-data/emulator`); `HttpDeviceClient.resolveBaseUrl`; flow now puts
+      `family` in the `/tasks` body (emulator needs it; real adapters ignore it).
+      `FlowProperties.emulatorUrl`, `application.yml` `emulator-url` + `master-data-base-url`.
+      Test: `HttpDeviceClientTest` (routing decision).
+- [x] Deploy: compose `equipment-emulator` service (port 9097) + flow env `OPENWCS_EMULATOR_URL`/
+      `OPENWCS_MASTER_DATA_BASE_URL` + gateway `OPENWCS_URI_EQUIPMENT_EMULATOR`; k8s Deployment+Service
+      in `adapters.yaml` + `OPENWCS_EMULATOR_URL` in `config.yaml`. CI `go` job now also builds
+      `services/equipment-emulator`.
+- [ ] **Verify in CI** (`CI`: Go job builds/tests emulator; Java job builds flow + runs
+      `HttpDeviceClientTest`). No JDK/Go/Docker locally — relies on CI. Then merge.
+- [ ] Manual smoke (optional): emulator ON, run a stock count → tote retrieval COMPLETED via emulator;
+      check `equipment-emulator` `/state` shows the ASRS command.
+
+### Phase 2b — strip emulation from the four Go adapters — NOT STARTED
+- [ ] Remove `emumode.go` + the simulate branch in each adapter's `tasks.go`/`main.go`; adapters
+      become real-hardware skeletons that return "not connected" when called (only happens in OFF
+      mode). Drop their `WCS_MASTER_DATA_URL` flag polling. Realizes the de-duplication.
 
 ## Phase 3 — realism: async completion + timing — NOT STARTED
 
