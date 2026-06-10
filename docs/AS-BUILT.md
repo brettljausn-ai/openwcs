@@ -1,6 +1,6 @@
 # openWCS — As-Built Documentation
 
-_Last updated: 2026-06-10 (adapter emulation stripped — all four Go adapters are real-hardware skeletons; emulation consolidated in `equipment-emulator`)_
+_Last updated: 2026-06-10 (Phase 4 emulator: fault injection, real telemetry, live `/config` endpoint)_
 
 What is **actually implemented** today (not the target architecture). Design intent:
 [`build.md`](../build.md); decisions: [`docs/adr/`](./adr); live progress:
@@ -36,7 +36,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | integration-manhattan | 8090 | 🟡 | Host gateway (skeleton): `POST /orders` + `/asns` translating Manhattan Active messages into the canonical Host API. |
 | process-engine | 8083 | 🟡 | Embedded **Flowable BPMN** engine: deploy process definitions, start/inspect instances; service-task delegates originate WCS work (dispatch device task, assign route, release order, **assign put-away**, **allocate order**). Sample processes: goods-in, goods-in-putaway, cycle-count, and a complete **outbound** process (release → allocate → gateway → pick/dispatch → route). |
 | notification | 8088 | 🟦 | Scaffold (health/info only). |
-| equipment-emulator | 9097 | 🟡 | Go; simulates all four device families (conveyor CONVEY/DIVERT/MERGE/SCAN, ASRS STORE/RETRIEVE, AMR TRANSPORT/MOVE, AutoStore BIN_STORE/BIN_RETRIEVE) when `HARDWARE_EMULATOR_ENABLED` is ON; flow-orchestrator routes device tasks here instead of the real adapters. |
+| equipment-emulator | 9097 | 🟡 | Go; simulates all four device families (conveyor CONVEY/DIVERT/MERGE/SCAN, ASRS STORE/RETRIEVE, AMR TRANSPORT/MOVE, AutoStore BIN_STORE/BIN_RETRIEVE) when `HARDWARE_EMULATOR_ENABLED` is ON; flow-orchestrator routes device tasks here instead of the real adapters. Per-family/command simulated latency (`OPENWCS_EMULATOR_LATENCY_MS` overrides all, `0` = instant). Deterministic fault injection (`OPENWCS_EMULATOR_FAULT_RATE=N`: 1 in every N tasks returns FAILED with `fault: true`). Real per-family completed/failed tallies on `GET /state`. Latency + fault rate tunable at runtime via `GET`/`POST /config`. |
 | adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop; `POST /tasks` returns FAILED ("hardware not connected") — real-hardware seam. |
 | adapters/{asrs,amr-geekplus,autostore} | 9096, 9093, 9094 | 🟦 | Go; health/readiness + stub loop; `POST /tasks` returns FAILED ("hardware not connected") — real-hardware seam. (asrs on 9096 — 9092 is Kafka's.) |
 | adapters/conveyor-sniffer | 9095 | 🟡 | Go; ingests scan telegrams from defined source IPs (allowlist + pluggable decoder) and posts observations to the WCS for topology learning. |
@@ -281,15 +281,20 @@ actor).
 - **Hardware emulator mode**: a dedicated `equipment-emulator` service (port 9097) simulates all
   four device families. When `HARDWARE_EMULATOR_ENABLED` is ON, flow-orchestrator routes device
   tasks to it instead of the real adapters; the service accepts CONVEY/DIVERT/MERGE/SCAN,
-  STORE/RETRIEVE, TRANSPORT/MOVE, and BIN_STORE/BIN_RETRIEVE, returning COMPLETED results,
-  maintaining **in-memory device state**, and emitting **synthetic telemetry** — never opening a
-  hardware connection. Each command sleeps a realistic per-family/command duration before
-  responding (e.g. ASRS STORE/RETRIEVE ≈ 900 ms, AMR TRANSPORT ≈ 1.2 s, conveyor moves ≈
-  400–600 ms); the result payload includes `durationMs`. `OPENWCS_EMULATOR_LATENCY_MS` overrides
-  every command (`0` = instant; useful in tests and CI). When OFF (the default), flow routes to
-  the real adapters, each of which returns FAILED ("hardware not connected") — the deliberate
-  **seam** for future real-hardware protocol clients. Purpose: run the entire automation flow
-  with zero physical hardware (evaluation, onboarding, CI).
+  STORE/RETRIEVE, TRANSPORT/MOVE, and BIN_STORE/BIN_RETRIEVE, maintaining **in-memory device
+  state** — never opening a hardware connection. Each command sleeps a realistic per-family/command
+  duration before responding (e.g. ASRS STORE/RETRIEVE ≈ 900 ms, AMR TRANSPORT ≈ 1.2 s, conveyor
+  moves ≈ 400–600 ms); the result payload includes `durationMs`. `OPENWCS_EMULATOR_LATENCY_MS`
+  overrides every command (`0` = instant; useful in tests and CI). **Fault injection**
+  (`OPENWCS_EMULATOR_FAULT_RATE=N`): 1 in every N tasks is failed deterministically — the result
+  carries `"fault": true` and counters increment the per-family `failed` tally. **Live control**
+  (`GET`/`POST /config`): latency override and fault rate are atomics readable and writable at
+  runtime (e.g. `curl -XPOST .../config -d '{"faultEvery":4}'`) — no restart required. **Real
+  telemetry** (`GET /state`): per-family `completed`/`failed` tallies derived from actual task
+  load (not synthetic); the snapshot also echoes the live config. When OFF (the default), flow
+  routes to the real adapters, each of which returns FAILED ("hardware not connected") — the
+  deliberate **seam** for future real-hardware protocol clients. Purpose: run the entire automation
+  flow with zero physical hardware (evaluation, onboarding, CI).
 - **RBAC catalog**: `DEVICE_VIEW`/`DEVICE_OPERATE` added to `Permission` + `RoleCatalog`
   (VIEWER sees, OPERATOR operates) and seeded in IAM (`iam/V2__device_permissions.sql`).
 

@@ -1,6 +1,6 @@
 # openWCS — Development Status
 
-_Last updated: 2026-06-10 (adapter emulation stripped — all four Go adapters are real-hardware skeletons; emulation consolidated in `equipment-emulator`)_
+_Last updated: 2026-06-10 (Phase 4 emulator: fault injection, real telemetry, live `/config` endpoint)_
 
 Live status of the build against the roadmap in [`build.md` §15](../build.md). For what
 the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
@@ -35,7 +35,7 @@ the implemented parts actually do, see [`AS-BUILT.md`](./AS-BUILT.md).
 | integration-sap | Java | 8089 | 🟡 | Host gateway: per-shipper dispatch-label barcode (`POST /labels`) + route feed (`POST /routes/sync`) + SAP order/ASN intake (`POST /orders`,`/asns`) translated into the canonical Host API (materials resolved to SKUs). |
 | integration-manhattan | Java | 8090 | 🟡 | Host gateway: Manhattan order/ASN intake (`POST /orders`,`/asns`) translated into the canonical Host API (items resolved to SKUs). |
 | integration-host | Java | 8092 | 🟡 | Canonical vendor-neutral Host API (`/api/host/**`): orders + ASNs + **SKU sync (list of SKUs with UoMs + barcodes inline)** + inventory adjustments in; confirmations out via pull (cursor feed) **and** webhook push; idempotency keys. |
-| equipment-emulator | Go | 9097 | 🟡 | Simulates all four device families (conveyor/ASRS/AMR/AutoStore commands); active when `HARDWARE_EMULATOR_ENABLED` is ON — flow-orchestrator routes device tasks here instead of the real adapters. Each command sleeps a realistic per-family/command duration before returning COMPLETED (result includes `durationMs`); `OPENWCS_EMULATOR_LATENCY_MS` overrides all commands (`0` = instant). |
+| equipment-emulator | Go | 9097 | 🟡 | Simulates all four device families (conveyor/ASRS/AMR/AutoStore commands); active when `HARDWARE_EMULATOR_ENABLED` is ON — flow-orchestrator routes device tasks here instead of the real adapters. Each command sleeps a realistic per-family/command duration before returning COMPLETED (result includes `durationMs`); `OPENWCS_EMULATOR_LATENCY_MS` overrides all commands (`0` = instant). **Fault injection** (`OPENWCS_EMULATOR_FAULT_RATE=N`): 1 in every N tasks returns FAILED (deterministic; result carries `fault: true`). **Live config** (`GET`/`POST /config`): latency + fault rate are atomics changeable at runtime without restart. **Real telemetry** (`GET /state`): per-family `completed`/`failed` tallies from actual task load; snapshot echoes live config. |
 | adapters/conveyor | Go | 9091 | 🟡 | Health + stub loop; `POST /tasks` returns FAILED ("hardware not connected") — real-hardware seam. Emulation consolidated into `equipment-emulator`. |
 | adapters/{asrs,amr-geekplus,autostore} | Go | 9096, 9093, 9094 | 🟡 | Health + stub loop; `POST /tasks` returns FAILED ("hardware not connected") — real-hardware seam. Emulation consolidated into `equipment-emulator`. (asrs on 9096 — 9092 is Kafka's.) |
 | adapters/conveyor-sniffer | Go | 9095 | 🟡 | Ingests scan telegrams from defined source IPs (allowlist + decoder) → posts observations to the WCS for topology learning. |
@@ -79,6 +79,7 @@ scaling — see [`SCALING.md`](./SCALING.md)); Helm ⬜.
 | order-management | `OrderTransactionTest`, `OrderTransactionRelayTest`, `OrderAuthorizationTest`, `DemoSeedTest` | Testcontainers + Mockito (outbox, relay, and per-endpoint RBAC: VIEWER 403 / SUPERVISOR 201; **demo seed** creates 10 sample INBOUND/OUTBOUND orders when demo mode on, rejected when off) |
 | iam | `IamServiceTest` | Testcontainers (seeded roles, effective permissions, catalog validation) |
 | flow-orchestrator | `DeviceTaskServiceTest`, `RoutingEngineTest`, `RoutingServiceTest`, `DiscoveryServiceTest` | Testcontainers + Mockito (device tasks; pure next-hop; routing through targets; loop HOLD/OVERFLOW; topology learning infers nodes/edges/targets from observations) |
+| equipment-emulator | `tasks_test.go` | Go httptest (`POST /tasks`: COMPLETED with realistic latency, simulated duration reported; **fault injection** — `faultEvery=2` fails every 2nd task with FAILED + `fault: true`, alternates deterministically; **`/config` endpoint** — POST updates `latencyOverrideMs`/`faultEvery` atomics, GET reflects them; 405 on GET `/tasks`) |
 | adapters/conveyor | `main_test.go` | Go httptest (`POST /tasks`: FAILED "hardware not connected" on all commands, 405 on GET) |
 | adapters/{asrs,amr-geekplus,autostore} | `tasks_test.go` | Go httptest (`POST /tasks`: FAILED "hardware not connected" for all families) |
 | adapters/conveyor-sniffer | `sniffer_test.go` | Go (decoder; IP allowlist; ingest→decode→forward end-to-end; HTTP observation post) |
