@@ -37,7 +37,8 @@ public class CountRoutingService {
 
     private static final Logger log = LoggerFactory.getLogger(CountRoutingService.class);
     private static final String MODE = "STOCK_COUNT";
-    private static final String FAMILY = "ASRS";
+    /** Fallback device family if a routed cell's storage type can't be mapped (shouldn't happen). */
+    private static final String DEFAULT_FAMILY = "ASRS";
     private static final String COMMAND = "RETRIEVE";
     private static final int REASON_MAX = 140;
 
@@ -126,8 +127,11 @@ public class CountRoutingService {
                 asrsRouted++;
                 continue; // already routed on a prior attempt — never route twice.
             }
+            // Dispatch to the adapter family that actually services this storage (shuttle/crane ->
+            // ASRS, AutoStore -> AUTOSTORE, AMR-GTP -> AMR), not a hardcoded ASRS.
+            String family = familyOrDefault(storageType);
             try {
-                boolean routed = routeLine(task.getWarehouseId(), stationId, line);
+                boolean routed = routeLine(task.getWarehouseId(), stationId, line, family);
                 if (routed) {
                     line.setRouted(true);
                     lines.save(line);
@@ -160,7 +164,7 @@ public class CountRoutingService {
      * Route one ASRS-family line's tote to the station. Returns true when a tote was actually moved,
      * false when there is no handling unit at the cell (nothing to route).
      */
-    private boolean routeLine(UUID warehouseId, UUID stationId, CountLine line) {
+    private boolean routeLine(UUID warehouseId, UUID stationId, CountLine line, String family) {
         Optional<InventoryClient.HandlingUnit> hu =
                 inventory.findHuAt(warehouseId, line.getSkuId(), line.getLocationId());
         if (hu.isEmpty()) {
@@ -175,7 +179,7 @@ public class CountRoutingService {
         // enqueue leaves no orphaned transport behind — the line stays unrouted and a later retry
         // (once a slot frees up) routes it cleanly instead of minting a duplicate transport each pass.
         gtp.enqueue(stationId, new GtpClient.EnqueueRequest(
-                tote.huId(), tote.huCode(), line.getSkuId(), skuCode, qty, MODE, FAMILY, null,
+                tote.huId(), tote.huCode(), line.getSkuId(), skuCode, qty, MODE, family, null,
                 line.getCountTaskId(), line.getId(), line.getLocationId()));
 
         // Slot secured — now transport the tote so the retrieval is visible on the Transport screen.
@@ -187,11 +191,17 @@ public class CountRoutingService {
         payload.put("skuCode", skuCode);
         payload.put("locationId", line.getLocationId());
         payload.put("reason", MODE);
-        UUID transportId = flow.createTransport(warehouseId, FAMILY, COMMAND, payload, tote.huId());
+        UUID transportId = flow.createTransport(warehouseId, family, COMMAND, payload, tote.huId());
 
         log.info("routed count tote {} (sku {}) to GTP station {} for stock count; transport {}",
                 tote.huCode(), skuCode, stationId, transportId);
         return true;
+    }
+
+    /** Resolve the device family for a routed cell's storage type, falling back to ASRS. */
+    private static String familyOrDefault(String storageType) {
+        String family = MasterDataClient.deviceFamilyOf(storageType);
+        return family != null ? family : DEFAULT_FAMILY;
     }
 
     private static String trim(String s) {

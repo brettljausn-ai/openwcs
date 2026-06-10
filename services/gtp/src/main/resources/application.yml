@@ -34,6 +34,8 @@ openwcs:
     txlog-base-url: ${OPENWCS_TXLOG_BASE_URL:http://localhost:8086}
     # Store-back asks slotting for the currently-best put-away location for a finished tote.
     slotting-base-url: ${OPENWCS_SLOTTING_BASE_URL:http://localhost:8093}
+    # Store-back resolves the destination's storage type from master-data to pick the device family.
+    master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
 
 management:
   endpoints:
