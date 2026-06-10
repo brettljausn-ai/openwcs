@@ -142,3 +142,32 @@ func TestConfigEndpoint(t *testing.T) {
 		t.Fatalf("GET /config faultEvery = %d, want 5", cfg.FaultEvery)
 	}
 }
+
+// With a callbackUrl, the task is acked ACCEPTED immediately and the terminal result is POSTed back.
+func TestAsyncDispatchCallsBack(t *testing.T) {
+	got := make(chan deviceTaskResult, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var res deviceTaskResult
+		_ = json.NewDecoder(r.Body).Decode(&res)
+		got <- res
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	res := postTask(t, deviceTaskRequest{TaskID: "t-async", Family: "ASRS", Command: "RETRIEVE", CallbackURL: srv.URL})
+	if res.Status != "ACCEPTED" {
+		t.Fatalf("immediate status = %q, want ACCEPTED", res.Status)
+	}
+
+	select {
+	case cb := <-got:
+		if cb.Status != "COMPLETED" {
+			t.Fatalf("callback status = %q, want COMPLETED", cb.Status)
+		}
+		if cb.ResultPayload["family"] != "ASRS" {
+			t.Fatalf("callback resultPayload.family = %v, want ASRS", cb.ResultPayload["family"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no callback received within 2s")
+	}
+}

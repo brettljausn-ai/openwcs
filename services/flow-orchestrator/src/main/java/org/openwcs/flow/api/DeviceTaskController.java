@@ -43,6 +43,15 @@ public class DeviceTaskController {
     }
 
     /**
+     * Async result callback: an asynchronous adapter/emulator POSTs the terminal outcome of a
+     * DISPATCHED task here. Idempotent (an already-terminal task is left unchanged).
+     */
+    @PostMapping("/{id}/result")
+    public DeviceTaskView result(@PathVariable UUID id, @RequestBody DeviceTaskResultCallback body) {
+        return service.completeFromCallback(id, body.status(), body.detail(), body.resultPayload());
+    }
+
+    /**
      * Lists device tasks for the transport overview. With {@code correlationId} it returns that
      * group oldest-first (the original behaviour); otherwise it returns recent tasks newest-first,
      * with optional {@code warehouseId}/{@code status}/{@code family}/{@code equipmentId} filters

@@ -21,6 +21,9 @@ type deviceTaskRequest struct {
 	Family      string                 `json:"family"`
 	Command     string                 `json:"command"`
 	Payload     map[string]interface{} `json:"payload"`
+	// CallbackURL, when set by flow, switches this task to asynchronous: the emulator acks ACCEPTED
+	// now and POSTs the terminal result here after the simulated processing time. Empty = synchronous.
+	CallbackURL string `json:"callbackUrl"`
 }
 
 // deviceTaskResult is the synchronous reply; status is COMPLETED or FAILED.
@@ -83,9 +86,25 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Simulate the equipment taking time to execute. The device contract is still synchronous
-	// (flow blocks on this response), so the per-command durations are kept modest; a non-blocking
-	// async contract is the follow-up (see EMULATOR-CONSOLIDATION.md, Phase 3b).
+	// Asynchronous path: when flow supplies a callbackUrl, ack ACCEPTED immediately and run the task
+	// (sleep + fault + record) in the background, POSTing the terminal result back to flow. This is
+	// the non-blocking device contract — flow no longer holds a request/transaction open for the
+	// simulated processing time.
+	if req.CallbackURL != "" {
+		_ = json.NewEncoder(w).Encode(deviceTaskResult{Status: "ACCEPTED", Detail: "dispatched; result will follow via callback"})
+		go func() {
+			postCallback(req.CallbackURL, req.TaskID, runTask(family, req))
+		}()
+		return
+	}
+
+	// Synchronous fallback (no callbackUrl, e.g. tests): run inline and return the terminal result.
+	_ = json.NewEncoder(w).Encode(runTask(family, req))
+}
+
+// runTask simulates executing a validated task: it sleeps the per-command latency, maybe injects a
+// fault, records the outcome in the telemetry state, and returns the terminal result.
+func runTask(family string, req deviceTaskRequest) deviceTaskResult {
 	d := commandLatency(family, req.Command)
 	time.Sleep(d)
 
@@ -94,7 +113,7 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 	if shouldFault() {
 		sim.recordFailed(family, req.Command)
 		log.Printf("%s: task %s family=%s command=%s SIMULATED FAULT after %s", serviceName, req.TaskID, family, req.Command, d)
-		_ = json.NewEncoder(w).Encode(deviceTaskResult{
+		return deviceTaskResult{
 			Status: "FAILED",
 			Detail: strings.ToLower(family) + " simulated equipment fault on " + req.Command,
 			ResultPayload: map[string]interface{}{
@@ -105,13 +124,12 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 				"simulated":  true,
 				"fault":      true,
 			},
-		})
-		return
+		}
 	}
 
 	sim.recordCompleted(family, req.Command)
 	log.Printf("%s: executed task %s family=%s command=%s equipment=%s in %s", serviceName, req.TaskID, family, req.Command, req.EquipmentID, d)
-	_ = json.NewEncoder(w).Encode(deviceTaskResult{
+	return deviceTaskResult{
 		Status: "COMPLETED",
 		Detail: strings.ToLower(family) + " simulated " + req.Command,
 		ResultPayload: map[string]interface{}{
@@ -121,5 +139,5 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 			"durationMs": d.Milliseconds(),
 			"simulated":  true,
 		},
-	})
+	}
 }

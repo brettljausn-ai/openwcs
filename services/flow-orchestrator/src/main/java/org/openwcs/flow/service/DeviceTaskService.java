@@ -1,6 +1,7 @@
 package org.openwcs.flow.service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.openwcs.flow.api.DeviceTaskNotFoundException;
 import org.openwcs.flow.api.DeviceTaskView;
@@ -52,7 +53,11 @@ public class DeviceTaskService {
         task.setStatus("DISPATCHED");
         try {
             DeviceClient.DeviceResult result = deviceClient.execute(task);
-            if (result != null && "COMPLETED".equals(result.status())) {
+            if (result != null && ("ACCEPTED".equals(result.status()) || "DISPATCHED".equals(result.status()))) {
+                // Asynchronous device: it acked the dispatch and will POST the terminal result back to
+                // /{id}/result (see completeFromCallback). Leave the task DISPATCHED until then.
+                task.setDetail(result.detail());
+            } else if (result != null && "COMPLETED".equals(result.status())) {
                 task.setStatus("COMPLETED");
                 task.setDetail(result.detail());
                 task.setResult(result.resultPayload());
@@ -66,6 +71,27 @@ public class DeviceTaskService {
             task.setStatus("FAILED");
             task.setDetail("adapter call failed: " + e.getMessage());
         }
+        return DeviceTaskView.from(task);
+    }
+
+    /**
+     * Apply the terminal result an asynchronous device posts back for a DISPATCHED task. Idempotent:
+     * a task that is already terminal (COMPLETED/FAILED) is left unchanged, so a duplicate or late
+     * callback can't flip or re-apply it.
+     */
+    @Transactional
+    public DeviceTaskView completeFromCallback(UUID taskId, String status, String detail,
+                                               Map<String, Object> resultPayload) {
+        DeviceTask task = tasks.findById(taskId)
+                .orElseThrow(() -> new DeviceTaskNotFoundException(taskId));
+        if ("COMPLETED".equals(task.getStatus()) || "FAILED".equals(task.getStatus())) {
+            log.debug("Ignoring callback for already-terminal device task {} ({})", taskId, task.getStatus());
+            return DeviceTaskView.from(task);
+        }
+        task.setStatus("COMPLETED".equals(status) ? "COMPLETED" : "FAILED");
+        task.setDetail(detail);
+        task.setResult(resultPayload);
+        log.debug("Device task {} -> {} via callback", taskId, task.getStatus());
         return DeviceTaskView.from(task);
     }
 

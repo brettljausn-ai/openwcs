@@ -19,6 +19,13 @@ public class FlowProperties {
      */
     private String emulatorUrl = "http://localhost:9097";
 
+    /**
+     * This service's own base URL, handed to the device (in the {@code /tasks} body as a callback URL)
+     * so an asynchronous adapter/emulator can POST the result back to
+     * {@code /api/flow/device-tasks/{id}/result}.
+     */
+    private String selfBaseUrl = "http://localhost:8085";
+
     /** Base URL of the gtp service (projecting topology STOCK/ORDER interactions into station nodes). */
     private String gtpBaseUrl = "http://localhost:8094";
 
@@ -36,6 +43,14 @@ public class FlowProperties {
 
     public void setEmulatorUrl(String emulatorUrl) {
         this.emulatorUrl = emulatorUrl;
+    }
+
+    public String getSelfBaseUrl() {
+        return selfBaseUrl;
+    }
+
+    public void setSelfBaseUrl(String selfBaseUrl) {
+        this.selfBaseUrl = selfBaseUrl;
     }
 
     public String getGtpBaseUrl() {
