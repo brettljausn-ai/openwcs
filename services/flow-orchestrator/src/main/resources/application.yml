@@ -40,6 +40,8 @@ openwcs:
     emulator-url: ${OPENWCS_EMULATOR_URL:http://localhost:9097}
     # master-data base URL — read the hardware-emulator flag to choose emulator vs real adapters.
     master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
+    # This service's own base URL, sent to the device as the async result-callback target.
+    self-base-url: ${OPENWCS_FLOW_SELF_BASE_URL:http://localhost:8085}
     # gtp service base URL — projecting topology STOCK/ORDER interactions into station nodes.
     gtp-base-url: ${OPENWCS_GTP_BASE_URL:http://localhost:8094}
 

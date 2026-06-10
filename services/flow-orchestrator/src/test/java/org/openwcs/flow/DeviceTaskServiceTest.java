@@ -124,4 +124,37 @@ class DeviceTaskServiceTest {
         org.junit.jupiter.api.Assertions.assertThrows(
                 DeviceTaskNotFoundException.class, () -> service.get(UUID.randomUUID()));
     }
+
+    @Test
+    void asyncDispatchStaysDispatchedThenCompletesViaCallback() {
+        // The device accepts the task (async); dispatch leaves it DISPATCHED.
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("ACCEPTED", "dispatched", null));
+
+        DeviceTaskView view = service.request(
+                new RequestDeviceTask(UUID.randomUUID(), "ASRS", null, "RETRIEVE", Map.of(), null), "tester");
+        assertThat(view.status()).isEqualTo("DISPATCHED");
+
+        // The device posts the terminal result back.
+        DeviceTaskView done = service.completeFromCallback(
+                view.id(), "COMPLETED", "asrs simulated RETRIEVE", Map.of("simulated", true));
+        assertThat(done.status()).isEqualTo("COMPLETED");
+        assertThat(service.get(view.id()).status()).isEqualTo("COMPLETED");
+        assertThat(service.get(view.id()).result()).containsEntry("simulated", true);
+    }
+
+    @Test
+    void callbackIsIdempotentOnceTerminal() {
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("ACCEPTED", "dispatched", null));
+        DeviceTaskView view = service.request(
+                new RequestDeviceTask(UUID.randomUUID(), "ASRS", null, "RETRIEVE", Map.of(), null), "tester");
+
+        service.completeFromCallback(view.id(), "FAILED", "fault", null);
+        // A late/duplicate callback must not flip an already-terminal task.
+        service.completeFromCallback(view.id(), "COMPLETED", "too late", Map.of("x", 1));
+
+        assertThat(service.get(view.id()).status()).isEqualTo("FAILED");
+        assertThat(service.get(view.id()).detail()).isEqualTo("fault");
+    }
 }

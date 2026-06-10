@@ -115,16 +115,28 @@ this repo can't be compiled/run locally.
       Exposed in compose. Tests: `TestReportsSimulatedDuration` + `TestMain` zeroes latency.
 - [ ] **Verify in CI** (Go job builds/tests the emulator) and merge.
 
-### Phase 3b — async device contract + move timing in — NOT STARTED (decision-gated)
-- [ ] Move the device contract from sync-blocking (`DeviceTaskService` blocks on the HTTP result, and
-      currently holds its @Transactional open for the simulated sleep) to **async**: record DISPATCHED,
-      emulator posts the result back (Kafka `device.results` or a callback endpoint on flow). THIS IS
-      THE HIGH-IMPACT DECISION — confirm direction before building.
-- [ ] Then move GTP's arrival-timing physics (`StationQueueService` distance ÷ 0.5 m/s) into the
-      emulator so there's a single owner of movement time. Careful: GTP's in-transit→queued state
-      machine depends on arrival time.
-- Note: the Phase 3 sync latency holds a flow DB transaction for the sleep duration — fine at demo
-      volumes, and the reason async is the proper fix.
+### Phase 3b — async device contract — CODE COMPLETE in PR (branch `feat/async-device-contract`), NOT VERIFIED
+Decision taken: **callback-on-flow** (not Kafka) — keeps the emulator dependency-free (stdlib http.Post)
+and is a smaller delta. Backward-compatible: real adapters stay synchronous; the emulator only goes
+async when flow supplies a `callbackUrl`.
+
+- [x] Verified all consumers are fire-and-forget — counting `routeLine`, GTP store-back, and
+      process-engine's delegate all read only the task **id**, never the completion. So async changes
+      no consumer behaviour; tasks just go DISPATCHED → COMPLETED over time (more realistic).
+- [x] flow: `DeviceTaskService.request` treats an `ACCEPTED` device response as "stay DISPATCHED";
+      new idempotent `completeFromCallback` + `POST /api/flow/device-tasks/{id}/result`
+      (`DeviceTaskResultCallback`). `HttpDeviceClient` sends a `callbackUrl` built from new
+      `FlowProperties.selfBaseUrl` (`OPENWCS_FLOW_SELF_BASE_URL`, wired in compose + k8s).
+- [x] emulator: with `callbackUrl` it acks `ACCEPTED` then runs the task in a goroutine and POSTs the
+      terminal result back (`callback.go`); `runTask` extracted; sync fallback kept for no-callback.
+      Tests: flow async-then-callback + idempotency; emulator async-calls-back.
+- [ ] **Verify in CI** (flow Java tests + emulator Go tests). This is the highest-blast-radius PR and
+      the one most worth a real run-through before merge — no JDK/Go/Docker locally.
+
+### Phase 3c — move GTP arrival-timing physics into the emulator — NOT STARTED
+- [ ] Move GTP's arrival-timing (`StationQueueService` distance ÷ 0.5 m/s) into the emulator so there's
+      a single owner of movement time. Careful: GTP's in-transit→queued state machine depends on arrival
+      time, so this needs its own design + verification. Now unblocked by the async contract above.
 
 ## Phase 4 — fault injection + telemetry + live control — CODE COMPLETE in PR (branch `feat/emulator-fault-injection`), NOT VERIFIED
 

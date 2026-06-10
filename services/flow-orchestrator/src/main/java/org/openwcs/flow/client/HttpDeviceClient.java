@@ -38,6 +38,9 @@ public class HttpDeviceClient implements DeviceClient {
         body.put("family", task.getFamily());
         body.put("command", task.getCommand());
         body.put("payload", task.getPayload());
+        // Where an asynchronous device posts the terminal result back. The emulator uses this to
+        // ack 202/ACCEPTED now and call back later; synchronous adapters ignore it and reply inline.
+        body.put("callbackUrl", properties.getSelfBaseUrl() + "/api/flow/device-tasks/" + task.getId() + "/result");
 
         return builder.baseUrl(baseUrl).build()
                 .post()

@@ -272,6 +272,8 @@ services:
       # instead of the per-family adapters above; the flag itself is read from master-data.
       OPENWCS_EMULATOR_URL: http://equipment-emulator:9097
       OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
+      # Own URL handed to the emulator as the async device-result callback target.
+      OPENWCS_FLOW_SELF_BASE_URL: http://flow-orchestrator:8085
       # Project topology STOCK/ORDER interactions into GTP station nodes (best-effort on routing projection).
       OPENWCS_GTP_BASE_URL: http://gtp:8094
 
