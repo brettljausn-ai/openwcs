@@ -21,6 +21,9 @@ data:
   OPENWCS_SLOTTING_BASE_URL: http://slotting:8093
   OPENWCS_GTP_BASE_URL: http://gtp:8094
   OPENWCS_COUNTING_BASE_URL: http://counting:8095
+  # Single equipment-emulator: flow-orchestrator dispatches every family here while the hardware-
+  # emulator flag (read from master-data) is ON.
+  OPENWCS_EMULATOR_URL: http://equipment-emulator:9097
   OPENWCS_IAM_BASE_URL: http://iam:8087
   OPENWCS_ALLOCATION_HOST_LABEL_BASE_URL: http://integration-sap:8089
 ---

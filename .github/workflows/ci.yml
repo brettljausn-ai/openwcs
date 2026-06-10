@@ -49,7 +49,7 @@ jobs:
       - name: Build & vet adapters
         run: |
           set -euo pipefail
-          for dir in services/adapters/*/; do
+          for dir in services/adapters/*/ services/equipment-emulator/; do
             echo "== $dir =="
             ( cd "$dir" && go build ./... && go vet ./... && go test ./... )
           done

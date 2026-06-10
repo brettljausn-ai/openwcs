@@ -91,6 +91,7 @@ services:
       OPENWCS_URI_AUTOSTORE_ADAPTER: http://autostore-adapter:9094
       OPENWCS_URI_CONVEYOR_SNIFFER: http://conveyor-sniffer:9095
       OPENWCS_URI_ASRS_ADAPTER: http://asrs-adapter:9096
+      OPENWCS_URI_EQUIPMENT_EMULATOR: http://equipment-emulator:9097
       # Edge auth: the gateway is the trust boundary — it requires a valid Keycloak JWT on
       # every /api/** call and forwards X-Auth-User/X-Auth-Roles downstream. We validate by
       # signature (jwk-set-uri) rather than issuer-uri so tokens minted via the nginx proxy
@@ -255,7 +256,7 @@ services:
       - openwcs-logs:/var/log/openwcs
     build: ../services/flow-orchestrator
     ports: ["8085:8085"]
-    depends_on: [postgres, kafka, conveyor-adapter]
+    depends_on: [postgres, kafka, conveyor-adapter, equipment-emulator]
     environment:
       # Owns the `flow` schema; dispatches device tasks to adapters over the uniform contract (build.md §8).
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
@@ -267,6 +268,10 @@ services:
       OPENWCS_ADAPTER_ASRS: http://asrs-adapter:9096
       OPENWCS_ADAPTER_AMR: http://amr-geekplus-adapter:9093
       OPENWCS_ADAPTER_AUTOSTORE: http://autostore-adapter:9094
+      # When the hardware-emulator flag is ON, dispatch every family to the single equipment-emulator
+      # instead of the per-family adapters above; the flag itself is read from master-data.
+      OPENWCS_EMULATOR_URL: http://equipment-emulator:9097
+      OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
       # Project topology STOCK/ORDER interactions into GTP station nodes (best-effort on routing projection).
       OPENWCS_GTP_BASE_URL: http://gtp:8094
 
@@ -358,6 +363,22 @@ services:
 
   # Go adapters stamp version metadata into the binary via ldflags. deploy.sh exports
   # OPENWCS_GIT_SHA / OPENWCS_BUILD_TIME; defaults cover a plain `docker compose build`.
+
+  # Single emulator that simulates ALL device families. flow-orchestrator routes device tasks here
+  # while the hardware-emulator flag is ON. No DB/Kafka/hardware connection — pure simulator.
+  equipment-emulator:
+    restart: unless-stopped
+    profiles: ["apps"]
+    volumes:
+      - openwcs-logs:/var/log/openwcs
+    build:
+      context: ../services/equipment-emulator
+      args:
+        VERSION: "${OPENWCS_VERSION:-0.1.0-SNAPSHOT}"
+        GIT_SHA: "${OPENWCS_GIT_SHA:-dev}"
+        BUILD_TIME: "${OPENWCS_BUILD_TIME:-unknown}"
+    ports: ["9097:9097"]
+
   conveyor-adapter:
     restart: unless-stopped
     profiles: ["apps"]

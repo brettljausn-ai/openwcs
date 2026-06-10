@@ -1,6 +1,53 @@
 # Go device adapters. The conveyor/asrs/amr/autostore adapters are stateless HTTP services and scale
 # freely. The conveyor-sniffer is the exception — see its block. Set REGISTRY/TAG before applying, and
 # fill in the adapter-specific env (PLC/controller endpoints) for your hardware.
+#
+# equipment-emulator (below) is the single simulator for ALL families; flow-orchestrator routes here
+# while the hardware-emulator flag is ON (stateless, no hardware/DB).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: equipment-emulator
+  namespace: openwcs
+  labels: { app: equipment-emulator }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: equipment-emulator }
+  template:
+    metadata:
+      labels: { app: equipment-emulator }
+    spec:
+      containers:
+        - name: equipment-emulator
+          image: REGISTRY/openwcs-equipment-emulator:TAG
+          env:
+            - { name: PORT, value: "9097" }
+          ports:
+            - containerPort: 9097
+          readinessProbe:
+            httpGet: { path: /readyz, port: 9097 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 9097 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "100m", memory: "64Mi" }
+            limits: { memory: "128Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: equipment-emulator
+  namespace: openwcs
+spec:
+  selector: { app: equipment-emulator }
+  ports:
+    - port: 9097
+      targetPort: 9097
 ---
 apiVersion: apps/v1
 kind: Deployment
