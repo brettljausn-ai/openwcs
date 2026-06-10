@@ -61,6 +61,9 @@ class StationExceptionTest {
     @MockBean
     org.openwcs.gtp.client.SlottingClient slotting;
 
+    @MockBean
+    org.openwcs.gtp.client.MasterDataClient masterData;
+
     @Autowired
     GtpStationService stations;
 
@@ -93,6 +96,9 @@ class StationExceptionTest {
                         org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
                         org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(java.util.Optional.of(bestLocation));
+        // Destination is a shuttle ASRS block -> dispatch to the ASRS adapter family.
+        org.mockito.Mockito.when(masterData.storageTypeOfLocation(s.getWarehouseId(), bestLocation))
+                .thenReturn(java.util.Optional.of("SHUTTLE_ASRS"));
         StationQueueEntry e = queue.enqueue(s.getId(), cmd(UUID.randomUUID()));
 
         assertThat(queue.complete(e.getId()).getStatus()).isEqualTo("DONE");
@@ -102,6 +108,26 @@ class StationExceptionTest {
         verify(flow).createTransport(eq(s.getWarehouseId()), eq("ASRS"), eq("STORE"),
                 payload.capture(), eq(e.getHuId()));
         assertThat(payload.getValue()).containsEntry("destinationLocationId", bestLocation);
+    }
+
+    @Test
+    void storeBackDispatchesToTheDestinationStorageFamily() {
+        GtpStation s = station("GTP-X1b");
+        UUID bestLocation = UUID.randomUUID();
+        org.mockito.Mockito.when(slotting.bestLocation(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of(bestLocation));
+        // Destination is an AutoStore block -> the STORE transport must go to the AUTOSTORE adapter,
+        // not a hardcoded ASRS.
+        org.mockito.Mockito.when(masterData.storageTypeOfLocation(s.getWarehouseId(), bestLocation))
+                .thenReturn(java.util.Optional.of("AUTOSTORE"));
+        StationQueueEntry e = queue.enqueue(s.getId(), cmd(UUID.randomUUID()));
+
+        assertThat(queue.complete(e.getId()).getStatus()).isEqualTo("DONE");
+
+        verify(flow).createTransport(eq(s.getWarehouseId()), eq("AUTOSTORE"), eq("STORE"),
+                any(), eq(e.getHuId()));
     }
 
     @Test

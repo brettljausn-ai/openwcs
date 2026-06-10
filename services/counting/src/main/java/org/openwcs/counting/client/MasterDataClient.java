@@ -27,4 +27,22 @@ public interface MasterDataClient {
     static boolean isAsrsFamily(String storageType) {
         return storageType != null && ASRS_FAMILY.contains(storageType);
     }
+
+    /**
+     * Map a storage-block type to the device-adapter family that services it (the flow-orchestrator
+     * adapter key: {@code ASRS | AUTOSTORE | AMR | CONVEYOR}). Returns {@code null} for non-automated
+     * storage ({@code MANUAL_PICK}, {@code RESERVE_RACK}) which has no device family. Shuttle and crane
+     * ASRS share the one {@code ASRS} adapter.
+     */
+    static String deviceFamilyOf(String storageType) {
+        if (storageType == null) {
+            return null;
+        }
+        return switch (storageType) {
+            case "SHUTTLE_ASRS", "CRANE_ASRS" -> "ASRS";
+            case "AUTOSTORE" -> "AUTOSTORE";
+            case "AMR_GTP" -> "AMR";
+            default -> null;
+        };
+    }
 }

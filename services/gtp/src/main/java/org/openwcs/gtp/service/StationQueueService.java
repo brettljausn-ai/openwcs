@@ -40,15 +40,18 @@ public class StationQueueService {
     private final org.openwcs.gtp.repo.StationNodeRepository nodes;
     private final FlowClient flow;
     private final org.openwcs.gtp.client.SlottingClient slotting;
+    private final org.openwcs.gtp.client.MasterDataClient masterData;
 
     public StationQueueService(GtpStationRepository stations, StationQueueEntryRepository queue,
                                org.openwcs.gtp.repo.StationNodeRepository nodes, FlowClient flow,
-                               org.openwcs.gtp.client.SlottingClient slotting) {
+                               org.openwcs.gtp.client.SlottingClient slotting,
+                               org.openwcs.gtp.client.MasterDataClient masterData) {
         this.stations = stations;
         this.queue = queue;
         this.nodes = nodes;
         this.flow = flow;
         this.slotting = slotting;
+        this.masterData = masterData;
     }
 
     /** Inputs to route an HU to a station's queue. */
@@ -177,6 +180,13 @@ public class StationQueueService {
                 log.warn("no put-away location available for tote {}; store-back skipped", e.getHuCode());
                 return;
             }
+            // Dispatch to the adapter family that services the destination storage (AutoStore ->
+            // AUTOSTORE, AMR-GTP -> AMR, shuttle/crane -> ASRS), not a hardcoded ASRS.
+            String family = org.openwcs.gtp.client.MasterDataClient.deviceFamilyOf(
+                    masterData.storageTypeOfLocation(e.getWarehouseId(), destination.get()).orElse(null));
+            if (family == null) {
+                family = "ASRS";
+            }
             Map<String, Object> payload = new HashMap<>();
             payload.put("huId", e.getHuId());
             payload.put("huCode", e.getHuCode());
@@ -184,7 +194,7 @@ public class StationQueueService {
             payload.put("skuCode", e.getSkuCode());
             payload.put("destinationLocationId", destination.get());
             payload.put("reason", "STORE");
-            UUID transportId = flow.createTransport(e.getWarehouseId(), "ASRS", "STORE", payload, e.getHuId());
+            UUID transportId = flow.createTransport(e.getWarehouseId(), family, "STORE", payload, e.getHuId());
             log.info("stored tote {} to best location {}; transport {}",
                     e.getHuCode(), destination.get(), transportId);
         } catch (Exception ex) {

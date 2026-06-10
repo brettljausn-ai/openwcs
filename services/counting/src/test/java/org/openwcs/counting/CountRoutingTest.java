@@ -128,6 +128,34 @@ class CountRoutingTest {
     }
 
     @Test
+    void autostoreCellRoutesToTheAutostoreFamily() {
+        UUID wh = UUID.randomUUID();
+        UUID loc = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID station = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+
+        when(inventory.expectedOnHand(wh, sku, loc)).thenReturn(new BigDecimal("12"));
+        when(masterData.emulatorEnabled()).thenReturn(true);
+        when(gtp.findActiveCountingStation(wh)).thenReturn(Optional.of(station));
+        // AutoStore-stored stock -> dispatch to the AUTOSTORE adapter family, not a hardcoded ASRS.
+        when(masterData.storageTypeOfLocation(wh, loc)).thenReturn(Optional.of("AUTOSTORE"));
+        when(masterData.skuCode(sku)).thenReturn(Optional.of("SKU-1"));
+        when(inventory.findHuAt(wh, sku, loc))
+                .thenReturn(Optional.of(new InventoryClient.HandlingUnit(huId, "HU-1", new BigDecimal("12"))));
+
+        CountTask created = counting.generate(task(wh, loc, sku));
+        routing.routeTask(counting.task(created.getId()));
+
+        verify(flow).createTransport(eq(wh), eq("AUTOSTORE"), any(), any(), eq(huId));
+        org.mockito.ArgumentCaptor<GtpClient.EnqueueRequest> captor =
+                org.mockito.ArgumentCaptor.forClass(GtpClient.EnqueueRequest.class);
+        verify(gtp).enqueue(eq(station), captor.capture());
+        assertThat(captor.getValue().family()).isEqualTo("AUTOSTORE");
+        assertThat(counting.task(created.getId()).getRoutingStatus()).isEqualTo("ROUTED");
+    }
+
+    @Test
     void emulatorOffDoesNotRouteAndMarksFailed() {
         UUID wh = UUID.randomUUID();
         UUID loc = UUID.randomUUID();
