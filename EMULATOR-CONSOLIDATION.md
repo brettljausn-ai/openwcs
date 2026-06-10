@@ -138,9 +138,13 @@ Reframed from "move the timing into the emulator" once product requirements land
 must be a shared transport layer (feeds GTP **and** other workplaces), arrival order can differ from
 request order (recirculating loop), and the workplace screen must show the full inbound pipeline
 including totes **not yet retrieved** from the ASRS. Design is in **`docs/adr/0007-conveyor-transport-and-workplace-induction.md`**.
-- [x] ADR written (the arrival-event contract, the REQUESTED→IN_TRANSIT→QUEUED lifecycle, GTP/test impact).
-- [ ] Sign off the open questions in the ADR (callback vs Kafka; DEPARTED granularity; cap; entry owner).
-- [ ] Implement 3c-1 (MVP) against the agreed contract — highest blast radius, needs a real run-through.
+- [x] ADR written + **decisions signed off**: callback-URL (not Kafka yet); full REQUESTED→IN_TRANSIT→
+      QUEUED lifecycle in the MVP; cap counts only {IN_TRANSIT, QUEUED}; and **flow-orchestrator owns the
+      queue** (GTP only requests + reads its slice) because two workplaces can request the same HU — this
+      **relocates the station queue out of `services/gtp` into flow**.
+- [ ] Implement 3c-1 (MVP) — highest blast radius, un-buildable locally, needs a real run-through. Likely
+      split: (a) flow induction queue + lifecycle driven by RETRIEVE/CONVEY callbacks; (b) switch the GTP
+      screen to read it; (c) emulator CONVEY leg + arrival callback.
 - [ ] Optional 3c-2: emulator models loop recirculation (makes R2 visible).
 
 ## Phase 4 — fault injection + telemetry + live control — CODE COMPLETE in PR (branch `feat/emulator-fault-injection`), NOT VERIFIED

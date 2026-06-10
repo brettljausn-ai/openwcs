@@ -1,6 +1,6 @@
 # ADR 0007 — Conveyor transport as a workplace-agnostic layer; arrival-driven workplace queueing
 
-Status: Proposed (2026-06)
+Status: Accepted (2026-06) — open questions resolved; see "Decisions" below.
 
 ## Context
 
@@ -46,49 +46,53 @@ born already in transit).
    transport layer simulates travel (and, in reality, loop recirculation) and emits an **arrival event**
    when the tote reaches that induction point.
 
-2. **A workplace-agnostic arrival contract.** The transport request carries an `arrivalCallbackUrl` —
-   the destination workplace's induction endpoint — mirroring the §3b result callback. On arrival the
-   transport layer POSTs an "arrived" event there. GTP implements
-   `POST /api/gtp/stations/{id}/queue/arrived` (body: `huId`, correlation); other workplace types
-   implement the same hook. **The conveyor never knows what a "GTP station" is** — it delivers to a URL.
+2. **The flow controller owns the queue; workplaces request and read it.** The induction queue/pool of
+   inbound totes lives in **flow-orchestrator** (the material-flow controller), keyed by destination
+   workplace — *not* in the workplace. This is required because **the same HU may be requested by more
+   than one workplace** (e.g. two GTP stations need the same SKU tote); only a central pool can arbitrate
+   that contention and sequence retrievals. A workplace (GTP, put-wall, …) **sends a request** to flow
+   and **reads its slice of the queue** back; it never owns the queue.
 
-3. **Arrival-driven queueing; arrival order is authoritative.** A workplace marks a tote `QUEUED` only
-   when its arrival event fires, ordered by **actual arrival time**, never by request order. This makes
-   R2 correct by construction: if the emulator (or, later, real hardware) re-sequences on a loop, the
-   queue reflects it with no workplace change.
+3. **A workplace-agnostic arrival contract, back to flow.** Conveyor movement is a device task (async,
+   §3b), so its arrival is just the existing **result callback to flow** — and flow owns the queue, so it
+   applies the state transition directly (no extra per-workplace arrival endpoint). The conveyor never
+   knows what a "GTP station" is; flow routes the event to the right queue entry by destination.
 
-4. **Full-pipeline entry lifecycle (R3).** The queue entry is created when the work is *requested*
-   (before retrieval) and advances by events, not timers:
+4. **Arrival-driven; arrival order is authoritative (R2).** Flow marks a tote `QUEUED` only when its
+   arrival event fires, ordered by **actual arrival time**, never request order — so a recirculating loop
+   re-sequences correctly with zero workplace change.
+
+5. **Full-pipeline lifecycle, capped on presence not plan (R3 + cap).** Flow creates the entry when work
+   is *requested* (before retrieval) and advances it by transport events, not timers:
 
    ```
    REQUESTED ──(retrieve done; on conveyor)──▶ IN_TRANSIT ──(arrived at induction)──▶ QUEUED ──▶ DONE
-   (in storage / being retrieved)              (travelling on the conveyor)            (workable)
+   (in storage / being retrieved)              (on the conveyor)                      (workable)
    ```
 
-   The workplace screen shows the ACTIVE set = `{REQUESTED, IN_TRANSIT, QUEUED}`, so an operator sees
-   the whole inbound pipeline — including totes still in the ASRS.
-
-5. **GTP stops computing `arrivalAt` locally.** It consumes transport events. Any distance/speed timing
-   becomes an emulator-side simulation detail, not workplace logic.
+   The workplace screen shows `{REQUESTED, IN_TRANSIT, QUEUED}` — the whole inbound pipeline, including
+   totes still in the ASRS. The per-station **in-transit cap counts only `{IN_TRANSIT, QUEUED}`** (totes
+   actually retrieved / present); the `REQUESTED` backlog is unbounded and flow meters retrievals into the
+   cap. GTP stops computing `arrivalAt` — that timing is now an emulator simulation detail.
 
 ### The contract, concretely
 
-The **workplace orchestrates its own inbound totes** and stays the owner of its queue; the transport
-layer is a dumb, reusable delivery mechanism:
+The **workplace requests; flow owns the queue and orchestrates; the transport layer is a dumb, reusable
+delivery mechanism:**
 
-1. The requester (counting routing, order fulfilment, …) tells the workplace "expect tote H for this
-   work" → the workplace creates a queue entry in `REQUESTED` and requests a **delivery** of H to its
-   induction point, passing `arrivalCallbackUrl = <its own induction endpoint>`.
-2. The transport layer executes the journey as device tasks (async, §3b): **RETRIEVE** (ASRS/AutoStore)
-   then **CONVEY** (CONVEYOR). It emits up to two lifecycle signals to the workplace:
-   - **DEPARTED** (left storage, now on the conveyor) → workplace `REQUESTED → IN_TRANSIT`. *(Optional
-     granularity; MVP may skip it.)*
-   - **ARRIVED** (reached the induction point) → workplace `IN_TRANSIT/REQUESTED → QUEUED`.
-3. The workplace works its `QUEUED` entries in arrival order; completing one marks it `DONE` and (for
-   GTP) triggers store-back as today.
+1. The requester/workplace asks flow: "present HU H (or SKU X) at workplace W." Flow creates a queue entry
+   `REQUESTED` in its pool, keyed by W. Multiple workplaces requesting the same H are all visible to flow,
+   which arbitrates.
+2. Flow orchestrates the journey as device tasks (async, §3b): **RETRIEVE** (ASRS/AutoStore) then
+   **CONVEY** (CONVEYOR), both handled by the emulator. The emulator's existing result callbacks drive the
+   transitions:
+   - RETRIEVE completes → tote is on the conveyor → flow sets `REQUESTED → IN_TRANSIT`.
+   - CONVEY arrives at W's induction point → flow sets `IN_TRANSIT → QUEUED` (in arrival order).
+3. The workplace **reads its queue** from flow and works the `QUEUED` entries in arrival order; on
+   completion it tells flow → `DONE` → (for GTP) store-back as today.
 
-Because the only thing the transport layer needs is the destination's `arrivalCallbackUrl`, the same
-mechanism serves a GTP station, a put-wall, or a packing desk — satisfying **R1**.
+Because flow holds queues for any destination and the conveyor just delivers, the same mechanism serves a
+GTP station, a put-wall, or a packing desk — satisfying **R1**.
 
 ## Alternatives considered
 
@@ -104,26 +108,34 @@ mechanism serves a GTP station, a put-wall, or a packing desk — satisfying **R
 
 ## Consequences
 
-- **GTP queue rework.** New `REQUESTED` state and an `arrived` endpoint; `enqueue` creates `REQUESTED`
-  and no longer computes `arrivalAt`; `queue()`/the active set includes `REQUESTED`. The per-mode
-  in-transit cap semantics must be revisited (does a `REQUESTED`, not-yet-retrieved tote count against
-  the cap? — likely yes, it's committed inbound work).
-- **Migration.** `station_queue_entry.status` gains `REQUESTED`; existing rows are unaffected.
-- **Test impact.** `StationQueueTest`/`StationExceptionTest` assert the *current* immediate-`QUEUED`,
-  computed-arrival behaviour; they must become **arrival-event driven**. New tests: the `arrived`
-  endpoint promotes in arrival order (incl. an out-of-request-order case for R2); the screen/active set
-  includes `REQUESTED` totes (R3).
-- **Cross-service.** A new transport "destination + arrival callback" concept spanning the requester,
-  flow, and the emulator; this is the highest-blast-radius change of the consolidation and **changes
-  user-visible GTP timing**.
-- **Upside.** Non-GTP workplaces reuse the same transport + arrival contract; the emulator can later add
-  loop recirculation / re-sequencing with **zero** workplace changes.
+- **The station queue relocates from `services/gtp` to `services/flow-orchestrator`** (the big one). Today
+  GTP owns `station_queue_entry` (gtp schema) and `StationQueueService` (enqueue / queue / complete /
+  store-back / caps). Per decision #2, the induction queue/pool becomes a **flow** concept (new table in
+  the flow schema, keyed by destination workplace), with the `REQUESTED → IN_TRANSIT → QUEUED → DONE`
+  lifecycle driven by the device-task callbacks flow already receives. GTP becomes a **client**: it
+  requests presentation and reads its queue slice from flow; the workstation screen reads from flow.
+- **Cap.** The per-station in-transit cap counts only `{IN_TRANSIT, QUEUED}` (decision #3); the
+  `REQUESTED` backlog is unbounded and flow meters retrievals into the cap.
+- **Test impact.** `StationQueueTest` / `StationExceptionTest` (gtp) assert the current immediate-`QUEUED`,
+  computed-arrival, GTP-owned behaviour; they move/rewrite to flow and become **event-driven**. New tests
+  (flow): RETRIEVE callback → `IN_TRANSIT`; CONVEY arrival → `QUEUED` in arrival order (incl. an
+  out-of-request-order case for R2); the queue view includes `REQUESTED` totes (R3); cap counts only
+  `{IN_TRANSIT, QUEUED}`.
+- **Cross-service & contention.** Spans requester → flow → emulator, and lets flow arbitrate when two
+  workplaces request the same HU. Highest-blast-radius change of the consolidation; **changes
+  user-visible workstation timing**.
+- **Upside.** Non-GTP workplaces reuse the same flow queue + transport + arrival contract; the emulator
+  can later add loop recirculation with **zero** workplace changes.
 
 ## Phasing & verification
 
-- **3c-1 (this ADR's MVP):** `REQUESTED` state + arrival endpoint + arrival-driven `QUEUED`; the
-  emulator emits `ARRIVED` on the convey leg (in request order). Delivers R1 + R3 and the on-screen
-  pipeline; R2 is *supported by the contract* even though the emulator doesn't yet re-sequence.
+- **3c-1 (MVP):** stand up the flow-owned induction queue (`REQUESTED → IN_TRANSIT → QUEUED → DONE`,
+  cap on `{IN_TRANSIT, QUEUED}`), driven by RETRIEVE + CONVEY device-task callbacks; the emulator runs a
+  CONVEY leg and calls back on arrival (in request order); GTP requests presentation and reads its queue
+  slice from flow; relocate the station queue out of `services/gtp`. Delivers R1 + R3 and the on-screen
+  pipeline; R2 is *supported by the contract* even though the emulator doesn't yet re-sequence. Given the
+  size, this can itself be split (e.g. introduce the flow queue + lifecycle first, switch the GTP screen
+  to read it second).
 - **3c-2 (optional):** the emulator models loop recirculation, so arrival order visibly diverges from
   request order — R2 made real.
 
@@ -132,11 +144,15 @@ It must be implemented against this agreed contract and validated with a **real 
 on → request work → watch a tote go `REQUESTED → IN_TRANSIT → QUEUED` on the workstation screen, and the
 first `QUEUED` presented) before merge.
 
-## Open questions for sign-off
+## Decisions (signed off 2026-06)
 
-1. Confirm the **callback-URL** arrival contract (Alternative B/Kafka can come later) — OK?
-2. Is the **DEPARTED** signal (the `IN_TRANSIT` granularity) wanted in the MVP, or is `REQUESTED → QUEUED`
-   on arrival enough to start?
-3. Does a `REQUESTED` (not-yet-retrieved) tote **count against the station in-transit cap**?
-4. Who creates the queue entry — the **workplace on request** (recommended, keeps it the queue owner) or
-   the requester directly?
+1. **Arrival contract:** callback-URL (reusing the §3b device-result callback to flow). Kafka /
+   transport-events topic can replace it later without changing the queue state machine.
+2. **Granularity:** the MVP includes the full `REQUESTED → IN_TRANSIT → QUEUED` lifecycle (the
+   RETRIEVE-completion → `IN_TRANSIT` transition is in scope, not deferred).
+3. **Cap:** a `REQUESTED` (not-yet-retrieved) tote does **not** count against the station in-transit cap;
+   the cap counts only `{IN_TRANSIT, QUEUED}`.
+4. **Queue ownership:** **flow-orchestrator owns the queue/pool**; GTP (and other workplaces) only *send a
+   request* and *read* their slice. Rationale: more than one workplace can request the same HU, so the
+   queue must be central to arbitrate. (This relocates the existing GTP station queue into flow — see
+   Consequences.)
