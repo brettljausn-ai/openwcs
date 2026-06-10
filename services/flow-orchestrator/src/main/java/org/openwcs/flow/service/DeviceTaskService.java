@@ -11,6 +11,7 @@ import org.openwcs.flow.domain.DeviceTask;
 import org.openwcs.flow.repo.DeviceTaskRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,10 +30,19 @@ public class DeviceTaskService {
 
     private final DeviceTaskRepository tasks;
     private final DeviceClient deviceClient;
+    private final InductionQueueService induction;
 
-    public DeviceTaskService(DeviceTaskRepository tasks, DeviceClient deviceClient) {
+    /**
+     * {@code induction} is injected {@link Lazy} to break the dispatch↔callback cycle:
+     * {@link InductionQueueService} dispatches device tasks through this service, and this service
+     * advances induction entries from the §3b callback. The lazy proxy is only dereferenced inside
+     * {@link #completeFromCallback}, after both beans are constructed.
+     */
+    public DeviceTaskService(DeviceTaskRepository tasks, DeviceClient deviceClient,
+                             @Lazy InductionQueueService induction) {
         this.tasks = tasks;
         this.deviceClient = deviceClient;
+        this.induction = induction;
     }
 
     @Transactional
@@ -88,11 +98,26 @@ public class DeviceTaskService {
             log.debug("Ignoring callback for already-terminal device task {} ({})", taskId, task.getStatus());
             return DeviceTaskView.from(task);
         }
-        task.setStatus("COMPLETED".equals(status) ? "COMPLETED" : "FAILED");
+        boolean completed = "COMPLETED".equals(status);
+        task.setStatus(completed ? "COMPLETED" : "FAILED");
         task.setDetail(detail);
         task.setResult(resultPayload);
         log.debug("Device task {} -> {} via callback", taskId, task.getStatus());
+
+        // §4 lifecycle wiring: a completing RETRIEVE/CONVEY task advances its linked induction entry.
+        // The early-return guard above means this runs exactly once per device task (idempotent).
+        advanceInduction(task, completed);
         return DeviceTaskView.from(task);
+    }
+
+    /** Branch on the task's command and drive the induction transition keyed off {@code task_id}. */
+    private void advanceInduction(DeviceTask task, boolean completed) {
+        String command = task.getCommand();
+        if ("RETRIEVE".equals(command) || "BIN_RETRIEVE".equals(command)) {
+            induction.onRetrieveCompleted(task.getId(), completed, task.getActor());
+        } else if ("CONVEY".equals(command)) {
+            induction.onConveyCompleted(task.getId(), completed, task.getActor());
+        }
     }
 
     @Transactional(readOnly = true)

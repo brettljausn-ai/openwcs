@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-/** {@link FlowClient} backed by flow-orchestrator's device-task API. */
+/** {@link FlowClient} backed by flow-orchestrator's induction + device-task API. */
 @Component
 public class HttpFlowClient implements FlowClient {
 
@@ -19,6 +19,17 @@ public class HttpFlowClient implements FlowClient {
     }
 
     @Override
+    public UUID requestPresentation(InductionRequest request) {
+        InductionEntry entry = http.post()
+                .uri("/api/flow/induction/requests")
+                .body(request)
+                .retrieve()
+                .body(InductionEntry.class);
+        return entry == null ? null : entry.id();
+    }
+
+    @Override
+    @Deprecated
     public UUID createTransport(UUID warehouseId, String family, String command,
                                 Map<String, Object> payload, UUID correlationId) {
         Map<String, Object> body = new HashMap<>();
@@ -34,6 +45,10 @@ public class HttpFlowClient implements FlowClient {
                 .retrieve()
                 .body(DeviceTask.class);
         return task == null ? null : task.id();
+    }
+
+    /** Subset of the flow induction-entry response (ADR-0007 §3.1). */
+    private record InductionEntry(UUID id) {
     }
 
     /** Subset of the flow device-task response. */

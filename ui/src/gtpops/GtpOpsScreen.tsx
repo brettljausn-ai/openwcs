@@ -1000,14 +1000,6 @@ function QueueDrawer({
   open: boolean
   onToggle: () => void
 }) {
-  const [now, setNow] = useState(() => Date.now())
-
-  // Tick a local clock every second so in-transit ETAs count down smoothly between polls.
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [])
-
   return (
     <>
       {/* Slim handle pinned to the right edge. Hidden behind the panel when open. */}
@@ -1095,7 +1087,7 @@ function QueueDrawer({
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.55rem' }}>
             {entries.map((entry, i) => (
-              <QueueRow key={entry.id} entry={entry} position={i + 1} isHead={entry.id === headId} now={now} />
+              <QueueRow key={entry.id} entry={entry} position={i + 1} isHead={entry.id === headId} />
             ))}
           </div>
         )}
@@ -1104,20 +1096,37 @@ function QueueDrawer({
   )
 }
 
+// One inbound-pipeline row. Renders all three flow stages (ADR-0007 §3.2): REQUESTED (still in the
+// ASRS, not yet retrieved), IN_TRANSIT (retrieved, on the conveyor) and QUEUED (arrived, waiting to
+// be worked). Flow reports actual transitions only — there is no predicted arrival time — so the
+// status label is the stage name, not an ETA countdown.
 function QueueRow({
   entry,
   position,
   isHead,
-  now,
 }: {
   entry: StationQueueEntry
   position: number
   isHead: boolean
-  now: number
 }) {
+  const requested = entry.status === 'REQUESTED'
   const inTransit = entry.status === 'IN_TRANSIT'
-  const etaSeconds = Math.max(0, Math.round((new Date(entry.arrivalAt).getTime() - now) / 1000))
-  const statusText = inTransit ? `arriving in ${etaSeconds}s` : 'waiting'
+  const statusText = isHead
+    ? 'waiting'
+    : requested
+      ? 'in storage'
+      : inTransit
+        ? 'on conveyor'
+        : 'waiting'
+  const statusBadge = isHead
+    ? 'badge-success'
+    : requested
+      ? 'badge'
+      : inTransit
+        ? 'badge-info'
+        : 'badge-warning'
+  // De-emphasise totes that have not arrived yet (REQUESTED most, IN_TRANSIT a little).
+  const opacity = requested ? 0.55 : inTransit ? 0.7 : 1
   return (
     <div
       style={{
@@ -1128,7 +1137,7 @@ function QueueRow({
         borderRadius: 10,
         border: isHead ? '1px solid var(--herbal-lime)' : '1px solid var(--border, rgba(255,255,255,.08))',
         background: isHead ? 'rgba(168, 230, 108, .08)' : 'rgba(255,255,255,.02)',
-        opacity: inTransit ? 0.7 : 1,
+        opacity,
       }}
     >
       <span
@@ -1150,9 +1159,7 @@ function QueueRow({
         </div>
         <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <span className="badge">{entry.mode}</span>
-          <span className={`badge ${inTransit ? 'badge-info' : isHead ? 'badge-success' : 'badge-warning'}`}>
-            {statusText}
-          </span>
+          <span className={`badge ${statusBadge}`}>{statusText}</span>
           {isHead && <span style={{ fontSize: '.75rem', color: 'var(--herbal-lime)' }}>next</span>}
         </div>
       </div>

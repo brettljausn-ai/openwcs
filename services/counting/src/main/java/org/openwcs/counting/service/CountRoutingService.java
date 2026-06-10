@@ -2,9 +2,7 @@ package org.openwcs.counting.service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.openwcs.counting.client.FlowClient;
@@ -25,21 +23,24 @@ import org.springframework.stereotype.Service;
  * re-attempt a failed routing and the UI can show why a task did or did not route.
  *
  * <p>When the hardware emulator is ON and an ACTIVE station accepts {@code STOCK_COUNT} work, each
- * qualifying cell's handling unit (tote) gets a flow transport device task (so the move shows up on
- * the Transport screen) and is enqueued to the station in {@code STOCK_COUNT} mode.
+ * qualifying cell's handling unit (tote) is requested for presentation at the station via flow's
+ * inbound induction request (ADR-0007 Phase 3c-1). Flow now owns the induction queue and orchestrates
+ * the retrieve + convey journey itself (so the move shows up on the Transport screen); counting no
+ * longer enqueues to gtp nor dispatches the RETRIEVE device task.
  *
  * <p>Idempotent: only lines whose {@code routed} flag is false are routed, and each is marked routed
- * on success, so a retry never creates a duplicate transport. {@link #routeTask} never throws — a
- * hard failure still records status FAILED so the scheduler / generate path is never broken.
+ * on success, so a retry never creates a duplicate induction request. {@link #routeTask} never throws
+ * — a hard failure still records status FAILED so the scheduler / generate path is never broken.
  */
 @Service
 public class CountRoutingService {
 
     private static final Logger log = LoggerFactory.getLogger(CountRoutingService.class);
     private static final String MODE = "STOCK_COUNT";
+    /** Destination workplace kind for the flow induction request (today a GTP station). */
+    private static final String WORKPLACE_KIND = "GTP_STATION";
     /** Fallback device family if a routed cell's storage type can't be mapped (shouldn't happen). */
     private static final String DEFAULT_FAMILY = "ASRS";
-    private static final String COMMAND = "RETRIEVE";
     private static final int REASON_MAX = 140;
 
     static final String PENDING = "PENDING";
@@ -161,8 +162,16 @@ public class CountRoutingService {
     }
 
     /**
-     * Route one ASRS-family line's tote to the station. Returns true when a tote was actually moved,
-     * false when there is no handling unit at the cell (nothing to route).
+     * Route one ASRS-family line's tote to the station. Returns true when a tote was actually
+     * requested for presentation, false when there is no handling unit at the cell (nothing to
+     * route).
+     *
+     * <p>ADR-0007 Phase 3c-1: the inbound induction queue relocated to flow-orchestrator. Counting
+     * issues a single {@code POST /api/flow/induction/requests} via
+     * {@link FlowClient#requestPresentation}; flow now owns the queue and orchestrates the
+     * retrieve + convey journey itself (counting no longer enqueues to gtp nor dispatches the
+     * RETRIEVE device task). The capacity gate moved to flow — {@code REQUESTED} is uncapped and flow
+     * meters retrievals — so the request always succeeds and routing reduces to "an HU exists".
      */
     private boolean routeLine(UUID warehouseId, UUID stationId, CountLine line, String family) {
         Optional<InventoryClient.HandlingUnit> hu =
@@ -174,27 +183,16 @@ public class CountRoutingService {
         String skuCode = masterData.skuCode(line.getSkuId()).orElse(null);
         BigDecimal qty = tote.qty();
 
-        // Secure the station queue slot FIRST: enqueue is the capacity gate and throws when the
-        // station's in-transit cap is reached. Doing it before createTransport means a rejected
-        // enqueue leaves no orphaned transport behind — the line stays unrouted and a later retry
-        // (once a slot frees up) routes it cleanly instead of minting a duplicate transport each pass.
-        gtp.enqueue(stationId, new GtpClient.EnqueueRequest(
-                tote.huId(), tote.huCode(), line.getSkuId(), skuCode, qty, MODE, family, null,
-                line.getCountTaskId(), line.getId(), line.getLocationId()));
+        // Single call to flow's induction request: flow creates a REQUESTED entry and orchestrates
+        // RETRIEVE then CONVEY itself. The destination workplace is the GTP station; the device
+        // family (Phase-1 deviceFamilyOf resolution) tells flow which adapter to retrieve from.
+        UUID entryId = flow.requestPresentation(new FlowClient.InductionRequest(
+                warehouseId, stationId, WORKPLACE_KIND, tote.huId(), tote.huCode(),
+                line.getSkuId(), skuCode, qty, line.getLocationId(), MODE, family,
+                line.getCountTaskId(), line.getId()));
 
-        // Slot secured — now transport the tote so the retrieval is visible on the Transport screen.
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("destinationStationId", stationId);
-        payload.put("huId", tote.huId());
-        payload.put("huCode", tote.huCode());
-        payload.put("skuId", line.getSkuId());
-        payload.put("skuCode", skuCode);
-        payload.put("locationId", line.getLocationId());
-        payload.put("reason", MODE);
-        UUID transportId = flow.createTransport(warehouseId, family, COMMAND, payload, tote.huId());
-
-        log.info("routed count tote {} (sku {}) to GTP station {} for stock count; transport {}",
-                tote.huCode(), skuCode, stationId, transportId);
+        log.info("requested presentation of count tote {} (sku {}) at GTP station {} for stock "
+                + "count; induction entry {}", tote.huCode(), skuCode, stationId, entryId);
         return true;
     }
 
