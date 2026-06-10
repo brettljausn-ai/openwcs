@@ -5,8 +5,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
+	"time"
 )
+
+// TestMain forces zero simulated latency so the suite doesn't sleep on every task.
+func TestMain(m *testing.M) {
+	latencyOverrideMs = 0
+	os.Exit(m.Run())
+}
 
 func postTask(t *testing.T, req deviceTaskRequest) deviceTaskResult {
 	t.Helper()
@@ -68,5 +76,25 @@ func TestRejectsGet(t *testing.T) {
 	handleTask(rec, httptest.NewRequest(http.MethodGet, "/tasks", nil))
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, want 405", rec.Code)
+	}
+}
+
+// The handler sleeps for the simulated latency and reports it as durationMs.
+func TestReportsSimulatedDuration(t *testing.T) {
+	latencyOverrideMs = 25
+	defer func() { latencyOverrideMs = 0 }()
+
+	start := time.Now()
+	res := postTask(t, deviceTaskRequest{TaskID: "t", Family: "ASRS", Command: "RETRIEVE"})
+	elapsed := time.Since(start)
+
+	if res.Status != "COMPLETED" {
+		t.Fatalf("status = %q, want COMPLETED", res.Status)
+	}
+	if res.ResultPayload["durationMs"] != float64(25) {
+		t.Fatalf("durationMs = %v, want 25", res.ResultPayload["durationMs"])
+	}
+	if elapsed < 20*time.Millisecond {
+		t.Fatalf("handler returned in %s; expected it to honour the ~25ms simulated latency", elapsed)
 	}
 }

@@ -6,6 +6,10 @@ instead of being duplicated inside each per-family Go adapter.
 
 - Language: Go (stdlib only)
 - Port: `9097` (`PORT` to override)
+- Simulated latency: each command sleeps a modest per-family/command time before completing, and the
+  result payload reports `durationMs`. `OPENWCS_EMULATOR_LATENCY_MS` overrides every command (`0` =
+  instant). The device contract is still synchronous (flow blocks on the response), so the defaults
+  are kept sub-second; a non-blocking async contract is the follow-up (Phase 3b).
 - Endpoints: `POST /tasks` (device contract, all families), `GET /state` (simulated telemetry),
   `GET /healthz`, `GET /readyz`, `GET /` (info)
 

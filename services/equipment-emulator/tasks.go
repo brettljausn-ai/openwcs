@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 )
 
 // tasks.go implements the uniform device contract POST /tasks for every equipment family.
@@ -82,16 +83,23 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Simulate the equipment taking time to execute. The device contract is still synchronous
+	// (flow blocks on this response), so the per-command durations are kept modest; a non-blocking
+	// async contract is the follow-up (see EMULATOR-CONSOLIDATION.md, Phase 3b).
+	d := commandLatency(family, req.Command)
+	time.Sleep(d)
+
 	sim.recordCommand(family, req.Command)
-	log.Printf("%s: executing task %s family=%s command=%s equipment=%s", serviceName, req.TaskID, family, req.Command, req.EquipmentID)
+	log.Printf("%s: executed task %s family=%s command=%s equipment=%s in %s", serviceName, req.TaskID, family, req.Command, req.EquipmentID, d)
 	_ = json.NewEncoder(w).Encode(deviceTaskResult{
 		Status: "COMPLETED",
 		Detail: strings.ToLower(family) + " simulated " + req.Command,
 		ResultPayload: map[string]interface{}{
-			"command":   req.Command,
-			"family":    family,
-			"equipment": req.EquipmentID,
-			"simulated": true,
+			"command":    req.Command,
+			"family":     family,
+			"equipment":  req.EquipmentID,
+			"durationMs": d.Milliseconds(),
+			"simulated":  true,
 		},
 	})
 }
