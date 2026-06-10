@@ -39,6 +39,14 @@ public class CountLine extends Auditable {
     @Column(name = "batch_id")
     private UUID batchId;
 
+    /**
+     * The handling unit (tote) this cell's stock sits on, snapshot from inventory at task generation.
+     * Carried onto the StockAdjusted adjustment so the correction lands on the tote's bucket rather
+     * than minting a phantom HU-less bucket. Null for bin stock (no HU at the cell).
+     */
+    @Column(name = "hu_id")
+    private UUID huId;
+
     /** Base-UoM label carried onto the adjustment payload. */
     @Column(name = "uom_code")
     private String uomCode;
@@ -118,6 +126,14 @@ public class CountLine extends Auditable {
 
     public void setBatchId(UUID batchId) {
         this.batchId = batchId;
+    }
+
+    public UUID getHuId() {
+        return huId;
+    }
+
+    public void setHuId(UUID huId) {
+        this.huId = huId;
     }
 
     public String getUomCode() {

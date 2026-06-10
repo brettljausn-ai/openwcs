@@ -148,6 +148,36 @@ class CountRoutingTest {
     }
 
     @Test
+    void enqueueRejectionLeavesNoOrphanedTransportAndFailsTheTask() {
+        UUID wh = UUID.randomUUID();
+        UUID loc = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID station = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+
+        when(inventory.expectedOnHand(wh, sku, loc)).thenReturn(new BigDecimal("12"));
+        when(masterData.emulatorEnabled()).thenReturn(true);
+        when(gtp.findActiveCountingStation(wh)).thenReturn(Optional.of(station));
+        when(masterData.storageTypeOfLocation(wh, loc)).thenReturn(Optional.of("SHUTTLE_ASRS"));
+        when(masterData.skuCode(sku)).thenReturn(Optional.of("SKU-1"));
+        when(inventory.findHuAt(wh, sku, loc))
+                .thenReturn(Optional.of(new InventoryClient.HandlingUnit(huId, "HU-1", new BigDecimal("12"))));
+        // Station in-transit cap reached (the concurrent-routing case): enqueue is the capacity gate.
+        org.mockito.Mockito.doThrow(new RuntimeException("Station in-transit cap reached (2)."))
+                .when(gtp).enqueue(eq(station), any());
+
+        CountTask created = counting.generate(task(wh, loc, sku));
+        routing.routeTask(counting.task(created.getId()));
+
+        // Enqueue ran first and was rejected, so no transport was created — nothing for a retry to
+        // duplicate. The task is FAILED and will be re-attempted by the sweep once a slot frees up.
+        verify(flow, org.mockito.Mockito.never()).createTransport(any(), any(), any(), any(), any());
+        CountTask after = counting.task(created.getId());
+        assertThat(after.getRoutingStatus()).isEqualTo("FAILED");
+        assertThat(after.getRoutingReason()).containsIgnoringCase("cap");
+    }
+
+    @Test
     void routeTaskIsIdempotentAndEnqueuesOnlyOnce() {
         UUID wh = UUID.randomUUID();
         UUID loc = UUID.randomUUID();

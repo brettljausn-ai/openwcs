@@ -168,8 +168,17 @@ public class CountRoutingService {
         }
         InventoryClient.HandlingUnit tote = hu.get();
         String skuCode = masterData.skuCode(line.getSkuId()).orElse(null);
+        BigDecimal qty = tote.qty();
 
-        // Transport the tote so the retrieval is visible on the Transport screen.
+        // Secure the station queue slot FIRST: enqueue is the capacity gate and throws when the
+        // station's in-transit cap is reached. Doing it before createTransport means a rejected
+        // enqueue leaves no orphaned transport behind — the line stays unrouted and a later retry
+        // (once a slot frees up) routes it cleanly instead of minting a duplicate transport each pass.
+        gtp.enqueue(stationId, new GtpClient.EnqueueRequest(
+                tote.huId(), tote.huCode(), line.getSkuId(), skuCode, qty, MODE, FAMILY, null,
+                line.getCountTaskId(), line.getId(), line.getLocationId()));
+
+        // Slot secured — now transport the tote so the retrieval is visible on the Transport screen.
         Map<String, Object> payload = new HashMap<>();
         payload.put("destinationStationId", stationId);
         payload.put("huId", tote.huId());
@@ -179,12 +188,6 @@ public class CountRoutingService {
         payload.put("locationId", line.getLocationId());
         payload.put("reason", MODE);
         UUID transportId = flow.createTransport(warehouseId, FAMILY, COMMAND, payload, tote.huId());
-
-        // Pin the tote to the station's stock-count queue (immediate: distanceM null).
-        BigDecimal qty = tote.qty();
-        gtp.enqueue(stationId, new GtpClient.EnqueueRequest(
-                tote.huId(), tote.huCode(), line.getSkuId(), skuCode, qty, MODE, FAMILY, null,
-                line.getCountTaskId(), line.getId(), line.getLocationId()));
 
         log.info("routed count tote {} (sku {}) to GTP station {} for stock count; transport {}",
                 tote.huCode(), skuCode, stationId, transportId);
