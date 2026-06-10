@@ -57,6 +57,9 @@ jobs:
   ui:
     name: UI build
     runs-on: ubuntu-latest
+    # Needs write access so the post-merge build can commit the regenerated screenshot gallery.
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: ui
@@ -69,6 +72,32 @@ jobs:
         run: |
           npm install
           npm run build
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Capture screenshot gallery
+        run: npm run screenshots
+      - name: Upload screenshot gallery
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: screenshots/**
+          if-no-files-found: ignore
+      # On merge to main only: commit the regenerated gallery back into the repo. PR builds just
+      # upload the artifact above (fork PRs can't push, and per-PR commits would be noise).
+      - name: Commit screenshot gallery
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: ${{ github.workspace }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add screenshots
+          if git diff --staged --quiet; then
+            echo "No screenshot changes."
+          else
+            git commit -m "chore(ui): update screenshot gallery [skip ci]"
+            git push origin HEAD:main
+          fi
 
   contracts:
     name: OpenAPI validation
