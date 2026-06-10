@@ -48,8 +48,8 @@ func main() {
 		port = defaultPort
 	}
 
-	// Per-command simulated processing time (OPENWCS_EMULATOR_LATENCY_MS overrides the defaults).
-	initLatencyFromEnv()
+	// Seed the live, runtime-tunable config (simulated latency + fault rate) from env.
+	initConfigFromEnv()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -62,6 +62,7 @@ func main() {
 	})
 	mux.HandleFunc("/tasks", handleTask)
 	mux.HandleFunc("/state", handleState)
+	mux.HandleFunc("/config", handleConfig)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -106,8 +107,8 @@ func telemetryLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			ticks, throughput, faults := sim.tick(time.Now())
-			log.Printf("%s: emulator heartbeat ticks=%d throughput=%d faults=%d", serviceName, ticks, throughput, faults)
+			ticks, completed, failed := sim.tick(time.Now())
+			log.Printf("%s: emulator heartbeat ticks=%d completed=%d failed=%d", serviceName, ticks, completed, failed)
 		}
 	}
 }

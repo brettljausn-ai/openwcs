@@ -126,9 +126,21 @@ this repo can't be compiled/run locally.
 - Note: the Phase 3 sync latency holds a flow DB transaction for the sleep duration — fine at demo
       volumes, and the reason async is the proper fix.
 
-## Phase 4 — failure injection + telemetry + control UI — NOT STARTED
+## Phase 4 — fault injection + telemetry + live control — CODE COMPLETE in PR (branch `feat/emulator-fault-injection`), NOT VERIFIED
 
-- [ ] Per-family configurable fault rates; load-derived telemetry; emulator control panel.
+Emulator-only, fully Go-unit-tested (safe to ship via CI). Chosen ahead of Phase 3b because async is
+the risky, decision-gated change and this is high demo value at low risk.
+
+- [x] Fault injection (`faults.go`): deterministic — fail 1 in every N tasks (`OPENWCS_EMULATOR_FAULT_RATE`,
+      0 = none). Failed result carries `fault: true`. Counters in `state.go`.
+- [x] Real telemetry (`state.go`): `/state` reports per-family completed/failed tallies + totals
+      (replaced the synthetic tick-faults). Snapshot also echoes the live config.
+- [x] Live control (`config.go`): latency + fault rate are atomics, seeded from env at startup and
+      tunable at runtime via `GET`/`POST /config` (e.g. `curl -XPOST .../config -d '{"faultEvery":4}'`).
+- [x] Compose exposes `OPENWCS_EMULATOR_FAULT_RATE`. Tests: fault-every-Nth + /config endpoint.
+- [ ] **Verify in CI** (Go job) and merge.
+- Deferred (optional follow-up): a UI control panel — can't run the React app locally to verify, so
+      `POST /config` (curl-able) is the interim control surface.
 
 ## Open decisions to confirm before Phase 2/3
 - (a) Emulator in Go (reuse adapter code) — leaning yes.

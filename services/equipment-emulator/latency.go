@@ -1,19 +1,11 @@
 package main
 
-import (
-	"os"
-	"strconv"
-	"time"
-)
+import "time"
 
 // latency.go gives the emulator a simulated per-family/command processing time, so device tasks no
 // longer complete instantly. The device contract is still synchronous (flow-orchestrator blocks on
 // the HTTP response), so durations are kept modest — a non-blocking async contract is the follow-up
-// (EMULATOR-CONSOLIDATION.md, Phase 3b).
-
-// latencyOverrideMs, when >= 0, forces every command's simulated latency (ms); -1 uses the
-// per-command defaults. Set from OPENWCS_EMULATOR_LATENCY_MS at startup; tests set it to 0.
-var latencyOverrideMs = -1
+// (EMULATOR-CONSOLIDATION.md, Phase 3b). The live override lives in config.go (latencyOverrideMs).
 
 // defaultLatency is the simulated processing time per family+command; misses fall back to
 // fallbackLatency.
@@ -26,10 +18,11 @@ var defaultLatency = map[string]map[string]time.Duration{
 
 const fallbackLatency = 300 * time.Millisecond
 
-// commandLatency returns the simulated processing time for a family+command, honouring the override.
+// commandLatency returns the simulated processing time for a family+command, honouring the live
+// override (latencyOverrideMs >= 0 forces every command; -1 uses the per-command defaults).
 func commandLatency(family, command string) time.Duration {
-	if latencyOverrideMs >= 0 {
-		return time.Duration(latencyOverrideMs) * time.Millisecond
+	if ov := latencyOverrideMs.Load(); ov >= 0 {
+		return time.Duration(ov) * time.Millisecond
 	}
 	if cmds, ok := defaultLatency[family]; ok {
 		if d, ok := cmds[command]; ok {
@@ -37,16 +30,4 @@ func commandLatency(family, command string) time.Duration {
 		}
 	}
 	return fallbackLatency
-}
-
-// initLatencyFromEnv reads OPENWCS_EMULATOR_LATENCY_MS: an int >= 0 forces every command to that many
-// ms (0 = instant); unset/blank/invalid keeps the per-command defaults.
-func initLatencyFromEnv() {
-	v := os.Getenv("OPENWCS_EMULATOR_LATENCY_MS")
-	if v == "" {
-		return
-	}
-	if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-		latencyOverrideMs = n
-	}
 }

@@ -382,6 +382,9 @@ services:
       # Override the per-command simulated processing time (ms). Unset = realistic per-command
       # defaults; 0 = instant. Tune to speed up / slow down the simulated equipment.
       OPENWCS_EMULATOR_LATENCY_MS: "${OPENWCS_EMULATOR_LATENCY_MS:-}"
+      # Fault injection: fail 1 in every N tasks (deterministic). Unset/0 = no faults. Can also be
+      # toggled live via POST /config.
+      OPENWCS_EMULATOR_FAULT_RATE: "${OPENWCS_EMULATOR_FAULT_RATE:-}"
 
   conveyor-adapter:
     restart: unless-stopped

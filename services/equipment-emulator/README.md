@@ -10,7 +10,12 @@ instead of being duplicated inside each per-family Go adapter.
   result payload reports `durationMs`. `OPENWCS_EMULATOR_LATENCY_MS` overrides every command (`0` =
   instant). The device contract is still synchronous (flow blocks on the response), so the defaults
   are kept sub-second; a non-blocking async contract is the follow-up (Phase 3b).
-- Endpoints: `POST /tasks` (device contract, all families), `GET /state` (simulated telemetry),
+- Fault injection: `OPENWCS_EMULATOR_FAULT_RATE=N` fails 1 in every N tasks with a simulated
+  equipment fault (deterministic, `0`/unset = none). The failed result carries `fault: true`.
+- Live control: `GET /config` reports the current `{latencyOverrideMs, faultEvery}`; `POST /config`
+  (either field optional) changes them at runtime — e.g. `curl -XPOST .../config -d '{"faultEvery":4}'`.
+- Telemetry: `GET /state` reports real per-family completed/failed tallies (not synthetic).
+- Endpoints: `POST /tasks` (device contract, all families), `GET`/`POST /config`, `GET /state`,
   `GET /healthz`, `GET /readyz`, `GET /` (info)
 
 ## How it fits
