@@ -58,7 +58,6 @@ func main() {
 		_, _ = w.Write([]byte("ready"))
 	})
 	mux.HandleFunc("/tasks", handleTask)
-	mux.HandleFunc("/state", handleState)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{
@@ -66,7 +65,6 @@ func main() {
 			"family":    family,
 			"transport": transport,
 			"status":    "skeleton",
-			"emulator":  EmulatorMode(),
 			"version":   version,
 			"commit":    commit,
 			"buildTime": buildTime,
@@ -77,9 +75,6 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
-	// Poll the master-data emulator flag so /tasks and deviceLoop know whether to simulate.
-	StartEmulatorPoller(ctx)
 
 	// Device connection loop (stub). Replace with the real protocol client:
 	// maintain the connection/session, frame/parse telegrams or call the
@@ -108,17 +103,10 @@ func deviceLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if EmulatorOn() {
-				// Emulator ON: advance simulated telemetry and emit a heartbeat. No socket is
-				// ever opened in this mode.
-				ticks, throughput, faults := sim.tick(time.Now())
-				log.Printf("%s: emulator heartbeat ticks=%d throughput=%d faults=%d", serviceName, ticks, throughput, faults)
-				continue
-			}
-			// TODO: real hardware connection (emulator off): maintain the crane/shuttle TCP
-			// session, frame/parse telegrams, publish telemetry to Kafka, and reconcile in-flight
-			// commands on reconnect.
-			log.Printf("%s: device heartbeat (stub, emulator off)", serviceName)
+			// TODO: real hardware connection: maintain the crane/shuttle TCP session, frame/parse
+			// telegrams, publish telemetry to Kafka, and reconcile in-flight commands on reconnect.
+			// Emulator mode no longer runs here — the equipment-emulator service simulates instead.
+			log.Printf("%s: device heartbeat (stub; no live hardware connected)", serviceName)
 		}
 	}
 }

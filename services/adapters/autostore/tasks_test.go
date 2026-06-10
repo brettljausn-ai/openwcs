@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -20,39 +21,26 @@ func postTask(t *testing.T, req deviceTaskRequest) deviceTaskResult {
 	return res
 }
 
-func TestHandleTaskCompletedWhenEmulatorOn(t *testing.T) {
-	setEmulator(true)
-	defer setEmulator(false)
-
+// With emulation moved to the equipment-emulator service, this real adapter has no live hardware
+// path: a supported command fails cleanly as "not connected".
+func TestSupportedCommandFailsNotConnected(t *testing.T) {
 	res := postTask(t, deviceTaskRequest{TaskID: "t1", Command: "BIN_STORE", EquipmentID: "grid-1"})
-	if res.Status != "COMPLETED" {
-		t.Fatalf("status = %q, want COMPLETED", res.Status)
+	if res.Status != "FAILED" {
+		t.Fatalf("status = %q, want FAILED", res.Status)
 	}
-	if res.ResultPayload["simulated"] != true {
-		t.Fatalf("resultPayload.simulated = %v, want true", res.ResultPayload["simulated"])
+	if !strings.Contains(res.Detail, "not connected") {
+		t.Fatalf("detail = %q, want it to mention 'not connected'", res.Detail)
 	}
 }
 
-func TestHandleTaskFailedWhenEmulatorOff(t *testing.T) {
-	setEmulator(false)
-
-	res := postTask(t, deviceTaskRequest{TaskID: "t2", Command: "BIN_RETRIEVE"})
+func TestUnsupportedCommandFails(t *testing.T) {
+	res := postTask(t, deviceTaskRequest{TaskID: "t2", Command: "TELEPORT"})
 	if res.Status != "FAILED" {
 		t.Fatalf("status = %q, want FAILED", res.Status)
 	}
 }
 
-func TestHandleTaskUnsupportedCommand(t *testing.T) {
-	setEmulator(true)
-	defer setEmulator(false)
-
-	res := postTask(t, deviceTaskRequest{TaskID: "t3", Command: "TELEPORT"})
-	if res.Status != "FAILED" {
-		t.Fatalf("status = %q, want FAILED", res.Status)
-	}
-}
-
-func TestHandleTaskRejectsGet(t *testing.T) {
+func TestRejectsGet(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleTask(rec, httptest.NewRequest(http.MethodGet, "/tasks", nil))
 	if rec.Code != http.StatusMethodNotAllowed {

@@ -50,9 +50,10 @@ public class HttpDeviceClient implements DeviceClient {
     /**
      * Pick the adapter base URL: the equipment-emulator when emulator mode is on, otherwise the
      * real adapter for the task's family. Throws {@link NoAdapterException} when no target is
-     * configured.
+     * configured. Package-visible would suffice for production, but the unit test lives in the
+     * parent {@code org.openwcs.flow} package, so this is public.
      */
-    String resolveBaseUrl(String family, boolean emulatorOn) {
+    public String resolveBaseUrl(String family, boolean emulatorOn) {
         if (emulatorOn) {
             String url = properties.getEmulatorUrl();
             if (url == null || url.isBlank()) {

@@ -5,71 +5,47 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
-func TestHandleTaskCompleted(t *testing.T) {
-	setEmulator(true)
-	defer setEmulator(false)
+func postTask(t *testing.T, req deviceTaskRequest) deviceTaskResult {
+	t.Helper()
+	body, _ := json.Marshal(req)
+	rec := httptest.NewRecorder()
+	handleTask(rec, httptest.NewRequest(http.MethodPost, "/tasks", bytes.NewReader(body)))
+	var res deviceTaskResult
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	return res
+}
 
-	body, _ := json.Marshal(deviceTaskRequest{
+// With emulation moved to the equipment-emulator service, this real adapter has no live hardware
+// path: a supported command fails cleanly as "not connected".
+func TestSupportedCommandFailsNotConnected(t *testing.T) {
+	res := postTask(t, deviceTaskRequest{
 		TaskID:      "11111111-1111-1111-1111-111111111111",
 		WarehouseID: "22222222-2222-2222-2222-222222222222",
 		Command:     "CONVEY",
 		Payload:     map[string]interface{}{"to": "P10"},
 	})
-	rec := httptest.NewRecorder()
-	handleTask(rec, httptest.NewRequest(http.MethodPost, "/tasks", bytes.NewReader(body)))
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
+	if res.Status != "FAILED" {
+		t.Fatalf("status = %q, want FAILED", res.Status)
 	}
-	var res deviceTaskResult
-	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if res.Status != "COMPLETED" {
-		t.Fatalf("status = %q, want COMPLETED", res.Status)
-	}
-	if res.ResultPayload["simulated"] != true {
-		t.Fatalf("resultPayload.simulated = %v, want true", res.ResultPayload["simulated"])
+	if !strings.Contains(res.Detail, "not connected") {
+		t.Fatalf("detail = %q, want it to mention 'not connected'", res.Detail)
 	}
 }
 
-func TestHandleTaskEmulatorOff(t *testing.T) {
-	setEmulator(false)
-
-	body, _ := json.Marshal(deviceTaskRequest{TaskID: "t-off", Command: "CONVEY"})
-	rec := httptest.NewRecorder()
-	handleTask(rec, httptest.NewRequest(http.MethodPost, "/tasks", bytes.NewReader(body)))
-
-	var res deviceTaskResult
-	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
+func TestUnsupportedCommandFails(t *testing.T) {
+	res := postTask(t, deviceTaskRequest{TaskID: "t1", Command: "TELEPORT"})
 	if res.Status != "FAILED" {
 		t.Fatalf("status = %q, want FAILED", res.Status)
 	}
 }
 
-func TestHandleTaskUnsupportedCommand(t *testing.T) {
-	setEmulator(true)
-	defer setEmulator(false)
-
-	body, _ := json.Marshal(deviceTaskRequest{TaskID: "t1", Command: "TELEPORT"})
-	rec := httptest.NewRecorder()
-	handleTask(rec, httptest.NewRequest(http.MethodPost, "/tasks", bytes.NewReader(body)))
-
-	var res deviceTaskResult
-	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if res.Status != "FAILED" {
-		t.Fatalf("status = %q, want FAILED", res.Status)
-	}
-}
-
-func TestHandleTaskRejectsGet(t *testing.T) {
+func TestRejectsGet(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleTask(rec, httptest.NewRequest(http.MethodGet, "/tasks", nil))
 	if rec.Code != http.StatusMethodNotAllowed {
