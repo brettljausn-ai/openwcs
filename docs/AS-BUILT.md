@@ -1,6 +1,6 @@
 # openWCS — As-Built Documentation
 
-_Last updated: 2026-06-10 (dispatch family resolved from storage type — counting + GTP store-back no longer hardcode ASRS)_
+_Last updated: 2026-06-10 (adapter emulation stripped — all four Go adapters are real-hardware skeletons; emulation consolidated in `equipment-emulator`)_
 
 What is **actually implemented** today (not the target architecture). Design intent:
 [`build.md`](../build.md); decisions: [`docs/adr/`](./adr); live progress:
@@ -36,8 +36,9 @@ What is **actually implemented** today (not the target architecture). Design int
 | integration-manhattan | 8090 | 🟡 | Host gateway (skeleton): `POST /orders` + `/asns` translating Manhattan Active messages into the canonical Host API. |
 | process-engine | 8083 | 🟡 | Embedded **Flowable BPMN** engine: deploy process definitions, start/inspect instances; service-task delegates originate WCS work (dispatch device task, assign route, release order, **assign put-away**, **allocate order**). Sample processes: goods-in, goods-in-putaway, cycle-count, and a complete **outbound** process (release → allocate → gateway → pick/dispatch → route). |
 | notification | 8088 | 🟦 | Scaffold (health/info only). |
-| adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop + `POST /tasks` device-task simulator. |
-| adapters/{asrs,amr-geekplus,autostore} | 9096, 9093, 9094 | 🟦 | Go; health/readiness + stub loop. (asrs on 9096 — 9092 is Kafka's.) |
+| equipment-emulator | 9097 | 🟡 | Go; simulates all four device families (conveyor CONVEY/DIVERT/MERGE/SCAN, ASRS STORE/RETRIEVE, AMR TRANSPORT/MOVE, AutoStore BIN_STORE/BIN_RETRIEVE) when `HARDWARE_EMULATOR_ENABLED` is ON; flow-orchestrator routes device tasks here instead of the real adapters. |
+| adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop; `POST /tasks` returns FAILED ("hardware not connected") — real-hardware seam. |
+| adapters/{asrs,amr-geekplus,autostore} | 9096, 9093, 9094 | 🟦 | Go; health/readiness + stub loop; `POST /tasks` returns FAILED ("hardware not connected") — real-hardware seam. (asrs on 9096 — 9092 is Kafka's.) |
 | adapters/conveyor-sniffer | 9095 | 🟡 | Go; ingests scan telegrams from defined source IPs (allowlist + pluggable decoder) and posts observations to the WCS for topology learning. |
 | ui | 5173 dev / 443 prod | 🟡 | React/Vite SPA with **Keycloak login** (password grant via `openwcs-web`), a sidebar **app shell** + **dashboard**, and a **screen permission catalog** (`auth/screens.ts`) gating nav/routes by role, **overridable per role/user** via the Access control screen (`iam` `screen-access` store). Built screens: dashboard; **inbound orders**, **outbound orders**, **stock counting** (in-app confirm dialog for OPEN-task delete), **GTP operator console** (single-active-session; **queue-driven + auto-present**: polls the station queue and auto-presents the arrived head tote in PICKING mode — no manual form; **operating mode persisted per station** (localStorage, restored on reload); **active-tote panel** (HU code, SKU code + description, qty, SKU image; **fills the viewport when no cycle is in progress** — larger image, centred layout; idle **waiting-for-totes** state also full-screen); STOCK_COUNT mode also queue-driven — when the queue entry carries `countTaskId`/`countLineId` a dedicated **`CountPanel`** takes the operator's blind counted quantity (never shows expected), calls `POST .../station-count`, clears on `RECOUNT` and advances on `ACCEPTED`/`ADJUSTED`; falls back to a "Done counting" button when the link is absent; queue surfaced as a right-side fold-out **drawer**), **transport overview** (HU code column; origin/destination/next-hop columns resolve UUIDs to human-readable codes — location codes via `useCatalog`, GTP station codes via `listWorkplaces`; unknown UUIDs fall back to a short id; next-hop falls back to destination for ASRS/AMR/AutoStore direct-delivery tasks; **click-to-trace dialog**: clicking a row opens a full detail + trace dialog showing code-resolved fields (HU, origin, destination, next-hop, equipment label, actor, created, detail, raw payload/result) and — when a correlation id is set — the ordered trace of every device task in the same logical transport, fetched from `GET /api/flow/device-tasks?correlationId=`; **scope filter** replaces the old single-status filter: "Open + finished today" (default working-set — active tasks plus anything completed today), "Open (active) only", "Completed", "Failed", "All recent" — applied client-side on a 500-task backend window), **stock transactions**; **conveyor topology** (React Flow), **BPMN process designer** (bpmn-js), **slotting**; **master data** (SKU/UoM/barcode read-only — host-owned), **GTP workplace config**, **settings**; **user management** (Keycloak admin API), **access control**, **warehouse access** (per-user allowed warehouses + default), **system info** (version, health **and logs** of every service/adapter — gateway-aggregated via `GET /api/system/services`; per-service **daily log files** (14-day retention) written to a shared `openwcs-logs` volume by every service — Java via libs:common `logback-spring.xml`, Go adapters via a daily writer — and read back at `GET /api/system/services/{name}/logs?date=` with a day list at `…/log-days`; full-page log view at `/system-info/logs/:name` with filtering). A global **top-bar warehouse switcher** (`warehouse/WarehouseContext`) auto-selects the user's default on login and scopes every warehouse-related screen — no UUID entry anywhere. A shared **`useCatalog`** hook fetches location, SKU, and equipment catalogs from master-data on mount and resolves ids to human-readable codes across the operations screens — counting (scope column + capture dialog), outbound pick detail, stock-transaction From/To, and transport equipment column all display codes (location code, SKU code + description, equipment code) rather than raw UUIDs; transport origin/destination/next-hop additionally resolve against GTP station codes (`listWorkplaces`). **Blind count** capture withholds the Expected-qty column until a task is reconciled (operators must not see expected quantities during a blind count). **Inbound/outbound are read-only** (the host system owns orders — received/released/fulfilled here, not created). Shared UI primitives: a styled `Select` (replaces every native `<select>`), a `DataTable` (client-side search/sort/pagination), and a Keycloak-backed user autocomplete (Access control allow-list; default-warehouse in the user dialog). Warehouse access searches/paginates users **server-side** (Keycloak) to scale. In compose (`--profile apps`) built + served by nginx on host **:443 (HTTPS forced, 80→443)** (proxies `/api`→gateway, `/realms`+`/admin`→Keycloak). |
 
@@ -113,10 +114,10 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
     may only seed onto a fresh, host-free system.
   - **Hardware emulator** (`HARDWARE_EMULATOR_ENABLED`, **default OFF**): a global flag, same
     key/value table, read/flipped via `GET /api/master-data/emulator` → `{enabled}`,
-    `POST /api/master-data/emulator/enable` and `/disable` (ADMIN-gated on `X-Auth-Roles`). The Go
-    device adapters poll it to decide whether to simulate or fail device commands (see §7b). It lets
-    the whole automation flow run end-to-end with no physical hardware; an admin flips it OFF once
-    real adapters are configured.
+    `POST /api/master-data/emulator/enable` and `/disable` (ADMIN-gated on `X-Auth-Roles`). Polled
+    by the `equipment-emulator` service; when ON, flow-orchestrator routes device tasks to it
+    instead of the real adapters (see §7b). Lets the whole automation flow run end-to-end with no
+    physical hardware; an admin flips it OFF once real adapters are configured.
 
 ## 4. inventory (stock)
 
@@ -277,18 +278,15 @@ actor).
 - **Conveyor adapter** (`services/adapters/conveyor`, Go): `POST /tasks` simulates a move,
   accepting CONVEY/DIVERT/MERGE/SCAN (→ COMPLETED with a result payload) and rejecting unknown
   commands (→ FAILED).
-- **Hardware emulator mode** (all four Go adapter families: conveyor, asrs, amr-geekplus,
-  autostore): each adapter polls master-data's `HARDWARE_EMULATOR_ENABLED` flag (§3) and exposes its
-  current mode at `GET /` (new `"emulator":"ON|OFF"` field).
-  - **ON**: the adapter **simulates** its family's device commands (conveyor CONVEY/DIVERT/MERGE/SCAN,
-    ASRS STORE/RETRIEVE, AMR TRANSPORT/MOVE, AutoStore BIN_STORE/BIN_RETRIEVE), returning simulated
-    COMPLETED results, maintains **in-memory device state**, emits **synthetic telemetry** on its loop,
-    and **never opens a hardware connection**. The in-memory state + telemetry are readable at a new
-    `GET /state`.
-  - **OFF** (the default): `/tasks` returns **FAILED** ("hardware not connected"), since no
-    real-hardware protocol client exists yet. This OFF branch is the deliberate **seam** for future
-    real device protocol clients; an admin flips emulator OFF once a real adapter is wired.
-  - Purpose: run the entire automation flow with zero physical hardware (evaluation, onboarding, CI).
+- **Hardware emulator mode**: a dedicated `equipment-emulator` service (port 9097) simulates all
+  four device families. When `HARDWARE_EMULATOR_ENABLED` is ON, flow-orchestrator routes device
+  tasks to it instead of the real adapters; the service accepts CONVEY/DIVERT/MERGE/SCAN,
+  STORE/RETRIEVE, TRANSPORT/MOVE, and BIN_STORE/BIN_RETRIEVE, returning COMPLETED results,
+  maintaining **in-memory device state**, and emitting **synthetic telemetry** — never opening a
+  hardware connection. When OFF (the default), flow routes to the real adapters, each of which
+  returns FAILED ("hardware not connected") — the deliberate **seam** for future real-hardware
+  protocol clients. Purpose: run the entire automation flow with zero physical hardware
+  (evaluation, onboarding, CI).
 - **RBAC catalog**: `DEVICE_VIEW`/`DEVICE_OPERATE` added to `Permission` + `RoleCatalog`
   (VIEWER sees, OPERATOR operates) and seeded in IAM (`iam/V2__device_permissions.sql`).
 
@@ -624,9 +622,10 @@ run green); the first run surfaced one test-isolation bug, now fixed.
   (classification is structural/by category), the projection is a manual action (no auto-reproject on
   save), and the placed-equipment ↔ live-device binding for physical device moves (driving real conveyor/
   ASRS moves through these nodes) is still the flow-orchestrator/adapter seam.
-- Scaffold-only: notification, integration-*. The asrs/amr/autostore device adapters now carry a
-  **hardware emulator mode** (admin toggle, simulates their family + telemetry/state, OFF by default;
-  §3, §7b) but still have **no real-hardware protocol client** (emulator OFF is the seam for that).
+- Scaffold-only: notification, integration-*. All four Go device adapters (conveyor, asrs,
+  amr-geekplus, autostore) are real-hardware skeletons — `POST /tasks` returns FAILED ("hardware
+  not connected"); **no real-hardware protocol client** exists yet. Emulation is handled by the
+  `equipment-emulator` service (§7b).
 - flow-orchestrator dispatches device tasks but **no BPMN process originates them yet**
   (process-engine is still a scaffold); the device contract is synchronous HTTP, not the
   production Kafka transport.
