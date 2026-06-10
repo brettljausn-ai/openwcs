@@ -391,10 +391,9 @@ services:
         GIT_SHA: "${OPENWCS_GIT_SHA:-dev}"
         BUILD_TIME: "${OPENWCS_BUILD_TIME:-unknown}"
     ports: ["9091:9091"]
-    depends_on: [postgres, kafka, master-data]
-    environment:
-      # Poll the hardware-emulator flag owned by master-data (build.md §8 emulator mode).
-      WCS_MASTER_DATA_URL: http://master-data:8081
+    # No master-data/DB/Kafka dependency: emulation moved to equipment-emulator, and these adapters
+    # only hold the (unimplemented) real-hardware protocol path.
+    depends_on: [postgres, kafka]
 
   asrs-adapter:
     restart: unless-stopped
@@ -408,10 +407,9 @@ services:
         GIT_SHA: "${OPENWCS_GIT_SHA:-dev}"
         BUILD_TIME: "${OPENWCS_BUILD_TIME:-unknown}"
     ports: ["9096:9096"]   # 9096, not 9092 — Kafka owns host port 9092
-    depends_on: [postgres, kafka, master-data]
-    environment:
-      # Poll the hardware-emulator flag owned by master-data (build.md §8 emulator mode).
-      WCS_MASTER_DATA_URL: http://master-data:8081
+    # No master-data/DB/Kafka dependency: emulation moved to equipment-emulator, and these adapters
+    # only hold the (unimplemented) real-hardware protocol path.
+    depends_on: [postgres, kafka]
 
   amr-geekplus-adapter:
     restart: unless-stopped
@@ -425,10 +423,9 @@ services:
         GIT_SHA: "${OPENWCS_GIT_SHA:-dev}"
         BUILD_TIME: "${OPENWCS_BUILD_TIME:-unknown}"
     ports: ["9093:9093"]
-    depends_on: [postgres, kafka, master-data]
-    environment:
-      # Poll the hardware-emulator flag owned by master-data (build.md §8 emulator mode).
-      WCS_MASTER_DATA_URL: http://master-data:8081
+    # No master-data/DB/Kafka dependency: emulation moved to equipment-emulator, and these adapters
+    # only hold the (unimplemented) real-hardware protocol path.
+    depends_on: [postgres, kafka]
 
   autostore-adapter:
     restart: unless-stopped
@@ -442,10 +439,9 @@ services:
         GIT_SHA: "${OPENWCS_GIT_SHA:-dev}"
         BUILD_TIME: "${OPENWCS_BUILD_TIME:-unknown}"
     ports: ["9094:9094"]
-    depends_on: [postgres, kafka, master-data]
-    environment:
-      # Poll the hardware-emulator flag owned by master-data (build.md §8 emulator mode).
-      WCS_MASTER_DATA_URL: http://master-data:8081
+    # No master-data/DB/Kafka dependency: emulation moved to equipment-emulator, and these adapters
+    # only hold the (unimplemented) real-hardware protocol path.
+    depends_on: [postgres, kafka]
 
   conveyor-sniffer:
     restart: unless-stopped

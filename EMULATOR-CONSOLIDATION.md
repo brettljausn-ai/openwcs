@@ -90,10 +90,18 @@ when the flag is on the adapters get no traffic, when off they behave the same a
 - [ ] Manual smoke (optional): emulator ON, run a stock count → tote retrieval COMPLETED via emulator;
       check `equipment-emulator` `/state` shows the ASRS command.
 
-### Phase 2b — strip emulation from the four Go adapters — NOT STARTED
-- [ ] Remove `emumode.go` + the simulate branch in each adapter's `tasks.go`/`main.go`; adapters
-      become real-hardware skeletons that return "not connected" when called (only happens in OFF
-      mode). Drop their `WCS_MASTER_DATA_URL` flag polling. Realizes the de-duplication.
+### Phase 2b — strip emulation from the four Go adapters — CODE COMPLETE in PR (branch `feat/strip-adapter-emulation`), NOT VERIFIED
+- [x] Deleted `emumode.go` + `state.go` from all four adapters (asrs/conveyor/amr-geekplus/autostore)
+      — the byte-identical flag poller and the sim state/telemetry. Realizes the de-duplication.
+- [x] Each handler now validates the command then returns FAILED "hardware not connected (no live
+      <family> adapter configured)" — real protocol path is still the TODO. `main.go`: dropped the
+      `/state` route, the `emulator` info field, `StartEmulatorPoller`, and the emulator branch in
+      `deviceLoop` (now just a stub heartbeat).
+- [x] Compose: removed the adapters' now-dead `WCS_MASTER_DATA_URL` env + `master-data` dependency
+      (they no longer poll the flag). Tests rewritten to assert not-connected behaviour.
+- [x] Safe ordering: built on main *after* Phase 2 (#187) merged, so emulator mode keeps working
+      (flow routes to equipment-emulator when the flag is on; adapters only get traffic when off).
+- [ ] **Verify in CI** (`CI` Go job builds/tests all four adapters) and merge.
 
 ## Phase 3 — realism: async completion + timing — NOT STARTED
 

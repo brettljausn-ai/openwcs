@@ -26,12 +26,12 @@ type deviceTaskResult struct {
 	ResultPayload map[string]interface{} `json:"resultPayload"`
 }
 
-// supportedCommands are the moves this AMR simulator accepts.
+// supportedCommands are the moves this AMR adapter accepts.
 var supportedCommands = map[string]bool{"TRANSPORT": true, "MOVE": true, "SCAN": true}
 
-// handleTask simulates executing a device task: it validates the command and, when the emulator is
-// ON, echoes a COMPLETED result (or FAILED for an unknown command / emulator off). The real
-// adapter would call the RCS fleet manager and reconcile the outcome asynchronously.
+// handleTask is the real-adapter device entrypoint: it validates the command, then fails because no
+// live hardware is connected (the RCS fleet-manager client is unimplemented). Hardware emulation
+// moved to the equipment-emulator service, so flow only routes here when the emulator flag is OFF.
 func handleTask(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -53,26 +53,12 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The simulator only runs when the hardware emulator is ON. With it OFF there is no live
-	// adapter to drive (no real-hardware code exists yet), so the task fails cleanly.
-	if !EmulatorOn() {
-		log.Printf("%s: task %s rejected, emulator off", serviceName, req.TaskID)
-		_ = json.NewEncoder(w).Encode(deviceTaskResult{
-			Status: "FAILED",
-			Detail: "hardware not connected (emulator off; no live adapter configured)",
-		})
-		return
-	}
-
-	sim.recordCommand(req.Command)
-	log.Printf("%s: executing task %s command=%s equipment=%s", serviceName, req.TaskID, req.Command, req.EquipmentID)
+	// No real-hardware code exists yet (the RCS client is the TODO in main.go's deviceLoop), and
+	// emulation now lives in the equipment-emulator service — so a task only reaches this real adapter
+	// when the emulator flag is OFF, where it fails cleanly as "not connected".
+	log.Printf("%s: task %s (%s) not executed — no live hardware connected", serviceName, req.TaskID, req.Command)
 	_ = json.NewEncoder(w).Encode(deviceTaskResult{
-		Status: "COMPLETED",
-		Detail: strings.ToLower(family) + " simulated " + req.Command,
-		ResultPayload: map[string]interface{}{
-			"command":   req.Command,
-			"equipment": req.EquipmentID,
-			"simulated": true,
-		},
+		Status: "FAILED",
+		Detail: "hardware not connected (no live " + strings.ToLower(family) + " adapter configured)",
 	})
 }

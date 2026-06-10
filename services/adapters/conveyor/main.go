@@ -58,7 +58,6 @@ func main() {
 		_, _ = w.Write([]byte("ready"))
 	})
 	mux.HandleFunc("/tasks", handleTask)
-	mux.HandleFunc("/state", handleState)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{
@@ -66,7 +65,6 @@ func main() {
 			"family":    family,
 			"transport": transport,
 			"status":    "skeleton",
-			"emulator":  EmulatorMode(),
 			"version":   version,
 			"commit":    commit,
 			"buildTime": buildTime,
@@ -77,9 +75,6 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
-	// Poll the master-data emulator flag so /tasks and deviceLoop know whether to simulate.
-	StartEmulatorPoller(ctx)
 
 	// Device connection loop (stub). Replace with the real protocol client:
 	// maintain the connection/session, frame/parse telegrams or call the
@@ -120,9 +115,9 @@ type deviceTaskResult struct {
 // supportedCommands are the moves this conveyor simulator accepts.
 var supportedCommands = map[string]bool{"CONVEY": true, "DIVERT": true, "MERGE": true, "SCAN": true}
 
-// handleTask simulates executing a device task: it validates the command and echoes a
-// COMPLETED result (or FAILED for an unknown command). The real adapter would drive the PLC
-// and reconcile the outcome asynchronously.
+// handleTask is the real-adapter device entrypoint: it validates the command, then fails because no
+// live hardware is connected (the PLC client is unimplemented). Hardware emulation moved to the
+// equipment-emulator service, so flow only routes here when the emulator flag is OFF.
 func handleTask(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -144,27 +139,13 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The simulator only runs when the hardware emulator is ON. With it OFF there is no live
-	// adapter to drive (no real-hardware code exists yet), so the task fails cleanly.
-	if !EmulatorOn() {
-		log.Printf("%s: task %s rejected, emulator off", serviceName, req.TaskID)
-		_ = json.NewEncoder(w).Encode(deviceTaskResult{
-			Status: "FAILED",
-			Detail: "hardware not connected (emulator off; no live adapter configured)",
-		})
-		return
-	}
-
-	sim.recordCommand(req.Command)
-	log.Printf("%s: executing task %s command=%s equipment=%s", serviceName, req.TaskID, req.Command, req.EquipmentID)
+	// No real-hardware code exists yet (the PLC client is the TODO in deviceLoop), and emulation now
+	// lives in the equipment-emulator service — so a task only reaches this real adapter when the
+	// emulator flag is OFF, where it fails cleanly as "not connected".
+	log.Printf("%s: task %s (%s) not executed — no live hardware connected", serviceName, req.TaskID, req.Command)
 	_ = json.NewEncoder(w).Encode(deviceTaskResult{
-		Status: "COMPLETED",
-		Detail: "conveyor simulated " + req.Command,
-		ResultPayload: map[string]interface{}{
-			"command":   req.Command,
-			"equipment": req.EquipmentID,
-			"simulated": true,
-		},
+		Status: "FAILED",
+		Detail: "hardware not connected (no live conveyor adapter configured)",
 	})
 }
 
@@ -176,16 +157,10 @@ func deviceLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if EmulatorOn() {
-				// Emulator ON: advance simulated telemetry and emit a heartbeat. No socket is
-				// ever opened in this mode.
-				ticks, throughput, faults := sim.tick(time.Now())
-				log.Printf("%s: emulator heartbeat ticks=%d throughput=%d faults=%d", serviceName, ticks, throughput, faults)
-				continue
-			}
-			// TODO: real hardware connection (emulator off): maintain the PLC connection/session,
-			// frame/parse telegrams, publish telemetry to Kafka, and reconcile in-flight commands.
-			log.Printf("%s: device heartbeat (stub, emulator off)", serviceName)
+			// TODO: real hardware connection: maintain the PLC connection/session, frame/parse
+			// telegrams, publish telemetry to Kafka, and reconcile in-flight commands.
+			// Emulator mode no longer runs here — the equipment-emulator service simulates instead.
+			log.Printf("%s: device heartbeat (stub; no live hardware connected)", serviceName)
 		}
 	}
 }
