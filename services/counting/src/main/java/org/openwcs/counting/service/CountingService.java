@@ -80,6 +80,10 @@ public class CountingService {
             line.setUomCode(cell.uomCode());
             // Expected snapshot from the inventory availability projection (the read seam).
             line.setExpectedQty(inventory.expectedOnHand(cmd.warehouseId(), cell.skuId(), cell.locationId()));
+            // Snapshot the tote the cell sits on (ASRS-family stock lives on an HU; bin stock has none),
+            // so a reconciled variance adjusts the tote's bucket instead of a phantom HU-less one.
+            line.setHuId(inventory.findHuAt(cmd.warehouseId(), cell.skuId(), cell.locationId())
+                    .map(InventoryClient.HandlingUnit::huId).orElse(null));
             line.setStatus("PENDING");
             lines.save(line);
         }
@@ -163,7 +167,8 @@ public class CountingService {
                 if (variance.signum() != 0) {
                     UUID eventId = txlog.postStockAdjusted(new TxLogClient.StockAdjustment(
                             line.getWarehouseId(), line.getSkuId(), line.getBatchId(), line.getLocationId(),
-                            variance, line.getUomCode(), task.getId(), line.getId(), actor, REASON_COUNTING));
+                            line.getHuId(), variance, line.getUomCode(), task.getId(), line.getId(), actor,
+                            REASON_COUNTING));
                     line.setAdjustmentEventId(eventId);
                     line.setStatus("ADJUSTED");
                     adjusted++;
@@ -257,7 +262,7 @@ public class CountingService {
             BigDecimal delta = countedQty.subtract(expected);
             UUID eventId = txlog.postStockAdjusted(new TxLogClient.StockAdjustment(
                     line.getWarehouseId(), line.getSkuId(), line.getBatchId(), line.getLocationId(),
-                    delta, line.getUomCode(), taskId, line.getId(),
+                    line.getHuId(), delta, line.getUomCode(), taskId, line.getId(),
                     actor == null || actor.isBlank() ? "system" : actor, REASON_COUNTING));
             line.setCountedQty(countedQty);
             line.setVariance(delta);

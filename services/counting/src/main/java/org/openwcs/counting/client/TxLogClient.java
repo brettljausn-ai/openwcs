@@ -22,6 +22,7 @@ public interface TxLogClient {
             UUID skuId,
             UUID batchId,
             UUID locationId,
+            UUID huId,
             BigDecimal qtyDelta,
             String uomCode,
             UUID countTaskId,

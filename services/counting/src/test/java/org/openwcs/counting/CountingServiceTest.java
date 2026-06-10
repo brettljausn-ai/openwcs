@@ -103,10 +103,13 @@ class CountingServiceTest {
         UUID wh = UUID.randomUUID();
         UUID loc = UUID.randomUUID();
         UUID sku = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
 
-        // Inventory says 10 expected; tolerance 2.
+        // Inventory says 10 expected; tolerance 2. The cell's stock sits on a tote (ASRS-family).
         when(inventory.expectedOnHand(wh, sku, loc)).thenReturn(new BigDecimal("10"));
+        when(inventory.findHuAt(wh, sku, loc)).thenReturn(
+                java.util.Optional.of(new InventoryClient.HandlingUnit(huId, "HU-1", new BigDecimal("10"))));
         when(txlog.postStockAdjusted(any())).thenReturn(eventId);
 
         CountTask created = counting.generate(task(wh, loc, sku, "VARIANCE", new BigDecimal("2")));
@@ -134,6 +137,9 @@ class CountingServiceTest {
         verify(txlog).postStockAdjusted(captor.capture());
         assertThat(captor.getValue().qtyDelta()).isEqualByComparingTo("-1");
         assertThat(captor.getValue().actor()).isEqualTo("sup1");
+        // The adjustment targets the tote's bucket (not a phantom HU-less one) so shuttle stock
+        // never loses its handling unit.
+        assertThat(captor.getValue().huId()).isEqualTo(huId);
 
         CountLine reconciled = counting.rawLines(created.getId()).get(0);
         assertThat(reconciled.getStatus()).isEqualTo("ADJUSTED");

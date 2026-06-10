@@ -27,12 +27,13 @@ public class HttpTxLogClient implements TxLogClient {
 
     @Override
     public UUID postStockAdjusted(StockAdjustment a) {
-        // Inventory's Adjust payload: warehouseId, skuId, batchId, locationId, status, qtyDelta, uomCode.
+        // Inventory's Adjust payload: warehouseId, skuId, batchId, locationId, huId, status, qtyDelta, uomCode.
         Map<String, Object> payload = new HashMap<>();
         payload.put("warehouseId", a.warehouseId());
         payload.put("skuId", a.skuId());
         payload.put("batchId", a.batchId());
         payload.put("locationId", a.locationId());
+        payload.put("huId", a.huId());
         payload.put("status", "AVAILABLE");
         payload.put("qtyDelta", a.qtyDelta());
         payload.put("uomCode", a.uomCode());
