@@ -24,8 +24,15 @@ to be modelled as a transport layer rather than a GTP detail:
 - **R3 — Full-pipeline queue view.** The workplace screen must show **all** totes currently required for
   the workplace — including totes **not yet retrieved** from the ASRS (still in storage / being
   retrieved) — not just the ones physically present at the induction point.
+- **R4 — Transport trace.** Every **function point** an HU is seen at must record a **timestamped** trace
+  event with the **decision** made there: retrieved from slot, inducted onto the conveyor, each conveyor
+  decision point (divert / merge / sorter / recirculate-because-full), arrived at an induction point,
+  queued, presented, stored back. Queryable by HU. This is the audit trail that makes loop recirculation
+  and re-sequencing explainable, and it powers the existing Transport screen's click-to-trace. Today the
+  only "trace" is the device tasks grouped by `correlationId` (`DeviceTaskService.byCorrelation`) — coarse
+  (one row per dispatched task, no decision points); R4 makes it a true material-flow timeline.
 
-### Current behaviour (and why it can't meet R1–R3)
+### Current behaviour (and why it can't meet R1–R4)
 
 `services/gtp` `StationQueueService`:
 
@@ -74,6 +81,17 @@ born already in transit).
    totes still in the ASRS. The per-station **in-transit cap counts only `{IN_TRANSIT, QUEUED}`** (totes
    actually retrieved / present); the `REQUESTED` backlog is unbounded and flow meters retrievals into the
    cap. GTP stops computing `arrivalAt` — that timing is now an emulator simulation detail.
+
+6. **Per-HU transport trace (R4).** Flow persists an append-only, timestamped **trace** of every function
+   point an HU passes, each row carrying `{ ts, huId, point, event, decision, fromPoint→toPoint,
+   correlationId/taskId, workplace }` — e.g. `RETRIEVED @ slot A01`, `INDUCTED @ conveyor`,
+   `DIVERT @ sorter-3 → station-2`, `RECIRCULATE @ sorter-3 (station-2 cap full)`, `ARRIVED @ station-2`,
+   `QUEUED`, `PRESENTED`, `STORED_BACK`. Flow records the points it decides (request, lifecycle
+   transitions, cap/arbitration outcomes); the **emulator reports the conveyor decision points** it
+   simulates (diverts/merges/recirculation) back to flow as trace events on the §3b callback channel.
+   The trace is queryable by HU and **supersedes/extends** today's `byCorrelation` device-task grouping,
+   feeding the existing Transport screen click-to-trace. Each lifecycle transition in decision #5 emits a
+   trace row, so the timeline and the queue state stay consistent.
 
 ### The contract, concretely
 
@@ -124,6 +142,10 @@ GTP station, a put-wall, or a packing desk — satisfying **R1**.
 - **Cross-service & contention.** Spans requester → flow → emulator, and lets flow arbitrate when two
   workplaces request the same HU. Highest-blast-radius change of the consolidation; **changes
   user-visible workstation timing**.
+- **Transport trace (R4).** New append-only `hu_transport_trace` table in the flow schema; flow writes a
+  row on every request/lifecycle/cap-decision, and the emulator reports conveyor decision points as trace
+  events. New query-by-HU endpoint; the Transport screen's click-to-trace switches from the coarse
+  `byCorrelation` device-task list to this timeline.
 - **Upside.** Non-GTP workplaces reuse the same flow queue + transport + arrival contract; the emulator
   can later add loop recirculation with **zero** workplace changes.
 
@@ -133,9 +155,10 @@ GTP station, a put-wall, or a packing desk — satisfying **R1**.
   cap on `{IN_TRANSIT, QUEUED}`), driven by RETRIEVE + CONVEY device-task callbacks; the emulator runs a
   CONVEY leg and calls back on arrival (in request order); GTP requests presentation and reads its queue
   slice from flow; relocate the station queue out of `services/gtp`. Delivers R1 + R3 and the on-screen
-  pipeline; R2 is *supported by the contract* even though the emulator doesn't yet re-sequence. Given the
-  size, this can itself be split (e.g. introduce the flow queue + lifecycle first, switch the GTP screen
-  to read it second).
+  pipeline; R2 is *supported by the contract* even though the emulator doesn't yet re-sequence. Writes an
+  `hu_transport_trace` row on each lifecycle transition (R4, the trace timeline). Given the size, this can
+  itself be split (e.g. introduce the flow queue + lifecycle + trace first, switch the GTP screen + the
+  click-to-trace to read flow second).
 - **3c-2 (optional):** the emulator models loop recirculation, so arrival order visibly diverges from
   request order — R2 made real.
 

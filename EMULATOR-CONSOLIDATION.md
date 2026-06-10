@@ -142,9 +142,13 @@ including totes **not yet retrieved** from the ASRS. Design is in **`docs/adr/00
       QUEUED lifecycle in the MVP; cap counts only {IN_TRANSIT, QUEUED}; and **flow-orchestrator owns the
       queue** (GTP only requests + reads its slice) because two workplaces can request the same HU — this
       **relocates the station queue out of `services/gtp` into flow**.
+- [x] Added R4: a per-HU **transport trace** — timestamped row for every function point (retrieve, induct,
+      conveyor divert/merge/recirculate, arrive, queue, present, store-back) + the decision made. New
+      `hu_transport_trace` in flow; emulator reports conveyor decision points; extends the Transport
+      screen's click-to-trace (today just `byCorrelation` device tasks).
 - [ ] Implement 3c-1 (MVP) — highest blast radius, un-buildable locally, needs a real run-through. Likely
-      split: (a) flow induction queue + lifecycle driven by RETRIEVE/CONVEY callbacks; (b) switch the GTP
-      screen to read it; (c) emulator CONVEY leg + arrival callback.
+      split: (a) flow induction queue + lifecycle + trace, driven by RETRIEVE/CONVEY callbacks; (b) switch
+      the GTP screen + click-to-trace to read flow; (c) emulator CONVEY leg + arrival + decision-point trace.
 - [ ] Optional 3c-2: emulator models loop recirculation (makes R2 visible).
 
 ## Phase 4 — fault injection + telemetry + live control — CODE COMPLETE in PR (branch `feat/emulator-fault-injection`), NOT VERIFIED
