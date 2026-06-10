@@ -7,13 +7,14 @@ import (
 	"time"
 )
 
-// state.go holds the in-memory simulated state and telemetry for all families. handleTask updates
-// the per-family counters; telemetryLoop advances the snapshot. Guarded by a single mutex.
+// state.go holds the in-memory simulated state and telemetry for all families, derived from real
+// task load: per-family completed/failed tallies plus a liveness heartbeat. Guarded by one mutex.
 
-// familyState is one family's running command tallies.
+// familyState is one family's running tallies.
 type familyState struct {
-	commandCounts map[string]int64
-	totalTasks    int64
+	commandCounts map[string]int64 // successful commands, by command
+	completed     int64
+	failed        int64
 	lastCommand   string
 }
 
@@ -21,13 +22,12 @@ type familyState struct {
 type deviceState struct {
 	mu sync.Mutex
 
-	families   map[string]*familyState
-	totalTasks int64
-	faults     int64
+	families       map[string]*familyState
+	totalCompleted int64
+	totalFailed    int64
 
 	startTime     time.Time
 	ticks         int64
-	throughput    int64
 	lastHeartbeat string
 }
 
@@ -36,34 +36,45 @@ var sim = &deviceState{
 	startTime: time.Now(),
 }
 
-// recordCommand bumps the counters for a successfully simulated command (caller has already
-// validated the family and command).
-func (s *deviceState) recordCommand(family, command string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// family returns (creating if needed) the per-family tallies. Caller holds the lock.
+func (s *deviceState) family(family string) *familyState {
 	fs := s.families[family]
 	if fs == nil {
 		fs = &familyState{commandCounts: map[string]int64{}}
 		s.families[family] = fs
 	}
-	fs.commandCounts[command]++
-	fs.totalTasks++
-	fs.lastCommand = command
-	s.totalTasks++
+	return fs
 }
 
-// tick advances the telemetry snapshot once per telemetryLoop iteration; every 7th tick bumps a
-// simulated fault so the fault counter is exercised. Returns post-tick ticks/throughput/faults.
-func (s *deviceState) tick(now time.Time) (ticks, throughput, faults int64) {
+// recordCompleted bumps the success tallies for a simulated command.
+func (s *deviceState) recordCompleted(family, command string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	fs := s.family(family)
+	fs.commandCounts[command]++
+	fs.completed++
+	fs.lastCommand = command
+	s.totalCompleted++
+}
+
+// recordFailed bumps the fault tallies for a simulated equipment fault.
+func (s *deviceState) recordFailed(family, command string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	fs := s.family(family)
+	fs.failed++
+	fs.lastCommand = command
+	s.totalFailed++
+}
+
+// tick advances the liveness heartbeat once per telemetryLoop iteration and returns the running
+// totals so the caller can log a heartbeat without re-taking the lock.
+func (s *deviceState) tick(now time.Time) (ticks, completed, failed int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ticks++
-	s.throughput++
 	s.lastHeartbeat = now.Format(time.RFC3339)
-	if s.ticks%7 == 0 {
-		s.faults++
-	}
-	return s.ticks, s.throughput, s.faults
+	return s.ticks, s.totalCompleted, s.totalFailed
 }
 
 // snapshot returns a JSON-ready view of the state read under lock.
@@ -77,7 +88,8 @@ func (s *deviceState) snapshot() map[string]interface{} {
 			counts[k] = v
 		}
 		families[fam] = map[string]interface{}{
-			"totalTasks":    fs.totalTasks,
+			"completed":     fs.completed,
+			"failed":        fs.failed,
 			"lastCommand":   fs.lastCommand,
 			"commandCounts": counts,
 		}
@@ -85,16 +97,20 @@ func (s *deviceState) snapshot() map[string]interface{} {
 	return map[string]interface{}{
 		"service":  serviceName,
 		"emulator": "ON",
+		"config": map[string]interface{}{
+			"latencyOverrideMs": latencyOverrideMs.Load(),
+			"faultEvery":        faultEvery.Load(),
+		},
 		"devices": map[string]interface{}{
-			"totalTasks": s.totalTasks,
-			"faults":     s.faults,
-			"families":   families,
+			"completed": s.totalCompleted,
+			"failed":    s.totalFailed,
+			"total":     s.totalCompleted + s.totalFailed,
+			"families":  families,
 		},
 		"telemetry": map[string]interface{}{
 			"ticks":         s.ticks,
 			"uptimeSeconds": int64(time.Since(s.startTime).Seconds()),
 			"lastHeartbeat": s.lastHeartbeat,
-			"throughput":    s.throughput,
 		},
 	}
 }

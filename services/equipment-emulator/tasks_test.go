@@ -10,9 +10,10 @@ import (
 	"time"
 )
 
-// TestMain forces zero simulated latency so the suite doesn't sleep on every task.
+// TestMain forces zero simulated latency and no fault injection so the suite is fast and predictable.
 func TestMain(m *testing.M) {
-	latencyOverrideMs = 0
+	latencyOverrideMs.Store(0)
+	faultEvery.Store(0)
 	os.Exit(m.Run())
 }
 
@@ -81,8 +82,8 @@ func TestRejectsGet(t *testing.T) {
 
 // The handler sleeps for the simulated latency and reports it as durationMs.
 func TestReportsSimulatedDuration(t *testing.T) {
-	latencyOverrideMs = 25
-	defer func() { latencyOverrideMs = 0 }()
+	latencyOverrideMs.Store(25)
+	defer latencyOverrideMs.Store(0)
 
 	start := time.Now()
 	res := postTask(t, deviceTaskRequest{TaskID: "t", Family: "ASRS", Command: "RETRIEVE"})
@@ -96,5 +97,48 @@ func TestReportsSimulatedDuration(t *testing.T) {
 	}
 	if elapsed < 20*time.Millisecond {
 		t.Fatalf("handler returned in %s; expected it to honour the ~25ms simulated latency", elapsed)
+	}
+}
+
+// With faultEvery=2, deterministically every 2nd task fails as a simulated equipment fault.
+func TestFaultInjectionFailsEveryNth(t *testing.T) {
+	taskSeq.Store(0)
+	faultEvery.Store(2)
+	defer func() { faultEvery.Store(0); taskSeq.Store(0) }()
+
+	wants := []string{"COMPLETED", "FAILED", "COMPLETED", "FAILED"}
+	for i, want := range wants {
+		res := postTask(t, deviceTaskRequest{TaskID: "t", Family: "ASRS", Command: "RETRIEVE"})
+		if res.Status != want {
+			t.Fatalf("task %d: status = %q, want %q", i+1, res.Status, want)
+		}
+		if want == "FAILED" && res.ResultPayload["fault"] != true {
+			t.Fatalf("task %d: expected fault=true in payload, got %v", i+1, res.ResultPayload["fault"])
+		}
+	}
+}
+
+// POST /config updates the live latency/fault config; GET /config reports it.
+func TestConfigEndpoint(t *testing.T) {
+	defer func() { latencyOverrideMs.Store(0); faultEvery.Store(0) }()
+
+	body, _ := json.Marshal(map[string]int64{"latencyOverrideMs": 0, "faultEvery": 5})
+	rec := httptest.NewRecorder()
+	handleConfig(rec, httptest.NewRequest(http.MethodPost, "/config", bytes.NewReader(body)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /config status = %d, want 200", rec.Code)
+	}
+	if faultEvery.Load() != 5 {
+		t.Fatalf("faultEvery = %d, want 5 after POST", faultEvery.Load())
+	}
+
+	rec = httptest.NewRecorder()
+	handleConfig(rec, httptest.NewRequest(http.MethodGet, "/config", nil))
+	var cfg configView
+	if err := json.Unmarshal(rec.Body.Bytes(), &cfg); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if cfg.FaultEvery != 5 {
+		t.Fatalf("GET /config faultEvery = %d, want 5", cfg.FaultEvery)
 	}
 }

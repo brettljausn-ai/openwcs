@@ -89,7 +89,27 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 	d := commandLatency(family, req.Command)
 	time.Sleep(d)
 
-	sim.recordCommand(family, req.Command)
+	// Inject a deterministic simulated equipment fault when configured (OPENWCS_EMULATOR_FAULT_RATE
+	// or POST /config): 1 in every N tasks fails.
+	if shouldFault() {
+		sim.recordFailed(family, req.Command)
+		log.Printf("%s: task %s family=%s command=%s SIMULATED FAULT after %s", serviceName, req.TaskID, family, req.Command, d)
+		_ = json.NewEncoder(w).Encode(deviceTaskResult{
+			Status: "FAILED",
+			Detail: strings.ToLower(family) + " simulated equipment fault on " + req.Command,
+			ResultPayload: map[string]interface{}{
+				"command":    req.Command,
+				"family":     family,
+				"equipment":  req.EquipmentID,
+				"durationMs": d.Milliseconds(),
+				"simulated":  true,
+				"fault":      true,
+			},
+		})
+		return
+	}
+
+	sim.recordCompleted(family, req.Command)
 	log.Printf("%s: executed task %s family=%s command=%s equipment=%s in %s", serviceName, req.TaskID, family, req.Command, req.EquipmentID, d)
 	_ = json.NewEncoder(w).Encode(deviceTaskResult{
 		Status: "COMPLETED",
