@@ -378,6 +378,10 @@ services:
         GIT_SHA: "${OPENWCS_GIT_SHA:-dev}"
         BUILD_TIME: "${OPENWCS_BUILD_TIME:-unknown}"
     ports: ["9097:9097"]
+    environment:
+      # Override the per-command simulated processing time (ms). Unset = realistic per-command
+      # defaults; 0 = instant. Tune to speed up / slow down the simulated equipment.
+      OPENWCS_EMULATOR_LATENCY_MS: "${OPENWCS_EMULATOR_LATENCY_MS:-}"
 
   conveyor-adapter:
     restart: unless-stopped

@@ -48,6 +48,9 @@ func main() {
 		port = defaultPort
 	}
 
+	// Per-command simulated processing time (OPENWCS_EMULATOR_LATENCY_MS overrides the defaults).
+	initLatencyFromEnv()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

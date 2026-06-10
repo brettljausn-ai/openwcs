@@ -103,15 +103,28 @@ when the flag is on the adapters get no traffic, when off they behave the same a
       (flow routes to equipment-emulator when the flag is on; adapters only get traffic when off).
 - [ ] **Verify in CI** (`CI` Go job builds/tests all four adapters) and merge.
 
-## Phase 3 — realism: async completion + timing — NOT STARTED
+## Phase 3 — realism: simulated processing time — CODE COMPLETE in PR (branch `feat/emulator-simulated-latency`), NOT VERIFIED
 
-- [ ] Emulator returns COMPLETED after a simulated per-family/command duration.
-- [ ] Move device contract from sync-blocking (`DeviceTaskService` blocks on result) to **async**
-      (record DISPATCHED; emulator posts result back — the eventual Kafka `device.results`, or a
-      callback). THIS IS THE HIGH-IMPACT DECISION.
-- [ ] Move GTP's arrival-timing physics (`StationQueueService` distance ÷ 0.5 m/s) into the emulator
-      so there's a single owner of movement time. Careful: GTP's in-transit→queued state machine
-      depends on arrival time.
+Scoped to the safe, self-contained first slice (emulator-only). The async-contract + GTP-timing work
+is split into Phase 3b below because it's a large cross-service change with a flagged decision, and
+this repo can't be compiled/run locally.
+
+- [x] Emulator simulates a per-family/command processing time (`latency.go`): each command sleeps a
+      modest, sub-second default before COMPLETED; result payload now reports `durationMs`.
+      `OPENWCS_EMULATOR_LATENCY_MS` overrides every command (`0` = instant); tests run at 0.
+      Exposed in compose. Tests: `TestReportsSimulatedDuration` + `TestMain` zeroes latency.
+- [ ] **Verify in CI** (Go job builds/tests the emulator) and merge.
+
+### Phase 3b — async device contract + move timing in — NOT STARTED (decision-gated)
+- [ ] Move the device contract from sync-blocking (`DeviceTaskService` blocks on the HTTP result, and
+      currently holds its @Transactional open for the simulated sleep) to **async**: record DISPATCHED,
+      emulator posts the result back (Kafka `device.results` or a callback endpoint on flow). THIS IS
+      THE HIGH-IMPACT DECISION — confirm direction before building.
+- [ ] Then move GTP's arrival-timing physics (`StationQueueService` distance ÷ 0.5 m/s) into the
+      emulator so there's a single owner of movement time. Careful: GTP's in-transit→queued state
+      machine depends on arrival time.
+- Note: the Phase 3 sync latency holds a flow DB transaction for the sleep duration — fine at demo
+      volumes, and the reason async is the proper fix.
 
 ## Phase 4 — failure injection + telemetry + control UI — NOT STARTED
 

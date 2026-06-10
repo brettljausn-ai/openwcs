@@ -283,10 +283,13 @@ actor).
   tasks to it instead of the real adapters; the service accepts CONVEY/DIVERT/MERGE/SCAN,
   STORE/RETRIEVE, TRANSPORT/MOVE, and BIN_STORE/BIN_RETRIEVE, returning COMPLETED results,
   maintaining **in-memory device state**, and emitting **synthetic telemetry** — never opening a
-  hardware connection. When OFF (the default), flow routes to the real adapters, each of which
-  returns FAILED ("hardware not connected") — the deliberate **seam** for future real-hardware
-  protocol clients. Purpose: run the entire automation flow with zero physical hardware
-  (evaluation, onboarding, CI).
+  hardware connection. Each command sleeps a realistic per-family/command duration before
+  responding (e.g. ASRS STORE/RETRIEVE ≈ 900 ms, AMR TRANSPORT ≈ 1.2 s, conveyor moves ≈
+  400–600 ms); the result payload includes `durationMs`. `OPENWCS_EMULATOR_LATENCY_MS` overrides
+  every command (`0` = instant; useful in tests and CI). When OFF (the default), flow routes to
+  the real adapters, each of which returns FAILED ("hardware not connected") — the deliberate
+  **seam** for future real-hardware protocol clients. Purpose: run the entire automation flow
+  with zero physical hardware (evaluation, onboarding, CI).
 - **RBAC catalog**: `DEVICE_VIEW`/`DEVICE_OPERATE` added to `Permission` + `RoleCatalog`
   (VIEWER sees, OPERATOR operates) and seeded in IAM (`iam/V2__device_permissions.sql`).
 

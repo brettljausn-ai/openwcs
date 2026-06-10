@@ -94,7 +94,7 @@ openwcs/
 | `services/integration-sap` | Java | 8089 | Host gateway: SAP S/4HANA / HANA (OData/BAPI/RFC/IDoc) |
 | `services/integration-manhattan` | Java | 8090 | Host gateway: Manhattan Active (REST) |
 | `services/integration-host` | Java | 8092 | Canonical vendor-neutral Host API (`/api/host/**`): orders + ASNs + SKU sync (a list of SKUs with their UoM hierarchy and barcodes inline) in, confirmations out; vendor adapters translate into it |
-| `services/equipment-emulator` | Go | 9097 | Single simulator for all device families; active when `HARDWARE_EMULATOR_ENABLED` is ON — flow-orchestrator routes device tasks here instead of the real adapters. |
+| `services/equipment-emulator` | Go | 9097 | Single simulator for all device families; active when `HARDWARE_EMULATOR_ENABLED` is ON — flow-orchestrator routes device tasks here instead of the real adapters. Each command sleeps a realistic per-family duration before returning COMPLETED; `OPENWCS_EMULATOR_LATENCY_MS` overrides all commands (`0` = instant). |
 | `services/adapters/conveyor` | Go | 9091 | Conveyor adapter; `POST /tasks` returns FAILED ("hardware not connected") — real-hardware seam (emulation in `equipment-emulator`). |
 | `services/adapters/asrs` | Go | 9096 | Shuttle/crane adapter; `POST /tasks` returns FAILED ("hardware not connected") — real-hardware seam. |
 | `services/adapters/amr-geekplus` | Go | 9093 | Geek+ AMR adapter; `POST /tasks` returns FAILED ("hardware not connected") — real-hardware seam. |
