@@ -133,10 +133,15 @@ async when flow supplies a `callbackUrl`.
 - [ ] **Verify in CI** (flow Java tests + emulator Go tests). This is the highest-blast-radius PR and
       the one most worth a real run-through before merge — no JDK/Go/Docker locally.
 
-### Phase 3c — move GTP arrival-timing physics into the emulator — NOT STARTED
-- [ ] Move GTP's arrival-timing (`StationQueueService` distance ÷ 0.5 m/s) into the emulator so there's
-      a single owner of movement time. Careful: GTP's in-transit→queued state machine depends on arrival
-      time, so this needs its own design + verification. Now unblocked by the async contract above.
+### Phase 3c — conveyor transport as a workplace-agnostic layer; arrival-driven queueing — DESIGN PROPOSED
+Reframed from "move the timing into the emulator" once product requirements landed: conveyor movement
+must be a shared transport layer (feeds GTP **and** other workplaces), arrival order can differ from
+request order (recirculating loop), and the workplace screen must show the full inbound pipeline
+including totes **not yet retrieved** from the ASRS. Design is in **`docs/adr/0007-conveyor-transport-and-workplace-induction.md`**.
+- [x] ADR written (the arrival-event contract, the REQUESTED→IN_TRANSIT→QUEUED lifecycle, GTP/test impact).
+- [ ] Sign off the open questions in the ADR (callback vs Kafka; DEPARTED granularity; cap; entry owner).
+- [ ] Implement 3c-1 (MVP) against the agreed contract — highest blast radius, needs a real run-through.
+- [ ] Optional 3c-2: emulator models loop recirculation (makes R2 visible).
 
 ## Phase 4 — fault injection + telemetry + live control — CODE COMPLETE in PR (branch `feat/emulator-fault-injection`), NOT VERIFIED
 
