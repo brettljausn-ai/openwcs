@@ -3,11 +3,13 @@ package org.openwcs.flow.service;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.openwcs.flow.api.InductionEntryNotFoundException;
 import org.openwcs.flow.api.InductionEntryView;
 import org.openwcs.flow.api.InductionRequest;
 import org.openwcs.flow.api.RequestDeviceTask;
+import org.openwcs.flow.api.RoutingDtos.RouteRequest;
 import org.openwcs.flow.client.WorkplaceClient;
 import org.openwcs.flow.domain.InductionQueueEntry;
 import org.openwcs.flow.repo.InductionQueueEntryRepository;
@@ -28,6 +30,12 @@ import org.springframework.transaction.annotation.Transactional;
  * CONVEY (station → storage) whose callback dispatches the STORE/BIN_STORE back into the source
  * slot. Each transition appends an {@link HuTraceService} row (§5).
  *
+ * <p>ADR-0008 §1: both CONVEY dispatches (outbound and return) resolve the transport's entry and
+ * destination nodes on the projected routing graph via {@link TransportNodeResolver}; when both
+ * resolve, a route plan is assigned ({@link RoutingService#assignRoute}) and the payload carries
+ * {@code entryNode}/{@code destinationNode} so the adapter runs the leg as a live scan-driven walk.
+ * Un-projected warehouses dispatch exactly as before (atomic fallback).
+ *
  * <p>Lifecycle transitions are driven from {@code DeviceTaskService.completeFromCallback} keyed off
  * the completing task's command; the entry is found by its {@code retrieve_task_id} / {@code convey_task_id}.
  */
@@ -44,13 +52,18 @@ public class InductionQueueService {
     private final HuTraceService trace;
     private final DeviceTaskService deviceTasks;
     private final WorkplaceClient workplaces;
+    private final TransportNodeResolver transportNodes;
+    private final RoutingService routing;
 
     public InductionQueueService(InductionQueueEntryRepository entries, HuTraceService trace,
-                                 DeviceTaskService deviceTasks, WorkplaceClient workplaces) {
+                                 DeviceTaskService deviceTasks, WorkplaceClient workplaces,
+                                 TransportNodeResolver transportNodes, RoutingService routing) {
         this.entries = entries;
         this.trace = trace;
         this.deviceTasks = deviceTasks;
         this.workplaces = workplaces;
+        this.transportNodes = transportNodes;
+        this.routing = routing;
     }
 
     // ---- §3.1 request -------------------------------------------------------------------------
@@ -186,11 +199,37 @@ public class InductionQueueService {
         putIfPresent(payload, "huId", entry.getHuId());
         putIfPresent(payload, "huCode", entry.getHuCode());
         putIfPresent(payload, "destinationWorkplaceId", entry.getWorkplaceId());
+        assignLiveRoute(entry, payload,
+                transportNodes.storageEntryNode(entry.getWarehouseId()),
+                transportNodes.destinationNode(entry.getWarehouseId(), entry.getWorkplaceId()));
         RequestDeviceTask req = new RequestDeviceTask(
                 entry.getWarehouseId(), "CONVEYOR", null, "CONVEY", payload, entry.getHuId());
         UUID taskId = deviceTasks.request(req, actor).id();
         entry.setConveyTaskId(taskId);
         log.debug("Induction entry {} dispatched CONVEY task {}", entry.getId(), taskId);
+    }
+
+    /**
+     * ADR-0008 §1: when BOTH transport endpoints resolve on the projected routing graph, assign the
+     * HU a route plan to the destination and put {@code entryNode} (+ informational
+     * {@code destinationNode}) in the task payload — the emulator/adapter then runs the CONVEY as a
+     * live scan-driven walk. When either endpoint is missing (un-projected warehouse), the payload
+     * is left untouched so the adapter falls back to today's atomic behaviour.
+     */
+    private void assignLiveRoute(InductionQueueEntry entry, Map<String, Object> payload,
+                                 Optional<String> entryNode, Optional<String> destinationNode) {
+        if (entryNode.isEmpty() || destinationNode.isEmpty() || entry.getHuCode() == null) {
+            log.debug("Induction entry {} dispatching CONVEY without a route plan "
+                            + "(entryNode={}, destinationNode={}, huCode={})", entry.getId(),
+                    entryNode.orElse(null), destinationNode.orElse(null), entry.getHuCode());
+            return;
+        }
+        routing.assignRoute(new RouteRequest(entry.getWarehouseId(), entry.getHuCode(),
+                List.of(destinationNode.get())));
+        payload.put("entryNode", entryNode.get());
+        payload.put("destinationNode", destinationNode.get());
+        log.debug("Induction entry {} assigned route plan {} -> {} for {}", entry.getId(),
+                entryNode.get(), destinationNode.get(), entry.getHuCode());
     }
 
     // ---- §4.3 CONVEY callback (= arrival) -----------------------------------------------------
@@ -298,6 +337,10 @@ public class InductionQueueService {
         putIfPresent(payload, "huCode", entry.getHuCode());
         putIfPresent(payload, "sourceWorkplaceId", entry.getWorkplaceId());
         putIfPresent(payload, "returnLocationId", entry.getLocationId());
+        // Return leg: the roles swap — entry = the workplace's node, destination = the storage node.
+        assignLiveRoute(entry, payload,
+                transportNodes.destinationNode(entry.getWarehouseId(), entry.getWorkplaceId()),
+                transportNodes.storageEntryNode(entry.getWarehouseId()));
         RequestDeviceTask req = new RequestDeviceTask(
                 entry.getWarehouseId(), "CONVEYOR", null, "CONVEY", payload, entry.getHuId());
         UUID taskId = deviceTasks.request(req, actor).id();

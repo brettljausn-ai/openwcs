@@ -15,6 +15,7 @@ import org.openwcs.flow.repo.ConveyorEdgeRepository;
 import org.openwcs.flow.repo.ConveyorLoopRepository;
 import org.openwcs.flow.repo.ConveyorNodeRepository;
 import org.openwcs.flow.repo.HuRouteRepository;
+import org.openwcs.flow.repo.InductionQueueEntryRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -34,13 +35,18 @@ public class RoutingService {
     private final ConveyorEdgeRepository edges;
     private final ConveyorLoopRepository loops;
     private final HuRouteRepository routes;
+    private final InductionQueueEntryRepository inductionEntries;
+    private final HuTraceService trace;
 
     public RoutingService(ConveyorNodeRepository nodes, ConveyorEdgeRepository edges,
-                          ConveyorLoopRepository loops, HuRouteRepository routes) {
+                          ConveyorLoopRepository loops, HuRouteRepository routes,
+                          InductionQueueEntryRepository inductionEntries, HuTraceService trace) {
         this.nodes = nodes;
         this.edges = edges;
         this.loops = loops;
         this.routes = routes;
+        this.inductionEntries = inductionEntries;
+        this.trace = trace;
     }
 
     @Transactional
@@ -63,9 +69,20 @@ public class RoutingService {
                 .map(RoutingService::view);
     }
 
-    /** Decide where a scanned handling unit goes next. */
+    /**
+     * Decide where a scanned handling unit goes next. ADR-0008 §3: every scan that belongs to a
+     * live transport (an induction entry exists for the barcode) is appended to the HU transport
+     * trace as a {@code SCANNED} row carrying the answer — the trace becomes a true, live
+     * material-flow timeline. Unknown barcodes (no entry) are answered but never traced.
+     */
     @Transactional
     public RoutingDecision decide(ScanRequest scan) {
+        RoutingDecision decision = evaluate(scan);
+        recordScan(scan, decision);
+        return decision;
+    }
+
+    private RoutingDecision evaluate(ScanRequest scan) {
         ConveyorNode here = nodes.findByWarehouseIdAndCode(scan.warehouseId(), scan.node()).orElse(null);
         if (here == null) {
             return RoutingDecision.exception("Unknown node: " + scan.node());
@@ -132,6 +149,35 @@ public class RoutingService {
         routes.save(route);
         String toCode = toNode == null ? null : toNode.getCode();
         return RoutingDecision.route(hop.getExitCode(), toCode, currentTarget, reached);
+    }
+
+    /**
+     * Append a {@code SCANNED} trace row when the barcode belongs to a live transport (the most
+     * recent induction entry for the HU code). Fully isolated: a trace failure must NEVER break the
+     * routing answer (mirrors how {@link RoutingProjectionService} isolates its station-node side
+     * effect), and an unknown barcode (no entry) writes nothing — strays scan all the time.
+     */
+    private void recordScan(ScanRequest scan, RoutingDecision decision) {
+        try {
+            inductionEntries
+                    .findFirstByWarehouseIdAndHuCodeOrderByRequestedAtDesc(scan.warehouseId(), scan.barcode())
+                    .ifPresent(entry -> trace.record(scan.warehouseId(), entry.getHuId(), entry.getHuCode(),
+                            scan.node(), "SCANNED", describe(decision), null, decision.toNode(),
+                            entry.getWorkplaceId(), null, entry.getId()));
+        } catch (Throwable t) {
+            log.warn("scan trace failed (ignored) for {} at {}: {}", scan.barcode(), scan.node(), t.toString());
+        }
+    }
+
+    /** A short human string of the routing answer for the trace's {@code decision} column. */
+    private static String describe(RoutingDecision d) {
+        return switch (d.action()) {
+            case "ROUTE" -> "routed to " + d.toNode() + " via " + d.exitCode();
+            case "HOLD" -> "held: loop full";
+            case "COMPLETE" -> "destination reached";
+            case "NO_ROUTE" -> "no route";
+            default -> "exception: " + d.detail();
+        };
     }
 
     private RoutingDecision overflowToward(UUID warehouseId, List<ConveyorEdge> warehouseEdges,
