@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openwcs.flow.api.DeviceTaskView;
 import org.openwcs.flow.api.HuTraceView;
@@ -17,6 +18,7 @@ import org.openwcs.flow.api.InductionEntryView;
 import org.openwcs.flow.api.InductionRequest;
 import org.openwcs.flow.client.DeviceClient;
 import org.openwcs.flow.client.InventoryClient;
+import org.openwcs.flow.client.SlottingClient;
 import org.openwcs.flow.client.WorkplaceClient;
 import org.openwcs.flow.service.DeviceTaskService;
 import org.openwcs.flow.service.HuTraceService;
@@ -61,6 +63,9 @@ class InductionQueueServiceTest {
     @MockBean
     InventoryClient inventoryClient;
 
+    @MockBean
+    SlottingClient slottingClient;
+
     @Autowired
     InductionQueueService induction;
 
@@ -69,6 +74,21 @@ class InductionQueueServiceTest {
 
     @Autowired
     HuTraceService traces;
+
+    @BeforeEach
+    void clearChannelByDefault() {
+        // ADR-0009: every test runs against a clear channel (empty plan, not blocked) unless it
+        // stubs a dig-out plan itself — the pre-0009 behaviour stays byte-for-byte unchanged.
+        when(slottingClient.plan(any(), any())).thenReturn(emptyPlan(false));
+    }
+
+    private static SlottingClient.RelocationPlan emptyPlan(boolean blocked) {
+        return new SlottingClient.RelocationPlan(List.of(), blocked);
+    }
+
+    private static SlottingClient.RelocationPlan planOf(SlottingClient.RelocationStep... steps) {
+        return new SlottingClient.RelocationPlan(List.of(steps), false);
+    }
 
     private void asyncAdapter() {
         // Every dispatched device task is accepted (async): it stays DISPATCHED until we post the
@@ -389,5 +409,143 @@ class InductionQueueServiceTest {
         assertThat(events).contains("RECIRCULATED", "DIVERTED", "ARRIVED", "QUEUED");
         // The recirculate/divert decisions precede the arrival in the timeline.
         assertThat(events).containsSubsequence("RECIRCULATED", "ARRIVED", "QUEUED");
+    }
+
+    // ---- ADR-0009: dig-out RELOCATE chain before a blocked retrieve ----------------------------
+
+    @Test
+    void blockedChannelRelocatesTheBlockerBeforeTheRetrieve() {
+        asyncAdapter();
+        cap(5, 5);
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        UUID blockerHuId = UUID.randomUUID();
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+        // First plan: one blocker in front of the tote; after its move the channel is clear.
+        when(slottingClient.plan(any(), any())).thenReturn(
+                planOf(new SlottingClient.RelocationStep(blockerHuId, "BLOCKER-1", from, to)),
+                emptyPlan(false));
+
+        InductionEntryView created = induction.request(req(warehouse, workplace, huId, "TOTE-1", "STOCK_COUNT"), "op");
+        // The dig-out goes out first: RELOCATE stamped, NO retrieve dispatched yet.
+        assertThat(created.relocateTaskId()).isNotNull();
+        assertThat(created.retrieveTaskId()).isNull();
+        DeviceTaskView relocate = deviceTasks.get(created.relocateTaskId());
+        assertThat(relocate.command()).isEqualTo("RELOCATE");
+        assertThat(relocate.family()).isEqualTo("ASRS");
+        assertThat(relocate.payload())
+                .containsEntry("huId", blockerHuId.toString())
+                .containsEntry("huCode", "BLOCKER-1")
+                .containsEntry("fromLocationId", from.toString())
+                .containsEntry("toLocationId", to.toString())
+                .containsEntry("forHuId", huId.toString());
+
+        // The RELOCATE completes: the BLOCKER's new location is booked, RELOCATED is traced for the
+        // blocker, and the re-plan (channel now clear) finally dispatches the RETRIEVE.
+        deviceTasks.completeFromCallback(created.relocateTaskId(), "COMPLETED", "relocated", Map.of());
+        verify(inventoryClient).bookLocation(blockerHuId, to);
+        InductionEntryView after = induction.get(created.id());
+        assertThat(after.relocateTaskId()).isNull();
+        assertThat(after.retrieveTaskId()).isNotNull();
+        assertThat(after.status()).isEqualTo("REQUESTED"); // only the RETRIEVE callback advances it
+
+        HuTraceView relocated = traces.timeline(blockerHuId, warehouse).stream()
+                .filter(t -> "RELOCATED".equals(t.event())).findFirst().orElseThrow();
+        assertThat(relocated.huCode()).isEqualTo("BLOCKER-1");
+        assertThat(relocated.point()).isEqualTo("slot:" + to);
+        assertThat(relocated.fromPoint()).isEqualTo("slot:" + from);
+        assertThat(relocated.decision()).isEqualTo("relocated out of channel for TOTE-1");
+    }
+
+    @Test
+    void twoBlockerChainRelocatesEachBeforeTheRetrieve() {
+        asyncAdapter();
+        cap(5, 5);
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        UUID blocker1 = UUID.randomUUID();
+        UUID blocker2 = UUID.randomUUID();
+        // Each completed relocate re-plans (stateless, self-healing): the second step is returned
+        // exactly once, then the channel is clear.
+        when(slottingClient.plan(any(), any())).thenReturn(
+                planOf(new SlottingClient.RelocationStep(blocker1, "B-1", UUID.randomUUID(), UUID.randomUUID())),
+                planOf(new SlottingClient.RelocationStep(blocker2, "B-2", UUID.randomUUID(), UUID.randomUUID())),
+                emptyPlan(false));
+
+        InductionEntryView created = induction.request(
+                req(warehouse, workplace, UUID.randomUUID(), "TOTE-1", "STOCK_COUNT"), "op");
+        UUID firstRelocate = created.relocateTaskId();
+        assertThat(firstRelocate).isNotNull();
+        assertThat(created.retrieveTaskId()).isNull();
+
+        // First blocker done -> the re-plan still finds a blocker -> a SECOND relocate, still no retrieve.
+        deviceTasks.completeFromCallback(firstRelocate, "COMPLETED", "relocated", Map.of());
+        InductionEntryView afterFirst = induction.get(created.id());
+        assertThat(afterFirst.relocateTaskId()).isNotNull().isNotEqualTo(firstRelocate);
+        assertThat(afterFirst.retrieveTaskId()).isNull();
+
+        // Second blocker done -> channel clear -> the original RETRIEVE goes out.
+        deviceTasks.completeFromCallback(afterFirst.relocateTaskId(), "COMPLETED", "relocated", Map.of());
+        InductionEntryView afterSecond = induction.get(created.id());
+        assertThat(afterSecond.relocateTaskId()).isNull();
+        assertThat(afterSecond.retrieveTaskId()).isNotNull();
+    }
+
+    @Test
+    void blockedButUnplannableChannelDegradesToDirectRetrieve() {
+        asyncAdapter();
+        cap(5, 5);
+        // blocked=true with no steps: slotting can't plan the dig-out — flow warns and retrieves
+        // as today (the emulator doesn't enforce blocking).
+        when(slottingClient.plan(any(), any())).thenReturn(emptyPlan(true));
+
+        InductionEntryView created = induction.request(
+                req(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "TOTE-1", "STOCK_COUNT"), "op");
+        assertThat(created.retrieveTaskId()).isNotNull();
+        assertThat(created.relocateTaskId()).isNull();
+    }
+
+    @Test
+    void relocateFailureLeavesEntryRequestedAndRetryable() {
+        asyncAdapter();
+        cap(5, 5);
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        when(slottingClient.plan(any(), any())).thenReturn(
+                planOf(new SlottingClient.RelocationStep(UUID.randomUUID(), "B-1",
+                        UUID.randomUUID(), UUID.randomUUID())));
+
+        InductionEntryView created = induction.request(
+                req(warehouse, workplace, UUID.randomUUID(), "TOTE-1", "STOCK_COUNT"), "op");
+        UUID failedRelocate = created.relocateTaskId();
+        assertThat(failedRelocate).isNotNull();
+
+        // The RELOCATE fails: the task link is cleared and the entry stays REQUESTED (no retrieve,
+        // no inventory booking) — mirroring failed-retrieve semantics.
+        deviceTasks.completeFromCallback(failedRelocate, "FAILED", "shuttle fault", null);
+        InductionEntryView after = induction.get(created.id());
+        assertThat(after.status()).isEqualTo("REQUESTED");
+        assertThat(after.relocateTaskId()).isNull();
+        assertThat(after.retrieveTaskId()).isNull();
+        verify(inventoryClient, org.mockito.Mockito.never()).bookLocation(any(), any());
+
+        // ... and the next meter pass retries the dig-out with a fresh RELOCATE.
+        induction.meterRetrievals(workplace, "ASRS", "op");
+        assertThat(induction.get(created.id()).relocateTaskId()).isNotNull().isNotEqualTo(failedRelocate);
+    }
+
+    @Test
+    void slottingClientFailureDegradesToDirectRetrieve() {
+        asyncAdapter();
+        cap(5, 5);
+        // The plan lookup blows up: the chain must degrade to today's direct retrieve, never block.
+        when(slottingClient.plan(any(), any())).thenThrow(new RuntimeException("slotting down"));
+
+        InductionEntryView created = induction.request(
+                req(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "TOTE-1", "STOCK_COUNT"), "op");
+        assertThat(created.retrieveTaskId()).isNotNull();
+        assertThat(created.relocateTaskId()).isNull();
     }
 }

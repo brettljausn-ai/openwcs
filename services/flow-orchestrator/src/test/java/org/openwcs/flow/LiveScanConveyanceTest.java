@@ -24,6 +24,7 @@ import org.openwcs.flow.api.RoutingDtos.ScanRequest;
 import org.openwcs.flow.api.RoutingDtos.Topology;
 import org.openwcs.flow.client.DeviceClient;
 import org.openwcs.flow.client.InventoryClient;
+import org.openwcs.flow.client.SlottingClient;
 import org.openwcs.flow.client.WorkplaceClient;
 import org.openwcs.flow.repo.HuTransportTraceRepository;
 import org.openwcs.flow.service.AutomationTopologyService;
@@ -71,6 +72,11 @@ class LiveScanConveyanceTest {
 
     @MockBean
     InventoryClient inventoryClient;
+
+    // ADR-0009: mocked (unstubbed -> null plan = clear channel) so the live-scan conveyance tests
+    // dispatch the RETRIEVE directly, exactly as before the dig-out chain existed.
+    @MockBean
+    SlottingClient slottingClient;
 
     @Autowired
     InductionQueueService induction;

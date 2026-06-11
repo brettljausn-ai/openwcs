@@ -11,6 +11,7 @@ import org.openwcs.flow.api.InductionRequest;
 import org.openwcs.flow.api.RequestDeviceTask;
 import org.openwcs.flow.api.RoutingDtos.RouteRequest;
 import org.openwcs.flow.client.InventoryClient;
+import org.openwcs.flow.client.SlottingClient;
 import org.openwcs.flow.client.WorkplaceClient;
 import org.openwcs.flow.domain.InductionQueueEntry;
 import org.openwcs.flow.repo.InductionQueueEntryRepository;
@@ -37,6 +38,11 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code entryNode}/{@code destinationNode} so the adapter runs the leg as a live scan-driven walk.
  * Un-projected warehouses dispatch exactly as before (atomic fallback).
  *
+ * <p>ADR-0009: before dispatching a RETRIEVE, flow asks slotting for the channel's relocation plan.
+ * While a blocker sits in front of the tote (multi-deep channel), a RELOCATE device task moves the
+ * front-most blocker instead; its callback books the blocker's new location, traces {@code RELOCATED}
+ * and re-runs the dispatch decision until the channel is clear and the real RETRIEVE goes out.
+ *
  * <p>Lifecycle transitions are driven from {@code DeviceTaskService.completeFromCallback} keyed off
  * the completing task's command; the entry is found by its {@code retrieve_task_id} / {@code convey_task_id}.
  */
@@ -56,11 +62,12 @@ public class InductionQueueService {
     private final TransportNodeResolver transportNodes;
     private final RoutingService routing;
     private final InventoryClient inventory;
+    private final SlottingClient slotting;
 
     public InductionQueueService(InductionQueueEntryRepository entries, HuTraceService trace,
                                  DeviceTaskService deviceTasks, WorkplaceClient workplaces,
                                  TransportNodeResolver transportNodes, RoutingService routing,
-                                 InventoryClient inventory) {
+                                 InventoryClient inventory, SlottingClient slotting) {
         this.entries = entries;
         this.trace = trace;
         this.deviceTasks = deviceTasks;
@@ -68,6 +75,7 @@ public class InductionQueueService {
         this.transportNodes = transportNodes;
         this.routing = routing;
         this.inventory = inventory;
+        this.slotting = slotting;
     }
 
     // ---- §3.1 request -------------------------------------------------------------------------
@@ -116,8 +124,8 @@ public class InductionQueueService {
         List<InductionQueueEntry> backlog =
                 entries.findByWorkplaceIdAndStatusOrderByRequestedAtAsc(workplaceId, "REQUESTED");
         for (InductionQueueEntry entry : backlog) {
-            if (entry.getRetrieveTaskId() != null) {
-                continue; // already retrieving — it occupies a cap slot but needs no new dispatch
+            if (isCommitted(entry)) {
+                continue; // already retrieving (or mid-dig-out) — occupies a cap slot, no new dispatch
             }
             int cap = isPicking(entry.getMode()) ? caps.picking() : caps.other();
             if (capUsage(workplaceId, entry.getMode()) >= cap) {
@@ -140,15 +148,30 @@ public class InductionQueueService {
         return inTransitOrQueued + countCommittedRequested(workplaceId, mode);
     }
 
-    /** REQUESTED entries that already have a retrieve task in flight, in the same mode class. */
+    /** REQUESTED entries already committed to retrieval, in the same mode class. */
     private long countCommittedRequested(UUID workplaceId, String mode) {
         return entries.findByWorkplaceIdAndStatusOrderByRequestedAtAsc(workplaceId, "REQUESTED").stream()
-                .filter(e -> e.getRetrieveTaskId() != null)
+                .filter(InductionQueueService::isCommitted)
                 .filter(e -> isPicking(mode) == isPicking(e.getMode()))
                 .count();
     }
 
+    /**
+     * Whether a REQUESTED entry is already committed to retrieval: a RETRIEVE in flight, or — ADR-0009
+     * — a RELOCATE digging its channel out (the chain toward retrieving this HU has started, so it
+     * occupies its cap slot from the first relocate).
+     */
+    private static boolean isCommitted(InductionQueueEntry entry) {
+        return entry.getRetrieveTaskId() != null || entry.getRelocateTaskId() != null;
+    }
+
     private void dispatchRetrieve(InductionQueueEntry entry, String family, String actor) {
+        // ADR-0009: a multi-deep channel may need a dig-out first. While slotting reports a blocker
+        // in front of the tote, the front-most blocker is RELOCATEd instead of retrieving; the
+        // relocate callback re-runs this decision until the channel is clear.
+        if (entry.getLocationId() != null && dispatchRelocate(entry, actor)) {
+            return;
+        }
         String command = "AUTOSTORE".equalsIgnoreCase(family) ? "BIN_RETRIEVE" : "RETRIEVE";
         Map<String, Object> payload = new HashMap<>();
         putIfPresent(payload, "huId", entry.getHuId());
@@ -161,6 +184,99 @@ public class InductionQueueService {
         entry.setRetrieveTaskId(taskId);
         log.debug("Induction entry {} dispatched RETRIEVE task {} ({}/{})",
                 entry.getId(), taskId, family, command);
+    }
+
+    // ---- ADR-0009 dig-out: RELOCATE chain before a blocked retrieve ----------------------------
+
+    /**
+     * Ask slotting for the channel's relocation plan and, when a blocker must move first, dispatch
+     * a RELOCATE/BIN_RELOCATE for the front-most step (stamping {@code relocate_task_id}) instead of
+     * the RETRIEVE. Returns {@code false} — caller dispatches the RETRIEVE as today — when the
+     * channel is clear, the plan is unplannable ({@code blocked=true}, degraded: the emulator does
+     * not enforce blocking) or the slotting call failed (isolated: the chain must degrade to a
+     * direct retrieve, never block the pipeline).
+     */
+    private boolean dispatchRelocate(InductionQueueEntry entry, String actor) {
+        SlottingClient.RelocationPlan plan;
+        try {
+            plan = slotting.plan(entry.getWarehouseId(), entry.getLocationId());
+        } catch (RuntimeException e) {
+            log.warn("Relocation-plan lookup failed for induction entry {} (location {}); "
+                    + "dispatching the RETRIEVE degraded: {}", entry.getId(), entry.getLocationId(), e.toString());
+            return false;
+        }
+        if (plan == null || plan.steps() == null || plan.steps().isEmpty()) {
+            if (plan != null && plan.blocked()) {
+                log.warn("Channel of induction entry {} (location {}) is blocked but unplannable; "
+                        + "dispatching the RETRIEVE degraded", entry.getId(), entry.getLocationId());
+            }
+            return false; // channel clear (or degraded): retrieve directly
+        }
+        SlottingClient.RelocationStep step = plan.steps().get(0);
+        String family = defaultFamily(entry);
+        String command = "AUTOSTORE".equalsIgnoreCase(family) ? "BIN_RELOCATE" : "RELOCATE";
+        Map<String, Object> payload = new HashMap<>();
+        putIfPresent(payload, "huId", step.huId());
+        putIfPresent(payload, "huCode", step.huCode());
+        putIfPresent(payload, "fromLocationId", step.fromLocationId());
+        putIfPresent(payload, "toLocationId", step.toLocationId());
+        putIfPresent(payload, "forHuId", entry.getHuId());
+        RequestDeviceTask req = new RequestDeviceTask(
+                entry.getWarehouseId(), family, null, command, payload, entry.getHuId());
+        UUID taskId = deviceTasks.request(req, actor).id();
+        entry.setRelocateTaskId(taskId);
+        log.debug("Induction entry {} dispatched RELOCATE task {} for blocker {} ({} -> {})",
+                entry.getId(), taskId, step.huId(), step.fromLocationId(), step.toLocationId());
+        return true;
+    }
+
+    /**
+     * RELOCATE/BIN_RELOCATE device task COMPLETED: the blocker physically moved channels. Book the
+     * BLOCKER's new registry location (isolated like every booking), write a {@code RELOCATED} trace
+     * row for the blocker, clear {@code relocate_task_id} and re-run the dispatch decision for the
+     * entry — the next blocker gets its RELOCATE, or (channel clear) the original RETRIEVE finally
+     * goes out. On failure: clear the task link and leave the entry {@code REQUESTED} so the meter
+     * pass / next request retries (mirrors failed-retrieve semantics).
+     */
+    @Transactional
+    public void onRelocateCompleted(UUID relocateTaskId, boolean succeeded, Map<String, Object> payload,
+                                    String actor) {
+        InductionQueueEntry entry = entries.findByRelocateTaskId(relocateTaskId).orElse(null);
+        if (entry == null) {
+            return; // RELOCATE not tied to an induction dig-out
+        }
+        if (!succeeded) {
+            log.debug("RELOCATE {} FAILED for induction entry {}; leaving REQUESTED", relocateTaskId,
+                    entry.getId());
+            entry.setRelocateTaskId(null);
+            return;
+        }
+        UUID blockerHuId = uuidOf(payload, "huId");
+        String blockerHuCode = stringOf(payload, "huCode");
+        UUID from = uuidOf(payload, "fromLocationId");
+        UUID to = uuidOf(payload, "toLocationId");
+
+        // The blocker left its channel: book its registry row into the new slot (best-effort,
+        // isolated — a booking failure must never break the dig-out chain).
+        if (blockerHuId != null && to != null) {
+            try {
+                inventory.bookLocation(blockerHuId, to);
+            } catch (RuntimeException e) {
+                log.warn("Blocker HU {} location booking ({}) failed for relocate task {}: {}",
+                        blockerHuId, to, relocateTaskId, e.toString());
+            }
+        }
+
+        String target = entry.getHuCode() != null ? entry.getHuCode() : String.valueOf(entry.getHuId());
+        trace.record(entry.getWarehouseId(), blockerHuId, blockerHuCode,
+                to == null ? "slot" : "slot:" + to, "RELOCATED",
+                "relocated out of channel for " + target,
+                from == null ? "slot" : "slot:" + from, null, entry.getWorkplaceId(), relocateTaskId,
+                entry.getId());
+
+        entry.setRelocateTaskId(null);
+        // Re-run the dispatch decision: next blocker → next RELOCATE; channel clear → the RETRIEVE.
+        dispatchRetrieve(entry, defaultFamily(entry), actor);
     }
 
     // ---- §4.2 RETRIEVE callback ---------------------------------------------------------------
@@ -475,5 +591,29 @@ public class InductionQueueService {
         if (value != null) {
             map.put(key, value);
         }
+    }
+
+    /**
+     * A UUID payload value, tolerant of the JSONB round trip (values come back as Strings once the
+     * task is re-read from the DB) and of a missing/malformed entry (null).
+     */
+    private static UUID uuidOf(Map<String, Object> payload, String key) {
+        Object value = payload == null ? null : payload.get(key);
+        if (value instanceof UUID uuid) {
+            return uuid;
+        }
+        if (value == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value.toString());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private static String stringOf(Map<String, Object> payload, String key) {
+        Object value = payload == null ? null : payload.get(key);
+        return value == null ? null : value.toString();
     }
 }

@@ -38,9 +38,11 @@ func TestSimulatesEachFamily(t *testing.T) {
 		command string
 	}{
 		{"ASRS", "RETRIEVE"},
+		{"ASRS", "RELOCATE"},
 		{"CONVEYOR", "CONVEY"},
 		{"AMR", "TRANSPORT"},
 		{"AUTOSTORE", "BIN_RETRIEVE"},
+		{"AUTOSTORE", "BIN_RELOCATE"},
 	}
 	for _, c := range cases {
 		res := postTask(t, deviceTaskRequest{TaskID: "t", Family: c.family, Command: c.command, EquipmentID: "e1"})
@@ -216,6 +218,73 @@ func TestAsyncDispatchCallsBack(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("no callback received within 2s")
+	}
+}
+
+// A RELOCATE (ADR-0009 dig-out shuttle move) is acked ACCEPTED, honours the simulated shuttle-move
+// latency, and completes via the async result callback like every other command.
+func TestRelocateCompletesWithLatencyViaCallback(t *testing.T) {
+	latencyOverrideMs.Store(25)
+	defer latencyOverrideMs.Store(0)
+
+	got := make(chan deviceTaskResult, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var res deviceTaskResult
+		_ = json.NewDecoder(r.Body).Decode(&res)
+		got <- res
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	start := time.Now()
+	res := postTask(t, deviceTaskRequest{
+		TaskID:  "relocate-1",
+		Family:  "ASRS",
+		Command: "RELOCATE",
+		Payload: map[string]interface{}{
+			"huId":           "hu-blocker",
+			"fromLocationId": "loc-deep-front",
+			"toLocationId":   "loc-same-level",
+			"forHuId":        "hu-target",
+		},
+		CallbackURL: srv.URL,
+	})
+	if res.Status != "ACCEPTED" {
+		t.Fatalf("immediate status = %q, want ACCEPTED", res.Status)
+	}
+
+	select {
+	case cb := <-got:
+		if cb.Status != "COMPLETED" {
+			t.Fatalf("RELOCATE callback status = %q, want COMPLETED", cb.Status)
+		}
+		if cb.ResultPayload["command"] != "RELOCATE" {
+			t.Fatalf("callback resultPayload.command = %v, want RELOCATE", cb.ResultPayload["command"])
+		}
+		if cb.ResultPayload["family"] != "ASRS" {
+			t.Fatalf("callback resultPayload.family = %v, want ASRS", cb.ResultPayload["family"])
+		}
+		if cb.ResultPayload["durationMs"] != float64(25) {
+			t.Fatalf("durationMs = %v, want 25", cb.ResultPayload["durationMs"])
+		}
+		if elapsed := time.Since(start); elapsed < 20*time.Millisecond {
+			t.Fatalf("callback after %s; expected it to honour the ~25ms simulated latency", elapsed)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no RELOCATE callback received within 2s")
+	}
+}
+
+// The dig-out shuttle move has its own (slow) default latency entry, override-able like the others.
+func TestRelocateDefaultLatencyIsShuttleMove(t *testing.T) {
+	latencyOverrideMs.Store(-1) // use per-command defaults
+	defer latencyOverrideMs.Store(0)
+
+	if d := commandLatency("ASRS", "RELOCATE"); d != 3000*time.Millisecond {
+		t.Fatalf("ASRS/RELOCATE default latency = %s, want 3s", d)
+	}
+	if d := commandLatency("AUTOSTORE", "BIN_RELOCATE"); d != 3000*time.Millisecond {
+		t.Fatalf("AUTOSTORE/BIN_RELOCATE default latency = %s, want 3s", d)
 	}
 }
 

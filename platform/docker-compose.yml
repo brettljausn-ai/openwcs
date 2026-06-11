@@ -278,6 +278,8 @@ services:
       OPENWCS_GTP_BASE_URL: http://gtp:8094
       # Book HU registry locations through the transport lifecycle (retrieve -> null, store-back -> slot).
       OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
+      # Ask slotting for relocation plans before retrieving out of multi-deep channels (ADR-0009).
+      OPENWCS_SLOTTING_BASE_URL: http://slotting:8093
 
   txlog:
     restart: unless-stopped
