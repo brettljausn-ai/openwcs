@@ -269,6 +269,7 @@ const EMPTY_SNAPSHOT: TwinSnapshot = {
   activityByPlacedId: {},
   totes: [],
   stats: { inTransit: 0, queued: 0, recirculations: 0, faults: 0, throughputPerMin: 0, byFamily: {} },
+  mainConveyorPlacedId: null,
 }
 
 type StatKind = 'success' | 'warning' | 'danger' | 'info' | 'muted'

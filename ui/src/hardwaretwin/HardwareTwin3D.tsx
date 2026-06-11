@@ -23,7 +23,7 @@ import {
   isConveyor as topoIsConveyor,
 } from '../topology/AutomationTopology3D'
 import type { Equipment } from '../masterdata/api'
-import { anchorPoint, placementGeom, type PlacementGeom, type ToteView, type TwinSnapshot } from './twin'
+import { anchorPoint, placementGeom, routeAlong, type PlacementGeom, type ToteView, type TwinSnapshot } from './twin'
 
 const BG = '#081e16'
 const LIME = '#8DC63F'
@@ -190,20 +190,17 @@ function SceneContent({
         />
       ))}
 
-      {/* Function-point markers (SCAN / DIVERT / QRY …) for visible equipment. */}
-      {topology.functionPoints.map((fp) => {
-        const eq = byId.get(fp.placedId)
-        if (!eq || !visibleIds.has(eq.id)) return null
-        return (
-          <TopoFunctionPointMarker
-            key={fp.id}
-            fp={fp}
-            eq={eq}
-            showLabels={showLabels}
-            onSelect={() => onSelectEquipment?.(eq.id)}
-          />
-        )
-      })}
+      {/* Function-point markers (SCAN / DIVERT / QRY …) for visible equipment. The Labels toggle
+          hides these "hats" entirely (cone/diamond AND text), not just the text, so the scene is
+          truly clean when labels are off. */}
+      {showLabels &&
+        topology.functionPoints.map((fp) => {
+          const eq = byId.get(fp.placedId)
+          if (!eq || !visibleIds.has(eq.id)) return null
+          return (
+            <TopoFunctionPointMarker key={fp.id} fp={fp} eq={eq} onSelect={() => onSelectEquipment?.(eq.id)} />
+          )
+        })}
 
       {/* Live overlays: activity pips + selection ring. */}
       {items.map((eq) => {
@@ -220,7 +217,13 @@ function SceneContent({
         )
       })}
 
-      <Totes totes={snapshot.totes} geomById={geomById} selectedHuId={selectedHuId} onSelectTote={onSelectTote} />
+      <Totes
+        totes={snapshot.totes}
+        geomById={geomById}
+        conveyor={snapshot.mainConveyorPlacedId ? geomById.get(snapshot.mainConveyorPlacedId) ?? null : null}
+        selectedHuId={selectedHuId}
+        onSelectTote={onSelectTote}
+      />
     </group>
   )
 }
@@ -303,16 +306,29 @@ function toteColor(state: ToteView['state']): string {
 interface TotesProps {
   totes: ToteView[]
   geomById: Map<string, PlacementGeom>
+  /** The main conveyor's geometry — totes glide ALONG its path between equipment anchors. */
+  conveyor: PlacementGeom | null
   selectedHuId: string | null
   onSelectTote?: (huId: string | null) => void
 }
 
-function Totes({ totes, geomById, selectedHuId, onSelectTote }: TotesProps): JSX.Element {
+// Constant glide speed. The real transport completes in ~1s (faster than the poll), so the journey is
+// animated client-side: a tote follows the conveyor centreline at a believable pace instead of
+// teleporting (or cutting straight across the floor).
+const TOTE_SPEED = 3.2 // m/s
+
+interface ToteAnim {
+  pos: THREE.Vector3
+  route: THREE.Vector3[] // remaining waypoints to walk, in order
+  anchorKey: string // anchorPlacedId the current route leads to
+}
+
+function Totes({ totes, geomById, conveyor, selectedHuId, onSelectTote }: TotesProps): JSX.Element {
   const groupRefs = useRef<Map<string, THREE.Group>>(new Map())
-  const posRefs = useRef<Map<string, THREE.Vector3>>(new Map())
+  const animRefs = useRef<Map<string, ToteAnim>>(new Map())
 
   const resolved = useMemo(() => {
-    const out: Array<{ tote: ToteView; target: THREE.Vector3; start: THREE.Vector3 }> = []
+    const out: Array<{ tote: ToteView; target: THREE.Vector3; start: THREE.Vector3; anchorKey: string }> = []
     for (const tote of totes) {
       if (!tote.anchorPlacedId) continue
       const geom = geomById.get(tote.anchorPlacedId)
@@ -327,7 +343,7 @@ function Totes({ totes, geomById, selectedHuId, onSelectTote }: TotesProps): JSX
           start = new THREE.Vector3(p[0], p[1] + BELT_LIFT, p[2])
         }
       }
-      out.push({ tote, target, start })
+      out.push({ tote, target, start, anchorKey: tote.anchorPlacedId })
     }
     return out
   }, [totes, geomById])
@@ -335,37 +351,69 @@ function Totes({ totes, geomById, selectedHuId, onSelectTote }: TotesProps): JSX
   const liveIds = useMemo(() => new Set(resolved.map((r) => r.tote.huId)), [resolved])
 
   useFrame((stateObj, delta) => {
-    const pos = posRefs.current
+    const anims = animRefs.current
     const groups = groupRefs.current
-    for (const id of Array.from(pos.keys())) {
+    for (const id of Array.from(anims.keys())) {
       if (!liveIds.has(id)) {
-        pos.delete(id)
+        anims.delete(id)
         groups.delete(id)
       }
     }
-    const k = 1 - Math.pow(1 - 0.08, delta * 60)
     const t = stateObj.clock.elapsedTime
-    for (const { tote, target } of resolved) {
+    for (const { tote, target, anchorKey } of resolved) {
       const g = groups.get(tote.huId)
       if (!g) continue
-      let cur = pos.get(tote.huId)
-      if (!cur) {
-        cur = target.clone()
-        pos.set(tote.huId, cur)
+      const anim = anims.get(tote.huId)
+      if (!anim) continue
+
+      // Target changed (the tote hopped equipment) → build a new route that walks the conveyor
+      // centreline from the current position to the new anchor, then the anchor itself. This is what
+      // makes a count tote visibly travel ASRS → conveyor → station (and back, for the return leg).
+      if (anim.anchorKey !== anchorKey) {
+        anim.anchorKey = anchorKey
+        const route: THREE.Vector3[] = []
+        if (conveyor && tote.anchorPlacedId !== conveyor.id) {
+          for (const [x, y, z] of routeAlong(
+            conveyor,
+            [anim.pos.x, anim.pos.z],
+            [target.x, target.z],
+            conveyor.closed,
+          )) {
+            route.push(new THREE.Vector3(x, y + BELT_LIFT, z))
+          }
+        }
+        route.push(target.clone())
+        anim.route = route
       }
-      cur.lerp(target, k)
+
+      // Walk the route at constant speed; settle on the (possibly jiggling) target when done.
+      let budget = TOTE_SPEED * delta
+      while (budget > 0 && anim.route.length) {
+        const next = anim.route[0]
+        const d = anim.pos.distanceTo(next)
+        if (d <= budget) {
+          anim.pos.copy(next)
+          anim.route.shift()
+          budget -= d
+        } else {
+          anim.pos.lerp(next, budget / d)
+          budget = 0
+        }
+      }
+      if (!anim.route.length) anim.pos.lerp(target, Math.min(1, delta * 4))
+
       if (tote.state === 'recirculating') {
         const r = 0.6
-        g.position.set(cur.x + Math.cos(t * 2) * r, cur.y, cur.z + Math.sin(t * 2) * r)
+        g.position.set(anim.pos.x + Math.cos(t * 2) * r, anim.pos.y, anim.pos.z + Math.sin(t * 2) * r)
       } else {
-        g.position.copy(cur)
+        g.position.copy(anim.pos)
       }
     }
   })
 
   return (
     <group>
-      {resolved.map(({ tote, start }) => (
+      {resolved.map(({ tote, start, anchorKey }) => (
         <ToteMesh
           key={tote.huId}
           tote={tote}
@@ -375,9 +423,12 @@ function Totes({ totes, geomById, selectedHuId, onSelectTote }: TotesProps): JSX
             const groups = groupRefs.current
             if (g) {
               groups.set(tote.huId, g)
-              if (!posRefs.current.has(tote.huId)) {
-                posRefs.current.set(tote.huId, start.clone())
+              if (!animRefs.current.has(tote.huId)) {
+                // New tote: appear at its previous equipment and let the route-builder above glide it
+                // in (anchorKey '' forces a route build on the first frame).
+                animRefs.current.set(tote.huId, { pos: start.clone(), route: [], anchorKey: '' })
                 g.position.copy(start)
+                void anchorKey
               }
             }
           }}
