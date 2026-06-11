@@ -21,6 +21,9 @@
       'rm.ctaSponsor': 'Sponsor on Patreon',
       'rm.foot': 'openWCS — open-source Warehouse Control System · AGPL-3.0.',
       navCap: 'Capabilities', navWhy: 'Why open', navCmp: 'vs. locked-in WCS', navArch: 'Architecture',
+      navGrpFunctions: 'Functions', navGrpAutomation: 'Automation', navGrpRoadmap: 'Roadmap', navGrpWhy: 'Why openWCS',
+      navFnAll: 'All functions', navFnProcess: 'Process designer', navFnInventory: 'Inventory', navFnAllocation: 'Allocation', navFnSlotting: 'Slotting', navFnReplenishment: 'Replenishment', navFnPicking: 'Picking', navFnCycle: 'Cycle counting', navFnKpi: 'KPI dashboards', navFnHostApi: 'Host API', navFnSecurity: 'Security', navFnLivingDocs: 'Living docs',
+      navAutoAll: 'Automation overview', navAutoConveyors: 'Conveyors', navAutoAsrs: 'ASRS', navAutoGtp: 'Goods-to-person', navAutoHw: 'Hardware visualisation',
       btnGitHub: 'View on GitHub',
       btnGitHubNav: 'GitHub',
       btnPatreon: 'Patreon',
@@ -1096,6 +1099,9 @@
       'rm.ctaSponsor': 'Auf Patreon unterstützen',
       'rm.foot': 'openWCS — Open-Source Warehouse Control System · AGPL-3.0.',
       navCap: 'Funktionen', navWhy: 'Warum offen', navCmp: 'vs. proprietäres WCS', navArch: 'Architektur',
+      navGrpFunctions: 'Funktionen', navGrpAutomation: 'Automatisierung', navGrpRoadmap: 'Roadmap', navGrpWhy: 'Warum openWCS',
+      navFnAll: 'Alle Funktionen', navFnProcess: 'Prozessdesigner', navFnInventory: 'Bestand', navFnAllocation: 'Zuteilung', navFnSlotting: 'Slotting', navFnReplenishment: 'Nachschub', navFnPicking: 'Kommissionierung', navFnCycle: 'Zyklische Inventur', navFnKpi: 'KPI-Dashboards', navFnHostApi: 'Host-API', navFnSecurity: 'Sicherheit', navFnLivingDocs: 'Living Docs',
+      navAutoAll: 'Automatisierung – Übersicht', navAutoConveyors: 'Fördertechnik', navAutoAsrs: 'ASRS', navAutoGtp: 'Ware-zur-Person', navAutoHw: 'Hardware-Visualisierung',
       btnGitHub: 'Auf GitHub ansehen',
       btnGitHubNav: 'GitHub',
       btnPatreon: 'Patreon',
@@ -2171,6 +2177,9 @@
       'rm.ctaSponsor': 'Soutenir sur Patreon',
       'rm.foot': 'openWCS — Warehouse Control System open source · AGPL-3.0.',
       navCap: 'Fonctionnalités', navWhy: 'Pourquoi l’ouvert', navCmp: 'vs. WCS verrouillé', navArch: 'Architecture',
+      navGrpFunctions: 'Fonctions', navGrpAutomation: 'Automatisation', navGrpRoadmap: 'Feuille de route', navGrpWhy: 'Pourquoi openWCS',
+      navFnAll: 'Toutes les fonctions', navFnProcess: 'Concepteur de processus', navFnInventory: 'Stock', navFnAllocation: 'Allocation', navFnSlotting: 'Slotting', navFnReplenishment: 'Réapprovisionnement', navFnPicking: 'Préparation', navFnCycle: 'Inventaire tournant', navFnKpi: 'Tableaux de bord KPI', navFnHostApi: 'API hôte', navFnSecurity: 'Sécurité', navFnLivingDocs: 'Doc vivante',
+      navAutoAll: 'Automatisation – aperçu', navAutoConveyors: 'Convoyeurs', navAutoAsrs: 'ASRS', navAutoGtp: 'Marchandise vers personne', navAutoHw: 'Visualisation matérielle',
       btnGitHub: 'Voir sur GitHub',
       btnGitHubNav: 'GitHub',
       btnPatreon: 'Patreon',
@@ -3246,6 +3255,9 @@
       'rm.ctaSponsor': 'Patrocinar en Patreon',
       'rm.foot': 'openWCS — Sistema de Control de Almacén de código abierto · AGPL-3.0.',
       navCap: 'Funciones', navWhy: 'Por qué abierto', navCmp: 'vs. WCS cerrado', navArch: 'Arquitectura',
+      navGrpFunctions: 'Funciones', navGrpAutomation: 'Automatización', navGrpRoadmap: 'Hoja de ruta', navGrpWhy: 'Por qué openWCS',
+      navFnAll: 'Todas las funciones', navFnProcess: 'Diseñador de procesos', navFnInventory: 'Inventario', navFnAllocation: 'Asignación', navFnSlotting: 'Slotting', navFnReplenishment: 'Reposición', navFnPicking: 'Preparación', navFnCycle: 'Recuento cíclico', navFnKpi: 'Paneles KPI', navFnHostApi: 'API host', navFnSecurity: 'Seguridad', navFnLivingDocs: 'Documentación viva',
+      navAutoAll: 'Automatización – visión general', navAutoConveyors: 'Transportadores', navAutoAsrs: 'ASRS', navAutoGtp: 'Mercancía a persona', navAutoHw: 'Visualización de hardware',
       btnGitHub: 'Ver en GitHub',
       btnGitHubNav: 'GitHub',
       btnPatreon: 'Patreon',
@@ -4400,10 +4412,39 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') set(false); });
   }
 
+  function initNavGroups() {
+    var groups = document.querySelectorAll('[data-nav-group]');
+    if (!groups.length) return;
+    function closeAll(except) {
+      for (var i = 0; i < groups.length; i++) {
+        if (groups[i] === except) continue;
+        groups[i].setAttribute('data-open', 'false');
+        var b = groups[i].querySelector('.nav-group-btn');
+        if (b) b.setAttribute('aria-expanded', 'false');
+      }
+    }
+    for (var i = 0; i < groups.length; i++) {
+      (function (group) {
+        var btn = group.querySelector('.nav-group-btn');
+        if (!btn) return;
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var willOpen = group.getAttribute('data-open') !== 'true';
+          closeAll(group);
+          group.setAttribute('data-open', willOpen ? 'true' : 'false');
+          btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        });
+      })(groups[i]);
+    }
+    document.addEventListener('click', function () { closeAll(null); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAll(null); });
+  }
+
   function init() {
     apply(detect(), false);
     initLangMenu();
     initNavMenu();
+    initNavGroups();
     reveal();
   }
 

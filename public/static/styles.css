@@ -108,6 +108,41 @@ header.nav {
 .nav-links a:hover::after { width: 100%; }
 .nav-right { display: flex; align-items: center; gap: .8rem; margin-left: 1rem; }
 
+/* Grouped nav dropdowns — Functions \25be / Automation \25be / Why \25be */
+.nav-group { position: relative; display: inline-flex; align-items: center; }
+.nav-group-btn {
+  display: inline-flex; align-items: center; gap: .3rem;
+  font: inherit; font-size: .92rem; color: var(--text-dim);
+  background: none; border: 0; padding: 0; cursor: pointer; transition: color .15s ease;
+}
+.nav-group-btn:hover,
+.nav-group:focus-within > .nav-group-btn,
+.nav-group[data-open="true"] > .nav-group-btn { color: var(--text); }
+.nav-group-btn .chev { color: var(--text-dim); transition: transform .2s ease; }
+.nav-group:hover .chev,
+.nav-group[data-open="true"] .chev { transform: rotate(180deg); }
+/* Invisible bridge over the gap so the flyout doesn't close as the cursor crosses it. */
+.nav-group::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: .6rem; }
+
+.nav-menu {
+  position: absolute; top: calc(100% + .55rem); left: 0; z-index: 30; min-width: 210px;
+  display: flex; flex-direction: column; gap: .05rem; padding: .4rem;
+  background: rgba(11, 32, 24, .92); backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border-bright); border-radius: 14px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .5);
+  opacity: 0; transform: translateY(-6px) scale(.98); transform-origin: top left;
+  pointer-events: none; transition: opacity .16s ease, transform .16s ease;
+}
+.nav-group:hover .nav-menu,
+.nav-group:focus-within .nav-menu,
+.nav-group[data-open="true"] .nav-menu { opacity: 1; transform: none; pointer-events: auto; }
+.nav-menu a {
+  padding: .5rem .7rem; border-radius: 9px; color: var(--text-dim);
+  font-size: .9rem; white-space: nowrap; transition: background .12s ease, color .12s ease;
+}
+.nav-menu a::after { display: none; }   /* drop the underline animation inherited from .nav-links a */
+.nav-menu a:hover { background: var(--glass-bg-strong); color: var(--text); text-decoration: none; }
+
 /* Hamburger toggle — hidden on desktop, shown on the mobile fold-down nav. */
 .nav-toggle {
   display: none; align-items: center; justify-content: center;
@@ -503,6 +538,19 @@ footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; g
   }
   .nav.open .nav-links a { padding: .75rem .2rem; font-size: 1rem; }
   .nav.open .nav-links a::after { display: none; }
+  /* Grouped nav becomes a tap-to-expand accordion on mobile. */
+  .nav.open .nav-group { display: block; width: 100%; }
+  .nav.open .nav-group::after { display: none; }   /* no hover bridge on touch */
+  .nav.open .nav-group-btn { width: 100%; justify-content: space-between; padding: .75rem .2rem; font-size: 1rem; }
+  .nav.open .nav-menu {
+    position: static; min-width: 0; padding: 0 0 .35rem .55rem;
+    background: none; border: 0; box-shadow: none; backdrop-filter: none;
+    opacity: 1; transform: none; pointer-events: auto; display: none;
+  }
+  .nav.open .nav-group:hover .nav-menu,
+  .nav.open .nav-group:focus-within .nav-menu { display: none; }   /* tap-only, not hover/focus */
+  .nav.open .nav-group[data-open="true"] .nav-menu { display: flex; }
+  .nav.open .nav-menu a { padding: .55rem .2rem; font-size: .95rem; }
   .nav.open .nav-right {
     margin: .8rem 0 .3rem; gap: .7rem; flex-wrap: wrap; align-items: stretch;
   }
