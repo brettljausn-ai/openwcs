@@ -24,6 +24,7 @@
       navGrpFunctions: 'Functions', navGrpAutomation: 'Automation', navGrpRoadmap: 'Roadmap', navGrpWhy: 'Why openWCS',
       navFnAll: 'All functions', navFnProcess: 'Process designer', navFnInventory: 'Inventory', navFnAllocation: 'Allocation', navFnSlotting: 'Slotting', navFnReplenishment: 'Replenishment', navFnPicking: 'Picking', navFnCycle: 'Cycle counting', navFnKpi: 'KPI dashboards', navFnHostApi: 'Host API', navFnSecurity: 'Security', navFnLivingDocs: 'Living docs',
       navAutoAll: 'Automation overview', navAutoConveyors: 'Conveyors', navAutoAsrs: 'ASRS', navAutoGtp: 'Goods-to-person', navAutoHw: 'Hardware visualisation',
+      contactOpen: 'Contact us', footerContact: 'Contact', ctaContact: 'Contact us', contactTitle: 'Contact us', contactIntro: 'Questions about openWCS, the license, or a deployment? Send us a message and we\'ll reply by email.', contactEmailLabel: 'Your email', contactNameLabel: 'Your name (optional)', contactMessageLabel: 'Message', contactSend: 'Send message', contactSending: 'Sending…', contactSuccess: 'Thanks — your message is on its way. We\'ll reply by email.', contactError: 'Sorry, something went wrong. Please try again, or email us directly.', contactClose: 'Close', contactValidation: 'Please enter your email and a message.',
       btnGitHub: 'View on GitHub',
       btnGitHubNav: 'GitHub',
       btnPatreon: 'Patreon',
@@ -1102,6 +1103,7 @@
       navGrpFunctions: 'Funktionen', navGrpAutomation: 'Automatisierung', navGrpRoadmap: 'Roadmap', navGrpWhy: 'Warum openWCS',
       navFnAll: 'Alle Funktionen', navFnProcess: 'Prozessdesigner', navFnInventory: 'Bestand', navFnAllocation: 'Zuteilung', navFnSlotting: 'Slotting', navFnReplenishment: 'Nachschub', navFnPicking: 'Kommissionierung', navFnCycle: 'Zyklische Inventur', navFnKpi: 'KPI-Dashboards', navFnHostApi: 'Host-API', navFnSecurity: 'Sicherheit', navFnLivingDocs: 'Living Docs',
       navAutoAll: 'Automatisierung – Übersicht', navAutoConveyors: 'Fördertechnik', navAutoAsrs: 'ASRS', navAutoGtp: 'Ware-zur-Person', navAutoHw: 'Hardware-Visualisierung',
+      contactOpen: 'Kontakt', footerContact: 'Kontakt', ctaContact: 'Kontakt', contactTitle: 'Kontaktieren Sie uns', contactIntro: 'Fragen zu openWCS, der Lizenz oder einer Inbetriebnahme? Schreiben Sie uns eine Nachricht, wir antworten per E-Mail.', contactEmailLabel: 'Ihre E-Mail-Adresse', contactNameLabel: 'Ihr Name (optional)', contactMessageLabel: 'Nachricht', contactSend: 'Nachricht senden', contactSending: 'Wird gesendet…', contactSuccess: 'Danke — Ihre Nachricht ist unterwegs. Wir antworten per E-Mail.', contactError: 'Entschuldigung, etwas ist schiefgelaufen. Bitte versuchen Sie es erneut oder schreiben Sie uns direkt eine E-Mail.', contactClose: 'Schließen', contactValidation: 'Bitte geben Sie Ihre E-Mail-Adresse und eine Nachricht ein.',
       btnGitHub: 'Auf GitHub ansehen',
       btnGitHubNav: 'GitHub',
       btnPatreon: 'Patreon',
@@ -2180,6 +2182,7 @@
       navGrpFunctions: 'Fonctions', navGrpAutomation: 'Automatisation', navGrpRoadmap: 'Feuille de route', navGrpWhy: 'Pourquoi openWCS',
       navFnAll: 'Toutes les fonctions', navFnProcess: 'Concepteur de processus', navFnInventory: 'Stock', navFnAllocation: 'Allocation', navFnSlotting: 'Slotting', navFnReplenishment: 'Réapprovisionnement', navFnPicking: 'Préparation', navFnCycle: 'Inventaire tournant', navFnKpi: 'Tableaux de bord KPI', navFnHostApi: 'API hôte', navFnSecurity: 'Sécurité', navFnLivingDocs: 'Doc vivante',
       navAutoAll: 'Automatisation – aperçu', navAutoConveyors: 'Convoyeurs', navAutoAsrs: 'ASRS', navAutoGtp: 'Marchandise vers personne', navAutoHw: 'Visualisation matérielle',
+      contactOpen: 'Nous contacter', footerContact: 'Contact', ctaContact: 'Nous contacter', contactTitle: 'Nous contacter', contactIntro: 'Des questions sur openWCS, la licence ou un déploiement ? Envoyez-nous un message et nous vous répondrons par e-mail.', contactEmailLabel: 'Votre e-mail', contactNameLabel: 'Votre nom (facultatif)', contactMessageLabel: 'Message', contactSend: 'Envoyer le message', contactSending: 'Envoi…', contactSuccess: 'Merci — votre message est en route. Nous vous répondrons par e-mail.', contactError: 'Désolé, une erreur est survenue. Veuillez réessayer ou nous écrire directement par e-mail.', contactClose: 'Fermer', contactValidation: 'Veuillez saisir votre e-mail et un message.',
       btnGitHub: 'Voir sur GitHub',
       btnGitHubNav: 'GitHub',
       btnPatreon: 'Patreon',
@@ -3258,6 +3261,7 @@
       navGrpFunctions: 'Funciones', navGrpAutomation: 'Automatización', navGrpRoadmap: 'Hoja de ruta', navGrpWhy: 'Por qué openWCS',
       navFnAll: 'Todas las funciones', navFnProcess: 'Diseñador de procesos', navFnInventory: 'Inventario', navFnAllocation: 'Asignación', navFnSlotting: 'Slotting', navFnReplenishment: 'Reposición', navFnPicking: 'Preparación', navFnCycle: 'Recuento cíclico', navFnKpi: 'Paneles KPI', navFnHostApi: 'API host', navFnSecurity: 'Seguridad', navFnLivingDocs: 'Documentación viva',
       navAutoAll: 'Automatización – visión general', navAutoConveyors: 'Transportadores', navAutoAsrs: 'ASRS', navAutoGtp: 'Mercancía a persona', navAutoHw: 'Visualización de hardware',
+      contactOpen: 'Contáctenos', footerContact: 'Contacto', ctaContact: 'Contáctenos', contactTitle: 'Contáctenos', contactIntro: '¿Tiene preguntas sobre openWCS, la licencia o una implementación? Envíenos un mensaje y le responderemos por correo electrónico.', contactEmailLabel: 'Su correo electrónico', contactNameLabel: 'Su nombre (opcional)', contactMessageLabel: 'Mensaje', contactSend: 'Enviar mensaje', contactSending: 'Enviando…', contactSuccess: 'Gracias — su mensaje está en camino. Le responderemos por correo electrónico.', contactError: 'Lo sentimos, algo salió mal. Inténtelo de nuevo o escríbanos directamente por correo electrónico.', contactClose: 'Cerrar', contactValidation: 'Por favor, introduzca su correo electrónico y un mensaje.',
       btnGitHub: 'Ver en GitHub',
       btnGitHubNav: 'GitHub',
       btnPatreon: 'Patreon',
@@ -4440,11 +4444,114 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAll(null); });
   }
 
+  function t(key) {
+    var lang = document.documentElement.lang || 'en';
+    var dict = I18N[lang] || I18N.en;
+    var val = dict[key] != null ? dict[key] : I18N.en[key];
+    return val != null ? val : key;
+  }
+
+  function initContactModal() {
+    var overlay = document.getElementById('contact-overlay');
+    if (!overlay) return;
+    var form = document.getElementById('contact-form');
+    var status = document.getElementById('contact-status');
+    var closeBtn = overlay.querySelector('[data-contact-close]');
+    var emailField = overlay.querySelector('input[name="email"]');
+    var submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+    var lastTrigger = null;
+
+    function setStatus(key, ok) {
+      if (!status) return;
+      status.textContent = key ? t(key) : '';
+      status.classList.remove('is-ok', 'is-err');
+      if (key) status.classList.add(ok ? 'is-ok' : 'is-err');
+    }
+
+    function open(trigger) {
+      lastTrigger = trigger || null;
+      setStatus('', false);
+      overlay.hidden = false;
+      overlay.setAttribute('data-open', 'true');
+      if (emailField) { try { emailField.focus(); } catch (e) {} }
+    }
+
+    function close() {
+      overlay.setAttribute('data-open', 'false');
+      overlay.hidden = true;
+      if (lastTrigger && typeof lastTrigger.focus === 'function') {
+        try { lastTrigger.focus(); } catch (e) {}
+      }
+      lastTrigger = null;
+    }
+
+    var triggers = document.querySelectorAll('[data-contact-open]');
+    for (var i = 0; i < triggers.length; i++) {
+      triggers[i].addEventListener('click', function (e) {
+        e.preventDefault();
+        open(e.currentTarget);
+      });
+    }
+
+    if (closeBtn) closeBtn.addEventListener('click', function (e) { e.preventDefault(); close(); });
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && overlay.getAttribute('data-open') === 'true') close();
+    });
+
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var email = (form.elements.email ? form.elements.email.value : '').trim();
+        var name = (form.elements.name ? form.elements.name.value : '').trim();
+        var message = (form.elements.message ? form.elements.message.value : '').trim();
+        var company = (form.elements.company ? form.elements.company.value : '');
+
+        if (!email || !message) {
+          setStatus('contactValidation', false);
+          return;
+        }
+
+        var prevLabel = submitBtn ? submitBtn.textContent : '';
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = t('contactSending');
+        }
+        setStatus('', false);
+
+        fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, name: name, message: message, company: company })
+        }).then(function (res) {
+          return res.json().catch(function () { return {}; }).then(function (body) {
+            return { ok: res.ok, body: body };
+          });
+        }).then(function (result) {
+          if (result.ok && result.body && result.body.ok === true) {
+            setStatus('contactSuccess', true);
+            form.reset();
+          } else {
+            setStatus('contactError', false);
+          }
+        }).catch(function () {
+          setStatus('contactError', false);
+        }).then(function () {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = prevLabel || t('contactSend');
+          }
+        });
+      });
+    }
+  }
+
   function init() {
     apply(detect(), false);
     initLangMenu();
     initNavMenu();
     initNavGroups();
+    initContactModal();
     reveal();
   }
 
