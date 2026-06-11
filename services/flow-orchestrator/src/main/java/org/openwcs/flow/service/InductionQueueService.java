@@ -239,8 +239,12 @@ public class InductionQueueService {
             if (!(item instanceof Map<?, ?> m)) {
                 continue;
             }
-            String point = String.valueOf(m.getOrDefault("point", "sorter"));
-            String event = String.valueOf(m.getOrDefault("event", "DECISION"));
+            // m is Map<?,?> (wildcard), so getOrDefault's typed default won't compile — use get() + a
+            // null fallback instead.
+            Object pointObj = m.get("point");
+            Object eventObj = m.get("event");
+            String point = pointObj == null ? "sorter" : pointObj.toString();
+            String event = eventObj == null ? "DECISION" : eventObj.toString();
             Object decision = m.get("decision");
             trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), point,
                     event, decision == null ? null : decision.toString(), "conveyor", null,
