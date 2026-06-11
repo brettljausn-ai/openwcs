@@ -54,6 +54,26 @@ each `- [status] Title :: description` line is one item (`status` ∈ `done`/`ac
 Edit `roadmap.md` to change the roadmap; the page picks it up automatically. Keep it accurate — never mark
 something `done` before it's built end-to-end.
 
+## Contact form
+
+The site exposes a single JSON API endpoint, **`POST /api/contact`**, backing the public "Contact us"
+form. It sends mail through **Microsoft Graph** using the OAuth2 **client-credentials** flow (the
+sender is a fixed mailbox; the submitter is set as **reply-to**, so hitting Reply reaches them).
+
+Request body: `{ email (required), message (required), name?, company? }`. Responses are
+`{ ok: true }` on success or `{ ok: false, error }` otherwise (400 validation, 429 rate limit,
+503 not configured, 500 send failure). `company` is a **honeypot** field (bots that fill it get a
+silent 200), and submissions are **rate-limited per IP** (5 per 10 minutes).
+
+It needs these env vars (see `.env.example`):
+
+- `MS_GRAPH_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_GRAPH_CLIENT_SECRET`, `MS_GRAPH_MAIL_ADDRESS` — required
+- `MS_GRAPH_FROM_NAME` — optional sender display name (default `openWCS`)
+- `CONTACT_TO` — optional recipient (default `contact@brettljausn.ai`)
+
+Until all four required vars are set the endpoint returns `503`. This endpoint **only works on the Node
+deploy** — the static GitHub Pages mirror has no server, so the form is inert there.
+
 ## Deploy
 
 ### Hostinger (Node.js app)
