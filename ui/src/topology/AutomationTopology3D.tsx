@@ -546,6 +546,12 @@ export default function AutomationTopology3D({
   const [testLoading, setTestLoading] = useState(false)
   const [testStart, setTestStart] = useState<string | null>(null)
   const [testTarget, setTestTarget] = useState<string | null>(null)
+  // Pick-in-3D mode for a workstation's conveyor interaction: while ON, clicking a conveyor
+  // function-point MARKER in the 3D scene chooses that point for the pending interaction row
+  // (instead of opening its config dialog). Mutually exclusive with connect/draw/test; the
+  // callback (set when the panel arms the mode) receives the picked function point's id.
+  const [pickFpMode, setPickFpMode] = useState(false)
+  const pickFpHandlerRef = useRef<((fpId: string) => void) | null>(null)
   const [selectedConnId, setSelectedConnId] = useState<string | null>(null)
   // The function point whose config dialog is open (clicking a marker in 2D/3D), or null.
   const [editFpId, setEditFpId] = useState<string | null>(null)
@@ -1523,6 +1529,57 @@ export default function AutomationTopology3D({
     if (testMode && (drawPath || connectMode)) exitTestMode()
   }, [testMode, drawPath, connectMode, exitTestMode])
 
+  // ---- pick-in-3D mode (workstation conveyor interactions) -----------------
+  const exitPickFp = useCallback(() => {
+    setPickFpMode(false)
+    pickFpHandlerRef.current = null
+  }, [])
+
+  // Arm pick mode for ONE pending interaction row: the panel hands us the callback that will
+  // receive the picked function point id (the same value its Select would have set). Exclusive
+  // with connect/draw/test — entering pick exits the others (but KEEPS the selection, so the
+  // workstation's panel stays open to receive the pick).
+  const armPickFp = useCallback(
+    (onPicked: (fpId: string) => void) => {
+      setConnectMode(false)
+      setConnectFrom(null)
+      setDrawPath(false)
+      exitTestMode()
+      setView('3d') // the markers to click live in the 3D scene
+      pickFpHandlerRef.current = onPicked
+      setPickFpMode(true)
+    },
+    [exitTestMode],
+  )
+
+  // A function-point marker clicked while pick mode is armed: deliver the id and disarm.
+  const handlePickFp = useCallback(
+    (fpId: string) => {
+      pickFpHandlerRef.current?.(fpId)
+      exitPickFp()
+    },
+    [exitPickFp],
+  )
+
+  // Esc cancels the pick (like leaving connect/test).
+  useEffect(() => {
+    if (!pickFpMode) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') exitPickFp()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [pickFpMode, exitPickFp])
+
+  // Safety nets: another mode turning on disarms the pick, and a selection change (the panel that
+  // armed it unmounts) drops the now-stale callback.
+  useEffect(() => {
+    if (pickFpMode && (drawPath || connectMode || testMode)) exitPickFp()
+  }, [pickFpMode, drawPath, connectMode, testMode, exitPickFp])
+  useEffect(() => {
+    exitPickFp()
+  }, [selectedId, exitPickFp])
+
   // Dijkstra over the directed routing edges — recomputed when both endpoints are picked.
   const testResult = useMemo<RouteResult | null>(() => {
     if (!testMode || !testTopo || !testStart || !testTarget) return null
@@ -1609,6 +1666,7 @@ export default function AutomationTopology3D({
               className={`atopo-viewbtn${view === '2d' ? ' is-active' : ''}`}
               onClick={() => {
                 exitTestMode() // the test overlay only lives in the 3D scene
+                exitPickFp() // ...and so do the pickable function-point markers
                 setView('2d')
               }}
             >
@@ -1836,6 +1894,9 @@ export default function AutomationTopology3D({
                 connectMode={connectMode}
                 connectFrom={connectFrom}
                 testMode={testMode}
+                pickFpMode={pickFpMode}
+                onPickFunctionPoint={handlePickFp}
+                onPickCancel={exitPickFp}
                 lib={libById}
                 selectedId={selectedId}
                 drawPath={drawPath}
@@ -1878,7 +1939,9 @@ export default function AutomationTopology3D({
               />
             </Canvas>
             <div className="atopo-hint">
-              {testMode ? (
+              {pickFpMode ? (
+                'Click a function point in the scene (Esc to cancel)'
+              ) : testMode ? (
                 <>
                   {!testStart
                     ? 'Route test: click a start point, then a target — Esc to exit'
@@ -2003,6 +2066,9 @@ export default function AutomationTopology3D({
                   libById={libById}
                   onAdd={addConnection}
                   onDelete={deleteConnection}
+                  pickArmed={pickFpMode}
+                  onArmPick={armPickFp}
+                  onCancelPick={exitPickFp}
                 />
               )}
 
@@ -2618,6 +2684,9 @@ function WorkstationConveyorPanel({
   libById,
   onAdd,
   onDelete,
+  pickArmed,
+  onArmPick,
+  onCancelPick,
 }: {
   workstationId: string
   connections: AutomationConnection[]
@@ -2626,6 +2695,11 @@ function WorkstationConveyorPanel({
   libById: Map<string, Equipment>
   onAdd: (conn: AutomationConnection) => void
   onDelete: (id: string) => void
+  // Pick-in-3D: arm a scene mode where clicking a conveyor function-point marker delivers its id
+  // here (same value the Select sets). Only one panel exists at a time, so the armed flag is ours.
+  pickArmed: boolean
+  onArmPick: (onPicked: (fpId: string) => void) => void
+  onCancelPick: () => void
 }) {
   const [role, setRole] = useState(WORKSTATION_ROLES[0])
   const [pointId, setPointId] = useState('')
@@ -2713,15 +2787,35 @@ function WorkstationConveyorPanel({
           onChange={setRole}
           options={WORKSTATION_ROLES.map((r) => ({ value: r, label: r }))}
         />
-        <Select
-          ariaLabel="Conveyor function point"
-          value={pointId}
-          onChange={setPointId}
-          options={[
-            { value: '', label: fpOptions.length ? 'Pick a conveyor point…' : 'No conveyor points yet' },
-            ...fpOptions,
-          ]}
-        />
+        <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+          <Select
+            ariaLabel="Conveyor function point"
+            value={pointId}
+            onChange={setPointId}
+            style={{ flex: 1, minWidth: 0 }}
+            options={[
+              { value: '', label: fpOptions.length ? 'Pick a conveyor point…' : 'No conveyor points yet' },
+              ...fpOptions,
+            ]}
+          />
+          <button
+            type="button"
+            className={`btn btn-sm ${pickArmed ? 'btn-primary' : 'btn-outline'}`}
+            style={{ whiteSpace: 'nowrap' }}
+            disabled={fpOptions.length === 0}
+            title="Pick the conveyor point by clicking its marker in the 3D scene (Esc to cancel)"
+            aria-pressed={pickArmed}
+            onClick={() => (pickArmed ? onCancelPick() : onArmPick(setPointId))}
+          >
+            {pickArmed ? 'Picking… (Esc)' : 'Pick in 3D'}
+          </button>
+        </div>
+        {/* The full (often long) label of the chosen point — the Select trigger truncates it. */}
+        {pointId &&
+          (() => {
+            const fp = functionPoints.find((f) => f.id === pointId)
+            return fp ? <div className="atopo-fp-picked">{fpLabel(fp)}</div> : null
+          })()}
         <button type="button" className="btn btn-outline btn-sm atopo-pathbtn" disabled={!pointId} onClick={add}>
           + Add interaction
         </button>
@@ -2848,6 +2942,12 @@ interface SceneContentProps {
   // Route test mode: editing interactions (select/drag/draw/connect) are suppressed; clicks are
   // handled by the RouteTestOverlay's pick plane (rendered above the conveyor tops).
   testMode: boolean
+  // Pick-in-3D mode: clicking a CONVEYOR function-point marker delivers its id to the workstation
+  // panel (instead of opening the config dialog); equipment selection is suppressed; a ground
+  // click cancels (like connect-cancel).
+  pickFpMode: boolean
+  onPickFunctionPoint: (fpId: string) => void
+  onPickCancel: () => void
   lib: Map<string, Equipment>
   selectedId: string | null
   drawPath: boolean
@@ -2876,6 +2976,9 @@ function SceneContent({
   connectMode,
   connectFrom,
   testMode,
+  pickFpMode,
+  onPickFunctionPoint,
+  onPickCancel,
   lib,
   selectedId,
   drawPath,
@@ -2920,6 +3023,13 @@ function SceneContent({
             e.stopPropagation()
             return
           }
+          if (pickFpMode) {
+            // Empty-ground click cancels the pick (like connect-cancel); keep the selection so
+            // the workstation panel that armed the pick stays open.
+            e.stopPropagation()
+            onPickCancel()
+            return
+          }
           if (connectMode) {
             e.stopPropagation()
             if (connectFrom) onConnectPick(connectFrom) // re-pick source id => cancel
@@ -2960,7 +3070,7 @@ function SceneContent({
             drawing={drawing}
             activeFromIdx={drawing ? activeFromIdx : null}
             onSelect={() => {
-              if (testMode) return // selection suppressed while route-testing
+              if (testMode || pickFpMode) return // selection suppressed while route-testing/picking
               if (connectMode) onConnectPick(eq.id)
               else onSelect(eq.id)
             }}
@@ -2980,6 +3090,9 @@ function SceneContent({
         if (!eq) return null
         // Only render markers for equipment shown on the active level.
         if (!items.some((it) => it.id === eq.id)) return null
+        // Pick-in-3D only accepts points that live on a CONVEYOR (the same filter the panel's
+        // Select applies); other markers stay inert while picking.
+        const pickable = pickFpMode && isConveyor(eq, lib)
         return (
           <FunctionPointMarker
             key={fp.id}
@@ -2987,7 +3100,12 @@ function SceneContent({
             eq={eq}
             // An FP on a stub host (ASRS with a path) rides at the STUB's height, not the rack top.
             topM={!isConveyor(eq, lib) && hasPath(eq) ? stubHeightM ?? STUB_HEIGHT_M : undefined}
+            attention={pickable}
             onSelect={() => {
+              if (pickFpMode) {
+                if (pickable) onPickFunctionPoint(fp.id)
+                return
+              }
               if (testMode) return // FP dialogs suppressed while route-testing
               if (connectMode) onConnectPick(eq.id)
               else onEditFunctionPoint(fp.id)
@@ -3008,6 +3126,7 @@ export function FunctionPointMarker({
   onSelect,
   showLabels = true,
   topM,
+  attention = false,
 }: {
   fp: AutomationFunctionPoint
   eq: AutomationEquipment
@@ -3018,6 +3137,9 @@ export function FunctionPointMarker({
   /** Override the marker's surface height. An FP on an ASRS sits on its IN/OUT STUB (conveyor
    *  height), not on the 10 m rack top that eq.heightM would imply. */
   topM?: number
+  /** Subtle "click me" cue while the editor's pick-in-3D mode is armed: slightly larger glyph
+   *  with a brighter emissive. Cheap — no extra geometry. */
+  attention?: boolean
 }) {
   const at = pointAlong(eq, fp.offsetM)
   // Left/right is perpendicular to travel direction on the ground plane. With dir (dx,dz),
@@ -3049,13 +3171,14 @@ export function FunctionPointMarker({
       <mesh
         position={[0, 0.25, 0]}
         rotation={isPort ? [0, Math.PI / 4, 0] : [0, 0, 0]}
+        scale={attention ? 1.3 : 1}
         onPointerDown={(e: ThreeEvent<PointerEvent>) => {
           e.stopPropagation()
           onSelect()
         }}
       >
         {isPort ? <octahedronGeometry args={[0.26, 0]} /> : <coneGeometry args={[0.16, 0.5, 16]} />}
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.45} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={attention ? 0.9 : 0.45} />
       </mesh>
       {showLabels && (
         <Html position={[0, 0.7, 0]} center distanceFactor={16} occlude={false}>
@@ -3920,6 +4043,14 @@ function Styles() {
       .atopo-route-chip.is-bad {
         color: #ff8a7e; border: 1px solid rgba(255, 122, 110, .5);
         background: rgba(255, 122, 110, .12);
+      }
+      /* The full label of a chosen conveyor point in the workstation panel — the Select trigger
+         truncates long labels, so we repeat the whole thing here and let it wrap. */
+      .atopo-fp-picked {
+        padding: .3rem .5rem; border-radius: 6px; font-family: var(--font-mono); font-size: .72rem;
+        line-height: 1.35; color: var(--herbal-lime); background: rgba(141, 198, 63, .1);
+        border: 1px solid rgba(141, 198, 63, .35);
+        white-space: normal; overflow-wrap: anywhere;
       }
       .atopo-empty {
         height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
