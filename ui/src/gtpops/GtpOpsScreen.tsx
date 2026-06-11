@@ -377,6 +377,7 @@ function OperatorConsole({
     if (activeMode !== 'PICKING') return
     if (cycle) return
     if (!head) return
+    if (head.mode !== 'PICKING') return // a non-picking tote (e.g. a count tote) is the head — don't present it as a pick; the mode-mismatch panel prompts the operator to switch
     if (presentedIdRef.current === head.id) return
     if (presentingRef.current) return
     presentingRef.current = true
@@ -623,7 +624,17 @@ function OperatorConsole({
       )}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 16rem)' }}>
-      {activeMode === 'PICKING' ? (
+      {head && head.mode !== activeMode && !cycle ? (
+        // The arrived tote needs a different mode than the station is in (e.g. a count tote while the
+        // screen is in PICKING). Don't show an empty "nothing to do" state — tell the operator which
+        // mode is required and let them switch. (!cycle so an in-progress pick is never interrupted.)
+        <ModeMismatch
+          required={head.mode}
+          current={activeMode}
+          supported={modes.includes(head.mode)}
+          onSwitch={() => chooseMode(head.mode)}
+        />
+      ) : activeMode === 'PICKING' ? (
         head || cycle ? (
           <>
             <ActiveTotePanel
@@ -978,8 +989,67 @@ function ModePlaceholder({ mode }: { mode: OperatingMode }) {
   return (
     <div className="glass" style={{ padding: '2.5rem', maxWidth: 560, textAlign: 'center' }}>
       <div style={{ fontSize: '2rem', marginBottom: '.5rem' }}>🛠</div>
-      <h2 style={{ marginTop: 0 }}>{mode} mode is active.</h2>
+      <h2 style={{ marginTop: 0 }}>{modeLabel(mode)} mode is active.</h2>
       <p style={{ color: 'var(--text-dim)', margin: 0 }}>Guided flow coming soon.</p>
+    </div>
+  )
+}
+
+// Operator-facing labels for the operating modes (the enum values read as code).
+const MODE_LABELS: Record<string, string> = {
+  PICKING: 'Picking',
+  DECANTING: 'Decanting',
+  DECANT_MULTI: 'Multi-decant',
+  STOCK_COUNT: 'Counting',
+  QC: 'QC',
+  MAINTENANCE: 'Maintenance',
+}
+function modeLabel(mode: OperatingMode): string {
+  return MODE_LABELS[mode] ?? mode
+}
+
+// Shown when the arrived head tote requires a different operating mode than the station is currently
+// in. Names the required mode and offers a one-tap switch when this workplace supports it.
+function ModeMismatch({
+  required,
+  current,
+  supported,
+  onSwitch,
+}: {
+  required: OperatingMode
+  current: OperatingMode
+  supported: boolean
+  onSwitch: () => void
+}) {
+  return (
+    <div
+      className="glass"
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        padding: '3rem',
+        minHeight: '60vh',
+        borderColor: 'rgba(255, 193, 94, .45)',
+      }}
+    >
+      <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>⚠</div>
+      <h2 style={{ marginTop: 0, fontSize: '2rem' }}>{modeLabel(required)} required</h2>
+      <p style={{ color: 'var(--text-dim)', margin: '0 0 1.5rem', fontSize: '1.05rem', maxWidth: 460 }}>
+        This tote needs <strong>{modeLabel(required)}</strong>, but the station is in{' '}
+        <strong>{modeLabel(current)}</strong> mode.{' '}
+        {supported
+          ? 'Switch mode to work it.'
+          : `This workplace isn't set up for ${modeLabel(required)} — route the tote to a station that is.`}
+      </p>
+      {supported && (
+        <button className="btn btn-primary btn-lg" onClick={onSwitch}>
+          Switch to {modeLabel(required)}
+        </button>
+      )}
     </div>
   )
 }
