@@ -10,10 +10,13 @@ import (
 	"time"
 )
 
-// TestMain forces zero simulated latency and no fault injection so the suite is fast and predictable.
+// TestMain forces zero simulated latency, no fault injection, and no recirculation so the suite is
+// fast and predictable.
 func TestMain(m *testing.M) {
 	latencyOverrideMs.Store(0)
 	faultEvery.Store(0)
+	recircEvery.Store(0)
+	conveySeq.Store(0)
 	os.Exit(m.Run())
 }
 
@@ -213,5 +216,43 @@ func TestAsyncDispatchCallsBack(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("no callback received within 2s")
+	}
+}
+
+// conveyJourney deterministically recirculates every Nth CONVEY, adding loop time and a RECIRCULATED
+// decision before the final DIVERTED — so arrival order can diverge from dispatch order (R2).
+func TestConveyJourneyRecirculatesDeterministically(t *testing.T) {
+	recircEvery.Store(2)
+	conveySeq.Store(0)
+	defer func() { recircEvery.Store(0); conveySeq.Store(0) }()
+
+	extra1, dec1 := conveyJourney() // CONVEY #1: 1%2 != 0 -> no recirc
+	if extra1 != 0 || len(dec1) != 1 || dec1[0]["event"] != "DIVERTED" {
+		t.Fatalf("pass1: extra=%v decisions=%v, want 0 extra and only DIVERTED", extra1, dec1)
+	}
+	extra2, dec2 := conveyJourney() // CONVEY #2: 2%2 == 0 -> recirculate once
+	if extra2 != loopLatency || len(dec2) != 2 || dec2[0]["event"] != "RECIRCULATED" || dec2[1]["event"] != "DIVERTED" {
+		t.Fatalf("pass2: extra=%v decisions=%v, want loopLatency and [RECIRCULATED, DIVERTED]", extra2, dec2)
+	}
+}
+
+// A recirculating CONVEY task reports its recirculations + decision points in the result payload.
+func TestConveyTaskReportsDecisions(t *testing.T) {
+	recircEvery.Store(1) // every CONVEY recirculates once
+	conveySeq.Store(0)
+	saved := loopLatency
+	loopLatency = 2 * time.Millisecond // keep the test fast
+	defer func() { recircEvery.Store(0); conveySeq.Store(0); loopLatency = saved }()
+
+	res := postTask(t, deviceTaskRequest{TaskID: "c1", Family: "CONVEYOR", Command: "CONVEY", EquipmentID: "belt-1"})
+	if res.Status != "COMPLETED" {
+		t.Fatalf("status = %q, want COMPLETED", res.Status)
+	}
+	if res.ResultPayload["recirculations"] != float64(1) {
+		t.Fatalf("recirculations = %v, want 1", res.ResultPayload["recirculations"])
+	}
+	decs, ok := res.ResultPayload["decisions"].([]interface{})
+	if !ok || len(decs) != 2 {
+		t.Fatalf("decisions = %v, want 2 entries (RECIRCULATED, DIVERTED)", res.ResultPayload["decisions"])
 	}
 }

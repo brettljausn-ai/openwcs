@@ -387,6 +387,9 @@ services:
       # Fault injection: fail 1 in every N tasks (deterministic). Unset/0 = no faults. Can also be
       # toggled live via POST /config.
       OPENWCS_EMULATOR_FAULT_RATE: "${OPENWCS_EMULATOR_FAULT_RATE:-}"
+      # Loop recirculation: every Nth CONVEY recirculates once before diverting, so arrival order
+      # diverges from dispatch order (ADR-0007 R2). Unset/0 = none. Toggle live via POST /config.
+      OPENWCS_EMULATOR_RECIRC_EVERY: "${OPENWCS_EMULATOR_RECIRC_EVERY:-}"
 
   conveyor-adapter:
     restart: unless-stopped

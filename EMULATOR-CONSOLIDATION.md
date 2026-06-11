@@ -146,10 +146,14 @@ including totes **not yet retrieved** from the ASRS. Design is in **`docs/adr/00
       conveyor divert/merge/recirculate, arrive, queue, present, store-back) + the decision made. New
       `hu_transport_trace` in flow; emulator reports conveyor decision points; extends the Transport
       screen's click-to-trace (today just `byCorrelation` device tasks).
-- [ ] Implement 3c-1 (MVP) — highest blast radius, un-buildable locally, needs a real run-through. Likely
-      split: (a) flow induction queue + lifecycle + trace, driven by RETRIEVE/CONVEY callbacks; (b) switch
-      the GTP screen + click-to-trace to read flow; (c) emulator CONVEY leg + arrival + decision-point trace.
-- [ ] Optional 3c-2: emulator models loop recirculation (makes R2 visible).
+- [x] 3c-1 (MVP) — DONE, merged (PR #195). Flow-owned induction queue + lifecycle + HU transport trace,
+      driven by RETRIEVE/CONVEY callbacks; GTP screen + click-to-trace read flow; counting requests via flow.
+- [x] 3c-2 — CODE COMPLETE in PR (branch `feat/emulator-loop-recirculation`), NOT VERIFIED. Emulator models
+      conveyor loop recirculation (`recirc.go`): `OPENWCS_EMULATOR_RECIRC_EVERY=N` recirculates every Nth
+      CONVEY once (deterministic; live via `/config`), adding loop time so arrival order diverges from
+      dispatch order (R2). The CONVEY result reports `recirculations` + `decisions` (sorter
+      RECIRCULATED/DIVERTED); flow's `onConveyCompleted` writes them to the HU trace before ARRIVED (R4).
+      Go tests + a flow decision-trace test. Mostly emulator (CI go job) + a small flow touch.
 
 ## Phase 4 — fault injection + telemetry + live control — CODE COMPLETE in PR (branch `feat/emulator-fault-injection`), NOT VERIFIED
 

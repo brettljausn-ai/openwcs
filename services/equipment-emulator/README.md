@@ -12,8 +12,13 @@ instead of being duplicated inside each per-family Go adapter.
   are kept sub-second; a non-blocking async contract is the follow-up (Phase 3b).
 - Fault injection: `OPENWCS_EMULATOR_FAULT_RATE=N` fails 1 in every N tasks with a simulated
   equipment fault (deterministic, `0`/unset = none). The failed result carries `fault: true`.
-- Live control: `GET /config` reports the current `{latencyOverrideMs, faultEvery}`; `POST /config`
-  (either field optional) changes them at runtime — e.g. `curl -XPOST .../config -d '{"faultEvery":4}'`.
+- Loop recirculation: `OPENWCS_EMULATOR_RECIRC_EVERY=N` makes every Nth `CONVEY` task recirculate the
+  conveyor loop once before diverting to its destination (deterministic, `0`/unset = none), adding loop
+  time so **arrival order diverges from dispatch order** (ADR-0007 R2). The result payload reports
+  `recirculations` and the `decisions` (sorter `RECIRCULATED`/`DIVERTED` points) which flow writes to the
+  HU transport trace (R4).
+- Live control: `GET /config` reports `{latencyOverrideMs, faultEvery, recircEvery}`; `POST /config`
+  (any field optional) changes them at runtime — e.g. `curl -XPOST .../config -d '{"recircEvery":3}'`.
 - Telemetry: `GET /state` reports real per-family completed/failed tallies (not synthetic).
 - Endpoints: `POST /tasks` (device contract, all families), `GET`/`POST /config`, `GET /state`,
   `GET /healthz`, `GET /readyz`, `GET /` (info)
