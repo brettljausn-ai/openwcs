@@ -473,7 +473,7 @@ function num(v: string, fallback = 0): number {
 // World centre of a piece of equipment, used to anchor connection lines. Y is floor-relative
 // (heightM/2 + posYM) to match the bodies/paths — the scene does not apply level elevation, so
 // adding it here floated connection lines above the equipment they link.
-function worldCenter(eq: AutomationEquipment): [number, number, number] {
+export function worldCenter(eq: AutomationEquipment): [number, number, number] {
   if (Array.isArray(eq.path) && eq.path.length >= 1) {
     let sx = 0
     let sz = 0
@@ -2754,7 +2754,7 @@ function SceneContent({
 // A small marker (cone) with a short type label, placed at the function point's offset along its
 // equipment, nudged to the requested side, and sitting at the top of the equipment. It rides along
 // with the equipment because its position is recomputed from the live equipment each render.
-function FunctionPointMarker({
+export function FunctionPointMarker({
   fp,
   eq,
   onSelect,
@@ -3003,7 +3003,7 @@ interface EquipmentMeshProps {
   onHandleDragChange: (active: boolean) => void
 }
 
-function EquipmentMesh({
+export function EquipmentMesh({
   eq,
   conveyor,
   cat,

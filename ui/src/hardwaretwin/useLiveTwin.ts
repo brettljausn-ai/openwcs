@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadAutomationTopology, type AutomationTopology } from '../topology/automationApi'
+import { listEquipment, type Equipment } from '../masterdata/api'
 import { listDeviceTasks } from '../transport/api'
 import { deriveTwin, type TwinSnapshot } from './twin'
 
@@ -22,6 +23,9 @@ export interface UseLiveTwinOptions {
 
 export interface UseLiveTwinResult {
   topology: AutomationTopology | null
+  /** Master-data equipment library (id → Equipment) — lets the 3D scene classify each placement the
+   *  same way the topology editor does (conveyor vs rack vs sorter). Loaded once per warehouse. */
+  lib: Map<string, Equipment>
   snapshot: TwinSnapshot | null
   loading: boolean
   error: string | null
@@ -29,11 +33,14 @@ export interface UseLiveTwinResult {
   refresh: () => void
 }
 
+const EMPTY_LIB: Map<string, Equipment> = new Map()
+
 export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): UseLiveTwinResult {
   const intervalMs = opts?.intervalMs ?? DEFAULT_INTERVAL_MS
   const autoRefresh = opts?.autoRefresh ?? true
 
   const [topology, setTopology] = useState<AutomationTopology | null>(null)
+  const [lib, setLib] = useState<Map<string, Equipment>>(EMPTY_LIB)
   const [snapshot, setSnapshot] = useState<TwinSnapshot | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,6 +55,7 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
   useEffect(() => {
     if (!warehouseId) {
       setTopology(null)
+      setLib(EMPTY_LIB)
       setSnapshot(null)
       setError(null)
       setLastUpdated(null)
@@ -56,9 +64,17 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
     let cancelled = false
     setLoading(true)
     setError(null)
-    loadAutomationTopology(warehouseId)
-      .then((topo) => {
+    // Topology (geometry) + the equipment library (classification) load together, once per warehouse.
+    // The lib is non-fatal: if it fails the scene still renders, just with coarser classification.
+    Promise.all([
+      loadAutomationTopology(warehouseId),
+      listEquipment(warehouseId).catch(() => [] as Equipment[]),
+    ])
+      .then(([topo, equipment]) => {
         if (cancelled) return
+        const map = new Map<string, Equipment>()
+        for (const e of equipment) if (e.id) map.set(e.id, e)
+        setLib(map)
         setTopology(topo)
       })
       .catch((e) => {
@@ -120,5 +136,5 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
     void refreshRef.current()
   }, [])
 
-  return { topology, snapshot, loading, error, lastUpdated, refresh: refreshNow }
+  return { topology, lib, snapshot, loading, error, lastUpdated, refresh: refreshNow }
 }
