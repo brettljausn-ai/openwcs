@@ -19,6 +19,14 @@ public class ApiExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(InductionEntryNotFoundException.class)
+    public ProblemDetail onInductionEntryNotFound(InductionEntryNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Induction entry not found");
+        problem.setDetail(ex.getMessage());
+        return problem;
+    }
+
     /** No adapter is configured for the task's equipment family. */
     @ExceptionHandler(NoAdapterException.class)
     public ProblemDetail onNoAdapter(NoAdapterException ex) {

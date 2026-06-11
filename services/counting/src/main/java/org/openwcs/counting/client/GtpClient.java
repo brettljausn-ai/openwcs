@@ -16,7 +16,15 @@ public interface GtpClient {
      */
     Optional<UUID> findActiveCountingStation(UUID warehouseId);
 
-    /** Pin a handling unit to a station's stock-count queue. */
+    /**
+     * Pin a handling unit to a station's stock-count queue.
+     *
+     * @deprecated ADR-0007 Phase 3c-1: the inbound induction queue relocated to flow-orchestrator,
+     *     which now owns retrieve + convey. Counting requests presentation via
+     *     {@link FlowClient#requestPresentation} instead of enqueuing to gtp. The gtp inbound enqueue
+     *     endpoint is deprecated; this method is no longer called by count-tote routing.
+     */
+    @Deprecated
     void enqueue(UUID stationId, EnqueueRequest request);
 
     /**

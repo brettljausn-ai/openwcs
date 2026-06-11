@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.openwcs.gtp.client.FlowClient;
+import org.openwcs.gtp.client.FlowInductionClient;
 import org.openwcs.gtp.domain.GtpStation;
 import org.openwcs.gtp.domain.OperatingMode;
 import org.openwcs.gtp.domain.StationQueueEntry;
@@ -20,54 +21,175 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * The station inbound work queue (build.md §7). A transport routes a handling unit to a workplace;
- * while the emulator simulates the move the entry is IN_TRANSIT with a computed arrival time
- * (conveyor: distance / 0.5 m/s; ASRS / AMR / AutoStore: immediate). Once due it is QUEUED and the
- * operator works the queue in arrival (FIFO) order. Routing respects the per-station in-transit caps
- * (PICKING vs other) and skips stations that are draining (not accepting new work).
+ * Goods-to-person station services. Since ADR-0007 Phase 3c-1 the inbound presentation queue
+ * ({@code REQUESTED → IN_TRANSIT → QUEUED → DONE}, with the per-station in-transit cap) is owned by
+ * <strong>flow-orchestrator</strong>, not gtp: the workstation screen reads the slice from flow (via
+ * {@link FlowInductionClient}) and operator completion fans the entry out to flow's DONE endpoint.
+ *
+ * <p>What STAYS in gtp (this class): the act-on-completion <em>store-back</em> — when a presented
+ * tote has finished its station work it is returned to storage via a flow {@code STORE} transport.
+ *
+ * <p>The legacy gtp-owned inbound queue ({@link #enqueue}, {@link #queue}, {@link #complete}, the
+ * {@code CONVEYOR_MPS} arrival computation and the local in-transit cap) is {@link Deprecated} and no
+ * longer the source of truth; counting stopped calling the inbound enqueue. It is kept physically
+ * present (table + code) for 3c-1; its destructive removal is 3c-2 (out of scope).
  */
 @Service
 public class StationQueueService {
 
     private static final Logger log = LoggerFactory.getLogger(StationQueueService.class);
 
-    /** Conveyor transport speed used by the emulator to time arrivals. */
+    /**
+     * Conveyor transport speed once used by gtp to time arrivals.
+     *
+     * @deprecated arrival timing is now driven by flow's CONVEY device-task callback (ADR-0007 §4.3);
+     *     this constant is dead.
+     */
+    @Deprecated
     private static final double CONVEYOR_MPS = 0.5;
     private static final List<String> ACTIVE = List.of(Status.IN_TRANSIT.name(), Status.QUEUED.name());
+    /** Flow induction statuses that mean the HU still has open work (i.e. is not DONE). */
+    private static final List<String> OPEN = List.of("REQUESTED", "IN_TRANSIT", "QUEUED");
 
     private final GtpStationRepository stations;
     private final StationQueueEntryRepository queue;
     private final org.openwcs.gtp.repo.StationNodeRepository nodes;
     private final FlowClient flow;
+    private final FlowInductionClient induction;
     private final org.openwcs.gtp.client.SlottingClient slotting;
     private final org.openwcs.gtp.client.MasterDataClient masterData;
 
     public StationQueueService(GtpStationRepository stations, StationQueueEntryRepository queue,
                                org.openwcs.gtp.repo.StationNodeRepository nodes, FlowClient flow,
+                               FlowInductionClient induction,
                                org.openwcs.gtp.client.SlottingClient slotting,
                                org.openwcs.gtp.client.MasterDataClient masterData) {
         this.stations = stations;
         this.queue = queue;
         this.nodes = nodes;
         this.flow = flow;
+        this.induction = induction;
         this.slotting = slotting;
         this.masterData = masterData;
     }
 
-    /** Inputs to route an HU to a station's queue. */
+    /**
+     * Inputs to route an HU to a station's queue.
+     *
+     * @deprecated the inbound queue moved to flow (ADR-0007 §1); request presentation via flow's
+     *     {@code POST /api/flow/induction/requests} instead. Kept for the legacy gtp enqueue path.
+     */
+    @Deprecated
     public record EnqueueCommand(
             UUID huId, String huCode, UUID skuId, String skuCode, BigDecimal qty,
             String mode, String family, Double distanceM, UUID countTaskId, UUID countLineId,
             UUID locationId) {
     }
 
-    /** Thrown when a station cannot accept the routed HU; the controller maps it to 409. */
+    /**
+     * Thrown when a station cannot accept the routed HU; the controller maps it to 409.
+     *
+     * @deprecated inbound rejection is gone — flow's REQUESTED stage is uncapped (ADR-0007 §3.1).
+     *     Retained as the not-found signal for the legacy/local code paths.
+     */
+    @Deprecated
     public static class QueueRejectedException extends RuntimeException {
         public QueueRejectedException(String message) {
             super(message);
         }
     }
 
+    /**
+     * Read a workplace's inbound queue slice from flow (ADR-0007 §3.2): the live
+     * {@code REQUESTED, IN_TRANSIT, QUEUED} pipeline, DONE excluded, ordered by flow. This is the feed
+     * the workstation screen renders; gtp no longer owns it.
+     */
+    @Transactional(readOnly = true)
+    public List<FlowInductionClient.InductionEntry> inductionQueue(UUID workplaceId) {
+        return induction.readQueue(workplaceId);
+    }
+
+    /**
+     * Operator completion of a presented tote (ADR-0007 §6.2): mark the flow induction entry DONE,
+     * then run gtp's store-back. Returns the DONE flow entry.
+     */
+    @Transactional
+    public FlowInductionClient.InductionEntry completeInduction(UUID entryId) {
+        return completeInduction(entryId, true);
+    }
+
+    /** Mark the flow entry DONE but never store back (e.g. dirty tote → maintenance, not storage). */
+    @Transactional
+    public FlowInductionClient.InductionEntry completeInductionWithoutStoreBack(UUID entryId) {
+        return completeInduction(entryId, false);
+    }
+
+    private FlowInductionClient.InductionEntry completeInduction(UUID entryId, boolean storeBack) {
+        FlowInductionClient.InductionEntry done = induction.markDone(entryId);
+        if (done == null) {
+            throw new QueueRejectedException("Induction entry not found.");
+        }
+        if (storeBack) {
+            storeBack(done);
+        }
+        return done;
+    }
+
+    /**
+     * Best-effort store-back: when a tote has finished all of its station work (no other open
+     * induction entry for the same HU at the workplace) and we know its warehouse, dispatch a STORE
+     * transport to return it to the currently-best storage location. Never throws (a store-back
+     * failure must not break completion).
+     */
+    private void storeBack(FlowInductionClient.InductionEntry e) {
+        try {
+            if (e.huId() == null) {
+                return;
+            }
+            boolean stillWorking = induction.readQueue(e.workplaceId()).stream()
+                    .anyMatch(o -> e.huId().equals(o.huId())
+                            && !e.id().equals(o.id())
+                            && OPEN.contains(o.status()));
+            if (stillWorking) {
+                return; // the tote still has open work, keep it out.
+            }
+            // Don't return it to its source slot: ask slotting for the currently-best storage location
+            // (an empty, unreserved slot scored for this SKU).
+            Optional<UUID> destination =
+                    slotting.bestLocation(e.warehouseId(), e.huId(), e.skuId(), e.qty());
+            if (destination.isEmpty()) {
+                log.warn("no put-away location available for tote {}; store-back skipped", e.huCode());
+                return;
+            }
+            // Dispatch to the adapter family that services the destination storage (AutoStore ->
+            // AUTOSTORE, AMR-GTP -> AMR, shuttle/crane -> ASRS), not a hardcoded ASRS.
+            String family = org.openwcs.gtp.client.MasterDataClient.deviceFamilyOf(
+                    masterData.storageTypeOfLocation(e.warehouseId(), destination.get()).orElse(null));
+            if (family == null) {
+                family = "ASRS";
+            }
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("huId", e.huId());
+            payload.put("huCode", e.huCode());
+            payload.put("skuId", e.skuId());
+            payload.put("skuCode", e.skuCode());
+            payload.put("destinationLocationId", destination.get());
+            payload.put("reason", "STORE");
+            UUID transportId = flow.createTransport(e.warehouseId(), family, "STORE", payload, e.huId());
+            log.info("stored tote {} to best location {}; transport {}",
+                    e.huCode(), destination.get(), transportId);
+        } catch (Exception ex) {
+            log.warn("store-back for tote {} failed (best-effort, ignored): {}", e.huCode(), ex.toString());
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Legacy gtp-owned inbound queue (ADR-0007 §1: relocated to flow). Deprecated, not the source of
+    // truth, kept present for 3c-1; destructive removal is 3c-2.
+    // ---------------------------------------------------------------------------------------------
+
+    /** @deprecated inbound queue moved to flow; request presentation via flow (ADR-0007 §3.1). */
+    @Deprecated
     @Transactional
     public StationQueueEntry enqueue(UUID stationId, EnqueueCommand cmd) {
         GtpStation station = station(stationId);
@@ -91,8 +213,6 @@ public class StationQueueService {
         }
 
         Instant now = Instant.now();
-        // When the caller gives no transport timing, fall back to the station's STOCK node conveyor
-        // distance projected from the automation topology (so the topology drives arrival timing).
         String family = cmd.family();
         Double distanceM = cmd.distanceM();
         if (family == null && distanceM == null) {
@@ -120,7 +240,8 @@ public class StationQueueService {
         return queue.save(entry);
     }
 
-    /** The station's live queue: promotes any due IN_TRANSIT entries to QUEUED, then returns them in order. */
+    /** @deprecated the live queue is read from flow via {@link #inductionQueue(UUID)}. */
+    @Deprecated
     @Transactional
     public List<StationQueueEntry> queue(UUID stationId) {
         Instant now = Instant.now();
@@ -134,72 +255,14 @@ public class StationQueueService {
         return active;
     }
 
+    /** @deprecated completion now fans out to flow via {@link #completeInduction(UUID)}. */
+    @Deprecated
     @Transactional
     public StationQueueEntry complete(UUID entryId) {
-        return complete(entryId, true);
-    }
-
-    /** Mark the entry DONE but never store it back (the tote is going to maintenance, not storage). */
-    @Transactional
-    public StationQueueEntry completeWithoutStoreBack(UUID entryId) {
-        return complete(entryId, false);
-    }
-
-    private StationQueueEntry complete(UUID entryId, boolean storeBack) {
         StationQueueEntry e = queue.findById(entryId)
                 .orElseThrow(() -> new QueueRejectedException("Queue entry not found."));
         e.setStatus(Status.DONE.name());
-        StationQueueEntry saved = queue.save(e);
-        if (storeBack) {
-            storeBack(saved);
-        }
-        return saved;
-    }
-
-    /**
-     * Best-effort store-back: when a tote has finished all of its station work (no other IN_TRANSIT or
-     * QUEUED entry for the same HU in the warehouse) and we know where it came from, dispatch an ASRS
-     * STORE transport to return it to its source storage location. Never throws (a store-back failure
-     * must not break completion).
-     */
-    private void storeBack(StationQueueEntry e) {
-        try {
-            if (e.getHuId() == null) {
-                return;
-            }
-            long others = queue.countByWarehouseIdAndHuIdAndStatusInAndIdNot(
-                    e.getWarehouseId(), e.getHuId(), ACTIVE, e.getId());
-            if (others > 0) {
-                return; // the tote still has open work at a station, keep it out.
-            }
-            // Don't return it to its source slot: ask slotting for the currently-best storage location
-            // (an empty, unreserved slot scored for this SKU).
-            java.util.Optional<UUID> destination =
-                    slotting.bestLocation(e.getWarehouseId(), e.getHuId(), e.getSkuId(), e.getQty());
-            if (destination.isEmpty()) {
-                log.warn("no put-away location available for tote {}; store-back skipped", e.getHuCode());
-                return;
-            }
-            // Dispatch to the adapter family that services the destination storage (AutoStore ->
-            // AUTOSTORE, AMR-GTP -> AMR, shuttle/crane -> ASRS), not a hardcoded ASRS.
-            String family = org.openwcs.gtp.client.MasterDataClient.deviceFamilyOf(
-                    masterData.storageTypeOfLocation(e.getWarehouseId(), destination.get()).orElse(null));
-            if (family == null) {
-                family = "ASRS";
-            }
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("huId", e.getHuId());
-            payload.put("huCode", e.getHuCode());
-            payload.put("skuId", e.getSkuId());
-            payload.put("skuCode", e.getSkuCode());
-            payload.put("destinationLocationId", destination.get());
-            payload.put("reason", "STORE");
-            UUID transportId = flow.createTransport(e.getWarehouseId(), family, "STORE", payload, e.getHuId());
-            log.info("stored tote {} to best location {}; transport {}",
-                    e.getHuCode(), destination.get(), transportId);
-        } catch (Exception ex) {
-            log.warn("store-back for tote {} failed (best-effort, ignored): {}", e.getHuCode(), ex.toString());
-        }
+        return queue.save(e);
     }
 
     @Transactional
@@ -212,7 +275,11 @@ public class StationQueueService {
     /**
      * An ACTIVE station in the warehouse that supports the mode, is accepting work, and has spare
      * in-transit capacity for that mode class. Used to route work (e.g. ASRS count totes) to a station.
+     *
+     * @deprecated the cap now lives in flow (ADR-0007 §4.1, metered at RETRIEVE dispatch). Kept for
+     *     callers still selecting a destination workplace, but the local capacity gate is advisory.
      */
+    @Deprecated
     @Transactional(readOnly = true)
     public Optional<GtpStation> findRoutableStation(UUID warehouseId, OperatingMode mode) {
         boolean picking = mode == OperatingMode.PICKING;
@@ -231,7 +298,12 @@ public class StationQueueService {
         return queue.findByStationIdAndStatusInOrderByArrivalAtAsc(stationId, ACTIVE);
     }
 
-    /** The conveyor distance of the station's STOCK node, projected from topology, or null. */
+    /**
+     * The conveyor distance of the station's STOCK node, projected from topology, or null.
+     *
+     * @deprecated arrival timing moved to flow's CONVEY callback (ADR-0007 §4.3).
+     */
+    @Deprecated
     private Double stockNodeDistance(UUID stationId) {
         return nodes.findByStationIdAndRole(stationId, "STOCK").stream()
                 .map(org.openwcs.gtp.domain.StationNode::getInboundDistanceM)
@@ -241,6 +313,8 @@ public class StationQueueService {
                 .orElse(null);
     }
 
+    /** @deprecated arrival timing moved to flow's CONVEY callback (ADR-0007 §4.3). */
+    @Deprecated
     private static Instant arrivalAt(Instant now, String family, Double distanceM) {
         // Conveyors travel at CONVEYOR_MPS; ASRS / AMR / AutoStore deliver immediately.
         if ("CONVEYOR".equalsIgnoreCase(family) && distanceM != null && distanceM > 0) {

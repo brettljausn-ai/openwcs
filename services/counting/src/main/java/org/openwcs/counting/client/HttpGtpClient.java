@@ -41,6 +41,7 @@ public class HttpGtpClient implements GtpClient {
     }
 
     @Override
+    @Deprecated
     public void enqueue(UUID stationId, EnqueueRequest request) {
         http.post()
                 .uri("/api/gtp/stations/{id}/queue", stationId)

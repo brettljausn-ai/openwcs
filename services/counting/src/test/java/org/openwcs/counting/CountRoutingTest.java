@@ -2,7 +2,6 @@ package org.openwcs.counting;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,9 +35,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * ASRS count-tote routing performed by {@link CountRoutingService#routeTask}. A new task is created
  * PENDING (generate no longer routes synchronously); routeTask then computes and persists the
  * outcome. With the emulator ON, an ASRS-family cell holding a handling unit, and an active
- * STOCK_COUNT station, the tote is enqueued once and the task becomes ROUTED; with the emulator OFF
- * nothing is routed and the task is FAILED; and routing is idempotent (a second routeTask does not
- * enqueue again).
+ * STOCK_COUNT station, the tote is presented via a single flow induction request and the task becomes
+ * ROUTED; with the emulator OFF nothing is routed and the task is FAILED; and routing is idempotent
+ * (a second routeTask does not request presentation again).
+ *
+ * <p>ADR-0007 Phase 3c-1: the inbound induction queue relocated to flow-orchestrator, which now owns
+ * retrieve + convey. Counting issues exactly one {@code flow.requestPresentation} per routed tote and
+ * never calls {@code gtp.enqueue} / {@code flow.createTransport}.
  */
 @SpringBootTest
 @Testcontainers
@@ -92,11 +95,11 @@ class CountRoutingTest {
 
         // generate() no longer routes — the task is left PENDING for the background sweep / routeTask.
         assertThat(created.getRoutingStatus()).isEqualTo("PENDING");
-        verify(gtp, org.mockito.Mockito.never()).enqueue(any(), any());
+        verify(flow, org.mockito.Mockito.never()).requestPresentation(any());
     }
 
     @Test
-    void emulatorOnAsrsCellWithHuEnqueuesAndMarksRouted() {
+    void emulatorOnAsrsCellWithHuRequestsPresentationAndMarksRouted() {
         UUID wh = UUID.randomUUID();
         UUID loc = UUID.randomUUID();
         UUID sku = UUID.randomUUID();
@@ -110,19 +113,28 @@ class CountRoutingTest {
         when(masterData.skuCode(sku)).thenReturn(Optional.of("SKU-1"));
         when(inventory.findHuAt(wh, sku, loc))
                 .thenReturn(Optional.of(new InventoryClient.HandlingUnit(huId, "HU-1", new BigDecimal("12"))));
+        when(flow.requestPresentation(any())).thenReturn(UUID.randomUUID());
 
         CountTask created = counting.generate(task(wh, loc, sku));
         routing.routeTask(counting.task(created.getId()));
 
-        // Transport requested for the ASRS family and the tote enqueued in STOCK_COUNT mode.
-        verify(flow).createTransport(eq(wh), eq("ASRS"), any(), any(), eq(huId));
-        org.mockito.ArgumentCaptor<GtpClient.EnqueueRequest> captor =
-                org.mockito.ArgumentCaptor.forClass(GtpClient.EnqueueRequest.class);
-        verify(gtp).enqueue(eq(station), captor.capture());
-        assertThat(captor.getValue().huId()).isEqualTo(huId);
-        assertThat(captor.getValue().mode()).isEqualTo("STOCK_COUNT");
-        assertThat(captor.getValue().family()).isEqualTo("ASRS");
-        assertThat(captor.getValue().distanceM()).isNull();
+        // Exactly one flow induction request carries the tote, station as destination workplace, the
+        // STOCK_COUNT mode, and the resolved ASRS device family. No gtp.enqueue / createTransport.
+        org.mockito.ArgumentCaptor<FlowClient.InductionRequest> captor =
+                org.mockito.ArgumentCaptor.forClass(FlowClient.InductionRequest.class);
+        verify(flow).requestPresentation(captor.capture());
+        FlowClient.InductionRequest req = captor.getValue();
+        assertThat(req.warehouseId()).isEqualTo(wh);
+        assertThat(req.workplaceId()).isEqualTo(station);
+        assertThat(req.workplaceKind()).isEqualTo("GTP_STATION");
+        assertThat(req.huId()).isEqualTo(huId);
+        assertThat(req.mode()).isEqualTo("STOCK_COUNT");
+        assertThat(req.family()).isEqualTo("ASRS");
+        assertThat(req.locationId()).isEqualTo(loc);
+
+        verify(gtp, org.mockito.Mockito.never()).enqueue(any(), any());
+        verify(flow, org.mockito.Mockito.never())
+                .createTransport(any(), any(), any(), any(), any());
 
         assertThat(counting.task(created.getId()).getRoutingStatus()).isEqualTo("ROUTED");
     }
@@ -138,19 +150,19 @@ class CountRoutingTest {
         when(inventory.expectedOnHand(wh, sku, loc)).thenReturn(new BigDecimal("12"));
         when(masterData.emulatorEnabled()).thenReturn(true);
         when(gtp.findActiveCountingStation(wh)).thenReturn(Optional.of(station));
-        // AutoStore-stored stock -> dispatch to the AUTOSTORE adapter family, not a hardcoded ASRS.
+        // AutoStore-stored stock -> resolve to the AUTOSTORE adapter family, not a hardcoded ASRS.
         when(masterData.storageTypeOfLocation(wh, loc)).thenReturn(Optional.of("AUTOSTORE"));
         when(masterData.skuCode(sku)).thenReturn(Optional.of("SKU-1"));
         when(inventory.findHuAt(wh, sku, loc))
                 .thenReturn(Optional.of(new InventoryClient.HandlingUnit(huId, "HU-1", new BigDecimal("12"))));
+        when(flow.requestPresentation(any())).thenReturn(UUID.randomUUID());
 
         CountTask created = counting.generate(task(wh, loc, sku));
         routing.routeTask(counting.task(created.getId()));
 
-        verify(flow).createTransport(eq(wh), eq("AUTOSTORE"), any(), any(), eq(huId));
-        org.mockito.ArgumentCaptor<GtpClient.EnqueueRequest> captor =
-                org.mockito.ArgumentCaptor.forClass(GtpClient.EnqueueRequest.class);
-        verify(gtp).enqueue(eq(station), captor.capture());
+        org.mockito.ArgumentCaptor<FlowClient.InductionRequest> captor =
+                org.mockito.ArgumentCaptor.forClass(FlowClient.InductionRequest.class);
+        verify(flow).requestPresentation(captor.capture());
         assertThat(captor.getValue().family()).isEqualTo("AUTOSTORE");
         assertThat(counting.task(created.getId()).getRoutingStatus()).isEqualTo("ROUTED");
     }
@@ -167,8 +179,7 @@ class CountRoutingTest {
         CountTask created = counting.generate(task(wh, loc, sku));
         routing.routeTask(counting.task(created.getId()));
 
-        verify(gtp, org.mockito.Mockito.never()).enqueue(any(), any());
-        verify(flow, org.mockito.Mockito.never()).createTransport(any(), any(), any(), any(), any());
+        verify(flow, org.mockito.Mockito.never()).requestPresentation(any());
 
         CountTask after = counting.task(created.getId());
         assertThat(after.getRoutingStatus()).isEqualTo("FAILED");
@@ -176,7 +187,7 @@ class CountRoutingTest {
     }
 
     @Test
-    void enqueueRejectionLeavesNoOrphanedTransportAndFailsTheTask() {
+    void aFlowRequestFailureLeavesTheTaskFailedForRetry() {
         UUID wh = UUID.randomUUID();
         UUID loc = UUID.randomUUID();
         UUID sku = UUID.randomUUID();
@@ -190,23 +201,22 @@ class CountRoutingTest {
         when(masterData.skuCode(sku)).thenReturn(Optional.of("SKU-1"));
         when(inventory.findHuAt(wh, sku, loc))
                 .thenReturn(Optional.of(new InventoryClient.HandlingUnit(huId, "HU-1", new BigDecimal("12"))));
-        // Station in-transit cap reached (the concurrent-routing case): enqueue is the capacity gate.
-        org.mockito.Mockito.doThrow(new RuntimeException("Station in-transit cap reached (2)."))
-                .when(gtp).enqueue(eq(station), any());
+        // The induction request to flow blew up (network/5xx). The capacity gate no longer lives here
+        // — REQUESTED is uncapped in flow — so this is a generic transport failure, not a cap reject.
+        org.mockito.Mockito.doThrow(new RuntimeException("flow induction request failed"))
+                .when(flow).requestPresentation(any());
 
         CountTask created = counting.generate(task(wh, loc, sku));
         routing.routeTask(counting.task(created.getId()));
 
-        // Enqueue ran first and was rejected, so no transport was created — nothing for a retry to
-        // duplicate. The task is FAILED and will be re-attempted by the sweep once a slot frees up.
-        verify(flow, org.mockito.Mockito.never()).createTransport(any(), any(), any(), any(), any());
+        // The line is left unrouted; the task is FAILED and will be re-attempted by the sweep.
         CountTask after = counting.task(created.getId());
         assertThat(after.getRoutingStatus()).isEqualTo("FAILED");
-        assertThat(after.getRoutingReason()).containsIgnoringCase("cap");
+        assertThat(after.getRoutingReason()).containsIgnoringCase("transport request failed");
     }
 
     @Test
-    void routeTaskIsIdempotentAndEnqueuesOnlyOnce() {
+    void routeTaskIsIdempotentAndRequestsPresentationOnlyOnce() {
         UUID wh = UUID.randomUUID();
         UUID loc = UUID.randomUUID();
         UUID sku = UUID.randomUUID();
@@ -220,14 +230,14 @@ class CountRoutingTest {
         when(masterData.skuCode(sku)).thenReturn(Optional.of("SKU-1"));
         when(inventory.findHuAt(wh, sku, loc))
                 .thenReturn(Optional.of(new InventoryClient.HandlingUnit(huId, "HU-1", new BigDecimal("12"))));
+        when(flow.requestPresentation(any())).thenReturn(UUID.randomUUID());
 
         CountTask created = counting.generate(task(wh, loc, sku));
         routing.routeTask(counting.task(created.getId()));
         // A second pass must not re-route: the line is already marked routed.
         routing.routeTask(counting.task(created.getId()));
 
-        verify(gtp, times(1)).enqueue(eq(station), any());
-        verify(flow, times(1)).createTransport(eq(wh), eq("ASRS"), any(), any(), eq(huId));
+        verify(flow, times(1)).requestPresentation(any());
         assertThat(counting.task(created.getId()).getRoutingStatus()).isEqualTo("ROUTED");
     }
 }

@@ -4,7 +4,7 @@ import { useCatalog, type Catalog } from '../lib/useCatalog'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
-import { DeviceTask, listDeviceTasks, listTaskTrace } from './api'
+import { DeviceTask, HuTraceRow, listDeviceTasks, listHuTrace, listTaskTrace } from './api'
 import { listWorkplaces } from '../gtpops/api'
 
 // Transport overview (build.md §8): a live view of the device tasks the flow-orchestrator
@@ -28,6 +28,17 @@ const STATUS_BADGE: Record<string, StatusKind> = {
 // Tasks that are not yet in a terminal state count as "active".
 const ACTIVE_STATUSES = new Set(['REQUESTED', 'DISPATCHED'])
 
+// Badge colour per HU-trace lifecycle event (ADR-0007 §2.2): the early/in-flight events are
+// informational, arrival/queue is a warning (waiting to be worked), DONE is terminal/success.
+const TRACE_EVENT_BADGE: Record<string, StatusKind> = {
+  REQUESTED: 'warning',
+  RETRIEVED: 'info',
+  INDUCTED: 'info',
+  ARRIVED: 'info',
+  QUEUED: 'warning',
+  DONE: 'success',
+}
+
 // What slice of transports to show. The screen opens on "open-today" — everything still running
 // plus anything that finished today — which is the operator's working set. Switchable from the UI.
 const SCOPES = [
@@ -45,6 +56,12 @@ const CORRELATION_HELP =
   'Correlation id groups every device task that belongs to one logical transport / process ' +
   'instance — e.g. a tote retrieved from the ASRS and then conveyed to a station share one id. ' +
   'Click a row to see the full trace.'
+
+// Help for the per-HU transport-trace timeline (ADR-0007 §3.4).
+const HU_TRACE_HELP =
+  'The handling unit’s recorded transport timeline across the induction pipeline — requested, ' +
+  'retrieved from storage, inducted onto the conveyor, arrived at the workplace, queued, and done. ' +
+  'Each row is one event flow wrote as the tote moved.'
 
 function isToday(iso: string): boolean {
   const d = new Date(iso)
@@ -81,6 +98,11 @@ function badgeClass(status: string): string {
   return kind === 'muted' ? 'badge' : `badge badge-${kind}`
 }
 
+function traceEventBadgeClass(event: string): string {
+  const kind = TRACE_EVENT_BADGE[event] ?? 'muted'
+  return kind === 'muted' ? 'badge' : `badge badge-${kind}`
+}
+
 // Best-effort extraction of a field from the task payload/result, trying a few common keys.
 function field(task: DeviceTask, keys: string[]): string | undefined {
   for (const source of [task.payload, task.result]) {
@@ -112,6 +134,18 @@ function nextHop(task: DeviceTask): string {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// The handling-unit id a task is moving, used to pull flow's per-HU transport trace (ADR-0007 §3.4).
+// Prefer an explicit huId in the payload/result; fall back to correlationId, which == huId for
+// induction transports today (the contract sets correlationId = huId). Only return a value that
+// looks like a UUID so we never query hu-trace with a non-id. Undefined → the dialog falls back to
+// the byCorrelation device-task trace.
+function huId(task: DeviceTask): string | undefined {
+  const explicit = field(task, ['huId', 'handlingUnitId'])
+  if (explicit && UUID_RE.test(explicit)) return explicit
+  if (task.correlationId && UUID_RE.test(task.correlationId)) return task.correlationId
+  return undefined
+}
 
 function shortId(id?: string | null): string {
   return id ? id.slice(0, 8) : '—'
@@ -440,6 +474,7 @@ export default function TransportScreen() {
       {selected && (
         <TransportTraceDialog
           task={selected}
+          warehouseId={warehouseId}
           resolveNode={resolveNode}
           equipmentLabel={catalog.equipmentLabel}
           onClose={() => setSelected(null)}
@@ -480,47 +515,95 @@ function Detail({ label, value, mono = true }: { label: string; value: React.Rea
 }
 
 // Detail + trace dialog for a single transport. Shows the clicked task's full, code-resolved
-// fields and — when it carries a correlation id — the ordered trace of every device task in the
-// same logical transport (fetched on open). Pretty-prints the raw payload/result for the technical
-// detail an operator may need when a task fails.
+// fields and its trace. The trace prefers flow's per-HU transport-trace timeline (ADR-0007 §3.4) —
+// the lifecycle of the handling unit across the induction pipeline — whenever an HU id is resolvable
+// from the task; it falls back to the coarse byCorrelation device-task list when no HU id is
+// available, so nothing regresses. Pretty-prints the raw payload/result for the technical detail an
+// operator may need when a task fails.
 function TransportTraceDialog({
   task,
+  warehouseId,
   resolveNode,
   equipmentLabel,
   onClose,
 }: {
   task: DeviceTask
+  warehouseId: string
   resolveNode: (raw: string) => string
   equipmentLabel: Catalog['equipmentLabel']
   onClose: () => void
 }) {
+  // HU-trace timeline (preferred) and the device-task fallback are mutually exclusive: when the task
+  // carries an HU id we render the per-HU timeline, otherwise the byCorrelation device-task list.
+  const hu = huId(task)
+  const [huTrace, setHuTrace] = useState<HuTraceRow[] | null>(null)
   const [trace, setTrace] = useState<DeviceTask[] | null>(null)
   const [traceError, setTraceError] = useState<string | null>(null)
   const [loadingTrace, setLoadingTrace] = useState(false)
 
   useEffect(() => {
+    let cancelled = false
+    setHuTrace(null)
+    setTrace(null)
+    setTraceError(null)
+
+    // Preferred path: flow's per-HU transport-trace timeline.
+    if (hu) {
+      setLoadingTrace(true)
+      listHuTrace(hu, warehouseId)
+        .then((rows) => {
+          if (cancelled) return
+          // An empty timeline (e.g. a non-induction transport) falls back to the device-task trace.
+          if (rows.length) {
+            setHuTrace(rows)
+          } else if (task.correlationId) {
+            return loadTaskTrace()
+          } else {
+            setTrace([task])
+          }
+        })
+        .catch((e) => {
+          if (cancelled) return
+          // hu-trace failed — degrade to the device-task trace rather than show nothing.
+          if (task.correlationId) {
+            void loadTaskTrace()
+          } else {
+            setTraceError(e instanceof Error ? e.message : String(e))
+            setTrace([task])
+          }
+        })
+        .finally(() => !cancelled && setLoadingTrace(false))
+      return () => {
+        cancelled = true
+      }
+    }
+
+    // Fallback path: the byCorrelation device-task trace.
     if (!task.correlationId) {
       setTrace([task])
       return
     }
-    let cancelled = false
-    setLoadingTrace(true)
-    setTraceError(null)
-    listTaskTrace(task.correlationId)
-      .then((rows) => {
-        if (cancelled) return
-        setTrace(rows.length ? rows : [task])
-      })
-      .catch((e) => {
-        if (cancelled) return
-        setTraceError(e instanceof Error ? e.message : String(e))
-        setTrace([task])
-      })
-      .finally(() => !cancelled && setLoadingTrace(false))
+    void loadTaskTrace()
     return () => {
       cancelled = true
     }
-  }, [task])
+
+    function loadTaskTrace(): Promise<void> {
+      setLoadingTrace(true)
+      setTraceError(null)
+      return listTaskTrace(task.correlationId as string)
+        .then((rows) => {
+          if (cancelled) return
+          setTrace(rows.length ? rows : [task])
+        })
+        .catch((e) => {
+          if (cancelled) return
+          setTraceError(e instanceof Error ? e.message : String(e))
+          setTrace([task])
+        })
+        .finally(() => !cancelled && setLoadingTrace(false))
+    }
+  }, [task, hu, warehouseId])
 
   // Close on Escape.
   useEffect(() => {
@@ -564,21 +647,32 @@ function TransportTraceDialog({
           </div>
         )}
 
-        {/* Correlation + trace */}
+        {/* Trace: prefer flow's per-HU transport-trace timeline, fall back to byCorrelation tasks. */}
         <div style={{ marginTop: '1.4rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
-            <h3 style={{ margin: 0 }}>Trace</h3>
-            <InfoTip text={CORRELATION_HELP} example="Retrieve → Convey → Store" />
-            {task.correlationId && (
+            <h3 style={{ margin: 0 }}>{huTrace ? 'HU timeline' : 'Trace'}</h3>
+            <InfoTip
+              text={huTrace ? HU_TRACE_HELP : CORRELATION_HELP}
+              example={huTrace ? 'Requested → Retrieved → Arrived → Queued → Done' : 'Retrieve → Convey → Store'}
+            />
+            {huTrace && hu ? (
               <span className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.72rem' }}>
-                correlation {task.correlationId}
+                HU {task.payload && huCode(task) !== '—' ? `${huCode(task)} · ` : ''}{hu}
               </span>
+            ) : (
+              task.correlationId && (
+                <span className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.72rem' }}>
+                  correlation {task.correlationId}
+                </span>
+              )
             )}
           </div>
           <p className="muted" style={{ marginTop: '.35rem', fontSize: '.8rem' }}>
-            {task.correlationId
-              ? 'Every device task that shares this transport’s correlation id, in dispatch order.'
-              : 'This task has no correlation id, so it stands on its own — no linked steps.'}
+            {huTrace
+              ? 'The handling unit’s lifecycle across the induction pipeline, in time order — each row is a recorded transport event.'
+              : task.correlationId
+                ? 'Every device task that shares this transport’s correlation id, in dispatch order.'
+                : 'This task has no correlation id, so it stands on its own — no linked steps.'}
           </p>
 
           {loadingTrace && <p className="muted">Loading trace…</p>}
@@ -588,7 +682,49 @@ function TransportTraceDialog({
             </div>
           )}
 
-          {trace && (
+          {/* Preferred: per-HU transport-trace timeline. */}
+          {huTrace && (
+            <ol style={{ listStyle: 'none', margin: '.5rem 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+              {huTrace.map((row, i) => {
+                const isCurrent = row.taskId != null && row.taskId === task.id
+                const from = row.fromPoint ? resolveNode(row.fromPoint) : null
+                const to = row.toPoint ? resolveNode(row.toPoint) : null
+                return (
+                  <li
+                    key={row.id}
+                    className="glass"
+                    style={{
+                      padding: '.6rem .8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '.75rem',
+                      flexWrap: 'wrap',
+                      outline: isCurrent ? '1px solid var(--accent, #8DC63F)' : 'none',
+                    }}
+                  >
+                    <span className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.75rem', minWidth: '1.4rem' }}>{i + 1}</span>
+                    <span className={traceEventBadgeClass(row.event)}>{row.event}</span>
+                    {row.point && (
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{resolveNode(row.point)}</span>
+                    )}
+                    {(from || to) && (
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.78rem' }}>
+                        {from ?? '—'} → {to ?? '—'}
+                      </span>
+                    )}
+                    {row.decision && (
+                      <span className="muted" style={{ fontSize: '.75rem' }}>{row.decision}</span>
+                    )}
+                    <span className="muted" style={{ fontSize: '.75rem', marginLeft: 'auto', whiteSpace: 'nowrap' }}>{formatTime(row.ts)}</span>
+                    {isCurrent && <span className="muted" style={{ fontSize: '.7rem' }}>(this task)</span>}
+                  </li>
+                )
+              })}
+            </ol>
+          )}
+
+          {/* Fallback: byCorrelation device-task list. */}
+          {!huTrace && trace && (
             <ol style={{ listStyle: 'none', margin: '.5rem 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
               {trace.map((step, i) => {
                 const isCurrent = step.id === task.id

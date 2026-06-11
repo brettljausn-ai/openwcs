@@ -143,6 +143,50 @@ func TestConfigEndpoint(t *testing.T) {
 	}
 }
 
+// The CONVEY leg (ADR-0007 §4.2/§4.3): flow dispatches a CONVEYOR/CONVEY device task with a
+// callbackUrl; the emulator runs it as the conveyor leg and POSTs COMPLETED back via the async §3b
+// callback. That COMPLETED callback IS the arrival event flow keys onConveyCompleted off. This test
+// locks that the conveyor leg is acked ACCEPTED and then completes asynchronously.
+func TestConveyLegCompletesViaAsyncCallback(t *testing.T) {
+	got := make(chan deviceTaskResult, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var res deviceTaskResult
+		_ = json.NewDecoder(r.Body).Decode(&res)
+		got <- res
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	res := postTask(t, deviceTaskRequest{
+		TaskID:  "convey-1",
+		Family:  "CONVEYOR",
+		Command: "CONVEY",
+		Payload: map[string]interface{}{
+			"destinationWorkplaceId": "wp-1",
+			"huId":                   "hu-1",
+		},
+		CallbackURL: srv.URL,
+	})
+	if res.Status != "ACCEPTED" {
+		t.Fatalf("immediate status = %q, want ACCEPTED", res.Status)
+	}
+
+	select {
+	case cb := <-got:
+		if cb.Status != "COMPLETED" {
+			t.Fatalf("CONVEY callback status = %q, want COMPLETED (= arrival)", cb.Status)
+		}
+		if cb.ResultPayload["family"] != "CONVEYOR" {
+			t.Fatalf("callback resultPayload.family = %v, want CONVEYOR", cb.ResultPayload["family"])
+		}
+		if cb.ResultPayload["command"] != "CONVEY" {
+			t.Fatalf("callback resultPayload.command = %v, want CONVEY", cb.ResultPayload["command"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no CONVEY callback received within 2s")
+	}
+}
+
 // With a callbackUrl, the task is acked ACCEPTED immediately and the terminal result is POSTed back.
 func TestAsyncDispatchCallsBack(t *testing.T) {
 	got := make(chan deviceTaskResult, 1)

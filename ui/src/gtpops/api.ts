@@ -88,19 +88,37 @@ export interface WorkCycle {
   taskLines: TaskLine[]
 }
 
-// Inbound work queue: the physical tote queue at a station. Entries are IN_TRANSIT (tote still
-// travelling, arrivalAt in the future) or QUEUED (arrived, waiting to be worked) in arrival order.
+// Inbound induction queue: the full inbound pipeline for a workplace, owned by flow-orchestrator
+// (ADR-0007 §3.2). Read from `GET /api/flow/induction/queue?workplaceId={stationId}` and mapping
+// flow's `InductionEntryView` JSON. Unlike the old gtp station queue this includes REQUESTED totes
+// that are still in the ASRS (not yet retrieved) — the full REQUESTED → IN_TRANSIT → QUEUED pipeline
+// (R3); DONE is excluded by the endpoint. Order: QUEUED first (by arrivalSeq), then IN_TRANSIT, then
+// REQUESTED — i.e. arrival order with the workable head first.
+//
+// `id` is the flow induction-entry id; it is the id passed back to gtp for completion/exceptions
+// (gtp fans the completion out to flow + store-back), so the operator flow is unchanged.
 export interface StationQueueEntry {
   id: string
-  stationId: string
+  // Destination workplace (today a GTP station id). Flow calls this `workplaceId`; kept under the
+  // same name as the flow JSON.
+  workplaceId: string
+  workplaceKind?: string
   huId: string
   huCode: string
   skuId: string
   skuCode: string
   qty: number
   mode: OperatingMode
-  status: 'IN_TRANSIT' | 'QUEUED' | 'DONE'
-  arrivalAt: string
+  // REQUESTED = requested, still in storage (not yet retrieved); IN_TRANSIT = retrieved, on the
+  // conveyor; QUEUED = arrived at the station, waiting to be worked. DONE never appears here.
+  status: 'REQUESTED' | 'IN_TRANSIT' | 'QUEUED' | 'DONE'
+  // Arrival sequence, assigned at QUEUED time (arrival order, R2/R4). null until QUEUED.
+  arrivalSeq: number | null
+  // Lifecycle timestamps (flow §3.1 shape). requestedAt is always set; the others fill in as the
+  // entry advances. There is no predicted arrival time — flow reports actual transitions only.
+  requestedAt: string
+  inTransitAt?: string | null
+  queuedAt?: string | null
   // STOCK_COUNT mode: the count task + line this tote belongs to, so an at-station blind count can be
   // submitted against the host. Absent on manually-enqueued totes (which fall back to "done counting").
   countTaskId?: string | null
@@ -181,10 +199,15 @@ export async function closeCycle(cycleId: string): Promise<WorkCycle> {
 }
 
 // ---- inbound work queue + station drain ----
+// Reads the workplace's induction queue slice from flow (the source of truth since ADR-0007 3c-1),
+// not the legacy gtp station queue. Returns the whole inbound pipeline {REQUESTED, IN_TRANSIT,
+// QUEUED}; DONE is excluded by the endpoint.
 export async function getStationQueue(stationId: string): Promise<StationQueueEntry[]> {
-  return ok(await fetch(`/api/gtp/stations/${stationId}/queue`))
+  return ok(await fetch(`/api/flow/induction/queue?workplaceId=${encodeURIComponent(stationId)}`))
 }
 
+// Completion stays a gtp call: gtp fans out to flow's `done` endpoint and runs store-back. The UI
+// must NOT call flow directly for completion. `entryId` is the flow induction-entry id.
 export async function completeQueueEntry(entryId: string): Promise<StationQueueEntry> {
   return ok(await fetch(`/api/gtp/queue/${entryId}/complete`, { method: 'POST', headers: json }))
 }

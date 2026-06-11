@@ -8,6 +8,8 @@ import org.openwcs.flow.domain.HuRoute;
 import org.openwcs.flow.domain.TopologyObservation;
 import org.openwcs.flow.repo.DeviceTaskRepository;
 import org.openwcs.flow.repo.HuRouteRepository;
+import org.openwcs.flow.repo.HuTransportTraceRepository;
+import org.openwcs.flow.repo.InductionQueueEntryRepository;
 import org.openwcs.flow.repo.TopologyObservationRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,12 +26,18 @@ public class FlowDemoService {
     private final DeviceTaskRepository deviceTasks;
     private final HuRouteRepository huRoutes;
     private final TopologyObservationRepository observations;
+    private final InductionQueueEntryRepository induction;
+    private final HuTransportTraceRepository traces;
 
     public FlowDemoService(DeviceTaskRepository deviceTasks, HuRouteRepository huRoutes,
-                           TopologyObservationRepository observations) {
+                           TopologyObservationRepository observations,
+                           InductionQueueEntryRepository induction,
+                           HuTransportTraceRepository traces) {
         this.deviceTasks = deviceTasks;
         this.huRoutes = huRoutes;
         this.observations = observations;
+        this.induction = induction;
+        this.traces = traces;
     }
 
     /**
@@ -46,6 +54,10 @@ public class FlowDemoService {
 
         List<TopologyObservation> obs = observations.findByWarehouseId(warehouseId);
         observations.deleteAll(obs);
+
+        // ADR-0007 §3c-1 induction queue + HU transport trace are transactional flow state too.
+        induction.deleteAll(induction.findByWarehouseId(warehouseId));
+        traces.deleteAll(traces.findByWarehouseId(warehouseId));
 
         return new DemoClearResult(tasks.size(), routes.size(), obs.size());
     }
