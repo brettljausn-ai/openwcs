@@ -381,7 +381,13 @@ export function decisionPoints(sections: number[][]): Set<number> {
 // the outgoing section that runs most perpendicular to the through-line (the divert branch), then
 // cascade-remove any sections/points that become unreachable from the conveyor start, and GC the
 // orphaned points (re-indexing). Returns the equipment unchanged when there's no branch to remove.
-export function removeDivertBranch(eq: AutomationEquipment, offsetM: number): AutomationEquipment {
+// When `side` is given (the FP's LEFT/RIGHT), branches on that side are strongly preferred — so a
+// junction carrying BOTH a left and a right stub (the L+R direction picker) loses the right one.
+export function removeDivertBranch(
+  eq: AutomationEquipment,
+  offsetM: number,
+  side: 'LEFT' | 'RIGHT' | null = null,
+): AutomationEquipment {
   const path = Array.isArray(eq.path) ? eq.path.map((p) => [p[0], p[1]]) : []
   if (path.length < 2) return eq
   let sections = effectiveSections(eq).map((s) => [s[0], s[1]])
@@ -410,9 +416,10 @@ export function removeDivertBranch(eq: AutomationEquipment, offsetM: number): Au
   ix /= ilen
   iz /= ilen
   // The branch = the outgoing section most perpendicular to the incoming travel (the through-line
-  // continues roughly straight; the divert turns off it).
+  // continues roughly straight; the divert turns off it). With a known side, a wrong-side candidate
+  // takes a large score penalty so the matching stub wins whenever one exists on each side.
   let branch: number[] | null = null
-  let bestPerp = Infinity
+  let bestScore = Infinity
   for (const s of outgoings) {
     let ox = path[s[1]][0] - path[jIdx][0]
     let oz = path[s[1]][1] - path[jIdx][1]
@@ -420,8 +427,12 @@ export function removeDivertBranch(eq: AutomationEquipment, offsetM: number): Au
     ox /= olen
     oz /= olen
     const dot = Math.abs(ix * ox + iz * oz)
-    if (dot < bestPerp) {
-      bestPerp = dot
+    // Side of this outgoing relative to incoming travel. Matches the addDivertBranch convention
+    // (LEFT endpoint = j + (dz, -dx)): a LEFT branch has cross = ix*oz - iz*ox < 0.
+    const branchSide = ix * oz - iz * ox < 0 ? 'LEFT' : 'RIGHT'
+    const score = dot + (side && branchSide !== side ? 10 : 0)
+    if (score < bestScore) {
+      bestScore = score
       branch = s
     }
   }
@@ -771,8 +782,12 @@ export default function AutomationTopology3D({
     (id: string) => {
       const fp = functionPoints.find((f) => f.id === id)
       // Deleting a point whose function set INCLUDES a divert also removes the branch it spawned.
+      // The FP's side picks WHICH branch when the junction carries both a left and a right stub.
       if (fp && fpFunctions(fp.functionType).some(isDivertType)) {
-        setEquipment((es) => es.map((e) => (e.id === fp.placedId ? removeDivertBranch(e, fp.offsetM) : e)))
+        const side = fp.side === 'LEFT' || fp.side === 'RIGHT' ? fp.side : null
+        setEquipment((es) =>
+          es.map((e) => (e.id === fp.placedId ? removeDivertBranch(e, fp.offsetM, side) : e)),
+        )
       }
       setFunctionPoints((fps) => fps.filter((f) => f.id !== id))
       setDirty(true)
@@ -1238,6 +1253,20 @@ export default function AutomationTopology3D({
     setActiveFromIdx(idx)
   }, [])
 
+  // Enter draw-sections mode anchored at one of a conveyor's waypoints — the 2D plan's
+  // double-click-to-draw entry (same machinery as the Draw sections button + a re-anchor click,
+  // without the side-panel trip). Selecting the item keeps the can-edit-path guard effect happy.
+  const startDrawAtWaypoint = useCallback((id: string, index: number) => {
+    setSelectedId(id)
+    setDrawPath(true)
+    setActiveFromIdx(index)
+  }, [])
+
+  // Leave draw-sections mode (the 2D plan's Escape / double-click-again exit).
+  const exitDraw = useCallback(() => {
+    setDrawPath(false)
+  }, [])
+
   // Remove the most recently added section (no-op when there are none). Leaves any now-orphan path
   // points in place (harmless; Clear resets everything).
   const removeLastSection = useCallback((id: string) => {
@@ -1639,6 +1668,8 @@ export default function AutomationTopology3D({
               onPatch={patchEquipment}
               onDeleteWaypoint={deleteWaypoint}
               onDrawAt={drawSectionAt}
+              onStartDrawAt={startDrawAtWaypoint}
+              onExitDraw={exitDraw}
               onAddFunctionPoint={addFunctionPoint}
               onDeleteFunctionPoint={deleteFunctionPoint}
               onUpdateFunctionPoint={updateFunctionPoint}
