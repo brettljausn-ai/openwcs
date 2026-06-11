@@ -4,7 +4,10 @@ import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import org.openwcs.inventory.domain.HandlingUnit;
+import org.openwcs.inventory.domain.Stock;
 import org.openwcs.inventory.repo.HandlingUnitRepository;
+import org.openwcs.inventory.repo.StockRepository;
+import org.springframework.transaction.annotation.Transactional;
 import org.openwcs.inventory.service.HandlingUnitNotFoundException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,9 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class HandlingUnitController {
 
     private final HandlingUnitRepository handlingUnits;
+    private final StockRepository stock;
 
-    public HandlingUnitController(HandlingUnitRepository handlingUnits) {
+    public HandlingUnitController(HandlingUnitRepository handlingUnits, StockRepository stock) {
         this.handlingUnits = handlingUnits;
+        this.stock = stock;
     }
 
     /** All handling units registered in a warehouse. */
@@ -73,10 +78,17 @@ public class HandlingUnitController {
      * slot back.
      */
     @PutMapping("/{id}/location")
+    @Transactional
     public HandlingUnit updateLocation(@PathVariable UUID id, @RequestBody LocationUpdateRequest request) {
         HandlingUnit existing = handlingUnits.findById(id)
                 .orElseThrow(() -> new HandlingUnitNotFoundException(id));
         existing.setLocationId(request.locationId());
+        // The stock RIDES IN the tote: its rows' location must follow the HU, or the stock overview
+        // keeps pointing at the slot the tote left (observed live after retrieves and dig-out moves).
+        for (Stock s : stock.findByHuId(id)) {
+            s.setLocationId(request.locationId());
+            stock.save(s);
+        }
         return handlingUnits.save(existing);
     }
 }

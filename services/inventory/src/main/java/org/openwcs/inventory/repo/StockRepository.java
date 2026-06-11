@@ -19,6 +19,9 @@ public interface StockRepository extends JpaRepository<Stock, UUID> {
 
     List<Stock> findByLocationId(UUID locationId);
 
+    /** Every stock row riding in a handling unit — moved together with the HU's location booking. */
+    List<Stock> findByHuId(UUID huId);
+
     /** Count of stock rows sitting at any of the given locations (occupancy check for block deletion). */
     long countByLocationIdIn(java.util.Collection<UUID> locationIds);
 
