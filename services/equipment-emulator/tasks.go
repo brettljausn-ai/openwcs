@@ -92,6 +92,15 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 	// simulated processing time.
 	if req.CallbackURL != "" {
 		_ = json.NewEncoder(w).Encode(deviceTaskResult{Status: "ACCEPTED", Detail: "dispatched; result will follow via callback"})
+		// A CONVEY whose payload carries an entryNode runs the live conveyor walk (ADR-0008
+		// Phase 3d-2): scan at every node, obey flow's routing answers, travel edges at speedMps.
+		// Without an entryNode the atomic simulation below stays byte-for-byte unchanged.
+		if isLiveWalk(family, req) {
+			go func() {
+				postCallback(req.CallbackURL, req.TaskID, runLiveWalk(family, req))
+			}()
+			return
+		}
 		go func() {
 			postCallback(req.CallbackURL, req.TaskID, runTask(family, req))
 		}()
