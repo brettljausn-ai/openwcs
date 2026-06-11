@@ -23,6 +23,7 @@ import org.openwcs.flow.api.RoutingDtos.RoutingDecision;
 import org.openwcs.flow.api.RoutingDtos.ScanRequest;
 import org.openwcs.flow.api.RoutingDtos.Topology;
 import org.openwcs.flow.client.DeviceClient;
+import org.openwcs.flow.client.InventoryClient;
 import org.openwcs.flow.client.WorkplaceClient;
 import org.openwcs.flow.repo.HuTransportTraceRepository;
 import org.openwcs.flow.service.AutomationTopologyService;
@@ -67,6 +68,9 @@ class LiveScanConveyanceTest {
 
     @MockBean
     WorkplaceClient workplaceClient;
+
+    @MockBean
+    InventoryClient inventoryClient;
 
     @Autowired
     InductionQueueService induction;

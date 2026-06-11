@@ -276,6 +276,8 @@ services:
       OPENWCS_FLOW_SELF_BASE_URL: http://flow-orchestrator:8085
       # Project topology STOCK/ORDER interactions into GTP station nodes (best-effort on routing projection).
       OPENWCS_GTP_BASE_URL: http://gtp:8094
+      # Book HU registry locations through the transport lifecycle (retrieve -> null, store-back -> slot).
+      OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
 
   txlog:
     restart: unless-stopped

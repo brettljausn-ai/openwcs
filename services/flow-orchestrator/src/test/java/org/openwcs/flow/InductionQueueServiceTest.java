@@ -2,6 +2,8 @@ package org.openwcs.flow;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -14,6 +16,7 @@ import org.openwcs.flow.api.HuTraceView;
 import org.openwcs.flow.api.InductionEntryView;
 import org.openwcs.flow.api.InductionRequest;
 import org.openwcs.flow.client.DeviceClient;
+import org.openwcs.flow.client.InventoryClient;
 import org.openwcs.flow.client.WorkplaceClient;
 import org.openwcs.flow.service.DeviceTaskService;
 import org.openwcs.flow.service.HuTraceService;
@@ -54,6 +57,9 @@ class InductionQueueServiceTest {
 
     @MockBean
     WorkplaceClient workplaceClient;
+
+    @MockBean
+    InventoryClient inventoryClient;
 
     @Autowired
     InductionQueueService induction;
@@ -301,6 +307,64 @@ class InductionQueueServiceTest {
         HuTraceView stored = timeline.stream().filter(t -> "STORED".equals(t.event())).findFirst().orElseThrow();
         assertThat(stored.point()).startsWith("slot:");
         assertThat(stored.decision()).isEqualTo("stored back to source slot");
+    }
+
+    @Test
+    void retrieveCompletionBooksTheHuOutOfItsSlot() {
+        asyncAdapter();
+        cap(5, 5);
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+
+        InductionEntryView created = induction.request(req(warehouse, workplace, huId, "TOTE-1", "STOCK_COUNT"), "op");
+        deviceTasks.completeFromCallback(created.retrieveTaskId(), "COMPLETED", "retrieved", Map.of());
+
+        // The tote left its slot: the HU registry is booked to locationId = null (in transit).
+        verify(inventoryClient).bookLocation(huId, null);
+    }
+
+    @Test
+    void returnStoreCompletionBooksTheHuBackIntoItsSourceSlot() {
+        asyncAdapter();
+        cap(5, 5);
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        InductionEntryView queued = driveToQueued(warehouse, workplace, huId, "TOTE-1");
+        UUID sourceSlot = queued.locationId();
+        assertThat(sourceSlot).isNotNull();
+
+        InductionEntryView done = induction.markDone(queued.id(), "ASRS", "op");
+        deviceTasks.completeFromCallback(done.returnConveyTaskId(), "COMPLETED", "arrived", Map.of());
+        deviceTasks.completeFromCallback(induction.get(done.id()).returnStoreTaskId(), "COMPLETED", "stored", Map.of());
+
+        // The tote is physically back: the HU registry is booked back into the source slot.
+        verify(inventoryClient).bookLocation(huId, sourceSlot);
+    }
+
+    @Test
+    void locationBookingFailureNeverBreaksThePipeline() {
+        asyncAdapter();
+        cap(5, 5);
+        doThrow(new RuntimeException("inventory down")).when(inventoryClient).bookLocation(any(), any());
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+
+        // Retrieve completion still advances to IN_TRANSIT + dispatches the CONVEY leg.
+        InductionEntryView created = induction.request(req(warehouse, workplace, huId, "TOTE-1", "STOCK_COUNT"), "op");
+        deviceTasks.completeFromCallback(created.retrieveTaskId(), "COMPLETED", "retrieved", Map.of());
+        InductionEntryView inTransit = induction.get(created.id());
+        assertThat(inTransit.status()).isEqualTo("IN_TRANSIT");
+        assertThat(inTransit.conveyTaskId()).isNotNull();
+
+        // ... and the return-leg STORE completion still writes the STORED trace.
+        deviceTasks.completeFromCallback(inTransit.conveyTaskId(), "COMPLETED", "arrived", Map.of());
+        InductionEntryView done = induction.markDone(created.id(), "ASRS", "op");
+        deviceTasks.completeFromCallback(done.returnConveyTaskId(), "COMPLETED", "arrived", Map.of());
+        deviceTasks.completeFromCallback(induction.get(done.id()).returnStoreTaskId(), "COMPLETED", "stored", Map.of());
+        assertThat(traces.timeline(huId, warehouse)).extracting(HuTraceView::event).contains("STORED");
     }
 
     @Test

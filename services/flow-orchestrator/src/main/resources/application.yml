@@ -44,6 +44,8 @@ openwcs:
     self-base-url: ${OPENWCS_FLOW_SELF_BASE_URL:http://localhost:8085}
     # gtp service base URL — projecting topology STOCK/ORDER interactions into station nodes.
     gtp-base-url: ${OPENWCS_GTP_BASE_URL:http://localhost:8094}
+    # inventory service base URL — booking HU locations through the transport lifecycle.
+    inventory-base-url: ${OPENWCS_INVENTORY_BASE_URL:http://localhost:8082}
 
 management:
   endpoints:
