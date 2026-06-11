@@ -23,9 +23,11 @@ A Claude Code agent reviews **everything that landed on `main` in the last 24 ho
 (`git diff <last-commit-before-the-window>..HEAD`) and, **only if the change warrants it**:
 
 1. Updates the in-repo docs — `README.md`, `docs/AS-BUILT.md`, `docs/DEVELOPMENT-STATUS.md`.
-2. Updates the **public marketing site** under `public/` (keeping `public/i18n.js` in 4-language
-   parity, verified with `public/i18n-check.js`) — for user-facing capabilities only.
-3. Updates `public/roadmap.md` when a capability's status changed.
+2. Updates the **public marketing site** (Express + EJS) — editing the source pages in
+   `public/src-html/` and the strings in `public/static/i18n.js` (keeping all four languages in
+   parity), then regenerating the views with `npm run build:pages` and verifying with
+   `node public/static/i18n-check.js` — for user-facing capabilities only.
+3. Updates `public/static/roadmap.md` when a capability's status changed.
 
 The script then commits those edits (scoped to `README.md` / `docs/` / `public/`) directly to `main`
 with a `[docs-agent]` marker. It makes no changes — and no commit — when the window has no commits, or

@@ -55,15 +55,20 @@ STEP 2 — In-repo docs. Update only what the changes warrant:
   - docs/AS-BUILT.md and docs/DEVELOPMENT-STATUS.md (status, the service rows, the relevant section)
   Keep the format; edit the specific rows/sections, do not rewrite.
 
-STEP 3 — Public marketing site (ONLY for a user-facing product capability). Update the relevant page
-  under public/ and public/i18n.js, keeping ALL FOUR languages (en/de/fr/es) in parity. Then run
-  \`node public/i18n-check.js\` and fix any missing keys. Skip this step for internal-only changes.
+STEP 3 — Public marketing site (ONLY for a user-facing product capability). The site is an Express +
+  EJS app; the EDITABLE SOURCE is public/src-html/*.html (the views/ and data/pages.json are
+  generated). Edit the relevant page under public/src-html/ and the strings in public/static/i18n.js,
+  keeping ALL FOUR languages (en/de/fr/es) in parity. Then regenerate and verify:
+    cd public && npm install && npm run build:pages && node static/i18n-check.js
+  Fix any missing keys until the check passes, and leave the regenerated public/views/ +
+  public/data/pages.json in place (they are committed). Skip this step for internal-only changes.
 
-STEP 4 — Roadmap. public/roadmap.md is the single source of truth for the roadmap page
-  (public/roadmap.html renders it verbatim). If the day's changes change a capability's status — a
-  roadmap item ships, work starts on it, or new planned work is introduced — update the matching
-  \`- [status] Title\` line there (status is done | active | planned | exploring). Keep it honest:
-  never mark something \`done\` before it is built end-to-end. Don't touch roadmap.md otherwise.
+STEP 4 — Roadmap. public/static/roadmap.md is the single source of truth for the roadmap page
+  (public/src-html/roadmap.html fetches and renders it at runtime). If the day's changes change a
+  capability's status — a roadmap item ships, work starts on it, or new planned work is introduced —
+  update the matching \`- [status] Title\` line there (status is done | active | planned | exploring).
+  Keep it honest: never mark something \`done\` before it is built end-to-end. Don't touch roadmap.md
+  otherwise.
 
 Do NOT touch the GitHub wiki — it is synced separately. Do NOT commit, push, or open a PR yourself;
 the surrounding script commits your edits to \`main\`. Finish by printing a one-line summary of what
