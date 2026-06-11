@@ -166,9 +166,20 @@ function sideForType(type: string): 'LEFT' | 'RIGHT' | null {
 const DIVERT_PICKER = 'DIVERT'
 
 // Palette buttons: FUNCTION_TYPES with the two divert types collapsed into the one DIV picker chip.
-const PALETTE_TYPES: string[] = (FUNCTION_TYPES as readonly string[]).flatMap((t) =>
-  t === 'DIVERT_LEFT' ? [DIVERT_PICKER] : t === 'DIVERT_RIGHT' ? [] : [t],
-)
+// LAZY (computed on first use, cached) — NOT a module-level const: PlanEditor2D and
+// AutomationTopology3D import each other (FUNCTION_TYPES comes from the latter), and in the rolled-up
+// production chunk this module's top-level code runs BEFORE the other module's consts initialize —
+// a module-level flatMap over FUNCTION_TYPES threw "Cannot access 'X' before initialization" in prod
+// (dev's per-module ESM ordering masked it).
+let paletteTypesCache: string[] | null = null
+function paletteTypes(): string[] {
+  if (!paletteTypesCache) {
+    paletteTypesCache = (FUNCTION_TYPES as readonly string[]).flatMap((t) =>
+      t === 'DIVERT_LEFT' ? [DIVERT_PICKER] : t === 'DIVERT_RIGHT' ? [] : [t],
+    )
+  }
+  return paletteTypesCache
+}
 
 // The side implied by a function SET: the first divert member's side (null if the set has none).
 function sideForSet(functionType: string): 'LEFT' | 'RIGHT' | null {
@@ -958,7 +969,7 @@ export default function PlanEditor2D({
         <div className="plan2d-fpbar">
           <span className="plan2d-bar-label">New point</span>
           <div className="plan2d-fppalette">
-            {PALETTE_TYPES.map((t) => {
+            {paletteTypes().map((t) => {
               // The two divert types collapse into ONE picker chip — directions are chosen on drop.
               const isDivert = t === DIVERT_PICKER
               const isPort = t === 'INDUCT' || t === 'DISCHARGE'
