@@ -34,15 +34,26 @@ export interface EquipmentActivity {
 
 export type ToteRuntimeState = 'in-transit' | 'recirculating' | 'queued' | 'done'
 
+/** A SCANNED row from the HU transport trace, reduced to what positioning needs (ADR-0008 §3). */
+export interface ScanRow {
+  event: string
+  point?: string | null
+  toPoint?: string | null
+  ts: string
+}
+
 export interface ToteView {
   huId: string
   huCode?: string | null
   state: ToteRuntimeState
-  // Where the tote is now / where it came from — both as placed-equipment ids the 3D layer resolves to
-  // a world point. `anchorPlacedId` may be null when the tote's equipment isn't placed in the topology
-  // (the scene then parks it at the induction origin / hides it).
+  // Where the tote is when it is NOT mid-walk — a placed-equipment id the 3D layer resolves to a
+  // world point (the station it queues at / the equipment of its last task). Null when unknown — the
+  // scene hides the tote rather than inventing a position.
   anchorPlacedId: string | null
-  prevPlacedId: string | null
+  /** Observed live position (ADR-0008 replay): the last scanned node, the answered next node, and the
+   *  scan timestamp. The 3D layer interpolates fromXZ → toXZ at the conveyor speed (0.5 m/s) from
+   *  tsMs, per frame — continuous motion between polls, derived only from observed scans. */
+  scan?: { fromXZ: [number, number]; toXZ: [number, number] | null; tsMs: number } | null
   lastCommand?: string
   lastTs: string
   correlationId?: string | null
@@ -62,8 +73,18 @@ export interface TwinSnapshot {
   activityByPlacedId: Record<string, EquipmentActivity>
   totes: ToteView[]
   stats: TwinStats
-  /** The placement id of the "main" conveyor (longest path) — the 3D layer glides totes along it. */
-  mainConveyorPlacedId: string | null
+}
+
+/** Optional live inputs for deriveTwin beyond the device-task feed (ADR-0008 replay). */
+export interface TwinLiveInputs {
+  /** Per-HU transport-trace rows (any order; only SCANNED rows are used). */
+  tracesByHu?: Map<string, ScanRow[]>
+  /** Routing-node code → world [x, z] (from the conveyor topology the walk runs on). */
+  nodeXZ?: Map<string, [number, number]>
+  /** TRUTH source for queued totes: workplace/station id → the entries actually QUEUED there (from
+   *  flow's induction queue). When provided, "queued" is never inferred from stale completed CONVEY
+   *  tasks — an HU whose work is DONE simply stops being shown as queued. */
+  queuedByStation?: Map<string, Array<{ huId: string; huCode?: string | null }>>
 }
 
 // ----------------------------------------------------------------------------------------------------
@@ -134,50 +155,12 @@ export function anchorPoint(geom: PlacementGeom): [number, number, number] {
   return [geom.center[0], geom.elevationM + (geom.size[1] || 0.5) + 0.12, geom.center[2]]
 }
 
-/** Waypoints (world, belt height) along a conveyor's path from the vertex nearest `from` to the
- *  vertex nearest `to`, walking the path in index order (wrapping when `closed`). Lets the 3D layer
- *  glide a tote ALONG the conveyor between two equipment anchors instead of cutting straight across
- *  the floor. Returns [] when the geom has no usable path. */
-export function routeAlong(
-  geom: PlacementGeom,
-  from: [number, number],
-  to: [number, number],
-  closed = false,
-): Array<[number, number, number]> {
-  const path = geom.worldPath
-  if (!path || path.length < 2) return []
-  const nearest = (p: [number, number]): number => {
-    let best = 0
-    let bestD = Infinity
-    for (let i = 0; i < path.length; i++) {
-      const d = (path[i][0] - p[0]) ** 2 + (path[i][1] - p[1]) ** 2
-      if (d < bestD) {
-        bestD = d
-        best = i
-      }
-    }
-    return best
-  }
-  const a = nearest(from)
-  const b = nearest(to)
-  const y = geom.elevationM + BELT_Y
-  const out: Array<[number, number, number]> = []
-  if (a === b) return [[path[a][0], y, path[a][1]]]
-  if (closed) {
-    // Walk forward with wrap-around (conveyor loops run one way).
-    for (let i = a; ; i = (i + 1) % path.length) {
-      out.push([path[i][0], y, path[i][1]])
-      if (i === b) break
-    }
-  } else {
-    const step = a < b ? 1 : -1
-    for (let i = a; ; i += step) {
-      out.push([path[i][0], y, path[i][1]])
-      if (i === b) break
-    }
-  }
-  return out
-}
+/** World Y a tote rides at on the conveyor (belt height + nothing fancy — single-level for now). */
+export const SCAN_BELT_Y = BELT_Y
+
+/** ADR-0008 conveyor speed — the same 0.5 m/s the emulator walks at; used to interpolate between
+ *  a scan's node and the answered next node from the scan timestamp. */
+export const SCAN_SPEED_MPS = 0.5
 
 /** Point at arc-length fraction t in [0,1] along a path conveyor (world coords + planar direction). */
 export function pointAlongPath(
@@ -246,7 +229,12 @@ function huOf(t: DeviceTask): string | undefined {
   return payloadStr(t, 'huId') ?? t.correlationId ?? undefined
 }
 
-export function deriveTwin(tasks: DeviceTask[], topo: AutomationTopology, nowMs: number): TwinSnapshot {
+export function deriveTwin(
+  tasks: DeviceTask[],
+  topo: AutomationTopology,
+  nowMs: number,
+  live?: TwinLiveInputs,
+): TwinSnapshot {
   // equipmentId (master-data) → placement id. First placement wins if several share the equipment.
   const placedByEquipmentId = new Map<string, string>()
   for (const eq of topo.equipment) {
@@ -257,10 +245,10 @@ export function deriveTwin(tasks: DeviceTask[], topo: AutomationTopology, nowMs:
   for (const eq of topo.equipment) {
     if (eq.stationId && !placedByStationId.has(eq.stationId)) placedByStationId.set(eq.stationId, eq.id)
   }
-  // Family fallback: today the flow dispatches device tasks WITHOUT an equipmentId (by family only),
-  // so direct correlation never matches. Until the backend attributes equipment, anchor a task on the
-  // representative placement of its family: ASRS/AUTOSTORE/AMR → the (first) storage placement;
-  // CONVEYOR → the conveyor with the LONGEST path (the main loop).
+  // Family fallback — ACTIVITY ONLY. Flow dispatches device tasks without an equipmentId, so the
+  // truthful statement "an ASRS / a conveyor task is running" is attributed to the representative
+  // placement of that family (the storage placement / the longest-path conveyor). Tote POSITIONS are
+  // never derived from this: they come from observed scans (ADR-0008) or real id correlation.
   let asrsPlacedId: string | null = null
   let mainConveyorPlacedId: string | null = null
   let longest = -1
@@ -283,6 +271,26 @@ export function deriveTwin(tasks: DeviceTask[], topo: AutomationTopology, nowMs:
   }
   const placedOf = (equipmentId?: string | null, family?: string | null): string | null =>
     (equipmentId && placedByEquipmentId.get(equipmentId)) || fallbackFor(family)
+  /** Strict resolution for tote anchoring — no family guessing. */
+  const placedOfStrict = (equipmentId?: string | null): string | null =>
+    (equipmentId && placedByEquipmentId.get(equipmentId)) || null
+
+  // Latest SCANNED row per HU → observed live position (node + answered next node + timestamp).
+  const scanOf = (huId: string): ToteView['scan'] => {
+    const rows = live?.tracesByHu?.get(huId)
+    const nodeXZ = live?.nodeXZ
+    if (!rows || !nodeXZ) return null
+    let best: ScanRow | null = null
+    for (const r of rows) {
+      if (r.event !== 'SCANNED' || !r.point) continue
+      if (!best || tsMs(r.ts) > tsMs(best.ts)) best = r
+    }
+    if (!best || !best.point) return null
+    const from = nodeXZ.get(best.point)
+    if (!from) return null
+    const to = best.toPoint ? nodeXZ.get(best.toPoint) ?? null : null
+    return { fromXZ: from, toXZ: to, tsMs: tsMs(best.ts) }
+  }
 
   // --- Equipment activity -----------------------------------------------------------------------
   const activityByPlacedId: Record<string, EquipmentActivity> = {}
@@ -322,15 +330,12 @@ export function deriveTwin(tasks: DeviceTask[], topo: AutomationTopology, nowMs:
     }
   }
 
-  // --- Totes: latest task per HU drives state + anchor ------------------------------------------
+  // --- Totes: latest task per HU drives state; position = observed scans or strict anchors -------
   const latestByHu = new Map<string, DeviceTask>()
-  const prevByHu = new Map<string, DeviceTask>() // the task before the latest (for the tween origin)
   for (const t of tasks) {
-    // tasks are newest-first, so the first time we see a HU it's the latest; the second is the previous.
+    // tasks are newest-first, so the first time we see a HU it's the latest.
     const hu = huOf(t)
-    if (!hu) continue
-    if (!latestByHu.has(hu)) latestByHu.set(hu, t)
-    else if (!prevByHu.has(hu)) prevByHu.set(hu, t)
+    if (hu && !latestByHu.has(hu)) latestByHu.set(hu, t)
   }
 
   const totes: ToteView[] = []
@@ -340,26 +345,38 @@ export function deriveTwin(tasks: DeviceTask[], topo: AutomationTopology, nowMs:
     const status = (t.status || '').toUpperCase()
     const created = tsMs(t.createdAt)
     const decisions = resultDecisions(t)
-    const recirculated = decisions.some((d) => d.event === 'RECIRCULATED') || resultRecirc(t) > 0
+    const held = decisions.some((d) => d.event === 'RECIRCULATED' || d.event === 'HELD') || resultRecirc(t) > 0
     const destWp = payloadStr(t, 'destinationWorkplaceId')
-    const prev = prevByHu.get(hu)
-    const prevPlacedId = placedOf(prev?.equipmentId, prev?.family)
 
     let state: ToteRuntimeState
-    let anchorPlacedId: string | null
+    let anchorPlacedId: string | null = null
+    let scan: ToteView['scan'] = null
     if (RUNNING_STATUSES.has(status)) {
-      state = recirculated ? 'recirculating' : 'in-transit'
-      anchorPlacedId = placedOf(t.equipmentId, t.family)
+      state = held ? 'recirculating' : 'in-transit'
+      // Position comes from the observed scan trail (ADR-0008 replay). Without scans (atomic mode /
+      // un-projected warehouse) the tote has no honest position mid-transit: anchor strictly by the
+      // task's real equipmentId or not at all — never by family guess.
+      scan = scanOf(hu)
+      if (!scan) anchorPlacedId = placedOfStrict(t.equipmentId)
       inTransit++
     } else if (status === 'COMPLETED') {
-      // A completed CONVEY with a destination => the tote has arrived and is queued at that station.
-      if (destWp && placedByStationId.has(destWp)) {
+      if (live?.queuedByStation) {
+        // The real induction queue is the truth for "queued" (added below) — a completed CONVEY only
+        // earns a brief done-linger at its last observed position, then disappears. This kills the
+        // phantom "queued forever" totes whose work finished before the return leg existed.
+        if (nowMs - created > TOTE_DONE_LINGER_MS) continue
+        state = 'done'
+        scan = scanOf(hu)
+        if (!scan) anchorPlacedId = placedOfStrict(t.equipmentId)
+      } else if (destWp && placedByStationId.has(destWp)) {
+        // No queue data available — fall back to inferring queued from the arrival task.
         state = 'queued'
         anchorPlacedId = placedByStationId.get(destWp) ?? null
         queued++
       } else if (nowMs - created <= TOTE_DONE_LINGER_MS) {
         state = 'done'
-        anchorPlacedId = placedOf(t.equipmentId, t.family)
+        scan = scanOf(hu)
+        if (!scan) anchorPlacedId = placedOfStrict(t.equipmentId)
       } else {
         continue // stale completed task — the tote has left the system, don't render it
       }
@@ -368,12 +385,14 @@ export function deriveTwin(tasks: DeviceTask[], topo: AutomationTopology, nowMs:
       continue
     }
 
+    if (!anchorPlacedId && !scan) continue // no observed position — hide rather than invent
+
     totes.push({
       huId: hu,
       huCode: payloadStr(t, 'huCode') ?? null,
       state,
       anchorPlacedId,
-      prevPlacedId: prevPlacedId && prevPlacedId !== anchorPlacedId ? prevPlacedId : null,
+      scan,
       lastCommand: t.command,
       lastTs: t.createdAt,
       correlationId: t.correlationId ?? null,
@@ -381,10 +400,38 @@ export function deriveTwin(tasks: DeviceTask[], topo: AutomationTopology, nowMs:
     })
   }
 
+  // Queued totes from the REAL induction queue (per workstation), replacing any task-derived view of
+  // the same HU. This is pure representation: flow's queue says the tote is physically at the station.
+  if (live?.queuedByStation) {
+    for (const [stationId, entries] of live.queuedByStation) {
+      const placedId = placedByStationId.get(stationId)
+      if (!placedId) continue
+      for (const e of entries) {
+        queued++
+        const existing = totes.findIndex((tv) => tv.huId === e.huId)
+        const view: ToteView = {
+          huId: e.huId,
+          huCode: e.huCode ?? null,
+          state: 'queued',
+          anchorPlacedId: placedId,
+          scan: null,
+          lastTs: new Date(nowMs).toISOString(),
+          correlationId: e.huId,
+        }
+        if (existing >= 0) {
+          const prior = totes[existing]
+          // A RUNNING task (the return leg starting) outranks the queue row; otherwise queue wins.
+          if (prior.state !== 'in-transit' && prior.state !== 'recirculating') totes[existing] = view
+        } else {
+          totes.push(view)
+        }
+      }
+    }
+  }
+
   return {
     activityByPlacedId,
     totes,
     stats: { inTransit, queued, recirculations, faults, throughputPerMin: throughput, byFamily },
-    mainConveyorPlacedId,
   }
 }

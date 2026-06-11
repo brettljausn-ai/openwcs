@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadAutomationTopology, type AutomationTopology } from '../topology/automationApi'
 import { listEquipment, type Equipment } from '../masterdata/api'
-import { listDeviceTasks } from '../transport/api'
-import { deriveTwin, type TwinSnapshot } from './twin'
+import { listDeviceTasks, listHuTrace } from '../transport/api'
+import { getStationQueue } from '../gtpops/api'
+import { loadConveyorNodePositions } from './api'
+import { deriveTwin, type ScanRow, type TwinSnapshot } from './twin'
 
 // Live "digital twin" for the Hardware visualisation page. The geometry (automation topology) is
 // loaded ONCE per warehouse; the live picture (equipment activity + moving totes) is re-derived on a
@@ -15,6 +17,8 @@ import { deriveTwin, type TwinSnapshot } from './twin'
 
 const DEFAULT_INTERVAL_MS = 3000
 const TASK_WINDOW = 500 // wide window so totes/throughput aren't truncated by the newest-first cap
+const TRACE_FANOUT_CAP = 12 // max per-tick HU trace fetches (live transports are cap-metered anyway)
+const ACTIVE_STATUSES = new Set(['REQUESTED', 'DISPATCHED', 'IN_PROGRESS', 'PENDING'])
 
 export interface UseLiveTwinOptions {
   intervalMs?: number
@@ -50,6 +54,9 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
   // (the topology is reloaded only when the warehouse changes).
   const topologyRef = useRef<AutomationTopology | null>(null)
   topologyRef.current = topology
+  // Routing-node world positions (code → [x,z]) — loaded once per warehouse alongside the topology;
+  // non-fatal when absent (no projected graph → no scan replay, totes degrade to strict anchors).
+  const nodeXZRef = useRef<Map<string, [number, number]>>(new Map())
 
   // Load the static topology ONCE per warehouse.
   useEffect(() => {
@@ -69,12 +76,14 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
     Promise.all([
       loadAutomationTopology(warehouseId),
       listEquipment(warehouseId).catch(() => [] as Equipment[]),
+      loadConveyorNodePositions(warehouseId).catch(() => new Map<string, [number, number]>()),
     ])
-      .then(([topo, equipment]) => {
+      .then(([topo, equipment, nodeXZ]) => {
         if (cancelled) return
         const map = new Map<string, Equipment>()
         for (const e of equipment) if (e.id) map.set(e.id, e)
         setLib(map)
+        nodeXZRef.current = nodeXZ
         setTopology(topo)
       })
       .catch((e) => {
@@ -89,8 +98,9 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
     }
   }, [warehouseId])
 
-  // A single poll tick: list recent device tasks and re-derive the snapshot against the topology.
-  // Keeps the last good snapshot on a transient failure (only surfaces the error).
+  // A single poll tick: list recent device tasks, fetch the transport trace for the (few) HUs with a
+  // RUNNING task (their SCANNED rows position the totes — ADR-0008 replay), and re-derive the
+  // snapshot. Keeps the last good snapshot on a transient failure (only surfaces the error).
   const refresh = useCallback(async () => {
     if (!warehouseId) return
     const topo = topologyRef.current
@@ -98,7 +108,53 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
     setLoading(true)
     try {
       const tasks = await listDeviceTasks({ warehouseId, limit: TASK_WINDOW })
-      setSnapshot(deriveTwin(tasks, topo, Date.now()))
+      // HUs with live transports: trace them for scan positions (cap to keep the fan-out tiny).
+      const activeHus: string[] = []
+      for (const t of tasks) {
+        const status = (t.status || '').toUpperCase()
+        const huId = typeof t.payload?.huId === 'string' ? (t.payload.huId as string) : t.correlationId
+        if (!huId || !ACTIVE_STATUSES.has(status)) continue
+        if (!activeHus.includes(huId)) activeHus.push(huId)
+        if (activeHus.length >= TRACE_FANOUT_CAP) break
+      }
+      const traces = await Promise.all(
+        activeHus.map((huId) =>
+          listHuTrace(huId, warehouseId)
+            .then((rows) => [huId, rows] as const)
+            .catch(() => [huId, []] as const),
+        ),
+      )
+      const tracesByHu = new Map<string, ScanRow[]>()
+      for (const [huId, rows] of traces) {
+        tracesByHu.set(
+          huId,
+          rows.map((r) => ({ event: r.event, point: r.point, toPoint: r.toPoint, ts: r.ts })),
+        )
+      }
+      // The REAL induction queue per placed workstation — the truth source for "queued" totes
+      // (a tote whose work is DONE stops being shown; no phantom queued from stale tasks).
+      const stationIds = (topo.equipment ?? [])
+        .map((e) => e.stationId)
+        .filter((s): s is string => !!s)
+      const queues = await Promise.all(
+        stationIds.map((sid) =>
+          getStationQueue(sid)
+            .then((entries) => [sid, entries] as const)
+            .catch(() => [sid, []] as const),
+        ),
+      )
+      const queuedByStation = new Map<string, Array<{ huId: string; huCode?: string | null }>>()
+      for (const [sid, entries] of queues) {
+        queuedByStation.set(
+          sid,
+          entries
+            .filter((e) => e.status === 'QUEUED' && e.huId)
+            .map((e) => ({ huId: e.huId as string, huCode: e.huCode ?? null })),
+        )
+      }
+      setSnapshot(
+        deriveTwin(tasks, topo, Date.now(), { tracesByHu, nodeXZ: nodeXZRef.current, queuedByStation }),
+      )
       setError(null)
       setLastUpdated(new Date())
     } catch (e) {

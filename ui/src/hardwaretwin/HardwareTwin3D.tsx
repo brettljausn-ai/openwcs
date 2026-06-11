@@ -23,7 +23,7 @@ import {
   isConveyor as topoIsConveyor,
 } from '../topology/AutomationTopology3D'
 import type { Equipment } from '../masterdata/api'
-import { anchorPoint, placementGeom, routeAlong, type PlacementGeom, type ToteView, type TwinSnapshot } from './twin'
+import { SCAN_BELT_Y, SCAN_SPEED_MPS, anchorPoint, placementGeom, type PlacementGeom, type ToteView, type TwinSnapshot } from './twin'
 
 const BG = '#081e16'
 const LIME = '#8DC63F'
@@ -217,13 +217,7 @@ function SceneContent({
         )
       })}
 
-      <Totes
-        totes={snapshot.totes}
-        geomById={geomById}
-        conveyor={snapshot.mainConveyorPlacedId ? geomById.get(snapshot.mainConveyorPlacedId) ?? null : null}
-        selectedHuId={selectedHuId}
-        onSelectTote={onSelectTote}
-      />
+      <Totes totes={snapshot.totes} geomById={geomById} selectedHuId={selectedHuId} onSelectTote={onSelectTote} />
     </group>
   )
 }
@@ -306,131 +300,92 @@ function toteColor(state: ToteView['state']): string {
 interface TotesProps {
   totes: ToteView[]
   geomById: Map<string, PlacementGeom>
-  /** The main conveyor's geometry — totes glide ALONG its path between equipment anchors. */
-  conveyor: PlacementGeom | null
   selectedHuId: string | null
   onSelectTote?: (huId: string | null) => void
 }
 
-// Constant glide speed. The real transport completes in ~1s (faster than the poll), so the journey is
-// animated client-side: a tote follows the conveyor centreline at a believable pace instead of
-// teleporting (or cutting straight across the floor).
-const TOTE_SPEED = 3.2 // m/s
-
-interface ToteAnim {
-  pos: THREE.Vector3
-  route: THREE.Vector3[] // remaining waypoints to walk, in order
-  anchorKey: string // anchorPlacedId the current route leads to
-}
-
-function Totes({ totes, geomById, conveyor, selectedHuId, onSelectTote }: TotesProps): JSX.Element {
+// ADR-0008 replay: a tote's live position is the OBSERVED scan trail — the last scanned node,
+// interpolated toward the answered next node at the real conveyor speed (0.5 m/s) from the scan
+// timestamp. Per-frame wall-clock interpolation gives continuous motion between polls without
+// inventing a path. Totes without scans sit statically at their (strict) anchor.
+function Totes({ totes, geomById, selectedHuId, onSelectTote }: TotesProps): JSX.Element {
   const groupRefs = useRef<Map<string, THREE.Group>>(new Map())
-  const animRefs = useRef<Map<string, ToteAnim>>(new Map())
+  const posRefs = useRef<Map<string, THREE.Vector3>>(new Map())
 
   const resolved = useMemo(() => {
-    const out: Array<{ tote: ToteView; target: THREE.Vector3; start: THREE.Vector3; anchorKey: string }> = []
+    const out: Array<{ tote: ToteView; anchor: THREE.Vector3 | null }> = []
     for (const tote of totes) {
-      if (!tote.anchorPlacedId) continue
-      const geom = geomById.get(tote.anchorPlacedId)
-      if (!geom) continue
-      const a = anchorPoint(geom)
-      const target = new THREE.Vector3(a[0], a[1] + BELT_LIFT, a[2])
-      let start = target.clone()
-      if (tote.prevPlacedId) {
-        const prevGeom = geomById.get(tote.prevPlacedId)
-        if (prevGeom) {
-          const p = anchorPoint(prevGeom)
-          start = new THREE.Vector3(p[0], p[1] + BELT_LIFT, p[2])
+      let anchor: THREE.Vector3 | null = null
+      if (tote.anchorPlacedId) {
+        const geom = geomById.get(tote.anchorPlacedId)
+        if (geom) {
+          const a = anchorPoint(geom)
+          anchor = new THREE.Vector3(a[0], a[1] + BELT_LIFT, a[2])
         }
       }
-      out.push({ tote, target, start, anchorKey: tote.anchorPlacedId })
+      if (!anchor && !tote.scan) continue // nothing observed to show
+      out.push({ tote, anchor })
     }
     return out
   }, [totes, geomById])
 
   const liveIds = useMemo(() => new Set(resolved.map((r) => r.tote.huId)), [resolved])
 
-  useFrame((stateObj, delta) => {
-    const anims = animRefs.current
+  useFrame((_state, delta) => {
+    const pos = posRefs.current
     const groups = groupRefs.current
-    for (const id of Array.from(anims.keys())) {
+    for (const id of Array.from(pos.keys())) {
       if (!liveIds.has(id)) {
-        anims.delete(id)
+        pos.delete(id)
         groups.delete(id)
       }
     }
-    const t = stateObj.clock.elapsedTime
-    for (const { tote, target, anchorKey } of resolved) {
+    const nowMs = Date.now()
+    for (const { tote, anchor } of resolved) {
       const g = groups.get(tote.huId)
       if (!g) continue
-      const anim = anims.get(tote.huId)
-      if (!anim) continue
 
-      // Target changed (the tote hopped equipment) → build a new route that walks the conveyor
-      // centreline from the current position to the new anchor, then the anchor itself. This is what
-      // makes a count tote visibly travel ASRS → conveyor → station (and back, for the return leg).
-      if (anim.anchorKey !== anchorKey) {
-        anim.anchorKey = anchorKey
-        const route: THREE.Vector3[] = []
-        if (conveyor && tote.anchorPlacedId !== conveyor.id) {
-          for (const [x, y, z] of routeAlong(
-            conveyor,
-            [anim.pos.x, anim.pos.z],
-            [target.x, target.z],
-            conveyor.closed,
-          )) {
-            route.push(new THREE.Vector3(x, y + BELT_LIFT, z))
-          }
-        }
-        route.push(target.clone())
-        anim.route = route
-      }
-
-      // Walk the route at constant speed; settle on the (possibly jiggling) target when done.
-      let budget = TOTE_SPEED * delta
-      while (budget > 0 && anim.route.length) {
-        const next = anim.route[0]
-        const d = anim.pos.distanceTo(next)
-        if (d <= budget) {
-          anim.pos.copy(next)
-          anim.route.shift()
-          budget -= d
+      // Where the observed state puts the tote THIS frame.
+      let target: THREE.Vector3 | null = null
+      if (tote.scan) {
+        const { fromXZ, toXZ, tsMs } = tote.scan
+        if (toXZ) {
+          const dx = toXZ[0] - fromXZ[0]
+          const dz = toXZ[1] - fromXZ[1]
+          const dist = Math.hypot(dx, dz)
+          const travelled = Math.max(0, (nowMs - tsMs) / 1000) * SCAN_SPEED_MPS
+          const f = dist > 0 ? Math.min(1, travelled / dist) : 1
+          target = new THREE.Vector3(fromXZ[0] + dx * f, SCAN_BELT_Y + BELT_LIFT, fromXZ[1] + dz * f)
         } else {
-          anim.pos.lerp(next, budget / d)
-          budget = 0
+          target = new THREE.Vector3(fromXZ[0], SCAN_BELT_Y + BELT_LIFT, fromXZ[1])
         }
+      } else if (anchor) {
+        target = anchor
       }
-      if (!anim.route.length) anim.pos.lerp(target, Math.min(1, delta * 4))
+      if (!target) continue
 
-      if (tote.state === 'recirculating') {
-        const r = 0.6
-        g.position.set(anim.pos.x + Math.cos(t * 2) * r, anim.pos.y, anim.pos.z + Math.sin(t * 2) * r)
-      } else {
-        g.position.copy(anim.pos)
+      let cur = pos.get(tote.huId)
+      if (!cur) {
+        cur = target.clone()
+        pos.set(tote.huId, cur)
+        g.position.copy(cur)
+        continue
       }
+      // Smooth toward the observed position (absorbs the jump when a new scan row lands).
+      cur.lerp(target, Math.min(1, delta * 6))
+      g.position.copy(cur)
     }
   })
 
   return (
     <group>
-      {resolved.map(({ tote, start, anchorKey }) => (
+      {resolved.map(({ tote }) => (
         <ToteMesh
           key={tote.huId}
           tote={tote}
-          start={start}
           selected={tote.huId === selectedHuId}
           registerGroup={(g) => {
-            const groups = groupRefs.current
-            if (g) {
-              groups.set(tote.huId, g)
-              if (!animRefs.current.has(tote.huId)) {
-                // New tote: appear at its previous equipment and let the route-builder above glide it
-                // in (anchorKey '' forces a route build on the first frame).
-                animRefs.current.set(tote.huId, { pos: start.clone(), route: [], anchorKey: '' })
-                g.position.copy(start)
-                void anchorKey
-              }
-            }
+            if (g) groupRefs.current.set(tote.huId, g)
           }}
           onSelect={() => onSelectTote?.(tote.huId)}
         />
@@ -441,19 +396,17 @@ function Totes({ totes, geomById, conveyor, selectedHuId, onSelectTote }: TotesP
 
 interface ToteMeshProps {
   tote: ToteView
-  start: THREE.Vector3
   selected: boolean
   registerGroup: (g: THREE.Group | null) => void
   onSelect: () => void
 }
 
-function ToteMesh({ tote, start, selected, registerGroup, onSelect }: ToteMeshProps): JSX.Element {
+function ToteMesh({ tote, selected, registerGroup, onSelect }: ToteMeshProps): JSX.Element {
   const color = toteColor(tote.state)
   const size = selected ? TOTE_SIZE * 1.3 : TOTE_SIZE
   return (
     <group
       ref={registerGroup}
-      position={start}
       onPointerDown={(e: ThreeEvent<PointerEvent>) => {
         e.stopPropagation()
         onSelect()
