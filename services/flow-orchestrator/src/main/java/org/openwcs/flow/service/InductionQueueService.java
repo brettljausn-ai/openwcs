@@ -10,6 +10,7 @@ import org.openwcs.flow.api.InductionEntryView;
 import org.openwcs.flow.api.InductionRequest;
 import org.openwcs.flow.api.RequestDeviceTask;
 import org.openwcs.flow.api.RoutingDtos.RouteRequest;
+import org.openwcs.flow.client.InventoryClient;
 import org.openwcs.flow.client.WorkplaceClient;
 import org.openwcs.flow.domain.InductionQueueEntry;
 import org.openwcs.flow.repo.InductionQueueEntryRepository;
@@ -54,16 +55,19 @@ public class InductionQueueService {
     private final WorkplaceClient workplaces;
     private final TransportNodeResolver transportNodes;
     private final RoutingService routing;
+    private final InventoryClient inventory;
 
     public InductionQueueService(InductionQueueEntryRepository entries, HuTraceService trace,
                                  DeviceTaskService deviceTasks, WorkplaceClient workplaces,
-                                 TransportNodeResolver transportNodes, RoutingService routing) {
+                                 TransportNodeResolver transportNodes, RoutingService routing,
+                                 InventoryClient inventory) {
         this.entries = entries;
         this.trace = trace;
         this.deviceTasks = deviceTasks;
         this.workplaces = workplaces;
         this.transportNodes = transportNodes;
         this.routing = routing;
+        this.inventory = inventory;
     }
 
     // ---- §3.1 request -------------------------------------------------------------------------
@@ -190,6 +194,10 @@ public class InductionQueueService {
                 entry.getId());
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "conveyor", "INDUCTED",
                 "inducted onto conveyor", null, null, entry.getWorkplaceId(), retrieveTaskId, entry.getId());
+
+        // The tote left its slot: book the HU registry out of the location (null = in transit / at
+        // a workplace; the transport trace is the truth while away).
+        bookLocation(entry, null);
 
         dispatchConvey(entry, actor);
     }
@@ -410,6 +418,26 @@ public class InductionQueueService {
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), slot, "STORED",
                 "stored back to source slot", "storage", null, entry.getWorkplaceId(), returnStoreTaskId,
                 entry.getId());
+
+        // The tote is physically back in its source slot: book the HU registry back into it.
+        bookLocation(entry, entry.getLocationId());
+    }
+
+    /**
+     * Best-effort HU registry location booking (§5 reality tracking). Isolated like the projection's
+     * side effects: a booking failure must NEVER break the transport pipeline — log.warn and continue
+     * (the HU transport trace still tells the truth). Silently skipped when the entry has no huId.
+     */
+    private void bookLocation(InductionQueueEntry entry, UUID locationId) {
+        if (entry.getHuId() == null) {
+            return;
+        }
+        try {
+            inventory.bookLocation(entry.getHuId(), locationId);
+        } catch (RuntimeException e) {
+            log.warn("HU {} location booking ({}) failed for induction entry {}: {}",
+                    entry.getHuId(), locationId, entry.getId(), e.toString());
+        }
     }
 
     // ---- §3.2 read ----------------------------------------------------------------------------

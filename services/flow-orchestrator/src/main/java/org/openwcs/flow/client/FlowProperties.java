@@ -29,6 +29,9 @@ public class FlowProperties {
     /** Base URL of the gtp service (projecting topology STOCK/ORDER interactions into station nodes). */
     private String gtpBaseUrl = "http://localhost:8094";
 
+    /** Base URL of the inventory service (booking HU locations through the transport lifecycle). */
+    private String inventoryBaseUrl = "http://localhost:8082";
+
     public Map<String, String> getAdapters() {
         return adapters;
     }
@@ -59,5 +62,13 @@ public class FlowProperties {
 
     public void setGtpBaseUrl(String gtpBaseUrl) {
         this.gtpBaseUrl = gtpBaseUrl;
+    }
+
+    public String getInventoryBaseUrl() {
+        return inventoryBaseUrl;
+    }
+
+    public void setInventoryBaseUrl(String inventoryBaseUrl) {
+        this.inventoryBaseUrl = inventoryBaseUrl;
     }
 }

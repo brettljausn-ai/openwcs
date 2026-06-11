@@ -65,4 +65,18 @@ public class HandlingUnitController {
         handlingUnit.setLocationId(existing.getLocationId());
         return handlingUnits.save(handlingUnit);
     }
+
+    /**
+     * Book the HU's current location through the transport lifecycle (the controlled process the
+     * full PUT above defers to): a RETRIEVE out of a slot books {@code null} (in transit / at a
+     * workplace — the HU transport trace is the truth while away); the return-leg STORE books the
+     * slot back.
+     */
+    @PutMapping("/{id}/location")
+    public HandlingUnit updateLocation(@PathVariable UUID id, @RequestBody LocationUpdateRequest request) {
+        HandlingUnit existing = handlingUnits.findById(id)
+                .orElseThrow(() -> new HandlingUnitNotFoundException(id));
+        existing.setLocationId(request.locationId());
+        return handlingUnits.save(existing);
+    }
 }
