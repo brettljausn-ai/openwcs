@@ -506,7 +506,7 @@ function ToteMesh({ tote, selected, registerGroup, onSelect }: ToteMeshProps): J
 // position inside the ASRS rack. Pure representation of the HU registry; clicking selects the HU.
 // ----------------------------------------------------------------------------------------------------
 
-const STORED_COLOR = '#6fa3c7' // muted steel-blue — visible against the mid-blue rack, calmer than live totes
+const STORED_COLOR = '#8fd3ff' // bright ice-blue — must remain visible inside the dark rack frame
 
 function StoredTotes({
   totes,
@@ -531,13 +531,13 @@ function StoredTotes({
             }}
           >
             <mesh castShadow>
-              <boxGeometry args={[0.5, 0.26, 0.34]} />
+              <boxGeometry args={[0.7, 0.36, 0.5]} />
               <meshStandardMaterial
                 color={STORED_COLOR}
                 metalness={0.1}
-                roughness={0.6}
-                emissive={selected ? STORED_COLOR : '#000000'}
-                emissiveIntensity={selected ? 0.7 : 0}
+                roughness={0.55}
+                emissive={STORED_COLOR}
+                emissiveIntensity={selected ? 0.9 : 0.3}
               />
             </mesh>
             {selected && (
