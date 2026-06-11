@@ -4,6 +4,7 @@ import { SCREENS, ScreenDef } from './auth/screens'
 import Login from './auth/Login'
 import AppShell from './shell/AppShell'
 import ComingSoon from './shell/ComingSoon'
+import BackendOverlay from './shell/BackendOverlay'
 import Dashboard from './Dashboard'
 import { WarehouseProvider } from './warehouse/WarehouseContext'
 
@@ -88,6 +89,7 @@ const SYSTEM_INFO_SCREEN = SCREENS.find((s) => s.key === 'system-info')!
 export default function App() {
   return (
     <BrowserRouter>
+      <BackendOverlay />
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
