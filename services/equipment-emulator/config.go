@@ -22,6 +22,7 @@ var faultEvery atomic.Int64
 //
 //	OPENWCS_EMULATOR_LATENCY_MS  int >= 0 forces latency (0 = instant); unset = per-command defaults.
 //	OPENWCS_EMULATOR_FAULT_RATE  int >= 0; N>0 fails 1 in every N tasks; unset/0 = no faults.
+//	OPENWCS_EMULATOR_SPEED_MPS   float > 0 conveyor speed for live walks; unset = 0.5 m/s (ADR-0008).
 func initConfigFromEnv() {
 	latencyOverrideMs.Store(-1)
 	if n, ok := envInt("OPENWCS_EMULATOR_LATENCY_MS"); ok && n >= 0 {
@@ -34,6 +35,10 @@ func initConfigFromEnv() {
 	recircEvery.Store(0)
 	if n, ok := envInt("OPENWCS_EMULATOR_RECIRC_EVERY"); ok && n >= 0 {
 		recircEvery.Store(n)
+	}
+	setSpeedMps(defaultSpeedMps)
+	if f, ok := envFloat("OPENWCS_EMULATOR_SPEED_MPS"); ok && f > 0 {
+		setSpeedMps(f)
 	}
 }
 
@@ -49,11 +54,24 @@ func envInt(key string) (int64, bool) {
 	return int64(n), true
 }
 
+func envFloat(key string) (float64, bool) {
+	v := os.Getenv(key)
+	if v == "" {
+		return 0, false
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return 0, false
+	}
+	return f, true
+}
+
 // configView is the GET/POST /config body.
 type configView struct {
-	LatencyOverrideMs int64 `json:"latencyOverrideMs"`
-	FaultEvery        int64 `json:"faultEvery"`
-	RecircEvery       int64 `json:"recircEvery"`
+	LatencyOverrideMs int64   `json:"latencyOverrideMs"`
+	FaultEvery        int64   `json:"faultEvery"`
+	RecircEvery       int64   `json:"recircEvery"`
+	SpeedMps          float64 `json:"speedMps"`
 }
 
 // handleConfig serves GET /config (current values) and POST/PUT /config (update latency/fault live).
@@ -64,9 +82,10 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		writeConfig(w)
 	case http.MethodPost, http.MethodPut:
 		var in struct {
-			LatencyOverrideMs *int64 `json:"latencyOverrideMs"`
-			FaultEvery        *int64 `json:"faultEvery"`
-			RecircEvery       *int64 `json:"recircEvery"`
+			LatencyOverrideMs *int64   `json:"latencyOverrideMs"`
+			FaultEvery        *int64   `json:"faultEvery"`
+			RecircEvery       *int64   `json:"recircEvery"`
+			SpeedMps          *float64 `json:"speedMps"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -81,6 +100,9 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		if in.RecircEvery != nil && *in.RecircEvery >= 0 {
 			recircEvery.Store(*in.RecircEvery)
 		}
+		if in.SpeedMps != nil && *in.SpeedMps > 0 {
+			setSpeedMps(*in.SpeedMps)
+		}
 		writeConfig(w)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -93,5 +115,6 @@ func writeConfig(w http.ResponseWriter) {
 		LatencyOverrideMs: latencyOverrideMs.Load(),
 		FaultEvery:        faultEvery.Load(),
 		RecircEvery:       recircEvery.Load(),
+		SpeedMps:          speedMps(),
 	})
 }

@@ -25,6 +25,7 @@ type deviceState struct {
 	families       map[string]*familyState
 	totalCompleted int64
 	totalFailed    int64
+	walks          int64 // completed live conveyor walks (ADR-0008 3d-2)
 
 	startTime     time.Time
 	ticks         int64
@@ -67,6 +68,14 @@ func (s *deviceState) recordFailed(family, command string) {
 	s.totalFailed++
 }
 
+// recordWalk bumps the completed live-walk counter (the CONVEY itself is tallied separately via
+// recordCompleted).
+func (s *deviceState) recordWalk() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.walks++
+}
+
 // tick advances the liveness heartbeat once per telemetryLoop iteration and returns the running
 // totals so the caller can log a heartbeat without re-taking the lock.
 func (s *deviceState) tick(now time.Time) (ticks, completed, failed int64) {
@@ -100,11 +109,13 @@ func (s *deviceState) snapshot() map[string]interface{} {
 		"config": map[string]interface{}{
 			"latencyOverrideMs": latencyOverrideMs.Load(),
 			"faultEvery":        faultEvery.Load(),
+			"speedMps":          speedMps(),
 		},
 		"devices": map[string]interface{}{
 			"completed": s.totalCompleted,
 			"failed":    s.totalFailed,
 			"total":     s.totalCompleted + s.totalFailed,
+			"walks":     s.walks,
 			"families":  families,
 		},
 		"telemetry": map[string]interface{}{
