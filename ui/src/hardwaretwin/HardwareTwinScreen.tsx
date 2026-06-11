@@ -46,7 +46,7 @@ function shortId(id?: string | null): string {
 export default function HardwareTwinScreen() {
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const [autoRefresh, setAutoRefresh] = useState(true)
-  const { topology, lib, snapshot, loading, error, lastUpdated, refresh } = useLiveTwin(warehouseId, {
+  const { topology, lib, snapshot, storedTotes, loading, error, lastUpdated, refresh } = useLiveTwin(warehouseId, {
     intervalMs: POLL_MS,
     autoRefresh,
   })
@@ -225,6 +225,7 @@ export default function HardwareTwinScreen() {
                   topology={topology}
                   lib={lib}
                   snapshot={snapshot ?? EMPTY_SNAPSHOT}
+                  storedTotes={storedTotes}
                   showLabels={showLabels}
                   activeLevelId={activeLevelId}
                   selectedPlacedId={selectedPlacedId}

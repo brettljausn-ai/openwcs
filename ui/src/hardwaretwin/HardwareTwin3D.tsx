@@ -23,7 +23,16 @@ import {
   isConveyor as topoIsConveyor,
 } from '../topology/AutomationTopology3D'
 import type { Equipment } from '../masterdata/api'
-import { SCAN_BELT_Y, SCAN_SPEED_MPS, anchorPoint, placementGeom, type PlacementGeom, type ToteView, type TwinSnapshot } from './twin'
+import {
+  SCAN_BELT_Y,
+  SCAN_SPEED_MPS,
+  anchorPoint,
+  placementGeom,
+  type PlacementGeom,
+  type StoredTote,
+  type ToteView,
+  type TwinSnapshot,
+} from './twin'
 
 const BG = '#081e16'
 const LIME = '#8DC63F'
@@ -43,6 +52,8 @@ export interface HardwareTwin3DProps {
    *  rack vs sorter) so the scene looks exactly like the editor. */
   lib: Map<string, Equipment>
   snapshot: TwinSnapshot
+  /** HUs at rest in storage, rendered at their cell position inside the ASRS rack (ADR-0009 §5). */
+  storedTotes?: StoredTote[]
   activeLevelId?: string | null
   selectedPlacedId?: string | null
   selectedHuId?: string | null
@@ -56,6 +67,7 @@ export default function HardwareTwin3D({
   topology,
   lib,
   snapshot,
+  storedTotes = [],
   activeLevelId = null,
   selectedPlacedId = null,
   selectedHuId = null,
@@ -107,6 +119,8 @@ export default function HardwareTwin3D({
         onSelectEquipment={onSelectEquipment}
         onSelectTote={onSelectTote}
       />
+
+      <StoredTotes totes={storedTotes} selectedHuId={selectedHuId} onSelectTote={onSelectTote} />
 
       <OrbitControls
         makeDefault
@@ -483,6 +497,69 @@ function ToteMesh({ tote, selected, registerGroup, onSelect }: ToteMeshProps): J
           </div>
         </Html>
       )}
+    </group>
+  )
+}
+
+// ----------------------------------------------------------------------------------------------------
+// Stored totes — the rack's contents (ADR-0009 §5): one small tote per registry HU at its cell
+// position inside the ASRS rack. Pure representation of the HU registry; clicking selects the HU.
+// ----------------------------------------------------------------------------------------------------
+
+const STORED_COLOR = '#6fa3c7' // muted steel-blue — visible against the mid-blue rack, calmer than live totes
+
+function StoredTotes({
+  totes,
+  selectedHuId,
+  onSelectTote,
+}: {
+  totes: StoredTote[]
+  selectedHuId: string | null
+  onSelectTote?: (huId: string | null) => void
+}): JSX.Element {
+  return (
+    <group>
+      {totes.map((t) => {
+        const selected = t.huId === selectedHuId
+        return (
+          <group
+            key={t.huId}
+            position={t.pos}
+            onPointerDown={(e: ThreeEvent<PointerEvent>) => {
+              e.stopPropagation()
+              onSelectTote?.(t.huId)
+            }}
+          >
+            <mesh castShadow>
+              <boxGeometry args={[0.5, 0.26, 0.34]} />
+              <meshStandardMaterial
+                color={STORED_COLOR}
+                metalness={0.1}
+                roughness={0.6}
+                emissive={selected ? STORED_COLOR : '#000000'}
+                emissiveIntensity={selected ? 0.7 : 0}
+              />
+            </mesh>
+            {selected && (
+              <Html position={[0, 0.4, 0]} center distanceFactor={18} occlude={false}>
+                <div
+                  style={{
+                    padding: '0.15rem 0.45rem',
+                    borderRadius: 4,
+                    fontSize: 11,
+                    whiteSpace: 'nowrap',
+                    background: 'rgba(8, 30, 22, 0.85)',
+                    color: '#d6e4dc',
+                    border: `1px solid ${LIME}`,
+                  }}
+                >
+                  {t.huCode}
+                </div>
+              </Html>
+            )}
+          </group>
+        )
+      })}
     </group>
   )
 }
