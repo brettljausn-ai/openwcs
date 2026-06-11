@@ -101,7 +101,10 @@ export interface PlacementGeom {
   center: [number, number, number]
   yawRad: number
   size: [number, number, number] // [lengthM (local X), heightM (Y), widthM (local Z)]
-  elevationM: number
+  /** The placement's own vertical offset (posYM). IMPORTANT: the scene is FLOOR-RELATIVE like the
+   *  topology editor — level elevation is deliberately NOT applied (the editor renders each level on
+   *  the floor; adding elevationM floated the twin's overlays metres above the editor's meshes). */
+  baseY: number
   category: string
   /** Conveyor centreline in world XZ (>= 2 points) when this is a path conveyor; else undefined. */
   worldPath?: Array<[number, number]>
@@ -111,20 +114,19 @@ export interface PlacementGeom {
   closed?: boolean
 }
 
-function levelElevation(eq: AutomationEquipment, levels: AutomationLevel[]): number {
-  const lvl = levels.find((l) => l.id === eq.levelId)
-  return lvl ? lvl.elevationM : 0
-}
-
-export function placementGeom(eq: AutomationEquipment, levels: AutomationLevel[]): PlacementGeom {
-  const elevationM = levelElevation(eq, levels)
+// FLOOR-RELATIVE, exactly like the topology editor's meshes (EquipmentMesh renders boxes at
+// y = heightM/2 + posYM with no level elevation — see the editor's own comment that adding
+// elevation floats things above the conveyor). `levels` is accepted for signature stability but
+// deliberately unused.
+export function placementGeom(eq: AutomationEquipment, _levels: AutomationLevel[]): PlacementGeom {
+  const baseY = eq.posYM || 0
   const category = eq.category ?? 'other'
   const geom: PlacementGeom = {
     id: eq.id,
-    center: [eq.posXM, elevationM + (eq.heightM || 0.5) / 2, eq.posZM],
+    center: [eq.posXM, baseY + (eq.heightM || 0.5) / 2, eq.posZM],
     yawRad: ((eq.rotationDeg || 0) * Math.PI) / 180,
     size: [eq.lengthM || 1, eq.heightM || 0.5, eq.widthM || 0.5],
-    elevationM,
+    baseY,
     category,
   }
   const path = eq.path
@@ -152,11 +154,13 @@ export function anchorPoint(geom: PlacementGeom): [number, number, number] {
     const at = pointAlongPath(geom, 0.5)
     return at.pos
   }
-  return [geom.center[0], geom.elevationM + (geom.size[1] || 0.5) + 0.12, geom.center[2]]
+  // Top surface of the box (floor-relative): baseY + height.
+  return [geom.center[0], geom.baseY + (geom.size[1] || 0.5) + 0.12, geom.center[2]]
 }
 
-/** World Y a tote rides at on the conveyor (belt height + nothing fancy — single-level for now). */
-export const SCAN_BELT_Y = BELT_Y
+/** World Y a tote rides at during scan replay: the top of a standard 1m conveyor (floor-relative,
+ *  matching the editor's conveyor body whose top sits at heightM). */
+export const SCAN_BELT_Y = 1.0
 
 /** ADR-0008 conveyor speed — the same 0.5 m/s the emulator walks at; used to interpolate between
  *  a scan's node and the answered next node from the scan timestamp. */
@@ -186,7 +190,8 @@ export function pointAlongPath(
   const dx = b[0] - a[0]
   const dz = b[1] - a[1]
   const len = Math.hypot(dx, dz) || 1
-  return { pos: [x, geom.elevationM + BELT_Y, z], dir: [dx / len, dz / len] }
+  // Ride on TOP of the conveyor body (floor-relative): baseY + heightM.
+  return { pos: [x, geom.baseY + (geom.size[1] || BELT_Y), z], dir: [dx / len, dz / len] }
 }
 
 // ----------------------------------------------------------------------------------------------------
