@@ -23,6 +23,8 @@ import {
   type AutomationLevel,
 } from './automationApi'
 import PlanEditor2D from './PlanEditor2D'
+import { loadTopology, type Topology } from './api'
+import { findRoute, routeVerdict, RouteTestOverlay, type RouteResult } from './RouteTest'
 
 const DEG = Math.PI / 180
 
@@ -535,6 +537,15 @@ export default function AutomationTopology3D({
   // selecting/dragging. connectFrom holds the chosen source's placed id (null = pick source next).
   const [connectMode, setConnectMode] = useState(false)
   const [connectFrom, setConnectFrom] = useState<string | null>(null)
+  // Route test mode: pick a start + target routing node in the 3D scene and check whether the
+  // PROJECTED routing graph (what flow actually routes on) connects them. Exclusive with the
+  // editing modes — entering it exits connect/draw and suppresses selection/drag.
+  const [testMode, setTestMode] = useState(false)
+  // The loaded routing graph, cached while the editor lives; cleared on reload / re-projection.
+  const [testTopo, setTestTopo] = useState<Topology | null>(null)
+  const [testLoading, setTestLoading] = useState(false)
+  const [testStart, setTestStart] = useState<string | null>(null)
+  const [testTarget, setTestTarget] = useState<string | null>(null)
   const [selectedConnId, setSelectedConnId] = useState<string | null>(null)
   // The function point whose config dialog is open (clicking a marker in 2D/3D), or null.
   const [editFpId, setEditFpId] = useState<string | null>(null)
@@ -569,6 +580,11 @@ export default function AutomationTopology3D({
   }, [equipment])
 
   const load = useCallback(async () => {
+    // A (re)load invalidates the cached routing graph and any in-progress route test.
+    setTestMode(false)
+    setTestTopo(null)
+    setTestStart(null)
+    setTestTarget(null)
     if (!warehouseId) {
       setLevels([])
       setEquipment([])
@@ -671,6 +687,11 @@ export default function AutomationTopology3D({
       const result = await projectRoutingGraph(warehouseId)
       const warn = result.warnings.length ? ` · ${result.warnings.length} warning(s)` : ''
       setInfo(`Routing graph generated: ${result.nodes} node(s), ${result.edges} edge(s)${warn}`)
+      // The projection replaced the routing graph — drop the route-test cache so the next test
+      // loads the fresh graph.
+      setTestTopo(null)
+      setTestStart(null)
+      setTestTarget(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -1421,10 +1442,106 @@ export default function AutomationTopology3D({
       if (next) {
         setSelectedId(null)
         setDrawPath(false)
+        // Connect / draw / route-test are mutually exclusive — entering one exits the others.
+        setTestMode(false)
+        setTestStart(null)
+        setTestTarget(null)
       }
       return next
     })
   }, [])
+
+  // ---- route test mode -----------------------------------------------------
+  const exitTestMode = useCallback(() => {
+    setTestMode(false)
+    setTestStart(null)
+    setTestTarget(null)
+  }, [])
+
+  // Toggle the "Test route" mode. Entering loads (and caches) the projected routing graph; a
+  // warehouse without one gets an error chip telling the user to generate it first.
+  const toggleTestMode = useCallback(async () => {
+    if (testMode) {
+      exitTestMode()
+      return
+    }
+    if (!warehouseId) {
+      setError('No active warehouse selected')
+      return
+    }
+    // Exclusive with the editing modes — entering test exits connect/draw and drops selection.
+    setConnectMode(false)
+    setConnectFrom(null)
+    setDrawPath(false)
+    setSelectedId(null)
+    setTestLoading(true)
+    setError(null)
+    try {
+      const topo = testTopo ?? (await loadTopology(warehouseId))
+      if (topo.nodes.length === 0) {
+        setError('No routing graph for this warehouse — Generate routing first.')
+        return
+      }
+      setTestTopo(topo)
+      setTestStart(null)
+      setTestTarget(null)
+      setView('3d') // the test overlay lives in the 3D scene
+      setTestMode(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setTestLoading(false)
+    }
+  }, [testMode, testTopo, warehouseId, exitTestMode])
+
+  // A scene click in test mode, already resolved to the nearest routing node. First pick = start,
+  // second = target; a third pick restarts with a new start.
+  const handleTestPick = useCallback(
+    (code: string) => {
+      if (!testStart || testTarget) {
+        setTestStart(code)
+        setTestTarget(null)
+      } else {
+        setTestTarget(code)
+      }
+    },
+    [testStart, testTarget],
+  )
+
+  // Esc exits test mode (like leaving draw mode in the 2D plan).
+  useEffect(() => {
+    if (!testMode) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') exitTestMode()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [testMode, exitTestMode])
+
+  // Safety net for mutual exclusion: if an editing mode turns on while testing, leave test mode.
+  useEffect(() => {
+    if (testMode && (drawPath || connectMode)) exitTestMode()
+  }, [testMode, drawPath, connectMode, exitTestMode])
+
+  // Dijkstra over the directed routing edges — recomputed when both endpoints are picked.
+  const testResult = useMemo<RouteResult | null>(() => {
+    if (!testMode || !testTopo || !testStart || !testTarget) return null
+    return findRoute(testTopo, testStart, testTarget)
+  }, [testMode, testTopo, testStart, testTarget])
+
+  const testVerdict = useMemo(
+    () => (testResult && testStart && testTarget ? routeVerdict(testResult, testStart, testTarget) : null),
+    [testResult, testStart, testTarget],
+  )
+
+  // Conveyor-top height in the scene: route-test overlays render slightly above it.
+  const conveyorTopM = useMemo(() => {
+    let h = 0
+    for (const e of equipment) {
+      if (isConveyor(e, libById)) h = Math.max(h, e.heightM + e.posYM)
+    }
+    return h > 0 ? h : 1
+  }, [equipment, libById])
 
   // Lookup of placed item (any level) by id, for resolving connection endpoints to codes.
   const equipmentById = useMemo(() => {
@@ -1490,7 +1607,10 @@ export default function AutomationTopology3D({
             <button
               type="button"
               className={`atopo-viewbtn${view === '2d' ? ' is-active' : ''}`}
-              onClick={() => setView('2d')}
+              onClick={() => {
+                exitTestMode() // the test overlay only lives in the 3D scene
+                setView('2d')
+              }}
             >
               2D plan
             </button>
@@ -1506,6 +1626,16 @@ export default function AutomationTopology3D({
             title="Generate the conveyor routing graph (nodes/edges) from this layout. Saves first, then replaces the Routing graph."
           >
             {projecting ? 'Generating…' : 'Generate routing'}
+          </button>
+          <button
+            type="button"
+            className={`btn btn-ghost btn-sm${testMode ? ' atopo-testbtn-on' : ''}`}
+            onClick={toggleTestMode}
+            disabled={loading || saving || projecting || testLoading}
+            aria-pressed={testMode}
+            title="Test the routing graph: click a start point and a target in the 3D view to see whether (and how) a tote can travel between them."
+          >
+            {testLoading ? 'Loading graph…' : testMode ? 'Exit test' : 'Test route'}
           </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={load} disabled={loading || saving}>
             {loading ? 'Loading…' : 'Reload'}
@@ -1705,6 +1835,7 @@ export default function AutomationTopology3D({
                 selectedConnId={selectedConnId}
                 connectMode={connectMode}
                 connectFrom={connectFrom}
+                testMode={testMode}
                 lib={libById}
                 selectedId={selectedId}
                 drawPath={drawPath}
@@ -1720,6 +1851,16 @@ export default function AutomationTopology3D({
                 onMoveWaypoint={moveWaypoint}
                 onHandleDragChange={(active) => setOrbitEnabled(!active)}
               />
+              {testMode && testTopo && (
+                <RouteTestOverlay
+                  topo={testTopo}
+                  startCode={testStart}
+                  targetCode={testTarget}
+                  result={testResult}
+                  surfaceM={conveyorTopM}
+                  onPick={handleTestPick}
+                />
+              )}
               <OrbitControls
                 makeDefault
                 enabled={orbitEnabled}
@@ -1737,13 +1878,28 @@ export default function AutomationTopology3D({
               />
             </Canvas>
             <div className="atopo-hint">
-              {connectMode
-                ? connectFrom
+              {testMode ? (
+                <>
+                  {!testStart
+                    ? 'Route test: click a start point, then a target — Esc to exit'
+                    : !testTarget
+                      ? `Route test: start ${testStart} — click a target — Esc to exit`
+                      : 'Route test: click to pick a new start — Esc to exit'}
+                  {testVerdict && (
+                    <span className={`atopo-route-chip ${testVerdict.ok ? 'is-ok' : 'is-bad'}`}>
+                      {testVerdict.text}
+                    </span>
+                  )}
+                </>
+              ) : connectMode ? (
+                connectFrom
                   ? `Connect: from ${equipmentById.get(connectFrom)?.code ?? '?'} — click a target (or the source again to cancel)`
                   : 'Connect: click a source piece of equipment'
-                : drawPath
-                  ? 'Draw mode: click a start point then an end point — the section runs start → end'
-                  : 'Drag to orbit · right-drag to pan · scroll to zoom'}
+              ) : drawPath ? (
+                'Draw mode: click a start point then an end point — the section runs start → end'
+              ) : (
+                'Drag to orbit · right-drag to pan · scroll to zoom'
+              )}
             </div>
             </>
           )}
@@ -2689,6 +2845,9 @@ interface SceneContentProps {
   selectedConnId: string | null
   connectMode: boolean
   connectFrom: string | null
+  // Route test mode: editing interactions (select/drag/draw/connect) are suppressed; clicks are
+  // handled by the RouteTestOverlay's pick plane (rendered above the conveyor tops).
+  testMode: boolean
   lib: Map<string, Equipment>
   selectedId: string | null
   drawPath: boolean
@@ -2716,6 +2875,7 @@ function SceneContent({
   selectedConnId,
   connectMode,
   connectFrom,
+  testMode,
   lib,
   selectedId,
   drawPath,
@@ -2754,6 +2914,12 @@ function SceneContent({
         position={[0, -0.001, 0]}
         onPointerDown={(e: ThreeEvent<PointerEvent>) => {
           if (e.button !== 0) return
+          // In test mode the RouteTestOverlay's pick plane (above the conveyors) handles clicks;
+          // anything that still reaches the ground is ignored so editing stays suppressed.
+          if (testMode) {
+            e.stopPropagation()
+            return
+          }
           if (connectMode) {
             e.stopPropagation()
             if (connectFrom) onConnectPick(connectFrom) // re-pick source id => cancel
@@ -2793,7 +2959,11 @@ function SceneContent({
             connectSource={eq.id === connectFrom}
             drawing={drawing}
             activeFromIdx={drawing ? activeFromIdx : null}
-            onSelect={() => (connectMode ? onConnectPick(eq.id) : onSelect(eq.id))}
+            onSelect={() => {
+              if (testMode) return // selection suppressed while route-testing
+              if (connectMode) onConnectPick(eq.id)
+              else onSelect(eq.id)
+            }}
             onMove={(x, z, rot) => onMove(eq.id, x, z, rot)}
             onMoveWaypoint={(index, x, z) => onMoveWaypoint(eq.id, index, x, z)}
             onAnchorWaypoint={onAnchorWaypoint}
@@ -2817,7 +2987,11 @@ function SceneContent({
             eq={eq}
             // An FP on a stub host (ASRS with a path) rides at the STUB's height, not the rack top.
             topM={!isConveyor(eq, lib) && hasPath(eq) ? stubHeightM ?? STUB_HEIGHT_M : undefined}
-            onSelect={() => (connectMode ? onConnectPick(eq.id) : onEditFunctionPoint(fp.id))}
+            onSelect={() => {
+              if (testMode) return // FP dialogs suppressed while route-testing
+              if (connectMode) onConnectPick(eq.id)
+              else onEditFunctionPoint(fp.id)
+            }}
           />
         )
       })}
@@ -3728,6 +3902,24 @@ function Styles() {
         padding: .3rem .6rem; border-radius: 8px; font-size: .72rem; letter-spacing: .02em;
         color: rgba(214, 228, 220, .85); background: rgba(8, 30, 22, .6);
         border: 1px solid var(--glass-border);
+      }
+      /* "Test route" toolbar toggle while the mode is on. */
+      .atopo-testbtn-on {
+        color: var(--herbal-lime); border-color: rgba(141, 198, 63, .5);
+        background: rgba(141, 198, 63, .12);
+      }
+      /* Route-test verdict chip in the hint bar: green for a found path, red for no path. */
+      .atopo-route-chip {
+        display: inline-block; margin-left: .5rem; padding: .1rem .5rem; border-radius: 999px;
+        font-family: var(--font-mono); font-size: .7rem; letter-spacing: .02em;
+      }
+      .atopo-route-chip.is-ok {
+        color: var(--herbal-lime); border: 1px solid rgba(141, 198, 63, .5);
+        background: rgba(141, 198, 63, .12);
+      }
+      .atopo-route-chip.is-bad {
+        color: #ff8a7e; border: 1px solid rgba(255, 122, 110, .5);
+        background: rgba(255, 122, 110, .12);
       }
       .atopo-empty {
         height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
