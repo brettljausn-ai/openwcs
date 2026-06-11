@@ -62,6 +62,8 @@ export interface TwinSnapshot {
   activityByPlacedId: Record<string, EquipmentActivity>
   totes: ToteView[]
   stats: TwinStats
+  /** The placement id of the "main" conveyor (longest path) — the 3D layer glides totes along it. */
+  mainConveyorPlacedId: string | null
 }
 
 // ----------------------------------------------------------------------------------------------------
@@ -84,6 +86,8 @@ export interface PlacementGeom {
   worldPath?: Array<[number, number]>
   /** Cumulative arc length of worldPath (worldPath[i] reached at cumLen[i]); last entry = total. */
   cumLen?: number[]
+  /** True when the path loops back from the last waypoint to the first (recirculating loop). */
+  closed?: boolean
 }
 
 function levelElevation(eq: AutomationEquipment, levels: AutomationLevel[]): number {
@@ -113,18 +117,66 @@ export function placementGeom(eq: AutomationEquipment, levels: AutomationLevel[]
     }
     geom.worldPath = world
     geom.cumLen = cum
+    geom.closed = !!eq.closed
   }
   return geom
 }
 
-/** Representative world point of a placement: a conveyor's path midpoint, else the box centre.
- *  Used as the tote anchor when we only know "the tote is on equipment X". */
+/** Representative world point of a placement: a conveyor's path midpoint, else ON TOP of the box.
+ *  Used as the tote anchor when we only know "the tote is on equipment X". Box equipment anchors at
+ *  its top surface (not belt height) so a tote at a 1m-tall workstation sits visibly ON it rather
+ *  than being swallowed inside the solid mesh. */
 export function anchorPoint(geom: PlacementGeom): [number, number, number] {
   if (geom.worldPath && geom.cumLen) {
     const at = pointAlongPath(geom, 0.5)
     return at.pos
   }
-  return [geom.center[0], geom.elevationM + BELT_Y, geom.center[2]]
+  return [geom.center[0], geom.elevationM + (geom.size[1] || 0.5) + 0.12, geom.center[2]]
+}
+
+/** Waypoints (world, belt height) along a conveyor's path from the vertex nearest `from` to the
+ *  vertex nearest `to`, walking the path in index order (wrapping when `closed`). Lets the 3D layer
+ *  glide a tote ALONG the conveyor between two equipment anchors instead of cutting straight across
+ *  the floor. Returns [] when the geom has no usable path. */
+export function routeAlong(
+  geom: PlacementGeom,
+  from: [number, number],
+  to: [number, number],
+  closed = false,
+): Array<[number, number, number]> {
+  const path = geom.worldPath
+  if (!path || path.length < 2) return []
+  const nearest = (p: [number, number]): number => {
+    let best = 0
+    let bestD = Infinity
+    for (let i = 0; i < path.length; i++) {
+      const d = (path[i][0] - p[0]) ** 2 + (path[i][1] - p[1]) ** 2
+      if (d < bestD) {
+        bestD = d
+        best = i
+      }
+    }
+    return best
+  }
+  const a = nearest(from)
+  const b = nearest(to)
+  const y = geom.elevationM + BELT_Y
+  const out: Array<[number, number, number]> = []
+  if (a === b) return [[path[a][0], y, path[a][1]]]
+  if (closed) {
+    // Walk forward with wrap-around (conveyor loops run one way).
+    for (let i = a; ; i = (i + 1) % path.length) {
+      out.push([path[i][0], y, path[i][1]])
+      if (i === b) break
+    }
+  } else {
+    const step = a < b ? 1 : -1
+    for (let i = a; ; i += step) {
+      out.push([path[i][0], y, path[i][1]])
+      if (i === b) break
+    }
+  }
+  return out
 }
 
 /** Point at arc-length fraction t in [0,1] along a path conveyor (world coords + planar direction). */
@@ -205,8 +257,32 @@ export function deriveTwin(tasks: DeviceTask[], topo: AutomationTopology, nowMs:
   for (const eq of topo.equipment) {
     if (eq.stationId && !placedByStationId.has(eq.stationId)) placedByStationId.set(eq.stationId, eq.id)
   }
-  const placedOf = (equipmentId?: string | null): string | null =>
-    (equipmentId && placedByEquipmentId.get(equipmentId)) || null
+  // Family fallback: today the flow dispatches device tasks WITHOUT an equipmentId (by family only),
+  // so direct correlation never matches. Until the backend attributes equipment, anchor a task on the
+  // representative placement of its family: ASRS/AUTOSTORE/AMR → the (first) storage placement;
+  // CONVEYOR → the conveyor with the LONGEST path (the main loop).
+  let asrsPlacedId: string | null = null
+  let mainConveyorPlacedId: string | null = null
+  let longest = -1
+  for (const eq of topo.equipment) {
+    const cat = eq.category ?? ''
+    if (cat === 'asrs' && !asrsPlacedId) asrsPlacedId = eq.id
+    if (cat === 'conveyor') {
+      const len = eq.path?.length ?? 0
+      if (len > longest) {
+        longest = len
+        mainConveyorPlacedId = eq.id
+      }
+    }
+  }
+  const fallbackFor = (family?: string | null): string | null => {
+    const f = (family ?? '').toUpperCase()
+    if (f === 'ASRS' || f === 'AUTOSTORE' || f === 'AMR') return asrsPlacedId
+    if (f === 'CONVEYOR') return mainConveyorPlacedId
+    return null
+  }
+  const placedOf = (equipmentId?: string | null, family?: string | null): string | null =>
+    (equipmentId && placedByEquipmentId.get(equipmentId)) || fallbackFor(family)
 
   // --- Equipment activity -----------------------------------------------------------------------
   const activityByPlacedId: Record<string, EquipmentActivity> = {}
@@ -228,7 +304,7 @@ export function deriveTwin(tasks: DeviceTask[], topo: AutomationTopology, nowMs:
     if (RUNNING_STATUSES.has(status)) fam.running++
     recirculations += resultRecirc(t)
 
-    const placedId = placedOf(t.equipmentId)
+    const placedId = placedOf(t.equipmentId, t.family)
     if (!placedId) continue
     const act = ensure(placedId)
     // Newest task per equipment wins for lastCommand/lastTs (tasks arrive newest-first, so only set once).
@@ -267,13 +343,13 @@ export function deriveTwin(tasks: DeviceTask[], topo: AutomationTopology, nowMs:
     const recirculated = decisions.some((d) => d.event === 'RECIRCULATED') || resultRecirc(t) > 0
     const destWp = payloadStr(t, 'destinationWorkplaceId')
     const prev = prevByHu.get(hu)
-    const prevPlacedId = placedOf(prev?.equipmentId)
+    const prevPlacedId = placedOf(prev?.equipmentId, prev?.family)
 
     let state: ToteRuntimeState
     let anchorPlacedId: string | null
     if (RUNNING_STATUSES.has(status)) {
       state = recirculated ? 'recirculating' : 'in-transit'
-      anchorPlacedId = placedOf(t.equipmentId)
+      anchorPlacedId = placedOf(t.equipmentId, t.family)
       inTransit++
     } else if (status === 'COMPLETED') {
       // A completed CONVEY with a destination => the tote has arrived and is queued at that station.
@@ -283,7 +359,7 @@ export function deriveTwin(tasks: DeviceTask[], topo: AutomationTopology, nowMs:
         queued++
       } else if (nowMs - created <= TOTE_DONE_LINGER_MS) {
         state = 'done'
-        anchorPlacedId = placedOf(t.equipmentId)
+        anchorPlacedId = placedOf(t.equipmentId, t.family)
       } else {
         continue // stale completed task — the tote has left the system, don't render it
       }
@@ -309,5 +385,6 @@ export function deriveTwin(tasks: DeviceTask[], topo: AutomationTopology, nowMs:
     activityByPlacedId,
     totes,
     stats: { inTransit, queued, recirculations, faults, throughputPerMin: throughput, byFamily },
+    mainConveyorPlacedId,
   }
 }

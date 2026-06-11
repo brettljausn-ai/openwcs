@@ -3398,8 +3398,9 @@ function ConveyorPath({
         )
       })}
 
-      {/* Junction / decision markers — one per path point used by a section. */}
-      {path.map((p, i) => {
+      {/* Junction / decision markers — one per path point used by a section. Hidden together with
+          the labels (the twin's "Labels" toggle declutters both the text and these marker "hats"). */}
+      {showLabels && path.map((p, i) => {
         if (!junctions.has(i)) return null
         const isDecision = decisions.has(i)
         const isAnchor = drawing && activeFromIdx === i
