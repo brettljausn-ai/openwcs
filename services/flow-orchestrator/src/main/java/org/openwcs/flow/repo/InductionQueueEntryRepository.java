@@ -15,6 +15,9 @@ public interface InductionQueueEntryRepository extends JpaRepository<InductionQu
 
     Optional<InductionQueueEntry> findByConveyTaskId(UUID conveyTaskId);
 
+    /** Dig-out wiring (ADR-0009): find the entry a completing RELOCATE device task belongs to. */
+    Optional<InductionQueueEntry> findByRelocateTaskId(UUID relocateTaskId);
+
     /** Return-leg wiring: find the entry a completing return CONVEY / STORE device task belongs to. */
     Optional<InductionQueueEntry> findByReturnConveyTaskId(UUID returnConveyTaskId);
 

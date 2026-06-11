@@ -115,6 +115,10 @@ public class DeviceTaskService {
         String command = task.getCommand();
         if ("RETRIEVE".equals(command) || "BIN_RETRIEVE".equals(command)) {
             induction.onRetrieveCompleted(task.getId(), completed, task.getActor());
+        } else if ("RELOCATE".equals(command) || "BIN_RELOCATE".equals(command)) {
+            // ADR-0009 dig-out: a completing blocker move books + traces the blocker and re-runs
+            // the entry's dispatch decision (next relocate, or the real retrieve).
+            induction.onRelocateCompleted(task.getId(), completed, task.getPayload(), task.getActor());
         } else if ("CONVEY".equals(command)) {
             // The outbound (induction) and return-to-storage legs share the CONVEY command; each
             // hook looks the entry up by its own task-id column and is a no-op on a miss, so

@@ -32,6 +32,9 @@ public class FlowProperties {
     /** Base URL of the inventory service (booking HU locations through the transport lifecycle). */
     private String inventoryBaseUrl = "http://localhost:8082";
 
+    /** Base URL of the slotting service (relocation plans for multi-deep channel dig-outs, ADR-0009). */
+    private String slottingBaseUrl = "http://localhost:8093";
+
     public Map<String, String> getAdapters() {
         return adapters;
     }
@@ -70,5 +73,13 @@ public class FlowProperties {
 
     public void setInventoryBaseUrl(String inventoryBaseUrl) {
         this.inventoryBaseUrl = inventoryBaseUrl;
+    }
+
+    public String getSlottingBaseUrl() {
+        return slottingBaseUrl;
+    }
+
+    public void setSlottingBaseUrl(String slottingBaseUrl) {
+        this.slottingBaseUrl = slottingBaseUrl;
     }
 }

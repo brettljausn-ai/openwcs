@@ -35,11 +35,14 @@ type deviceTaskResult struct {
 
 // commandsByFamily are the moves each simulated family accepts — the union of the per-family
 // adapters' supportedCommands, consolidated here.
+// RELOCATE/BIN_RELOCATE (ADR-0009): a WCS-directed dig-out shuttle move — the payload tells the
+// device exactly which HU to take from which slot to which slot; the emulator just sleeps one
+// shuttle-move latency and reports back. No internal decision-making.
 var commandsByFamily = map[string]map[string]bool{
-	"ASRS":      {"STORE": true, "RETRIEVE": true, "SCAN": true},
+	"ASRS":      {"STORE": true, "RETRIEVE": true, "RELOCATE": true, "SCAN": true},
 	"CONVEYOR":  {"CONVEY": true, "DIVERT": true, "MERGE": true, "SCAN": true},
 	"AMR":       {"TRANSPORT": true, "MOVE": true, "SCAN": true},
-	"AUTOSTORE": {"BIN_STORE": true, "BIN_RETRIEVE": true, "SCAN": true},
+	"AUTOSTORE": {"BIN_STORE": true, "BIN_RETRIEVE": true, "BIN_RELOCATE": true, "SCAN": true},
 }
 
 // supportedFamilies lists the families the emulator simulates (sorted, for stable info output).

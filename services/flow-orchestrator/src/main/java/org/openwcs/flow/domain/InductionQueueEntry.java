@@ -84,6 +84,13 @@ public class InductionQueueEntry extends Auditable {
     @Column(name = "retrieve_task_id")
     private UUID retrieveTaskId;
 
+    /**
+     * The in-flight RELOCATE/BIN_RELOCATE device_task digging a blocker out of this entry's channel
+     * (ADR-0009). Cleared on the relocate callback so the next chain step can be stamped.
+     */
+    @Column(name = "relocate_task_id")
+    private UUID relocateTaskId;
+
     /** The CONVEY device_task driving the conveyor leg. */
     @Column(name = "convey_task_id")
     private UUID conveyTaskId;
@@ -240,6 +247,14 @@ public class InductionQueueEntry extends Auditable {
 
     public void setRetrieveTaskId(UUID retrieveTaskId) {
         this.retrieveTaskId = retrieveTaskId;
+    }
+
+    public UUID getRelocateTaskId() {
+        return relocateTaskId;
+    }
+
+    public void setRelocateTaskId(UUID relocateTaskId) {
+        this.relocateTaskId = relocateTaskId;
     }
 
     public UUID getConveyTaskId() {
