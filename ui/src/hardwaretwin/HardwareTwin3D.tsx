@@ -238,7 +238,7 @@ function Overlay({
   const pipRef = useRef<THREE.Mesh>(null)
   const matRef = useRef<THREE.MeshStandardMaterial>(null)
   const anchor = anchorPoint(geom) // belt-height representative point
-  const top = geom.elevationM + (geom.size[1] || 0.5) + 0.6
+  const top = geom.baseY + (geom.size[1] || 0.5) + 0.6
 
   useFrame(({ clock }) => {
     const mat = matRef.current
@@ -271,7 +271,7 @@ function Overlay({
         </mesh>
       )}
       {selected && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[geom.center[0], geom.elevationM + 0.02, geom.center[2]]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[geom.center[0], geom.baseY + 0.02, geom.center[2]]}>
           <ringGeometry args={[Math.max(0.6, geom.size[0] * 0.55), Math.max(0.8, geom.size[0] * 0.62), 48]} />
           <meshBasicMaterial color={LIME} transparent opacity={0.85} side={THREE.DoubleSide} />
         </mesh>
@@ -401,9 +401,29 @@ interface ToteMeshProps {
   onSelect: () => void
 }
 
+// Real warehouse-tote proportions (600×400 mm footprint, ~320 mm tall) — an open-top container:
+// a base plate, four slightly raised walls and a brighter top rim, rather than an abstract cube.
+const TOTE_L = 0.6
+const TOTE_W = 0.4
+const TOTE_H = 0.32
+const TOTE_WALL = 0.04
+
 function ToteMesh({ tote, selected, registerGroup, onSelect }: ToteMeshProps): JSX.Element {
   const color = toteColor(tote.state)
-  const size = selected ? TOTE_SIZE * 1.3 : TOTE_SIZE
+  const s = selected ? 1.25 : 1
+  const l = TOTE_L * s
+  const w = TOTE_W * s
+  const h = TOTE_H * s
+  const wall = TOTE_WALL * s
+  const mat = (
+    <meshStandardMaterial
+      color={color}
+      metalness={0.15}
+      roughness={0.55}
+      emissive={selected ? color : '#000000'}
+      emissiveIntensity={selected ? 0.5 : 0}
+    />
+  )
   return (
     <group
       ref={registerGroup}
@@ -412,17 +432,42 @@ function ToteMesh({ tote, selected, registerGroup, onSelect }: ToteMeshProps): J
         onSelect()
       }}
     >
-      <RoundedBox args={[size, size, size]} radius={0.06} smoothness={3} castShadow>
+      {/* Base plate */}
+      <mesh position={[0, wall / 2, 0]} castShadow>
+        <boxGeometry args={[l, wall, w]} />
+        {mat}
+      </mesh>
+      {/* Long walls (slight outward lean for the classic stacking-tote taper) */}
+      <mesh position={[0, h / 2, w / 2 - wall / 2]} rotation={[0.07, 0, 0]} castShadow>
+        <boxGeometry args={[l, h, wall]} />
+        {mat}
+      </mesh>
+      <mesh position={[0, h / 2, -(w / 2 - wall / 2)]} rotation={[-0.07, 0, 0]} castShadow>
+        <boxGeometry args={[l, h, wall]} />
+        {mat}
+      </mesh>
+      {/* Short walls */}
+      <mesh position={[l / 2 - wall / 2, h / 2, 0]} rotation={[0, 0, -0.07]} castShadow>
+        <boxGeometry args={[wall, h, w]} />
+        {mat}
+      </mesh>
+      <mesh position={[-(l / 2 - wall / 2), h / 2, 0]} rotation={[0, 0, 0.07]} castShadow>
+        <boxGeometry args={[wall, h, w]} />
+        {mat}
+      </mesh>
+      {/* Brighter top rim — reads as the tote lip and makes the state colour pop from above. */}
+      <mesh position={[0, h, 0]}>
+        <boxGeometry args={[l + 0.04, 0.03, w + 0.04]} />
         <meshStandardMaterial
           color={color}
-          metalness={0.2}
-          roughness={0.5}
-          emissive={selected ? color : '#000000'}
-          emissiveIntensity={selected ? 0.6 : 0}
+          metalness={0.1}
+          roughness={0.4}
+          emissive={color}
+          emissiveIntensity={selected ? 0.8 : 0.35}
         />
-      </RoundedBox>
+      </mesh>
       {selected && tote.huCode && (
-        <Html position={[0, size + 0.2, 0]} center distanceFactor={18} occlude={false}>
+        <Html position={[0, h + 0.25, 0]} center distanceFactor={18} occlude={false}>
           <div
             style={{
               padding: '0.15rem 0.45rem',
