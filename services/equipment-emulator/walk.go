@@ -32,6 +32,12 @@ const defaultSpeedMps = 0.5
 // ("walk exceeded scan budget") instead of looping forever on a pathological topology/decision.
 const maxWalkScans = 500
 
+// maxNoRouteRetries / noRouteDwell: how often a NO_ROUTE answer is retried on the same node before
+// the walk fails — absorbs the controller's dispatch-transaction race (the route plan commits
+// milliseconds after the task is acked, but the first scan can beat it).
+const maxNoRouteRetries = 4
+const noRouteDwell = 500 * time.Millisecond
+
 // holdDwell is the time a held tote waits before rescanning the same node (~1 s per ADR-0008).
 // Like edge travel, latencyOverrideMs >= 0 overrides it (in ms) so demos/tests stay tunable.
 const holdDwell = time.Second
@@ -288,6 +294,7 @@ func runLiveWalk(family string, req deviceTaskRequest) deviceTaskResult {
 
 	current := entryNode
 	scans, holds := 0, 0
+	noRouteRetries := 0
 	var decisions []map[string]interface{}
 	for {
 		if scans >= maxWalkScans {
@@ -349,10 +356,28 @@ func runLiveWalk(family string, req deviceTaskRequest) deviceTaskResult {
 					"decisions":      decisions,
 				},
 			}
-		case "NO_ROUTE", "EXCEPTION":
+		case "NO_ROUTE":
+			// Real hardware rescans: a NO_ROUTE on the first scans is usually the dispatch race —
+			// the controller's route-plan transaction has not committed yet when the tote hits the
+			// scanner. Retry the same node a few times before declaring the walk dead.
+			if noRouteRetries < maxNoRouteRetries {
+				noRouteRetries++
+				decisions = append(decisions, map[string]interface{}{
+					"point": current, "event": "RESCAN",
+					"decision": fmt.Sprintf("no route yet — rescan %d/%d", noRouteRetries, maxNoRouteRetries),
+				})
+				time.Sleep(noRouteDwell)
+				continue
+			}
 			detail := dec.Detail
 			if detail == "" {
-				detail = dec.Action + " at " + current
+				detail = "NO_ROUTE at " + current
+			}
+			return fail(detail, scans, holds, decisions)
+		case "EXCEPTION":
+			detail := dec.Detail
+			if detail == "" {
+				detail = "EXCEPTION at " + current
 			}
 			return fail(detail, scans, holds, decisions)
 		default:
