@@ -737,6 +737,30 @@ export default function AutomationTopology3D({
     setDirty(true)
   }, [])
 
+  // Delete one path waypoint from a conveyor (used by the 2D plan's select-then-Delete flow).
+  // Semantics: drop path[index]; drop every section touching that index (no auto-bridging); re-index
+  // the surviving section pairs (indices > index shift down by 1). When fewer than 2 points remain
+  // the path and sections are cleared entirely (the item renders as a plain box again); `closed` is
+  // only kept while at least 3 points remain (a 2-point loop is degenerate).
+  const deleteWaypoint = useCallback((id: string, index: number) => {
+    setEquipment((es) =>
+      es.map((e) => {
+        if (e.id !== id) return e
+        const path = Array.isArray(e.path) ? e.path.map((p) => [p[0], p[1]]) : []
+        if (index < 0 || index >= path.length) return e
+        // Materialise the CURRENT connectivity first (implicit sequential paths included) so the
+        // deletion behaves identically whether or not explicit sections were stored.
+        const sections = effectiveSections(e)
+          .filter((s) => s[0] !== index && s[1] !== index)
+          .map((s) => [s[0] > index ? s[0] - 1 : s[0], s[1] > index ? s[1] - 1 : s[1]])
+        path.splice(index, 1)
+        if (path.length < 2) return { ...e, path: [], sections: [], closed: false }
+        return { ...e, path, sections, closed: !!e.closed && path.length >= 3 }
+      }),
+    )
+    setDirty(true)
+  }, [])
+
   // ---- function-point helpers --------------------------------------------
   const addFunctionPoint = useCallback((fp: AutomationFunctionPoint) => {
     setFunctionPoints((fps) => [...fps, fp])
@@ -1613,6 +1637,7 @@ export default function AutomationTopology3D({
               connections={connections}
               onSelect={setSelectedId}
               onPatch={patchEquipment}
+              onDeleteWaypoint={deleteWaypoint}
               onDrawAt={drawSectionAt}
               onAddFunctionPoint={addFunctionPoint}
               onDeleteFunctionPoint={deleteFunctionPoint}

@@ -64,6 +64,9 @@ interface PlanEditor2DProps {
   onSelect: (id: string | null) => void
   // Partial update of a placed item — same as patchEquipment in the parent.
   onPatch: (id: string, patch: Partial<AutomationEquipment>) => void
+  // Delete one conveyor path waypoint — same as deleteWaypoint in the parent (drops the point and
+  // every section touching it, re-indexing the survivors). Driven by the select-then-Delete flow.
+  onDeleteWaypoint: (id: string, index: number) => void
   // A snapped world (x,z) click while drawing — same as drawSectionAt in the parent.
   onDrawAt: (id: string, x: number, z: number) => void
   // Create a function point — same as addFunctionPoint in the parent.
@@ -179,6 +182,7 @@ export default function PlanEditor2D({
   connections,
   onSelect,
   onPatch,
+  onDeleteWaypoint,
   onDrawAt,
   onAddFunctionPoint,
   onDeleteFunctionPoint,
@@ -240,7 +244,17 @@ export default function PlanEditor2D({
         baseZ: number
         active: boolean
       }
-    | { kind: 'waypoint'; id: string; index: number; path: number[][] }
+    // Waypoint drag: like 'move', the actual drag is gated behind a small pixel threshold so a plain
+    // click only SELECTS the waypoint (for Delete/Backspace removal) instead of nudging it.
+    | {
+        kind: 'waypoint'
+        id: string
+        index: number
+        path: number[][]
+        startX: number
+        startY: number
+        moved: boolean
+      }
     | { kind: 'pending' }
     // FP marker: a plain click (no move past the threshold) opens its config dialog; a drag past the
     // threshold re-positions it along the nearest conveyor. moved gates which happens on pointer-up.
@@ -251,6 +265,11 @@ export default function PlanEditor2D({
   const [fpSnap, setFpSnap] = useState<{ eqId: string; offsetM: number; x: number; z: number } | null>(
     null,
   )
+
+  // The SELECTED conveyor path waypoint (clicked, not dragged): highlighted with a ring + a small ✕
+  // affordance; Delete/Backspace removes it via onDeleteWaypoint. Cleared on canvas click, equipment
+  // change, draw-mode toggle, or when the path shrinks under the index.
+  const [selectedWp, setSelectedWp] = useState<{ eqId: string; index: number } | null>(null)
 
   // ---- coordinate helpers (world metres <-> screen pixels) -----------------
   const toPx = useCallback(
@@ -411,6 +430,45 @@ export default function PlanEditor2D({
     return () => window.removeEventListener('keydown', onKey)
   }, [pending])
 
+  // Entering draw-sections mode discards any pending point — its click-to-place overlay would
+  // otherwise swallow the draw clicks (the palette is hidden while drawing anyway).
+  useEffect(() => {
+    if (drawing) setPending(null)
+  }, [drawing])
+
+  // Waypoint selection housekeeping: drop it when the equipment selection changes, when draw-sections
+  // mode toggles (draw clicks must never arm a delete), or when its index no longer exists.
+  useEffect(() => {
+    setSelectedWp(null)
+  }, [selectedId, drawing])
+  useEffect(() => {
+    if (!selectedWp) return
+    const eq = items.find((it) => it.id === selectedWp.eqId)
+    const path = Array.isArray(eq?.path) ? eq.path : []
+    if (!eq || selectedWp.index >= path.length) setSelectedWp(null)
+  }, [items, selectedWp])
+
+  // Delete the selected waypoint (Delete/Backspace key, or the ✕ affordance next to it).
+  // No side-effects inside a setState updater (React may run updaters twice) — read the plain state.
+  const deleteSelectedWp = useCallback(() => {
+    if (!selectedWp) return
+    onDeleteWaypoint(selectedWp.eqId, selectedWp.index)
+    setSelectedWp(null)
+  }, [selectedWp, onDeleteWaypoint])
+  useEffect(() => {
+    if (!selectedWp) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      // Never hijack the key while the user is typing in a form field.
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      e.preventDefault()
+      deleteSelectedWp()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedWp, deleteSelectedWp])
+
   // Clicking a palette type CREATES a pending function point floating at a staging spot near the
   // top-left of the canvas (in world metres). The user then drags it onto a conveyor to place it.
   const createPending = useCallback(
@@ -493,22 +551,29 @@ export default function PlanEditor2D({
         onDrawAt(selectedId, s.x, s.z)
         return
       }
-      // A pending (un-placed) function point: a click on the plane PLACES it right here — snapped to
-      // the nearest conveyor centreline (any point along a section, not just an existing node). This
-      // is the click-to-place path; the staging marker can also still be dragged onto a conveyor.
-      if (pendingRef.current) {
-        const w = clientToWorld(e.clientX, e.clientY)
-        const snap = pendingSnap(pendingRef.current.functionType, w.x, w.z)
-        pendingRef.current = { ...pendingRef.current, world: w, snap }
-        setPending(pendingRef.current)
-        commitPending()
-        return
-      }
-      // Otherwise begin a pan; an empty click (no drag) deselects on pointer-up.
+      // While a pending (un-placed) function point exists, a dedicated full-canvas overlay (rendered
+      // above all content, below the pending marker) owns click-to-place — this handler never sees
+      // those clicks. Otherwise begin a pan; an empty click (no drag) deselects on pointer-up.
       drag.current = { kind: 'pan', startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y }
       ;(e.target as Element).setPointerCapture?.(e.pointerId)
     },
-    [drawing, selectedId, clientToWorld, onDrawAt, pan, drawSnapAt, pendingSnap, commitPending],
+    [drawing, selectedId, clientToWorld, onDrawAt, pan, drawSnapAt],
+  )
+
+  // Click-to-place for a pending function point: move it to the click position, resolve the snap
+  // there, and commit immediately (same snap/commit logic as a drag-drop — a click resolving to no
+  // valid snap discards the point, exactly like an off-target drop).
+  const placePendingAt = useCallback(
+    (clientX: number, clientY: number) => {
+      const cur = pendingRef.current
+      if (!cur) return
+      const w = clientToWorld(clientX, clientY)
+      const next = { ...cur, world: w, snap: pendingSnap(cur.functionType, w.x, w.z) }
+      pendingRef.current = next
+      setPending(next)
+      commitPending()
+    },
+    [clientToWorld, pendingSnap, commitPending],
   )
 
   // A single pointer-move handler at the SVG level drives pan / move / waypoint / FP-marker drags.
@@ -520,6 +585,19 @@ export default function PlanEditor2D({
         if (drawing && selectedId) {
           const w = clientToWorld(e.clientX, e.clientY)
           setDrawHover(drawSnapAt(w.x, w.z))
+        }
+        // A pending (un-placed) function point follows the cursor (with its live snap preview) even
+        // WITHOUT a drag, so the user just moves the mouse to the target and clicks to place — the
+        // snap ring always shows where the click would land.
+        if (pendingRef.current) {
+          const w = clientToWorld(e.clientX, e.clientY)
+          const next = {
+            ...pendingRef.current,
+            world: w,
+            snap: pendingSnap(pendingRef.current.functionType, w.x, w.z),
+          }
+          pendingRef.current = next
+          setPending(next)
         }
         return
       }
@@ -579,6 +657,12 @@ export default function PlanEditor2D({
       const sx = snap(w.x, gridStep, snapOn)
       const sz = snap(w.z, gridStep, snapOn)
       if (d.kind === 'waypoint') {
+        // Gate the move behind a small pixel threshold so a plain click only SELECTS the waypoint
+        // (armed for Delete/Backspace) without nudging it.
+        if (!d.moved) {
+          if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < DRAG_THRESHOLD_PX) return
+          d.moved = true
+        }
         const next = d.path.map((p, i) => (i === d.index ? [sx, sz] : [p[0], p[1]]))
         onPatch(d.id, { path: next })
       }
@@ -599,6 +683,9 @@ export default function PlanEditor2D({
     drag.current = null
     if (d?.kind === 'pending') {
       commitPending()
+    } else if (d?.kind === 'waypoint') {
+      // A plain click (no drag) SELECTS the waypoint — ring highlight + ✕, Delete/Backspace removes.
+      setSelectedWp(d.moved ? null : { eqId: d.id, index: d.index })
     } else if (d?.kind === 'fp') {
       setFpSnap(null)
       if (!d.moved) {
@@ -619,7 +706,11 @@ export default function PlanEditor2D({
       const d = drag.current
       if (d && d.kind === 'pan') {
         const moved = Math.hypot(e.clientX - d.startX, e.clientY - d.startY)
-        if (moved < 4 && !drawing) onSelect(null)
+        if (moved < 4) {
+          // A plain canvas click clears the waypoint selection (and deselects when not drawing).
+          setSelectedWp(null)
+          if (!drawing) onSelect(null)
+        }
       }
       drag.current = null
     },
@@ -701,6 +792,14 @@ export default function PlanEditor2D({
               // INDUCT/DISCHARGE drop onto an ASRS edge; everything else onto a conveyor.
               const enabled = isPort ? asrsItems.length > 0 : conveyors.length > 0
               const target = isPort ? 'an ASRS' : 'a conveyor'
+              // IN/OUT are ASRS-ONLY ports and FEED is the conveyor-side merge — say so up front.
+              const title = !enabled
+                ? `Add ${target} first to place a ${t}`
+                : isPort
+                  ? `ASRS port: snaps to a rack edge and drops a 1 m ${t === 'INDUCT' ? 'IN' : 'OUT'} stub`
+                  : isInfeed
+                    ? 'Feed/merge: joins a feeding line INTO the conveyor you drop it on (use after an ASRS OUT stub)'
+                    : `Create a ${t} and drop it onto ${target} (click or drag)`
               return (
                 <button
                   key={t}
@@ -710,13 +809,10 @@ export default function PlanEditor2D({
                   }${isInfeed ? ' is-infeed' : ''}`}
                   onClick={() => createPending(t)}
                   disabled={!enabled}
-                  title={
-                    enabled
-                      ? `Create a ${t} and drag it onto ${target}`
-                      : `Add ${target} first to place a ${t}`
-                  }
+                  title={title}
                 >
                   {FUNCTION_SHORT[t] ?? t}
+                  {isPort && <span className="plan2d-fptag">ASRS</span>}
                 </button>
               )
             })}
@@ -725,7 +821,7 @@ export default function PlanEditor2D({
             <span className="plan2d-fphint">
               Click{' '}
               {pending.functionType === 'INDUCT' || pending.functionType === 'DISCHARGE'
-                ? 'an ASRS'
+                ? 'an ASRS edge'
                 : 'a conveyor'}{' '}
               to place the new point (or drag it) · Esc to cancel
             </span>
@@ -822,9 +918,19 @@ export default function PlanEditor2D({
                 active: false,
               }
             }}
-            onWaypointStart={(id, index, path) => {
-              drag.current = { kind: 'waypoint', id, index, path }
+            onWaypointStart={(id, index, path, clientX, clientY) => {
+              drag.current = {
+                kind: 'waypoint',
+                id,
+                index,
+                path,
+                startX: clientX,
+                startY: clientY,
+                moved: false,
+              }
             }}
+            selectedWpIndex={selectedWp?.eqId === eq.id ? selectedWp.index : null}
+            onWaypointDelete={deleteSelectedWp}
             onDrawAtPoint={onDrawAt}
           />
         ))}
@@ -900,6 +1006,26 @@ export default function PlanEditor2D({
           )),
         )}
 
+        {/* Click-to-place overlay: while a pending point exists this full-canvas layer sits ABOVE all
+            equipment / markers (so a click on a conveyor body, waypoint or marker can't be swallowed
+            by their own handlers) and BELOW the pending marker (so dragging it still works). A click
+            anywhere places the pending at the click's snap — or discards it when nothing snaps. */}
+        {pending && (
+          <rect
+            x={0}
+            y={0}
+            width="100%"
+            height="100%"
+            fill="transparent"
+            style={{ cursor: 'crosshair' }}
+            onPointerDown={(e) => {
+              if (e.button !== 0) return
+              e.stopPropagation()
+              placePendingAt(e.clientX, e.clientY)
+            }}
+          />
+        )}
+
         {/* The PENDING (un-placed) function point — a floating, clearly-"unplaced" draggable marker. */}
         {pending && (
           <PendingMarker
@@ -911,6 +1037,20 @@ export default function PlanEditor2D({
             }}
           />
         )}
+
+        {/* Inline semantics hint for an un-snapped ASRS port: IN/OUT only ever snap to a rack edge,
+            so while the cursor's nearest snap is NOT an ASRS edge, say so right at the marker. */}
+        {pending &&
+          (pending.functionType === 'INDUCT' || pending.functionType === 'DISCHARGE') &&
+          !pending.snap &&
+          (() => {
+            const [mx, my] = toPx(pending.world.x, pending.world.z)
+            return (
+              <text x={mx + 9} y={my + 20} className="plan2d-pendinghint" pointerEvents="none">
+                IN/OUT snap to ASRS edges · use FEED to join a conveyor
+              </text>
+            )
+          })()}
       </svg>
 
       <div className="plan2d-hint">
@@ -928,7 +1068,9 @@ export default function PlanEditor2D({
               : 'Drag onto a conveyor to place · drop off any conveyor (or Esc) to cancel'
           : drawing
             ? 'Draw a section: click a start point, then an end point — the section runs in that order. Click the conveyor (point or body) to start/end on it; click empty grid for a free point.'
-            : 'Drag an item to move (snapped) · click a point to select it, drag it along the conveyor to reposition · drag empty space to pan · scroll to zoom'}
+            : selectedWp
+              ? 'Waypoint selected · press Delete/Backspace (or click the ✕) to remove it · drag to move · click empty space to deselect'
+              : 'Drag an item to move (snapped) · click a waypoint to select it (Delete removes) · drag a point along the conveyor to reposition · drag empty space to pan · scroll to zoom'}
       </div>
 
       <PlanStyles />
@@ -951,6 +1093,8 @@ function PlanItem({
   onSelect,
   onMoveStart,
   onWaypointStart,
+  selectedWpIndex,
+  onWaypointDelete,
   onDrawAtPoint,
 }: {
   eq: AutomationEquipment
@@ -970,7 +1114,13 @@ function PlanItem({
   // Begin an equipment move drag. The pointer-down screen point (clientX/clientY) is passed so the
   // parent can record the drag-start anchor and gate the actual move behind a small pixel threshold.
   onMoveStart: (id: string, clientX: number, clientY: number) => void
-  onWaypointStart: (id: string, index: number, path: number[][]) => void
+  // Begin a waypoint drag. The pointer-down screen point is passed so the parent can gate the actual
+  // move behind a pixel threshold — a plain click then SELECTS the waypoint instead (for deletion).
+  onWaypointStart: (id: string, index: number, path: number[][], clientX: number, clientY: number) => void
+  // The path index of this item's SELECTED waypoint (ring + ✕ affordance), or null.
+  selectedWpIndex: number | null
+  // Delete the selected waypoint (the ✕ affordance next to it).
+  onWaypointDelete: () => void
   onDrawAtPoint: (id: string, x: number, z: number) => void
 }) {
   const path = Array.isArray(eq.path) ? eq.path : []
@@ -1079,35 +1229,58 @@ function PlanItem({
           )
         })}
 
-        {/* Draggable waypoint handles (snapped). While drawing, clicking re-anchors via onDrawAt. */}
+        {/* Draggable waypoint handles (snapped). While drawing, clicking re-anchors via onDrawAt;
+            otherwise a plain click SELECTS the waypoint (ring + ✕, Delete removes) and a drag moves
+            it. The selected one gets a highlight ring and a small ✕ delete affordance. */}
         {(selected || drawing) &&
           path.map((p, i) => {
             const [px, py] = toPx(p[0], p[1])
+            const isSel = !drawing && selectedWpIndex === i
             return (
-              <circle
-                key={`wp-${i}`}
-                cx={px}
-                cy={py}
-                r={6}
-                className="plan2d-waypoint"
-                fill="#8DC63F"
-                stroke="#08120d"
-                strokeWidth={1.5}
-                onPointerDown={(e) => {
-                  if (e.button !== 0) return
-                  e.stopPropagation()
-                  if (drawing) {
-                    // Re-anchor / branch: delegate to the shared draw handler at this exact point.
-                    // drawSectionAt snaps to this existing junction within SNAP_M, so it re-anchors
-                    // (or draws a section to it) rather than creating a near-duplicate vertex.
-                    onDrawAtPoint(eq.id, p[0], p[1])
-                    return
-                  }
-                  onSelect(eq.id)
-                  onWaypointStart(eq.id, i, path)
-                  ;(e.target as Element).setPointerCapture?.(e.pointerId)
-                }}
-              />
+              <g key={`wp-${i}`}>
+                {isSel && <circle cx={px} cy={py} r={10} className="plan2d-wpselring" />}
+                <circle
+                  cx={px}
+                  cy={py}
+                  r={6}
+                  className="plan2d-waypoint"
+                  fill={isSel ? '#aee06a' : '#8DC63F'}
+                  stroke="#08120d"
+                  strokeWidth={1.5}
+                  onPointerDown={(e) => {
+                    if (e.button !== 0) return
+                    e.stopPropagation()
+                    if (drawing) {
+                      // Re-anchor / branch: delegate to the shared draw handler at this exact point.
+                      // drawSectionAt snaps to this existing junction within SNAP_M, so it re-anchors
+                      // (or draws a section to it) rather than creating a near-duplicate vertex.
+                      onDrawAtPoint(eq.id, p[0], p[1])
+                      return
+                    }
+                    onSelect(eq.id)
+                    onWaypointStart(eq.id, i, path, e.clientX, e.clientY)
+                    ;(e.target as Element).setPointerCapture?.(e.pointerId)
+                  }}
+                />
+                {isSel && (
+                  <g
+                    className="plan2d-wpdelete"
+                    transform={`translate(${px + 13} ${py - 13})`}
+                    onPointerDown={(e) => {
+                      if (e.button !== 0) return
+                      // Don't let this click select/move anything else — it's purely a delete.
+                      e.stopPropagation()
+                      onWaypointDelete()
+                    }}
+                  >
+                    <title>Delete waypoint (or press Delete/Backspace)</title>
+                    <circle cx={0} cy={0} r={7} className="plan2d-wpdelete-bg" />
+                    <text x={0} y={3.5} textAnchor="middle" className="plan2d-wpdelete-x">
+                      ✕
+                    </text>
+                  </g>
+                )}
+              </g>
             )
           })}
 
@@ -1341,6 +1514,10 @@ function PlanStyles() {
       .plan2d-fpbtn.is-divert { color: #e0907f; }
       .plan2d-fpbtn.is-port { color: #8DC63F; }
       .plan2d-fpbtn.is-infeed { color: #5ee0c8; }
+      .plan2d-fptag {
+        margin-left: .3rem; padding: 0 .22rem; border: 1px solid currentColor; border-radius: 4px;
+        font-size: .56rem; letter-spacing: .06em; opacity: .75; vertical-align: 1px;
+      }
       .plan2d-fphint { font-size: .72rem; color: var(--herbal-lime); letter-spacing: .02em; }
       .plan2d-fplabel {
         font-family: var(--font-mono); font-size: 10px;
@@ -1361,6 +1538,21 @@ function PlanStyles() {
       }
       .plan2d-waypoint { cursor: grab; }
       .plan2d-waypoint:hover { fill: #aee06a; }
+      .plan2d-wpselring {
+        fill: rgba(240, 168, 90, .1); stroke: #f0a85a; stroke-width: 2; stroke-opacity: .95;
+        pointer-events: none;
+      }
+      .plan2d-wpdelete { cursor: pointer; }
+      .plan2d-wpdelete-bg { fill: #2b1410; stroke: #e0563f; stroke-width: 1.5; }
+      .plan2d-wpdelete-x {
+        fill: #e0907f; font-size: 9px; font-family: var(--font-mono); user-select: none;
+      }
+      .plan2d-wpdelete:hover .plan2d-wpdelete-bg { fill: #e0563f; }
+      .plan2d-wpdelete:hover .plan2d-wpdelete-x { fill: #fff; }
+      .plan2d-pendinghint {
+        font-family: var(--font-mono); font-size: 10px; fill: #f0a85a;
+        paint-order: stroke; stroke: #08120d; stroke-width: 3px; stroke-linejoin: round;
+      }
       .plan2d-hint {
         position: absolute; left: 12px; bottom: 12px; z-index: 2; pointer-events: none;
         padding: .3rem .6rem; border-radius: 8px; font-size: .72rem; letter-spacing: .02em;
