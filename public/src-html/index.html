@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>openWCS — the open-source Warehouse Control System you actually control</title>
-  <meta name="description" content="openWCS is an open-source Warehouse Control System: vendor-neutral equipment control, visual conveyor routing, and admin-designed BPMN processes. The transparent alternative to locked-in WCS apps from integrators." />
-  <meta name="keywords" content="WCS, warehouse control system, open source WCS, AGPL, conveyor routing, ASRS, AMR, AutoStore, BPMN, material handling, warehouse automation, vendor-neutral" />
+  <meta name="description" content="openWCS is an open-source Warehouse Control System: vendor-neutral equipment control, visual conveyor routing, admin-designed BPMN processes, and a live 3D digital twin of the floor. The transparent alternative to locked-in WCS apps from integrators." />
+  <meta name="keywords" content="WCS, warehouse control system, open source WCS, AGPL, conveyor routing, ASRS, AMR, AutoStore, BPMN, digital twin, material handling, warehouse automation, vendor-neutral" />
   <meta name="author" content="openWCS" />
   <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#061812" />
@@ -97,6 +97,43 @@
         <span class="box">ASRS</span>
         <span class="box">AMR</span>
         <span class="box">AutoStore</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Digital twin standout -->
+  <section id="twin">
+    <div class="wrap">
+      <div class="section-head" data-reveal>
+        <p class="eyebrow" data-i18n="twinEyebrow">Feature standout · Digital twin <span class="pill pill-built">Built</span></p>
+        <h2 data-i18n="twinTitle">Watch your warehouse run. <span class="lime">Live, in 3D.</span></h2>
+        <p data-i18n="twinIntro">
+          Almost no WCS lets you see what it is doing. openWCS renders your whole layout as a live 3D
+          digital twin in the browser: every conveyor, ASRS aisle and station coloured by its real-time
+          state, every tote moving along the scan trail the hardware actually reported. No SCADA
+          package, no extra server: it is part of the open-source UI.
+        </p>
+      </div>
+      <div class="grid grid-3" data-reveal>
+        <div class="card">
+          <div class="tag" data-i18n="tw1t">Live equipment state</div>
+          <h3 data-i18n="tw1h">Idle, running, faulted</h3>
+          <p data-i18n="tw1p">Every machine is coloured by what it is doing right now: idle, running with an amber pulse, faulted in red. Click any piece of equipment to see the device tasks behind its state.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="tw2t">Real movement</div>
+          <h3 data-i18n="tw2h">Totes replay the real scan trail</h3>
+          <p data-i18n="tw2p">Handling units glide through the model along the scans the floor actually reported; nothing is invented. Click a tote for its full transport trace, recirculation loops included.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="tw3t">Inside the racks</div>
+          <h3 data-i18n="tw3h">See storage fill and drain</h3>
+          <p data-i18n="tw3p">Stored totes sit in the ASRS rack at their exact cell positions, so you can watch aisles fill and drain as put-away and retrieval run. A level selector handles multi-floor sites.</p>
+        </div>
+      </div>
+      <div class="hero-cta" style="margin-top:1.6rem" data-reveal>
+        <a class="btn btn-primary" href="https://app.openwcs.ai" target="_blank" rel="noopener" data-i18n="twinBtn1">See it live in the demo</a>
+        <a class="btn btn-ghost" href="hardware-visualisation.html" data-i18n="twinBtn2">How the twin works →</a>
       </div>
     </div>
   </section>
@@ -242,6 +279,7 @@
             <tr><td class="feat" data-i18n="r7f">Switching / exit</td><td class="dim" data-i18n="r7d">Rip-and-replace project</td><td class="us" data-i18n="r7u">No license lock-in — fork, self-host, extend</td></tr>
             <tr><td class="feat" data-i18n="r8f">Cost model</td><td class="dim" data-i18n="r8d">License + support + per-change fees</td><td class="us" data-i18n="r8u">Free core; pay only for hardware, ops and the partners you choose</td></tr>
             <tr><td class="feat" data-i18n="r9f">Slotting &amp; replenishment</td><td class="dim" data-i18n="r9d">Vendor's fixed rules, opaque and hard to tune</td><td class="us" data-i18n="r9u">Configurable put-away scoring + min/max replenishment you can read and change</td></tr>
+            <tr><td class="feat" data-i18n="r10f">Floor visibility</td><td class="dim" data-i18n="r10d">A SCADA add-on, priced and scoped by the vendor</td><td class="us" data-i18n="r10u">A live 3D digital twin built into the UI: equipment state, moving totes, rack fill</td></tr>
           </tbody>
         </table>
       </div>
