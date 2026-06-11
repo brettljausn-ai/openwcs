@@ -650,6 +650,12 @@ export default function AutomationTopology3D({
       setEquipment(saved.equipment)
       setConnections(saved.connections)
       setFunctionPoints(saved.functionPoints)
+      // The full-replace save remaps level ids server-side; re-point the active level like the Save
+      // button does, or the scene filters against a dead id and the whole model "disappears".
+      setActiveLevelId((prev) =>
+        saved.levels.some((l) => l.id === prev) ? prev : saved.levels[0]?.id ?? '',
+      )
+      setSelectedId(null)
       setDirty(false)
       const result = await projectRoutingGraph(warehouseId)
       const warn = result.warnings.length ? ` · ${result.warnings.length} warning(s)` : ''
