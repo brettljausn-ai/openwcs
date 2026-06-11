@@ -51,6 +51,7 @@ export default function HardwareTwinScreen() {
     autoRefresh,
   })
 
+  const [showLabels, setShowLabels] = useState(false)
   const [activeLevelId, setActiveLevelId] = useState<string | null>(null)
   const [selectedPlacedId, setSelectedPlacedId] = useState<string | null>(null)
   const [selectedHuId, setSelectedHuId] = useState<string | null>(null)
@@ -107,6 +108,10 @@ export default function HardwareTwinScreen() {
               Updated {lastUpdated.toLocaleTimeString()}
             </span>
           )}
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', fontSize: '.85rem' }}>
+            <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} />
+            Labels
+          </label>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', fontSize: '.85rem' }}>
             <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
             Auto-refresh
@@ -220,6 +225,7 @@ export default function HardwareTwinScreen() {
                   topology={topology}
                   lib={lib}
                   snapshot={snapshot ?? EMPTY_SNAPSHOT}
+                  showLabels={showLabels}
                   activeLevelId={activeLevelId}
                   selectedPlacedId={selectedPlacedId}
                   selectedHuId={selectedHuId}
