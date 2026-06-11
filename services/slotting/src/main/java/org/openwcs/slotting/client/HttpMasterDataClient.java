@@ -41,6 +41,33 @@ public class HttpMasterDataClient implements MasterDataClient {
         }
     }
 
+    @Override
+    public CellLocation location(UUID locationId) {
+        try {
+            return http.get()
+                    .uri("/api/master-data/locations/{id}", locationId)
+                    .retrieve()
+                    .body(CellLocation.class);
+        } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
+            return null;
+        }
+    }
+
+    @Override
+    public List<CellLocation> locations(UUID warehouseId) {
+        CellLocationPage page = http.get()
+                .uri("/api/master-data/locations?warehouseId={w}&size=10000", warehouseId)
+                .retrieve()
+                .body(CellLocationPage.class);
+        if (page == null || page.content() == null) {
+            return List.of();
+        }
+        return page.content();
+    }
+
     private record LocationPage(List<StorageLocation> content) {
+    }
+
+    private record CellLocationPage(List<CellLocation> content) {
     }
 }

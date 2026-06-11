@@ -16,4 +16,11 @@ public interface InventoryClient {
      * (live occupancy, not the slotting ledger). Empty input returns an empty set.
      */
     Set<UUID> occupiedLocations(UUID warehouseId, List<UUID> locationIds);
+
+    /** All handling units registered in a warehouse (the HU registry, incl. current location). */
+    List<HandlingUnitView> handlingUnits(UUID warehouseId);
+
+    /** A registry handling unit: where it physically is ({@code locationId} null while in transit). */
+    record HandlingUnitView(UUID huId, String code, UUID locationId, String status) {
+    }
 }

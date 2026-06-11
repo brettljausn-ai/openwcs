@@ -43,6 +43,16 @@ public class HttpInventoryClient implements InventoryClient {
                 : new java.util.LinkedHashSet<>(result.occupiedLocationIds());
     }
 
+    @Override
+    public List<HandlingUnitView> handlingUnits(UUID warehouseId) {
+        List<HandlingUnitView> result = http.get()
+                .uri("/api/inventory/handling-units?warehouseId={w}", warehouseId)
+                .retrieve()
+                .body(new org.springframework.core.ParameterizedTypeReference<List<HandlingUnitView>>() {
+                });
+        return result == null ? List.of() : result;
+    }
+
     /** Subset of the inventory service's Availability response. */
     private record Availability(BigDecimal onHand) {
     }
