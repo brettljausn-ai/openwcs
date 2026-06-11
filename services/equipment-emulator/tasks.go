@@ -106,6 +106,17 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 // fault, records the outcome in the telemetry state, and returns the terminal result.
 func runTask(family string, req deviceTaskRequest) deviceTaskResult {
 	d := commandLatency(family, req.Command)
+
+	// Conveyor leg: model loop recirculation (ADR-0007 R2). A recirculating tote takes extra loop
+	// time before it diverts to its destination, so arrival order diverges from dispatch order; the
+	// divert/recirculate decision points are reported back for the HU transport trace (R4).
+	var decisions []map[string]interface{}
+	if req.Command == "CONVEY" {
+		extra, dec := conveyJourney()
+		d += extra
+		decisions = dec
+	}
+
 	time.Sleep(d)
 
 	// Inject a deterministic simulated equipment fault when configured (OPENWCS_EMULATOR_FAULT_RATE
@@ -129,15 +140,21 @@ func runTask(family string, req deviceTaskRequest) deviceTaskResult {
 
 	sim.recordCompleted(family, req.Command)
 	log.Printf("%s: executed task %s family=%s command=%s equipment=%s in %s", serviceName, req.TaskID, family, req.Command, req.EquipmentID, d)
+	payload := map[string]interface{}{
+		"command":    req.Command,
+		"family":     family,
+		"equipment":  req.EquipmentID,
+		"durationMs": d.Milliseconds(),
+		"simulated":  true,
+	}
+	if decisions != nil {
+		// All but the final DIVERTED decision are recirculations.
+		payload["recirculations"] = len(decisions) - 1
+		payload["decisions"] = decisions
+	}
 	return deviceTaskResult{
-		Status: "COMPLETED",
-		Detail: strings.ToLower(family) + " simulated " + req.Command,
-		ResultPayload: map[string]interface{}{
-			"command":    req.Command,
-			"family":     family,
-			"equipment":  req.EquipmentID,
-			"durationMs": d.Milliseconds(),
-			"simulated":  true,
-		},
+		Status:        "COMPLETED",
+		Detail:        strings.ToLower(family) + " simulated " + req.Command,
+		ResultPayload: payload,
 	}
 }

@@ -116,7 +116,7 @@ public class DeviceTaskService {
         if ("RETRIEVE".equals(command) || "BIN_RETRIEVE".equals(command)) {
             induction.onRetrieveCompleted(task.getId(), completed, task.getActor());
         } else if ("CONVEY".equals(command)) {
-            induction.onConveyCompleted(task.getId(), completed, task.getActor());
+            induction.onConveyCompleted(task.getId(), completed, task.getResult(), task.getActor());
         }
     }
 

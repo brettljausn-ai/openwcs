@@ -199,7 +199,7 @@ public class InductionQueueService {
      * and trace {@code ARRIVED} + {@code QUEUED}. Idempotent: only advances from {@code IN_TRANSIT}.
      */
     @Transactional
-    public void onConveyCompleted(UUID conveyTaskId, boolean succeeded, String actor) {
+    public void onConveyCompleted(UUID conveyTaskId, boolean succeeded, Map<String, Object> result, String actor) {
         InductionQueueEntry entry = entries.findByConveyTaskId(conveyTaskId).orElse(null);
         if (entry == null) {
             return;
@@ -216,12 +216,40 @@ public class InductionQueueService {
         entry.setQueuedAt(java.time.Instant.now());
         entry.setArrivalSeq(seq);
 
+        // R4: the emulator reports the conveyor decision points (divert / recirculate) it passed; trace
+        // them before ARRIVED so the timeline explains why arrival diverged from request order.
+        recordConveyDecisions(entry, conveyTaskId, result);
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "station:" + entry.getWorkplaceId(),
                 "ARRIVED", "arrived at induction point", "conveyor", null, entry.getWorkplaceId(),
                 conveyTaskId, entry.getId());
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "station:" + entry.getWorkplaceId(),
                 "QUEUED", "queued at arrival_seq " + seq, null, null, entry.getWorkplaceId(),
                 conveyTaskId, entry.getId());
+    }
+
+    /**
+     * Write the conveyor decision points (divert / recirculate) the emulator reported in the CONVEY
+     * result payload to the HU transport trace. Defensive against a missing or malformed payload.
+     */
+    private void recordConveyDecisions(InductionQueueEntry entry, UUID conveyTaskId, Map<String, Object> result) {
+        if (result == null || !(result.get("decisions") instanceof List<?> list)) {
+            return;
+        }
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> m)) {
+                continue;
+            }
+            // m is Map<?,?> (wildcard), so getOrDefault's typed default won't compile — use get() + a
+            // null fallback instead.
+            Object pointObj = m.get("point");
+            Object eventObj = m.get("event");
+            String point = pointObj == null ? "sorter" : pointObj.toString();
+            String event = eventObj == null ? "DECISION" : eventObj.toString();
+            Object decision = m.get("decision");
+            trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), point,
+                    event, decision == null ? null : decision.toString(), "conveyor", null,
+                    entry.getWorkplaceId(), conveyTaskId, entry.getId());
+        }
     }
 
     private long nextArrivalSeq(UUID workplaceId) {

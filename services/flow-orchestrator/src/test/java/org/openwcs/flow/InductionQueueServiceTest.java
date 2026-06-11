@@ -214,4 +214,28 @@ class InductionQueueServiceTest {
         // The failed retrieve link is cleared so a re-meter can re-dispatch; no CONVEY was dispatched.
         assertThat(after.conveyTaskId()).isNull();
     }
+
+    @Test
+    void conveyDecisionPointsAreWrittenToTheTrace() {
+        asyncAdapter();
+        cap(5, 5);
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+
+        InductionEntryView created = induction.request(req(warehouse, workplace, huId, "TOTE-1", "STOCK_COUNT"), "op");
+        deviceTasks.completeFromCallback(created.retrieveTaskId(), "COMPLETED", "retrieved", Map.of());
+        UUID conveyTask = induction.get(created.id()).conveyTaskId();
+
+        // The emulator reports it recirculated once before diverting to the destination (ADR-0007 R2/R4).
+        Map<String, Object> result = Map.of("recirculations", 1, "decisions", List.of(
+                Map.of("point", "sorter", "event", "RECIRCULATED", "decision", "missed divert"),
+                Map.of("point", "sorter", "event", "DIVERTED", "decision", "to destination")));
+        deviceTasks.completeFromCallback(conveyTask, "COMPLETED", "arrived", result);
+
+        List<String> events = traces.timeline(huId, warehouse).stream().map(HuTraceView::event).toList();
+        assertThat(events).contains("RECIRCULATED", "DIVERTED", "ARRIVED", "QUEUED");
+        // The recirculate/divert decisions precede the arrival in the timeline.
+        assertThat(events).containsSubsequence("RECIRCULATED", "ARRIVED", "QUEUED");
+    }
 }

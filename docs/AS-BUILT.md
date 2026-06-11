@@ -1,6 +1,6 @@
 # openWCS — As-Built Documentation
 
-_Last updated: 2026-06-10 (Phase 3c-1: flow-owned induction queue + HU transport trace)_
+_Last updated: 2026-06-11 (Phase 3c-2: emulator loop recirculation + decision-point trace)_
 
 What is **actually implemented** today (not the target architecture). Design intent:
 [`build.md`](../build.md); decisions: [`docs/adr/`](./adr); live progress:
@@ -36,7 +36,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | integration-manhattan | 8090 | 🟡 | Host gateway (skeleton): `POST /orders` + `/asns` translating Manhattan Active messages into the canonical Host API. |
 | process-engine | 8083 | 🟡 | Embedded **Flowable BPMN** engine: deploy process definitions, start/inspect instances; service-task delegates originate WCS work (dispatch device task, assign route, release order, **assign put-away**, **allocate order**). Sample processes: goods-in, goods-in-putaway, cycle-count, and a complete **outbound** process (release → allocate → gateway → pick/dispatch → route). |
 | notification | 8088 | 🟦 | Scaffold (health/info only). |
-| equipment-emulator | 9097 | 🟡 | Go; simulates all four device families (conveyor CONVEY/DIVERT/MERGE/SCAN, ASRS STORE/RETRIEVE, AMR TRANSPORT/MOVE, AutoStore BIN_STORE/BIN_RETRIEVE) when `HARDWARE_EMULATOR_ENABLED` is ON; flow-orchestrator routes device tasks here instead of the real adapters. Per-family/command simulated latency (`OPENWCS_EMULATOR_LATENCY_MS` overrides all, `0` = instant). Deterministic fault injection (`OPENWCS_EMULATOR_FAULT_RATE=N`: 1 in every N tasks returns FAILED with `fault: true`). Real per-family completed/failed tallies on `GET /state`. Latency + fault rate tunable at runtime via `GET`/`POST /config`. |
+| equipment-emulator | 9097 | 🟡 | Go; simulates all four device families (conveyor CONVEY/DIVERT/MERGE/SCAN, ASRS STORE/RETRIEVE, AMR TRANSPORT/MOVE, AutoStore BIN_STORE/BIN_RETRIEVE) when `HARDWARE_EMULATOR_ENABLED` is ON; flow-orchestrator routes device tasks here instead of the real adapters. Per-family/command simulated latency (`OPENWCS_EMULATOR_LATENCY_MS` overrides all, `0` = instant). Deterministic fault injection (`OPENWCS_EMULATOR_FAULT_RATE=N`: 1 in every N tasks returns FAILED with `fault: true`). **Loop recirculation** (`OPENWCS_EMULATOR_RECIRC_EVERY=N`): every Nth CONVEY task recirculates the loop once before diverting — arrival order visibly diverges from dispatch order (ADR-0007 R2); the result payload reports `recirculations` and `decisions` (sorter `RECIRCULATED`/`DIVERTED` points) which flow writes to the HU transport trace (R4). Real per-family completed/failed tallies on `GET /state`. Latency, fault rate, and recirc rate tunable at runtime via `GET`/`POST /config` (`{latencyOverrideMs, faultEvery, recircEvery}`). |
 | adapters/conveyor | 9091 | 🟡 | Go; health/readiness + stub loop; `POST /tasks` returns FAILED ("hardware not connected") — real-hardware seam. |
 | adapters/{asrs,amr-geekplus,autostore} | 9096, 9093, 9094 | 🟦 | Go; health/readiness + stub loop; `POST /tasks` returns FAILED ("hardware not connected") — real-hardware seam. (asrs on 9096 — 9092 is Kafka's.) |
 | adapters/conveyor-sniffer | 9095 | 🟡 | Go; ingests scan telegrams from defined source IPs (allowlist + pluggable decoder) and posts observations to the WCS for topology learning. |
@@ -287,14 +287,21 @@ actor).
   moves ≈ 400–600 ms); the result payload includes `durationMs`. `OPENWCS_EMULATOR_LATENCY_MS`
   overrides every command (`0` = instant; useful in tests and CI). **Fault injection**
   (`OPENWCS_EMULATOR_FAULT_RATE=N`): 1 in every N tasks is failed deterministically — the result
-  carries `"fault": true` and counters increment the per-family `failed` tally. **Live control**
-  (`GET`/`POST /config`): latency override and fault rate are atomics readable and writable at
-  runtime (e.g. `curl -XPOST .../config -d '{"faultEvery":4}'`) — no restart required. **Real
-  telemetry** (`GET /state`): per-family `completed`/`failed` tallies derived from actual task
-  load (not synthetic); the snapshot also echoes the live config. When OFF (the default), flow
-  routes to the real adapters, each of which returns FAILED ("hardware not connected") — the
-  deliberate **seam** for future real-hardware protocol clients. Purpose: run the entire automation
-  flow with zero physical hardware (evaluation, onboarding, CI).
+  carries `"fault": true` and counters increment the per-family `failed` tally. **Loop
+  recirculation** (`OPENWCS_EMULATOR_RECIRC_EVERY=N`): every Nth CONVEY task recirculates the
+  conveyor loop once before diverting to its destination, adding a loop's worth of travel time so
+  **arrival order visibly diverges from dispatch order** (ADR-0007 R2). The result payload reports
+  `recirculations` (count of missed-divert passes) and `decisions` (ordered list of sorter decision
+  points: `RECIRCULATED` per missed pass + a final `DIVERTED`), which flow writes to the HU
+  transport trace before the ARRIVED event (R4). **Live control** (`GET`/`POST /config`): latency
+  override, fault rate, and recirc rate are atomics readable and writable at runtime
+  (e.g. `curl -XPOST .../config -d '{"recircEvery":3}'`) — no restart required. `GET /config`
+  returns `{latencyOverrideMs, faultEvery, recircEvery}`. **Real telemetry** (`GET /state`):
+  per-family `completed`/`failed` tallies derived from actual task load (not synthetic); the
+  snapshot also echoes the live config. When OFF (the default), flow routes to the real adapters,
+  each of which returns FAILED ("hardware not connected") — the deliberate **seam** for future
+  real-hardware protocol clients. Purpose: run the entire automation flow with zero physical
+  hardware (evaluation, onboarding, CI).
 - **RBAC catalog**: `DEVICE_VIEW`/`DEVICE_OPERATE` added to `Permission` + `RoleCatalog`
   (VIEWER sees, OPERATOR operates) and seeded in IAM (`iam/V2__device_permissions.sql`).
 
@@ -309,10 +316,14 @@ ordering), links to `retrieve_task_id` / `convey_task_id`, and counting linkage
 (`count_task_id` / `count_line_id`). The per-HU append-only trace lives in `hu_transport_trace`.
 Transitions are driven from `DeviceTaskService.completeFromCallback`: RETRIEVE COMPLETED →
 `REQUESTED → IN_TRANSIT` + dispatches CONVEY; CONVEY COMPLETED (= arrival) →
-`IN_TRANSIT → QUEUED` + assigns `arrival_seq`. Cap (`{IN_TRANSIT, QUEUED}` ≤ workplace cap) is
-metered at RETRIEVE dispatch via a `WorkplaceClient` reading GTP station caps; `REQUESTED` backlog
-is uncapped — requests always succeed. New controllers: `InductionQueueController`
-(`/api/flow/induction/**`) and `HuTraceController` (`/api/flow/hu-trace`).
+`IN_TRANSIT → QUEUED` + assigns `arrival_seq`. **Decision-point trace** (Phase 3c-2): when the
+emulator reports conveyor decision points in the CONVEY result (`decisions`), flow writes them to
+the HU trace (sorter `RECIRCULATED` / `DIVERTED` events) **before** the ARRIVED event — so the
+timeline explains why arrival diverged from request order (ADR-0007 R4). Cap (`{IN_TRANSIT, QUEUED}`
+≤ workplace cap) is metered at RETRIEVE dispatch via a `WorkplaceClient` reading GTP station caps;
+`REQUESTED` backlog is uncapped — requests always succeed. New controllers:
+`InductionQueueController` (`/api/flow/induction/**`) and `HuTraceController`
+(`/api/flow/hu-trace`).
 
 **Conveyor routing** (vendor-neutral; `/api/flow/conveyor`): the topology is a directed graph —
 **nodes** (scan/decision points, each with a `hardwareAddress` and layout `posX/posY` for the

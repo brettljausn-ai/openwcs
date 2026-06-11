@@ -31,6 +31,10 @@ func initConfigFromEnv() {
 	if n, ok := envInt("OPENWCS_EMULATOR_FAULT_RATE"); ok && n >= 0 {
 		faultEvery.Store(n)
 	}
+	recircEvery.Store(0)
+	if n, ok := envInt("OPENWCS_EMULATOR_RECIRC_EVERY"); ok && n >= 0 {
+		recircEvery.Store(n)
+	}
 }
 
 func envInt(key string) (int64, bool) {
@@ -49,6 +53,7 @@ func envInt(key string) (int64, bool) {
 type configView struct {
 	LatencyOverrideMs int64 `json:"latencyOverrideMs"`
 	FaultEvery        int64 `json:"faultEvery"`
+	RecircEvery       int64 `json:"recircEvery"`
 }
 
 // handleConfig serves GET /config (current values) and POST/PUT /config (update latency/fault live).
@@ -61,6 +66,7 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		var in struct {
 			LatencyOverrideMs *int64 `json:"latencyOverrideMs"`
 			FaultEvery        *int64 `json:"faultEvery"`
+			RecircEvery       *int64 `json:"recircEvery"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -71,6 +77,9 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		if in.FaultEvery != nil && *in.FaultEvery >= 0 {
 			faultEvery.Store(*in.FaultEvery)
+		}
+		if in.RecircEvery != nil && *in.RecircEvery >= 0 {
+			recircEvery.Store(*in.RecircEvery)
 		}
 		writeConfig(w)
 	default:
@@ -83,5 +92,6 @@ func writeConfig(w http.ResponseWriter) {
 	_ = json.NewEncoder(w).Encode(configView{
 		LatencyOverrideMs: latencyOverrideMs.Load(),
 		FaultEvery:        faultEvery.Load(),
+		RecircEvery:       recircEvery.Load(),
 	})
 }
