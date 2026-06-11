@@ -69,6 +69,11 @@ interface PlanEditor2DProps {
   onDeleteWaypoint: (id: string, index: number) => void
   // A snapped world (x,z) click while drawing — same as drawSectionAt in the parent.
   onDrawAt: (id: string, x: number, z: number) => void
+  // Enter draw-sections mode anchored at waypoint `index` of conveyor `id` — the double-click-to-draw
+  // entry (same machinery as the Draw sections button + a re-anchor click, no side-panel trip).
+  onStartDrawAt: (id: string, index: number) => void
+  // Leave draw-sections mode (double-click a waypoint again, or Escape).
+  onExitDraw: () => void
   // Create a function point — same as addFunctionPoint in the parent.
   onAddFunctionPoint: (fp: AutomationFunctionPoint) => void
   // Remove a function point — same as deleteFunctionPoint in the parent.
@@ -154,6 +159,17 @@ function sideForType(type: string): 'LEFT' | 'RIGHT' | null {
   return null
 }
 
+// The palette's single DIV chip: a 2D-editor-only pseudo-type. Dropping it does NOT create a point
+// directly — it opens the direction picker (left / straight / right), which then materialises the
+// REAL DIVERT_LEFT / DIVERT_RIGHT function points + stubs. The stored types stay unchanged, so
+// existing points, the FP dialog's combos and the 3D markers all keep working as before.
+const DIVERT_PICKER = 'DIVERT'
+
+// Palette buttons: FUNCTION_TYPES with the two divert types collapsed into the one DIV picker chip.
+const PALETTE_TYPES: string[] = (FUNCTION_TYPES as readonly string[]).flatMap((t) =>
+  t === 'DIVERT_LEFT' ? [DIVERT_PICKER] : t === 'DIVERT_RIGHT' ? [] : [t],
+)
+
 // The side implied by a function SET: the first divert member's side (null if the set has none).
 function sideForSet(functionType: string): 'LEFT' | 'RIGHT' | null {
   for (const t of fpFunctions(functionType)) {
@@ -184,6 +200,8 @@ export default function PlanEditor2D({
   onPatch,
   onDeleteWaypoint,
   onDrawAt,
+  onStartDrawAt,
+  onExitDraw,
   onAddFunctionPoint,
   onDeleteFunctionPoint,
   onUpdateFunctionPoint,
@@ -270,6 +288,22 @@ export default function PlanEditor2D({
   // affordance; Delete/Backspace removes it via onDeleteWaypoint. Cleared on canvas click, equipment
   // change, draw-mode toggle, or when the path shrinks under the index.
   const [selectedWp, setSelectedWp] = useState<{ eqId: string; index: number } | null>(null)
+
+  // The divert DIRECTION PICKER draft: dropping the palette's DIV chip on a conveyor stores the
+  // snapped target here and opens a small anchored popover with Left / Straight / Right checkboxes
+  // (min 2 checked). Confirming materialises one DIVERT_LEFT / DIVERT_RIGHT function point + stub per
+  // checked side (Straight = the main line simply continues — nothing extra to create).
+  type DivertDraft = {
+    eqId: string
+    offsetM: number
+    x: number
+    z: number
+    left: boolean
+    straight: boolean
+    right: boolean
+    error: string | null
+  }
+  const [divertDraft, setDivertDraft] = useState<DivertDraft | null>(null)
 
   // ---- coordinate helpers (world metres <-> screen pixels) -----------------
   const toPx = useCallback(
@@ -431,10 +465,34 @@ export default function PlanEditor2D({
   }, [pending])
 
   // Entering draw-sections mode discards any pending point — its click-to-place overlay would
-  // otherwise swallow the draw clicks (the palette is hidden while drawing anyway).
+  // otherwise swallow the draw clicks (the palette is hidden while drawing anyway). An open divert
+  // direction picker goes too: its target may be redrawn from under it.
   useEffect(() => {
-    if (drawing) setPending(null)
+    if (drawing) {
+      setPending(null)
+      setDivertDraft(null)
+    }
   }, [drawing])
+
+  // Esc cancels an open divert direction picker (discarding the pending divert entirely).
+  useEffect(() => {
+    if (!divertDraft) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDivertDraft(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [divertDraft])
+
+  // Esc leaves draw-sections mode (the double-click-to-draw exit; the button still works too).
+  useEffect(() => {
+    if (!drawing) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onExitDraw()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [drawing, onExitDraw])
 
   // Waypoint selection housekeeping: drop it when the equipment selection changes, when draw-sections
   // mode toggles (draw clicks must never arm a delete), or when its index no longer exists.
@@ -469,6 +527,96 @@ export default function PlanEditor2D({
     return () => window.removeEventListener('keydown', onKey)
   }, [selectedWp, deleteSelectedWp])
 
+  // Whether the world point (wx,wz) sits at/near the END of a conveyor's line: the section its
+  // projection lands on terminates the run (its `to` vertex has no outgoing section). Returns that
+  // end vertex (where an all-divert split is total — no main line continues), or null elsewhere.
+  const endOfLineAt = useCallback(
+    (eq: AutomationEquipment, wx: number, wz: number): { x: number; z: number } | null => {
+      const path = Array.isArray(eq.path) ? eq.path : []
+      const sections = effectiveSections(eq)
+      let bestSec: number[] | null = null
+      let bestDist = Infinity
+      for (const sec of sections) {
+        const a = path[sec[0]]
+        const b = path[sec[1]]
+        if (!a || !b) continue
+        const abx = b[0] - a[0]
+        const abz = b[1] - a[1]
+        const len2 = abx * abx + abz * abz
+        if (len2 < 1e-9) continue
+        let t = ((wx - a[0]) * abx + (wz - a[1]) * abz) / len2
+        t = Math.min(1, Math.max(0, t))
+        const d = Math.hypot(a[0] + abx * t - wx, a[1] + abz * t - wz)
+        if (d < bestDist) {
+          bestDist = d
+          bestSec = sec
+        }
+      }
+      if (!bestSec) return null
+      // The line continues past this section when ANY section flows out of its end vertex.
+      if (sections.some((s) => s[0] === bestSec[1])) return null
+      const end = path[bestSec[1]]
+      return { x: end[0], z: end[1] }
+    },
+    [],
+  )
+
+  // Toggle one direction checkbox in the divert picker (clearing any stale validation error).
+  const toggleDivertDir = useCallback((key: 'left' | 'straight' | 'right') => {
+    setDivertDraft((d) => (d ? { ...d, [key]: !d[key], error: null } : d))
+  }, [])
+
+  // Confirm the divert picker: validate (min 2 ways out; Straight may only be unchecked at the END
+  // of the line), then create one DIVERT_LEFT / DIVERT_RIGHT function point + 1 m perpendicular stub
+  // per checked side at the junction. Straight itself creates nothing — the main line continues.
+  const confirmDivert = useCallback(() => {
+    const d = divertDraft
+    if (!d) return
+    const ways = (d.left ? 1 : 0) + (d.straight ? 1 : 0) + (d.right ? 1 : 0)
+    if (ways < 2) return // OK is disabled; belt-and-braces
+    const eq = conveyors.find((c) => c.id === d.eqId)
+    if (!eq) {
+      setDivertDraft(null)
+      return
+    }
+    let jx = d.x
+    let jz = d.z
+    let offsetM = d.offsetM
+    if (!d.straight) {
+      // No straight way out: only valid where the line actually ENDS (the split is total there).
+      const end = endOfLineAt(eq, d.x, d.z)
+      if (!end) {
+        setDivertDraft({
+          ...d,
+          error: 'uncheck Straight only at the end of a line — the main line continues here',
+        })
+        return
+      }
+      jx = end.x
+      jz = end.z
+      offsetM = projectToPath(eq, end.x, end.z).offsetM
+    }
+    const step = snapOn ? gridStep : null
+    for (const side of ['LEFT', 'RIGHT'] as const) {
+      if (side === 'LEFT' ? !d.left : !d.right) continue
+      // One function point PER direction (matching the existing one-FP-per-divert-type model: the
+      // singular `side` field drives the marker nudge and which branch a delete removes).
+      onAddFunctionPoint({
+        id: crypto.randomUUID(),
+        placedId: d.eqId,
+        functionType: side === 'LEFT' ? 'DIVERT_LEFT' : 'DIVERT_RIGHT',
+        name: null,
+        offsetM,
+        side,
+        nodeCode: null,
+        status: 'ACTIVE',
+      })
+      // Ensure the junction + drop the 1 m perpendicular stub (reuses the first call's junction).
+      onAddDivertBranch(d.eqId, jx, jz, side, step)
+    }
+    setDivertDraft(null)
+  }, [divertDraft, conveyors, endOfLineAt, snapOn, gridStep, onAddFunctionPoint, onAddDivertBranch])
+
   // Clicking a palette type CREATES a pending function point floating at a staging spot near the
   // top-left of the canvas (in world metres). The user then drags it onto a conveyor to place it.
   const createPending = useCallback(
@@ -502,6 +650,31 @@ export default function PlanEditor2D({
       return
     }
 
+    // The DIV picker chip: don't create anything yet — open the direction popover anchored at the
+    // snap. Default: Straight + the side of the line the cursor was hovering on (RIGHT when dead-on).
+    if (type === DIVERT_PICKER) {
+      if (cur.snap.kind !== 'conveyor') return
+      const eq = conveyors.find((c) => c.id === cur.snap!.eqId)
+      let side: 'LEFT' | 'RIGHT' = 'RIGHT'
+      if (eq) {
+        const at = pointAlong(eq, cur.snap.offsetM)
+        // LEFT offset direction is (dz, -dx) — the same convention addDivertBranch uses for stubs.
+        const toLeft = (cur.world.x - cur.snap.x) * at.dz - (cur.world.z - cur.snap.z) * at.dx
+        if (toLeft > 1e-6) side = 'LEFT'
+      }
+      setDivertDraft({
+        eqId: cur.snap.eqId,
+        offsetM: cur.snap.offsetM,
+        x: cur.snap.x,
+        z: cur.snap.z,
+        left: side === 'LEFT',
+        straight: true,
+        right: side === 'RIGHT',
+        error: null,
+      })
+      return
+    }
+
     const side = sideForType(type)
     onAddFunctionPoint({
       id: crypto.randomUUID(),
@@ -521,7 +694,7 @@ export default function PlanEditor2D({
       // directed section runs INTO the junction (the feeder merges in). Default to the LEFT side.
       onAddDivertBranch(cur.snap.eqId, cur.snap.x, cur.snap.z, 'LEFT', snapOn ? gridStep : null, true)
     }
-  }, [onAddFunctionPoint, onAddDivertBranch, onAddAsrsPortStub, snapOn, gridStep])
+  }, [onAddFunctionPoint, onAddDivertBranch, onAddAsrsPortStub, snapOn, gridStep, conveyors])
 
   // Where a draw-mode click at world (wx,wz) would land: snapped onto the selected conveyor's
   // centreline when within range (so it lands ON the conveyor and connects), else the grid point.
@@ -785,8 +958,9 @@ export default function PlanEditor2D({
         <div className="plan2d-fpbar">
           <span className="plan2d-bar-label">New point</span>
           <div className="plan2d-fppalette">
-            {FUNCTION_TYPES.map((t) => {
-              const isDivert = t === 'DIVERT_LEFT' || t === 'DIVERT_RIGHT'
+            {PALETTE_TYPES.map((t) => {
+              // The two divert types collapse into ONE picker chip — directions are chosen on drop.
+              const isDivert = t === DIVERT_PICKER
               const isPort = t === 'INDUCT' || t === 'DISCHARGE'
               const isInfeed = t === 'INFEED'
               // INDUCT/DISCHARGE drop onto an ASRS edge; everything else onto a conveyor.
@@ -794,12 +968,14 @@ export default function PlanEditor2D({
               const target = isPort ? 'an ASRS' : 'a conveyor'
               // IN/OUT are ASRS-ONLY ports and FEED is the conveyor-side merge — say so up front.
               const title = !enabled
-                ? `Add ${target} first to place a ${t}`
-                : isPort
-                  ? `ASRS port: snaps to a rack edge and drops a 1 m ${t === 'INDUCT' ? 'IN' : 'OUT'} stub`
-                  : isInfeed
-                    ? 'Feed/merge: joins a feeding line INTO the conveyor you drop it on (use after an ASRS OUT stub)'
-                    : `Create a ${t} and drop it onto ${target} (click or drag)`
+                ? `Add ${target} first to place a ${isDivert ? 'divert' : t}`
+                : isDivert
+                  ? 'Divert: drop onto a conveyor, then pick its directions (left / straight / right)'
+                  : isPort
+                    ? `ASRS port: snaps to a rack edge and drops a 1 m ${t === 'INDUCT' ? 'IN' : 'OUT'} stub`
+                    : isInfeed
+                      ? 'Feed/merge: joins a feeding line INTO the conveyor you drop it on (use after an ASRS OUT stub)'
+                      : `Create a ${t} and drop it onto ${target} (click or drag)`
               return (
                 <button
                   key={t}
@@ -811,7 +987,7 @@ export default function PlanEditor2D({
                   disabled={!enabled}
                   title={title}
                 >
-                  {FUNCTION_SHORT[t] ?? t}
+                  {isDivert ? 'DIV' : FUNCTION_SHORT[t] ?? t}
                   {isPort && <span className="plan2d-fptag">ASRS</span>}
                 </button>
               )
@@ -931,6 +1107,14 @@ export default function PlanEditor2D({
             }}
             selectedWpIndex={selectedWp?.eqId === eq.id ? selectedWp.index : null}
             onWaypointDelete={deleteSelectedWp}
+            onWaypointDoubleClick={(index) => {
+              // Double-click TOGGLES draw mode anchored at this waypoint. Suppress the single-click
+              // selection the first click of the pair just armed (single = select, double = draw).
+              setSelectedWp(null)
+              drag.current = null
+              if (drawing) onExitDraw()
+              else onStartDrawAt(eq.id, index)
+            }}
             onDrawAtPoint={onDrawAt}
           />
         ))}
@@ -1051,26 +1235,104 @@ export default function PlanEditor2D({
               </text>
             )
           })()}
+
+        {/* Divert DIRECTION PICKER — a small glass popover anchored at the dropped DIV's snap point.
+            Left / Straight / Right checkboxes (min 2); Straight may only be unchecked at the END of
+            the line (validated on OK, with an inline error otherwise). Esc / ✕ / Cancel discard. */}
+        {divertDraft &&
+          (() => {
+            const [px, py] = toPx(divertDraft.x, divertDraft.z)
+            const ways =
+              (divertDraft.left ? 1 : 0) + (divertDraft.straight ? 1 : 0) + (divertDraft.right ? 1 : 0)
+            return (
+              <g>
+                {/* Anchor marker at the future junction. */}
+                <circle cx={px} cy={py} r={6} className="plan2d-divpop-anchor" />
+                <foreignObject x={px + 12} y={py - 14} width={250} height={230} style={{ overflow: 'visible' }}>
+                  <div className="plan2d-divpop" onPointerDown={(e) => e.stopPropagation()}>
+                    <div className="plan2d-divpop-head">
+                      <span>Divert directions</span>
+                      <button
+                        type="button"
+                        className="plan2d-divpop-x"
+                        onClick={() => setDivertDraft(null)}
+                        aria-label="Cancel divert"
+                        title="Cancel (Esc)"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <label className="plan2d-divpop-row">
+                      <input
+                        type="checkbox"
+                        checked={divertDraft.left}
+                        onChange={() => toggleDivertDir('left')}
+                      />
+                      ◀ Left
+                    </label>
+                    <label className="plan2d-divpop-row">
+                      <input
+                        type="checkbox"
+                        checked={divertDraft.straight}
+                        onChange={() => toggleDivertDir('straight')}
+                      />
+                      ▲ Straight
+                    </label>
+                    <label className="plan2d-divpop-row">
+                      <input
+                        type="checkbox"
+                        checked={divertDraft.right}
+                        onChange={() => toggleDivertDir('right')}
+                      />
+                      Right ▶
+                    </label>
+                    {ways < 2 ? (
+                      <div className="plan2d-divpop-err">a divert needs at least 2 ways out</div>
+                    ) : divertDraft.error ? (
+                      <div className="plan2d-divpop-err">{divertDraft.error}</div>
+                    ) : null}
+                    <div className="plan2d-divpop-actions">
+                      <button type="button" className="plan2d-iconbtn" onClick={() => setDivertDraft(null)}>
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="plan2d-iconbtn is-primary"
+                        disabled={ways < 2}
+                        onClick={confirmDivert}
+                      >
+                        OK
+                      </button>
+                    </div>
+                  </div>
+                </foreignObject>
+              </g>
+            )
+          })()}
       </svg>
 
       <div className="plan2d-hint">
-        {pending
-          ? pending.snap
-            ? sideForType(pending.functionType)
-              ? `Drop to place the divert — a junction + 1 m stub appears in the divert direction`
-              : pending.functionType === 'INFEED'
-                ? `Drop to place the infeed — a junction + 1 m merge stub appears (extend it back to its source)`
-                : pending.snap.kind === 'asrs-edge'
-                  ? `Drop to place the ${FUNCTION_SHORT[pending.functionType] ?? pending.functionType} port — a 1 m stub appears on the ASRS edge`
-                  : `Drop to place the ${FUNCTION_SHORT[pending.functionType] ?? pending.functionType} on the conveyor`
-            : pending.functionType === 'INDUCT' || pending.functionType === 'DISCHARGE'
-              ? 'Drag onto an ASRS to place an IN/OUT port · drop off (or Esc) to cancel'
-              : 'Drag onto a conveyor to place · drop off any conveyor (or Esc) to cancel'
-          : drawing
-            ? 'Draw a section: click a start point, then an end point — the section runs in that order. Click the conveyor (point or body) to start/end on it; click empty grid for a free point.'
-            : selectedWp
-              ? 'Waypoint selected · press Delete/Backspace (or click the ✕) to remove it · drag to move · click empty space to deselect'
-              : 'Drag an item to move (snapped) · click a waypoint to select it (Delete removes) · drag a point along the conveyor to reposition · drag empty space to pan · scroll to zoom'}
+        {divertDraft
+          ? 'Choose the divert directions — at least 2 of left / straight / right · Esc to cancel'
+          : pending
+            ? pending.snap
+              ? pending.functionType === DIVERT_PICKER
+                ? 'Drop to place the divert — then choose its directions (left / straight / right)'
+                : sideForType(pending.functionType)
+                  ? `Drop to place the divert — a junction + 1 m stub appears in the divert direction`
+                  : pending.functionType === 'INFEED'
+                    ? `Drop to place the infeed — a junction + 1 m merge stub appears (extend it back to its source)`
+                    : pending.snap.kind === 'asrs-edge'
+                      ? `Drop to place the ${FUNCTION_SHORT[pending.functionType] ?? pending.functionType} port — a 1 m stub appears on the ASRS edge`
+                      : `Drop to place the ${FUNCTION_SHORT[pending.functionType] ?? pending.functionType} on the conveyor`
+              : pending.functionType === 'INDUCT' || pending.functionType === 'DISCHARGE'
+                ? 'Drag onto an ASRS to place an IN/OUT port · drop off (or Esc) to cancel'
+                : 'Drag onto a conveyor to place · drop off any conveyor (or Esc) to cancel'
+            : drawing
+              ? 'Draw a section: click a start point, then an end point — the section runs in that order. Click the conveyor (point or body) to start/end on it; click empty grid for a free point. Double-click a waypoint (or Esc) to finish.'
+              : selectedWp
+                ? 'Waypoint selected · press Delete/Backspace (or click the ✕) to remove it · drag to move · double-click to draw from it · click empty space to deselect'
+                : 'Drag an item to move (snapped) · click a waypoint to select it (Delete removes) · double-click a waypoint to draw from it · drag empty space to pan · scroll to zoom'}
       </div>
 
       <PlanStyles />
@@ -1095,6 +1357,7 @@ function PlanItem({
   onWaypointStart,
   selectedWpIndex,
   onWaypointDelete,
+  onWaypointDoubleClick,
   onDrawAtPoint,
 }: {
   eq: AutomationEquipment
@@ -1121,6 +1384,8 @@ function PlanItem({
   selectedWpIndex: number | null
   // Delete the selected waypoint (the ✕ affordance next to it).
   onWaypointDelete: () => void
+  // Double-click on a waypoint: toggle draw-sections mode anchored at it (handled by the parent).
+  onWaypointDoubleClick: (index: number) => void
   onDrawAtPoint: (id: string, x: number, z: number) => void
 }) {
   const path = Array.isArray(eq.path) ? eq.path : []
@@ -1260,6 +1525,12 @@ function PlanItem({
                     onSelect(eq.id)
                     onWaypointStart(eq.id, i, path, e.clientX, e.clientY)
                     ;(e.target as Element).setPointerCapture?.(e.pointerId)
+                  }}
+                  onDoubleClick={(e) => {
+                    // Double-click = anchor draw mode here (or exit it). The single-click select the
+                    // first click armed is suppressed by the parent handler.
+                    e.stopPropagation()
+                    onWaypointDoubleClick(i)
                   }}
                 />
                 {isSel && (
@@ -1433,13 +1704,19 @@ function PendingMarker({
   toPx: (xM: number, zM: number) => [number, number]
   onDragStart: (e: React.PointerEvent<SVGGElement>) => void
 }) {
-  const isDivert = pending.functionType === 'DIVERT_LEFT' || pending.functionType === 'DIVERT_RIGHT'
+  const isDivert =
+    pending.functionType === 'DIVERT_LEFT' ||
+    pending.functionType === 'DIVERT_RIGHT' ||
+    pending.functionType === DIVERT_PICKER
   const isPort =
     pending.functionType === 'INDUCT' ||
     pending.functionType === 'DISCHARGE' ||
     pending.functionType === 'INFEED'
   const color = isDivert ? '#e0563f' : functionColor(pending.functionType)
-  const short = FUNCTION_SHORT[pending.functionType] ?? pending.functionType
+  const short =
+    pending.functionType === DIVERT_PICKER
+      ? 'DIV'
+      : FUNCTION_SHORT[pending.functionType] ?? pending.functionType
   const [mx, my] = toPx(pending.world.x, pending.world.z)
   return (
     <g
@@ -1553,6 +1830,36 @@ function PlanStyles() {
         font-family: var(--font-mono); font-size: 10px; fill: #f0a85a;
         paint-order: stroke; stroke: #08120d; stroke-width: 3px; stroke-linejoin: round;
       }
+      .plan2d-divpop-anchor {
+        fill: rgba(224, 86, 63, .25); stroke: #e0563f; stroke-width: 2; pointer-events: none;
+      }
+      .plan2d-divpop {
+        display: inline-flex; flex-direction: column; gap: .3rem; min-width: 200px;
+        padding: .55rem .65rem; border-radius: 10px;
+        background: rgba(8, 30, 22, .92); border: 1px solid var(--glass-border-bright, var(--glass-border));
+        box-shadow: 0 8px 22px rgba(0, 0, 0, .45);
+        font-family: var(--font-body); color: var(--text);
+      }
+      .plan2d-divpop-head {
+        display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+        font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: #e0907f;
+        margin-bottom: .15rem;
+      }
+      .plan2d-divpop-x {
+        background: none; border: none; cursor: pointer; color: var(--text-dim);
+        font-size: .8rem; padding: 0 .15rem; line-height: 1;
+      }
+      .plan2d-divpop-x:hover { color: #fff; }
+      .plan2d-divpop-row {
+        display: flex; align-items: center; gap: .45rem; margin: 0;
+        font-size: .82rem; color: var(--text); cursor: pointer; user-select: none;
+      }
+      .plan2d-divpop-err { font-size: .72rem; color: #e0907f; max-width: 220px; }
+      .plan2d-divpop-actions { display: flex; justify-content: flex-end; gap: .4rem; margin-top: .2rem; }
+      .plan2d-iconbtn.is-primary {
+        background: rgba(141, 198, 63, .18); border-color: var(--herbal-lime); color: var(--herbal-lime);
+      }
+      .plan2d-iconbtn:disabled { opacity: .45; cursor: not-allowed; }
       .plan2d-hint {
         position: absolute; left: 12px; bottom: 12px; z-index: 2; pointer-events: none;
         padding: .3rem .6rem; border-radius: 8px; font-size: .72rem; letter-spacing: .02em;
