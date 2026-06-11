@@ -3384,8 +3384,10 @@ function ConveyorPath({
   // stubs at a CONVEYOR width AND height so they read as low, flat conveyor pieces — not the full
   // rack footprint width or its (often ~10 m) rack height (which rendered the stub as a tall wall).
   const wM = cat === 'conveyor' ? eq.widthM : STUB_WIDTH_M
-  const hM = cat === 'conveyor' ? eq.heightM : STUB_HEIGHT_M
-  // Sit the stub low (near the floor, where a conveyor is) rather than at the rack's mid-height.
+  // Stub bodies adopt the scene's conveyor height so an ASRS IN/OUT piece sits FLUSH with the
+  // conveyor it feeds (this is the body-placement copy of the calc — the first fix only caught the
+  // sibling site, leaving the rendered stubs at the old 0.5 m constant).
+  const hM = cat === 'conveyor' ? eq.heightM : stubHeightM ?? STUB_HEIGHT_M
   const y = hM / 2 + eq.posYM
 
   // One box + arrow per directed section.
