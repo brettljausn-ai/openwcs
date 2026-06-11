@@ -483,7 +483,7 @@ services:
     depends_on: [gateway, keycloak]
     volumes:
       # TLS cert dir (host-persisted). Empty on first run -> the entrypoint self-signs
-      # (one-time browser warning on a raw IP). Run scripts/issue-cert.sh <domain> <email>
+      # (one-time browser warning on a raw IP). Run scripts/issue-cert.sh <domain[,domain2,...]> <email>
       # to drop a real Let's Encrypt cert here (tls.crt/tls.key) and reload nginx.
       - ${OPENWCS_TLS_DIR:-/etc/openwcs/tls}:/etc/nginx/tls
       # ACME HTTP-01 webroot, shared with the certbot one-shot (scripts/issue-cert.sh).
