@@ -100,9 +100,19 @@ public class TransportNodeResolver {
         return storageEntryCandidates(warehouseId).stream().findFirst();
     }
 
+    /** Transport direction relative to storage: a tote leaving the ASRS vs returning into it. */
+    public enum StorageDirection { OUTBOUND, RETURN }
+
     /** ALL plausible storage-side nodes, best first — see {@link #destinationCandidates}. */
     @Transactional(readOnly = true)
     public List<String> storageEntryCandidates(UUID warehouseId) {
+        return storageCandidates(warehouseId, StorageDirection.OUTBOUND);
+    }
+
+    /** Storage-side candidates with direction-aware preference: leaving prefers OUT/DISCHARGE/FEED
+     *  points; returning prefers IN/FEED/DISCHARGE. */
+    @Transactional(readOnly = true)
+    public List<String> storageCandidates(UUID warehouseId, StorageDirection direction) {
         List<ConveyorNode> graph = nodes.findByWarehouseId(warehouseId);
         if (graph.isEmpty()) {
             return List.of();
@@ -113,14 +123,17 @@ public class TransportNodeResolver {
         if (asrs == null) {
             return List.of();
         }
+        List<String> preferred = direction == StorageDirection.RETURN
+                ? List.of("IN", "FEED", "DISCHARGE")
+                : List.of("OUT", "DISCHARGE", "FEED");
         List<String> candidates = new ArrayList<>();
-        candidates.addAll(ownPointCodes(model, asrs, List.of("DISCHARGE", "OUT", "FEED")));
+        candidates.addAll(ownPointCodes(model, asrs, preferred));
         candidates.addAll(connectedPointCodes(model, asrs));
         return rankedCandidates(candidates, graph, asrs);
     }
 
     /** Cap on the by-distance fallback candidates appended after the named ones. */
-    private static final int NEAREST_CAP = 25;
+    private static final int NEAREST_CAP = 40;
 
     /**
      * The named candidates that actually projected (original order), followed by every projected node
@@ -139,12 +152,28 @@ public class TransportNodeResolver {
                 out.add(c);
             }
         }
-        double x = num(anchor.posXM());
-        double z = num(anchor.posZM());
+        // Distance to the placement's PATH when it has one (an ASRS's stub-end nodes sit metres from
+        // its centre — centre distance never surfaced them), else to the placement centre.
+        List<double[]> ref = new ArrayList<>();
+        if (anchor.path() != null) {
+            for (List<Double> wp : anchor.path()) {
+                if (wp != null && wp.size() >= 2 && wp.get(0) != null && wp.get(1) != null) {
+                    ref.add(new double[] {wp.get(0), wp.get(1)});
+                }
+            }
+        }
+        if (ref.isEmpty()) {
+            ref.add(new double[] {num(anchor.posXM()), num(anchor.posZM())});
+        }
         graph.stream()
                 .filter(n -> n.getPosX() != null && n.getPosY() != null)
-                .sorted(Comparator.comparingDouble(
-                        n -> Math.hypot(n.getPosX() - x, n.getPosY() - z)))
+                .sorted(Comparator.comparingDouble(n -> {
+                    double best = Double.MAX_VALUE;
+                    for (double[] r : ref) {
+                        best = Math.min(best, Math.hypot(n.getPosX() - r[0], n.getPosY() - r[1]));
+                    }
+                    return best;
+                }))
                 .limit(NEAREST_CAP)
                 .forEach(n -> out.add(n.getCode()));
         return new ArrayList<>(out);
@@ -160,28 +189,43 @@ public class TransportNodeResolver {
         return model.equipment().stream().filter(p).findFirst().orElse(null);
     }
 
-    /** Node codes of function points ON the placement, the listed function types first. */
+    /** Node codes of function points ON the placement, the listed function tokens first. A point
+     *  without an explicit {@code nodeCode} falls back to its NAME — exactly how the projection
+     *  derives node codes ({@code syncStationNodes}: nodeCode ?: name), so a point named "ASRS OUT"
+     *  is a first-class candidate even though no code was typed. */
     private static List<String> ownPointCodes(AutomationTopologyDto model, PlacedEquipmentDto anchor,
-                                              List<String> preferredTypes) {
+                                              List<String> preferredTokens) {
         if (model.functionPoints() == null) {
             return List.of();
         }
-        List<FunctionPointDto> own = new ArrayList<>();
-        for (FunctionPointDto fp : model.functionPoints()) {
-            if (anchor.id().equals(fp.placedId()) && fp.nodeCode() != null && !fp.nodeCode().isBlank()) {
-                own.add(fp);
-            }
+        record Own(String code, int rank) {
         }
-        own.sort(Comparator.comparingInt(fp -> typeRank(fp.functionType(), preferredTypes)));
-        return own.stream().map(fp -> fp.nodeCode().trim()).toList();
+        List<Own> own = new ArrayList<>();
+        for (FunctionPointDto fp : model.functionPoints()) {
+            if (!anchor.id().equals(fp.placedId())) {
+                continue;
+            }
+            String code = fp.nodeCode() != null && !fp.nodeCode().isBlank() ? fp.nodeCode().trim()
+                    : fp.name() != null && !fp.name().isBlank() ? fp.name().trim() : null;
+            if (code == null) {
+                continue;
+            }
+            own.add(new Own(code, tokenRank(fp.functionType(), code, preferredTokens)));
+        }
+        own.sort(Comparator.comparingInt(Own::rank));
+        return own.stream().map(Own::code).toList();
     }
 
-    private static int typeRank(String functionType, List<String> preferredTypes) {
-        if (functionType == null) {
-            return preferredTypes.size();
+    /** Rank by the first preferred token contained in the point's function type OR its code/name —
+     *  name-projected points (no explicit type relation) still rank by what they are called. */
+    private static int tokenRank(String functionType, String code, List<String> preferredTokens) {
+        String hay = ((functionType == null ? "" : functionType) + " " + code).toUpperCase();
+        for (int i = 0; i < preferredTokens.size(); i++) {
+            if (hay.contains(preferredTokens.get(i))) {
+                return i;
+            }
         }
-        int idx = preferredTypes.indexOf(functionType.trim().toUpperCase());
-        return idx >= 0 ? idx : preferredTypes.size();
+        return preferredTokens.size();
     }
 
     /**

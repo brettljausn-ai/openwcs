@@ -324,7 +324,8 @@ public class InductionQueueService {
         putIfPresent(payload, "huCode", entry.getHuCode());
         putIfPresent(payload, "destinationWorkplaceId", entry.getWorkplaceId());
         assignLiveRoute(entry, payload,
-                transportNodes.storageEntryCandidates(entry.getWarehouseId()),
+                transportNodes.storageCandidates(entry.getWarehouseId(),
+                        TransportNodeResolver.StorageDirection.OUTBOUND),
                 transportNodes.destinationCandidates(entry.getWarehouseId(), entry.getWorkplaceId()));
         RequestDeviceTask req = new RequestDeviceTask(
                 entry.getWarehouseId(), "CONVEYOR", null, "CONVEY", payload, entry.getHuId());
@@ -354,7 +355,9 @@ public class InductionQueueService {
         RoutingService.PathChecker reachable = routing.pathChecker(entry.getWarehouseId());
         for (String dest : destinationCandidates) {
             for (String from : entryCandidates) {
-                if (!reachable.exists(from, dest)) {
+                // A transport from a node to itself is the degenerate proximity-pollution case
+                // (observed live: entry=ASRS-1#1 dest=ASRS-1#0 picked for a PP1->storage return).
+                if (from.equals(dest) || !reachable.exists(from, dest)) {
                     continue;
                 }
                 routing.assignRoute(new RouteRequest(entry.getWarehouseId(), entry.getHuCode(),
@@ -479,7 +482,8 @@ public class InductionQueueService {
         // Return leg: the roles swap — entry = the workplace's node, destination = the storage node.
         assignLiveRoute(entry, payload,
                 transportNodes.destinationCandidates(entry.getWarehouseId(), entry.getWorkplaceId()),
-                transportNodes.storageEntryCandidates(entry.getWarehouseId()));
+                transportNodes.storageCandidates(entry.getWarehouseId(),
+                        TransportNodeResolver.StorageDirection.RETURN));
         RequestDeviceTask req = new RequestDeviceTask(
                 entry.getWarehouseId(), "CONVEYOR", null, "CONVEY", payload, entry.getHuId());
         UUID taskId = deviceTasks.request(req, actor).id();
