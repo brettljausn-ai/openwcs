@@ -1,0 +1,120 @@
+<section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="alloc.eyebrow1">Function · Allocation <span class="pill pill-built" data-i18n="alloc.pill1">Built</span></p>
+      <h1 data-i18n="alloc.h1">From order to a <span class="lime">cubed pick plan.</span></h1>
+      <p class="lead" data-i18n="alloc.lead1">
+        Before an operator touches a tote, openWCS turns an outbound order into committed stock and a
+        packing plan: it reserves the right units at reachable locations, breaks the demand down by
+        unit of measure, cubes the lines into shippers, and groups work into batches.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="alloc.eyebrow2">How it works</p>
+        <h2 data-i18n="alloc.h2">Reserve, break down, cube, batch.</h2>
+        <p data-i18n="alloc.p1">
+          Releasing an order runs allocation against location-scoped availability. It reserves stock
+          until demand is met, computes the pick-type UoM breakdown, and produces a pick plan plus a
+          cube plan — or fails cleanly if it can't.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag" data-i18n="alloc.tag1">Pick-location</div>
+          <h3 data-i18n="alloc.h6">Reserve reachable stock</h3>
+          <p data-i18n="alloc.p2">Allocation reserves against location-scoped ATP until demand is met, so each line points at a real, reachable unit — not just a SKU that exists somewhere in the building.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="alloc.tag2">UoM breakdown</div>
+          <h3 data-i18n="alloc.h7">Cases, splits &amp; eaches</h3>
+          <p data-i18n="alloc.p3">Demand is broken into the pick-type unit of measure — case, split-case, each — so the plan reflects how stock is actually held and picked, not a flat quantity.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="alloc.tag3">Cubing</div>
+          <h3 data-i18n="alloc.h8">Multi-size, largest-first</h3>
+          <p data-i18n="alloc.p4">Lines are fitted into shippers across multiple carton/tote sizes, largest-first, using SKU dimensions and weight — so the plan knows how many of which size a set of orders needs.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="alloc.tag4">Line-traceable</div>
+          <h3 data-i18n="alloc.h9">Stable shipper IDs</h3>
+          <p data-i18n="alloc.p5">Each carton carries a stable shipper-unit ID and the lines it holds, so every shipper is traceable back to the order lines inside it — for labels, dispatch and audit.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="alloc.tag5">Dispatch labels</div>
+          <h3 data-i18n="alloc.h10">A barcode per shipper</h3>
+          <p data-i18n="alloc.p6">A dispatch-label barcode is requested per shipper — knowable only once cubing exists — from the host system, or a built-in simulator when no host label service is configured.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="alloc.tag6">Batch picking</div>
+          <h3 data-i18n="alloc.h11">Group lines into work</h3>
+          <p data-i18n="alloc.p7">Batch-pick planning groups order lines into efficient pick work — the basis for wave / batch picking, and the plan that pick execution will later drive against.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="alloc.eyebrow3">Honest outcomes</p>
+        <h2 data-i18n="alloc.h3">Allocated, or a clear reason why not.</h2>
+        <p data-i18n="alloc.p8">
+          Release has explicit outcomes, so a release that can't be fulfilled fails loudly instead of
+          half-committing. Held reservations are always released on failure or cancel.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag" data-i18n="alloc.tag7">ALLOCATED</div>
+          <h3 data-i18n="alloc.h12">Plan is ready</h3>
+          <p data-i18n="alloc.p9">Demand was met: stock is reserved, the UoM breakdown computed, and a pick plan plus cube plan produced. The order is ready to release to the floor.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="alloc.tag8">NOT_FULFILLABLE</div>
+          <h3 data-i18n="alloc.h13">Not enough stock</h3>
+          <p data-i18n="alloc.p10">Availability can't cover the order. Every reservation held during the attempt is released, so a failed allocation never strands stock as committed-but-unusable.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="alloc.tag9">CUBING_FAILED</div>
+          <h3 data-i18n="alloc.h14">Bigger than the box</h3>
+          <p data-i18n="alloc.p11">A SKU is larger than the biggest carton, so no shippers can be produced. The attempt backs out cleanly — a distinct, actionable outcome rather than a silent partial.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="alloc.eyebrow4">At a glance</p>
+        <h2 data-i18n="alloc.h4">Release → reserve → cube → label.</h2>
+      </div>
+      <div class="arch">
+<pre>  order release ─►  <b>openWCS allocation</b>
+                       │  reserve vs location-scoped ATP  (until demand met)
+                       │  UoM breakdown: case · split-case · each
+                       │  cube into shippers (multi-size, largest-first, line-traceable)
+                       │  request dispatch-label barcode per shipper
+                       ▼
+            ALLOCATED (pick plan + cube plan) · batch picking
+            └─ NOT_FULFILLABLE / CUBING_FAILED → release held reservations</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow" data-i18n="alloc.eyebrow5">Open &amp; configurable</p>
+        <h2 data-i18n="alloc.h5">The plan behind every pick.</h2>
+        <p data-i18n="alloc.p12">Allocation commits against the event-sourced inventory and feeds goods-to-person demand. Pick execution on top of this plan is on the roadmap — see the picking page.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="inventory.html">Inventory deep dive</a>
+          <a class="btn btn-ghost" href="picking.html" data-i18n="alloc.btn1">Picking</a>
+        </div>
+      </div>
+    </div>
+  </section>

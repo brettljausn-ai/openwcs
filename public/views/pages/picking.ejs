@@ -1,0 +1,101 @@
+<section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="pick.eyebrow1">Function · Picking</p>
+      <h1 data-i18n="pick.h1">The plan is built. <span class="lime">Execution is next.</span></h1>
+      <p class="lead" data-i18n="pick.lead1">
+        openWCS already plans the pick — allocation, cubing and batch planning are
+        <span class="pill pill-built" data-i18n="pick.pill1">Built</span>. The operator-facing execution layer is
+        <span class="pill pill-roadmap" data-i18n="pick.pill5">Roadmap</span>: planned and designed, not yet implemented.
+      </p>
+      <p class="status-line">⚑ Pick execution is planned — not yet implemented. Pick planning below is live today.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="pick.eyebrow2">Built today</p>
+        <h2 data-i18n="pick.h2">Pick planning that's live.</h2>
+        <p data-i18n="pick.p1">
+          Before anyone touches a tote, the hard decisions are made: what stock to commit, how it fits a
+          container, and how to group lines into efficient work.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="pick.tag1">Allocation</div><span class="pill pill-built" data-i18n="pick.pill2">Built</span></div>
+          <h3 data-i18n="pick.h6">Commit the right stock</h3>
+          <p data-i18n="pick.p2">Orders are allocated to specific stock, respecting availability and the location model — so each line points at a real, reachable unit before work is released.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="pick.tag2">Cubing</div><span class="pill pill-built" data-i18n="pick.pill3">Built</span></div>
+          <h3 data-i18n="pick.h7">Multi-size cubing</h3>
+          <p data-i18n="pick.p3">Lines are fitted into containers across multiple carton/tote sizes, so the planner knows how many of which size a set of orders needs before it hits the floor.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="pick.tag3">Batch planning</div><span class="pill pill-built" data-i18n="pick.pill4">Built</span></div>
+          <h3 data-i18n="pick.h8">Group lines into work</h3>
+          <p data-i18n="pick.p4">Batch-pick planning groups order lines into efficient pick work, the basis for wave / batch picking — the planning that execution will later drive against.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="pick.eyebrow3">On the roadmap</p>
+        <h2 data-i18n="pick.h3">Putting the plan into operators' hands.</h2>
+        <p data-i18n="pick.p5">
+          The execution layer — confirming picks, guiding operators, running goods-to-person stations — is
+          designed but not built. Framed honestly so you know exactly where the line is.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="pick.tag4">Confirmation</div><span class="pill pill-roadmap" data-i18n="pick.pill6">Roadmap</span></div>
+          <h3 data-i18n="pick.h9">Confirm the pick</h3>
+          <p data-i18n="pick.p6">Planned: operator and goods-to-person pick confirmation that closes out a planned line against what was physically taken. Not yet implemented.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="pick.tag5">Guidance</div><span class="pill pill-roadmap" data-i18n="pick.pill7">Roadmap</span></div>
+          <h3 data-i18n="pick.h10">Light / voice / RF</h3>
+          <p data-i18n="pick.p7">Planned: pick-by-light, pick-by-voice and RF-gun guidance so operators are directed line-by-line. Designed for, not yet built.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="pick.tag6">GTP workflow</div><span class="pill pill-roadmap" data-i18n="pick.pill8">Roadmap</span></div>
+          <h3 data-i18n="pick.h11">Goods-to-person stations</h3>
+          <p data-i18n="pick.p8">Planned: the full GTP-station workflow — presenting HUs, capturing the pick, releasing the carrier — on top of the ASRS retrieval that already brings units to the station.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="pick.eyebrow4">At a glance</p>
+        <h2 data-i18n="pick.h4">Plan today → execute on the roadmap.</h2>
+      </div>
+      <div class="arch">
+<pre>  order ─►  <b>allocate</b> → <b>cube</b> → <b>batch-plan</b>     (built)
+                                  │
+                                  ▼
+            ┄┄┄ roadmap ┄┄┄  confirm · light/voice/RF · GTP station</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow" data-i18n="pick.eyebrow5">Open &amp; honest</p>
+        <h2 data-i18n="pick.h5">Follow execution as it lands.</h2>
+        <p data-i18n="pick.p9">The planning that feeds picking is the same engine behind slotting and ASRS retrieval. Execution is tracked in the open.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="asrs.html">ASRS &amp; GTP retrieval</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs" data-i18n="pick.btn1">View on GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>

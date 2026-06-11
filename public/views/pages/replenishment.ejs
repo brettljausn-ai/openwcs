@@ -1,0 +1,104 @@
+<section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="repl.eyebrow1">Function · Replenishment <span class="pill pill-built" data-i18n="repl.pill1">Built</span></p>
+      <h1 data-i18n="repl.h1">Faces full <span class="lime">before the rush.</span></h1>
+      <p class="lead" data-i18n="repl.lead1">
+        Replenishment keeps forward pick faces stocked from reserve. openWCS works min/max with the right
+        urgency, tops faces off opportunistically in off-peak windows, and skips reserve entirely with
+        direct-to-pick when inbound can go straight to the face.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="repl.eyebrow2">How it works</p>
+        <h2 data-i18n="repl.h2">Three modes, one goal: no empty face at peak.</h2>
+        <p data-i18n="repl.p1">
+          Fixed pick faces carry a SKU+UoM with a minimum and a maximum. openWCS watches the level and
+          chooses how — and how urgently — to refill.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag" data-i18n="repl.tag1">Min/max</div>
+          <h3 data-i18n="repl.h6">Refill on threshold</h3>
+          <p data-i18n="repl.p2">Drop below min and a refill is raised — emergency if the face is empty and blocking picks, scheduled otherwise so routine refills don't jump the queue.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="repl.tag2">Off-peak top-off</div>
+          <h3 data-i18n="repl.h7">Opportunistic to max</h3>
+          <p data-i18n="repl.p3">In quiet windows every face is topped up to max, so disruptive hot replenishments during peak are avoided and the floor starts each rush full.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="repl.tag3">Direct-to-pick</div>
+          <h3 data-i18n="repl.h8">Cross-dock when it fits</h3>
+          <p data-i18n="repl.p4">If a forward face has headroom below its max, inbound is routed straight there — skipping a reserve put-away and a later replenishment trip entirely.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="repl.tag4">Urgency</div>
+          <h3 data-i18n="repl.h9">Emergency vs scheduled</h3>
+          <p data-i18n="repl.p5">Refills carry a priority so an empty, picking-blocked face is served ahead of a face that is merely below min — work is sequenced by what actually hurts throughput.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="repl.tag5">Source</div>
+          <h3 data-i18n="repl.h10">Pull from reserve</h3>
+          <p data-i18n="repl.p6">Replenishment draws from reserve and automated blocks, reusing the same movement layer as put-away — one mover network, not a separate pipeline.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="repl.tag6">Configurable</div>
+          <h3 data-i18n="repl.h11">Your thresholds</h3>
+          <p data-i18n="repl.p7">Min, max and the off-peak window are configuration per face, so you set the trade-off between carrying buffer and trip count yourself.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="repl.eyebrow3">Step by step</p>
+        <h2 data-i18n="repl.h3">How a face stays full.</h2>
+        <ol class="steps">
+          <li><strong>Watch the level.</strong> Each fixed pick face carries a SKU+UoM with a min and a max; openWCS tracks its current quantity against both.</li>
+          <li><strong>Catch inbound first.</strong> When stock arrives, check whether the forward face has headroom — if so, route it direct-to-pick and skip a reserve put-away entirely.</li>
+          <li><strong>Trigger on threshold.</strong> When a face drops below min, raise a refill — marked EMERGENCY if the face is empty and blocking picks, SCHEDULED otherwise.</li>
+          <li><strong>Pull from reserve.</strong> The refill draws from reserve and automated blocks over the same movement layer as put-away — one mover network, sequenced by urgency.</li>
+          <li><strong>Top off off-peak.</strong> In quiet windows, fill every face up to max so each rush starts full and hot replenishments during peak are avoided.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="repl.eyebrow4">At a glance</p>
+        <h2 data-i18n="repl.h4">Level drops → refill, or never empties.</h2>
+      </div>
+      <div class="arch">
+<pre>  inbound (SKU, HU) ─►  forward face has headroom?  ── yes ─►  <b>direct-to-pick</b> (cross-dock)
+                                       │ no
+                                       ▼
+                                  reserve put-away
+  face below min ─►  <b>replenishment</b>  ── empty? ─► EMERGENCY
+                                          └─ else ──► SCHEDULED
+  off-peak window ─►  top every face up to max</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow" data-i18n="repl.eyebrow5">Configurable &amp; open</p>
+        <h2 data-i18n="repl.h5">Keep the faces full, your way.</h2>
+        <p data-i18n="repl.p8">Replenishment shares the slotting engine's location model and the conveyor/ASRS movers. Read the slotting deep dive for how those faces are chosen in the first place.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="slotting.html">Slotting deep dive</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki/Slotting-and-Replenishment" data-i18n="repl.btn1">Read the docs</a>
+        </div>
+      </div>
+    </div>
+  </section>

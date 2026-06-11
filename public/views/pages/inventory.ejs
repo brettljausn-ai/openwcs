@@ -1,0 +1,91 @@
+<section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="inv.eyebrow1">Function · Inventory <span class="pill pill-built" data-i18n="inv.pill1">Built</span></p>
+      <h1 data-i18n="inv.h1">Stock that's <span class="lime">a replay away.</span></h1>
+      <p class="lead" data-i18n="inv.lead1">
+        Inventory isn't a table someone edits — it's a projection. Every movement is an immutable event
+        on an append-only transaction log, and openWCS replays that log into real-time stock,
+        location-scoped availability and reservations you can trust, audit and rebuild from scratch.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="inv.eyebrow2">How it works</p>
+        <h2 data-i18n="inv.h2">Append-only log in, read models out.</h2>
+        <p data-i18n="inv.p1">
+          The transaction log is the system of record — events are appended, never updated or deleted.
+          The inventory service consumes that stream and projects durable read models: current stock,
+          availability and reservations.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag" data-i18n="inv.tag1">Event-sourced</div>
+          <h3 data-i18n="inv.h5">The log is the truth</h3>
+          <p data-i18n="inv.p2">Goods received, stock adjusted, picks and moves are events on an append-only log — UPDATE and DELETE are blocked at the database. State is derived, so history can never be quietly rewritten.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="inv.tag2">Projection</div>
+          <h3 data-i18n="inv.h6">Stock you can rebuild</h3>
+          <p data-i18n="inv.p3">Inventory projects the event stream into a durable stock read model. Because the log is the source, the projection can be torn down and replayed — auditable and rebuildable, not a fragile counter.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="inv.tag3">Idempotent</div>
+          <h3 data-i18n="inv.h7">Each event once</h3>
+          <p data-i18n="inv.p4">The projection tracks processed events and a cursor offset, so re-delivered events are ignored and a restart resumes exactly where it left off — no double-counting, no drift.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="inv.tag4">ATP</div>
+          <h3 data-i18n="inv.h8">SKU- and location-scoped</h3>
+          <p data-i18n="inv.p5">Availability-to-promise is queryable SKU-wide and scoped to a specific location, so allocation can ask "is there reachable stock <em>here</em>?" — not just "does the SKU exist somewhere?".</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="inv.tag5">Reservations</div>
+          <h3 data-i18n="inv.h9">Commit without over-promising</h3>
+          <p data-i18n="inv.p6">Reservations are created, released and consumed against ATP under a pessimistic lock, so two concurrent allocations can't both commit the last unit — the floor and the order book stay consistent.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="inv.tag6">Yours to query</div>
+          <h3 data-i18n="inv.h10">Postgres you host</h3>
+          <p data-i18n="inv.p7">Stock, batches, serial units and reservations live in a schema you own and can query directly. Operational state isn't trapped inside a vendor's system — it's your data, on your infrastructure.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="inv.eyebrow3">At a glance</p>
+        <h2 data-i18n="inv.h3">Event → projection → availability.</h2>
+      </div>
+      <div class="arch">
+<pre>  GoodsReceived · StockAdjusted · Pick · Move ─►  <b>append-only transaction log</b>
+                                                       │  (UPDATE / DELETE blocked)
+                                                       ▼  outbox → stream
+                              <b>inventory projection</b>  ── idempotent · cursor offset
+                                                       │
+                              stock · availability/ATP (SKU + location) · reservations
+                                                       │  reserve under pessimistic lock
+                                                       ▼
+                                          allocation commits the right unit</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow" data-i18n="inv.eyebrow4">Open &amp; auditable</p>
+        <h2 data-i18n="inv.h4">Inventory you can prove.</h2>
+        <p data-i18n="inv.p8">The log, the projection and the schema are open source and self-hosted. See how allocation commits against this availability, and how the Host API feeds adjustments in.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="allocation.html">Allocation deep dive</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs" data-i18n="inv.btn1">View on GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
