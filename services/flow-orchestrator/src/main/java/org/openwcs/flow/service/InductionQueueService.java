@@ -208,8 +208,8 @@ public class InductionQueueService {
         putIfPresent(payload, "huCode", entry.getHuCode());
         putIfPresent(payload, "destinationWorkplaceId", entry.getWorkplaceId());
         assignLiveRoute(entry, payload,
-                transportNodes.storageEntryNode(entry.getWarehouseId()),
-                transportNodes.destinationNode(entry.getWarehouseId(), entry.getWorkplaceId()));
+                transportNodes.storageEntryCandidates(entry.getWarehouseId()),
+                transportNodes.destinationCandidates(entry.getWarehouseId(), entry.getWorkplaceId()));
         RequestDeviceTask req = new RequestDeviceTask(
                 entry.getWarehouseId(), "CONVEYOR", null, "CONVEY", payload, entry.getHuId());
         UUID taskId = deviceTasks.request(req, actor).id();
@@ -225,19 +225,34 @@ public class InductionQueueService {
      * is left untouched so the adapter falls back to today's atomic behaviour.
      */
     private void assignLiveRoute(InductionQueueEntry entry, Map<String, Object> payload,
-                                 Optional<String> entryNode, Optional<String> destinationNode) {
-        if (entryNode.isEmpty() || destinationNode.isEmpty() || entry.getHuCode() == null) {
+                                 List<String> entryCandidates, List<String> destinationCandidates) {
+        if (entryCandidates.isEmpty() || destinationCandidates.isEmpty() || entry.getHuCode() == null) {
             log.debug("Induction entry {} dispatching CONVEY without a route plan "
-                            + "(entryNode={}, destinationNode={}, huCode={})", entry.getId(),
-                    entryNode.orElse(null), destinationNode.orElse(null), entry.getHuCode());
+                            + "(entryCandidates={}, destinationCandidates={}, huCode={})", entry.getId(),
+                    entryCandidates.size(), destinationCandidates.size(), entry.getHuCode());
             return;
         }
-        routing.assignRoute(new RouteRequest(entry.getWarehouseId(), entry.getHuCode(),
-                List.of(destinationNode.get())));
-        payload.put("entryNode", entryNode.get());
-        payload.put("destinationNode", destinationNode.get());
-        log.debug("Induction entry {} assigned route plan {} -> {} for {}", entry.getId(),
-                entryNode.get(), destinationNode.get(), entry.getHuCode());
+        // Pair the best entry with the best destination the graph can actually connect. A candidate
+        // that LOOKS right can be a dead-end (e.g. the ASRS's inbound stub end has out-degree 0) —
+        // assigning it blindly makes the live walk fail its very first scan with "no path".
+        RoutingService.PathChecker reachable = routing.pathChecker(entry.getWarehouseId());
+        for (String dest : destinationCandidates) {
+            for (String from : entryCandidates) {
+                if (!reachable.exists(from, dest)) {
+                    continue;
+                }
+                routing.assignRoute(new RouteRequest(entry.getWarehouseId(), entry.getHuCode(),
+                        List.of(dest)));
+                payload.put("entryNode", from);
+                payload.put("destinationNode", dest);
+                log.debug("Induction entry {} assigned route plan {} -> {} for {}", entry.getId(),
+                        from, dest, entry.getHuCode());
+                return;
+            }
+        }
+        log.warn("Induction entry {}: no reachable entry->destination pair on the projected graph "
+                + "({} entry x {} destination candidates) — dispatching atomically", entry.getId(),
+                entryCandidates.size(), destinationCandidates.size());
     }
 
     // ---- §4.3 CONVEY callback (= arrival) -----------------------------------------------------
@@ -347,8 +362,8 @@ public class InductionQueueService {
         putIfPresent(payload, "returnLocationId", entry.getLocationId());
         // Return leg: the roles swap — entry = the workplace's node, destination = the storage node.
         assignLiveRoute(entry, payload,
-                transportNodes.destinationNode(entry.getWarehouseId(), entry.getWorkplaceId()),
-                transportNodes.storageEntryNode(entry.getWarehouseId()));
+                transportNodes.destinationCandidates(entry.getWarehouseId(), entry.getWorkplaceId()),
+                transportNodes.storageEntryCandidates(entry.getWarehouseId()));
         RequestDeviceTask req = new RequestDeviceTask(
                 entry.getWarehouseId(), "CONVEYOR", null, "CONVEY", payload, entry.getHuId());
         UUID taskId = deviceTasks.request(req, actor).id();

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -63,20 +64,31 @@ public class TransportNodeResolver {
      */
     @Transactional(readOnly = true)
     public Optional<String> destinationNode(UUID warehouseId, UUID workplaceId) {
+        return destinationCandidates(warehouseId, workplaceId).stream().findFirst();
+    }
+
+    /**
+     * ALL plausible workplace nodes, best first: named function points, then connection far-sides,
+     * then every projected node by distance to the workstation. The dispatcher pairs these with the
+     * entry candidates and picks the first pair the routing graph can actually connect — a candidate
+     * that LOOKS right but is unreachable (e.g. a dead-end inbound stub) must never be chosen blindly.
+     */
+    @Transactional(readOnly = true)
+    public List<String> destinationCandidates(UUID warehouseId, UUID workplaceId) {
         List<ConveyorNode> graph = nodes.findByWarehouseId(warehouseId);
         if (graph.isEmpty() || workplaceId == null) {
-            return Optional.empty();
+            return List.of();
         }
         AutomationTopologyDto model = automation.load(warehouseId);
         PlacedEquipmentDto station = firstMatch(model,
                 e -> workplaceId.equals(e.stationId()));
         if (station == null) {
-            return Optional.empty();
+            return List.of();
         }
         List<String> candidates = new ArrayList<>();
         candidates.addAll(ownPointCodes(model, station, List.of("INDUCT", "DISCHARGE")));
         candidates.addAll(connectedPointCodes(model, station));
-        return firstProjected(candidates, graph).or(() -> nearestNode(graph, station));
+        return rankedCandidates(candidates, graph, station);
     }
 
     /**
@@ -85,20 +97,57 @@ public class TransportNodeResolver {
      */
     @Transactional(readOnly = true)
     public Optional<String> storageEntryNode(UUID warehouseId) {
+        return storageEntryCandidates(warehouseId).stream().findFirst();
+    }
+
+    /** ALL plausible storage-side nodes, best first — see {@link #destinationCandidates}. */
+    @Transactional(readOnly = true)
+    public List<String> storageEntryCandidates(UUID warehouseId) {
         List<ConveyorNode> graph = nodes.findByWarehouseId(warehouseId);
         if (graph.isEmpty()) {
-            return Optional.empty();
+            return List.of();
         }
         AutomationTopologyDto model = automation.load(warehouseId);
         PlacedEquipmentDto asrs = firstMatch(model,
                 e -> e.category() != null && "asrs".equals(e.category().trim().toLowerCase()));
         if (asrs == null) {
-            return Optional.empty();
+            return List.of();
         }
         List<String> candidates = new ArrayList<>();
-        candidates.addAll(ownPointCodes(model, asrs, List.of("DISCHARGE", "OUT")));
+        candidates.addAll(ownPointCodes(model, asrs, List.of("DISCHARGE", "OUT", "FEED")));
         candidates.addAll(connectedPointCodes(model, asrs));
-        return firstProjected(candidates, graph).or(() -> nearestNode(graph, asrs));
+        return rankedCandidates(candidates, graph, asrs);
+    }
+
+    /** Cap on the by-distance fallback candidates appended after the named ones. */
+    private static final int NEAREST_CAP = 25;
+
+    /**
+     * The named candidates that actually projected (original order), followed by every projected node
+     * sorted by distance to the anchor (capped), de-duplicated. The dispatcher walks this list pairing
+     * entry × destination until the routing graph confirms a path.
+     */
+    private static List<String> rankedCandidates(List<String> named, List<ConveyorNode> graph,
+                                                 PlacedEquipmentDto anchor) {
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        Set<String> codes = new HashSet<>();
+        for (ConveyorNode n : graph) {
+            codes.add(n.getCode());
+        }
+        for (String c : named) {
+            if (codes.contains(c)) {
+                out.add(c);
+            }
+        }
+        double x = num(anchor.posXM());
+        double z = num(anchor.posZM());
+        graph.stream()
+                .filter(n -> n.getPosX() != null && n.getPosY() != null)
+                .sorted(Comparator.comparingDouble(
+                        n -> Math.hypot(n.getPosX() - x, n.getPosY() - z)))
+                .limit(NEAREST_CAP)
+                .forEach(n -> out.add(n.getCode()));
+        return new ArrayList<>(out);
     }
 
     // ---- candidate collection -------------------------------------------------------------------

@@ -1,6 +1,13 @@
 package org.openwcs.flow.service;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.Optional;
 import java.util.UUID;
 import org.openwcs.flow.api.RoutingDtos.RouteRequest;
@@ -210,5 +217,56 @@ public class RoutingService {
     private static RouteView view(HuRoute r) {
         return new RouteView(r.getWarehouseId(), r.getBarcode(), r.getTargets(), r.getCurrentIndex(),
                 r.getStatus(), r.getDetail());
+    }
+
+    /**
+     * A reusable reachability oracle over the warehouse's projected graph (ADR-0008 §1 follow-up):
+     * loads nodes + edges ONCE and answers {@code exists(fromCode, toCode)} by BFS over the directed
+     * edges. The dispatcher uses it to pair transport endpoints — an entry node that cannot reach the
+     * destination (e.g. a dead-end inbound stub like {@code ASRS-1#106}) must never be assigned, or
+     * the live walk fails its first scan with "no path".
+     */
+    @Transactional(readOnly = true)
+    public PathChecker pathChecker(UUID warehouseId) {
+        Map<String, UUID> idByCode = new HashMap<>();
+        for (ConveyorNode n : nodes.findByWarehouseId(warehouseId)) {
+            idByCode.put(n.getCode(), n.getId());
+        }
+        Map<UUID, List<UUID>> adjacency = new HashMap<>();
+        for (ConveyorEdge e : edges.findByWarehouseId(warehouseId)) {
+            adjacency.computeIfAbsent(e.getFromNodeId(), k -> new ArrayList<>()).add(e.getToNodeId());
+        }
+        return (fromCode, toCode) -> {
+            UUID from = idByCode.get(fromCode);
+            UUID to = idByCode.get(toCode);
+            if (from == null || to == null) {
+                return false;
+            }
+            if (from.equals(to)) {
+                return true;
+            }
+            Set<UUID> seen = new HashSet<>();
+            Deque<UUID> queue = new ArrayDeque<>();
+            seen.add(from);
+            queue.add(from);
+            while (!queue.isEmpty()) {
+                UUID cur = queue.poll();
+                for (UUID next : adjacency.getOrDefault(cur, List.of())) {
+                    if (next.equals(to)) {
+                        return true;
+                    }
+                    if (seen.add(next)) {
+                        queue.add(next);
+                    }
+                }
+            }
+            return false;
+        };
+    }
+
+    /** Directed reachability between two node CODES on a warehouse's projected graph. */
+    @FunctionalInterface
+    public interface PathChecker {
+        boolean exists(String fromCode, String toCode);
     }
 }
