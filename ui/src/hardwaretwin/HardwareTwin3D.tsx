@@ -18,6 +18,7 @@ import type { AutomationEquipment, AutomationLevel, AutomationTopology } from '.
 import {
   EquipmentMesh as TopoEquipmentMesh,
   FunctionPointMarker as TopoFunctionPointMarker,
+  STUB_HEIGHT_M,
   category as topoCategory,
   colorFor as topoColorFor,
   isConveyor as topoIsConveyor,
@@ -180,6 +181,15 @@ function SceneContent({
   // Function points on visible equipment (id → equipment for the marker).
   const byId = useMemo(() => new Map(topology.equipment.map((e) => [e.id, e])), [topology.equipment])
 
+  // Scene conveyor height — ASRS IN/OUT stubs render flush with the conveyors (mirrors the editor).
+  const stubHeightM = useMemo(() => {
+    let h = 0
+    for (const eq of items) {
+      if (topoIsConveyor(eq, lib)) h = Math.max(h, eq.heightM || 0)
+    }
+    return h > 0 ? h : undefined
+  }, [items, lib])
+
   return (
     <group>
       {/* Base scene — the editor's exact meshes, read-only (selected=false → no gizmo/handles). */}
@@ -201,6 +211,7 @@ function SceneContent({
           onAnchorWaypoint={noop}
           onHandleDragChange={noop}
           showLabels={showLabels}
+          stubHeightM={stubHeightM}
         />
       ))}
 
@@ -211,8 +222,15 @@ function SceneContent({
         topology.functionPoints.map((fp) => {
           const eq = byId.get(fp.placedId)
           if (!eq || !visibleIds.has(eq.id)) return null
+          const stubHost = !topoIsConveyor(eq, lib) && !!(eq.path && eq.path.length >= 2)
           return (
-            <TopoFunctionPointMarker key={fp.id} fp={fp} eq={eq} onSelect={() => onSelectEquipment?.(eq.id)} />
+            <TopoFunctionPointMarker
+              key={fp.id}
+              fp={fp}
+              eq={eq}
+              topM={stubHost ? stubHeightM ?? STUB_HEIGHT_M : undefined}
+              onSelect={() => onSelectEquipment?.(eq.id)}
+            />
           )
         })}
 

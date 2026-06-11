@@ -2735,6 +2735,15 @@ function SceneContent({
     return m
   }, [allItems])
 
+  // Scene conveyor height: ASRS IN/OUT stubs render flush with the conveyors they feed.
+  const stubHeightM = useMemo(() => {
+    let h = 0
+    for (const e of allItems) {
+      if (isConveyor(e, lib)) h = Math.max(h, e.heightM || 0)
+    }
+    return h > 0 ? h : undefined
+  }, [allItems, lib])
+
   return (
     <group>
       {/* The (invisible) ground plane. In draw mode it appends a waypoint to the selected
@@ -2789,6 +2798,7 @@ function SceneContent({
             onMoveWaypoint={(index, x, z) => onMoveWaypoint(eq.id, index, x, z)}
             onAnchorWaypoint={onAnchorWaypoint}
             onHandleDragChange={onHandleDragChange}
+            stubHeightM={stubHeightM}
           />
         )
       })}
@@ -2805,6 +2815,8 @@ function SceneContent({
             key={fp.id}
             fp={fp}
             eq={eq}
+            // An FP on a stub host (ASRS with a path) rides at the STUB's height, not the rack top.
+            topM={!isConveyor(eq, lib) && hasPath(eq) ? stubHeightM ?? STUB_HEIGHT_M : undefined}
             onSelect={() => (connectMode ? onConnectPick(eq.id) : onEditFunctionPoint(fp.id))}
           />
         )
@@ -2821,6 +2833,7 @@ export function FunctionPointMarker({
   eq,
   onSelect,
   showLabels = true,
+  topM,
 }: {
   fp: AutomationFunctionPoint
   eq: AutomationEquipment
@@ -2828,6 +2841,9 @@ export function FunctionPointMarker({
   // When false the short type label (SCAN/QRY/DIV…) is hidden — only the cone/diamond glyph shows.
   // Defaults true so the editor is unchanged; the read-only hardware twin toggles it off to declutter.
   showLabels?: boolean
+  /** Override the marker's surface height. An FP on an ASRS sits on its IN/OUT STUB (conveyor
+   *  height), not on the 10 m rack top that eq.heightM would imply. */
+  topM?: number
 }) {
   const at = pointAlong(eq, fp.offsetM)
   // Left/right is perpendicular to travel direction on the ground plane. With dir (dx,dz),
@@ -2845,7 +2861,7 @@ export function FunctionPointMarker({
   // Sit on the equipment's top surface. Matches the body/path Y (heightM/2 + posYM, centred), whose
   // top is heightM + posYM — the scene draws everything floor-relative, so NO level elevation here
   // (adding it floated the markers ~elev metres above the conveyor).
-  const top = eq.heightM + eq.posYM
+  const top = (topM ?? eq.heightM) + eq.posYM
   // The point can carry a combination of functions; pick a representative colour and show the
   // combined short labels.
   const fns = fpFunctions(fp.functionType)
@@ -3071,6 +3087,8 @@ interface EquipmentMeshProps {
   onHandleDragChange: (active: boolean) => void
   // When false the equipment's code label is hidden (declutter). Defaults true (editor unchanged).
   showLabels?: boolean
+  /** Scene conveyor height for ASRS IN/OUT stub bodies (flush with the conveyors they feed). */
+  stubHeightM?: number
 }
 
 export function EquipmentMesh({
@@ -3089,6 +3107,7 @@ export function EquipmentMesh({
   onAnchorWaypoint,
   onHandleDragChange,
   showLabels = true,
+  stubHeightM,
 }: EquipmentMeshProps) {
   // Highlight either the editor selection or (in connect mode) the chosen source.
   const highlight = connectMode ? connectSource : selected
@@ -3112,6 +3131,7 @@ export function EquipmentMesh({
         onAnchorWaypoint={onAnchorWaypoint}
         onHandleDragChange={onHandleDragChange}
         showLabels={showLabels}
+        stubHeightM={stubHeightM}
       />
     )
   }
@@ -3235,6 +3255,7 @@ export function EquipmentMesh({
         onAnchorWaypoint={onAnchorWaypoint}
         onHandleDragChange={onHandleDragChange}
         showLabels={showLabels}
+        stubHeightM={stubHeightM}
       />
     ) : null
 
@@ -3326,6 +3347,8 @@ interface ConveyorPathProps {
   onAnchorWaypoint: (index: number) => void
   onHandleDragChange: (active: boolean) => void
   showLabels?: boolean
+  /** Height for NON-conveyor stub bodies (an ASRS's IN/OUT pieces) — the scene's conveyor height. */
+  stubHeightM?: number
 }
 
 // Renders a conveyor as a DIRECTED section graph: one box per section `[i,j]` (length = |path[i]
@@ -3346,6 +3369,7 @@ function ConveyorPath({
   onAnchorWaypoint,
   onHandleDragChange,
   showLabels = true,
+  stubHeightM,
 }: ConveyorPathProps) {
   const path = (eq.path ?? []) as number[][]
   const sections = effectiveSections(eq)
