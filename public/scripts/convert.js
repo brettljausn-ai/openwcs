@@ -5,8 +5,9 @@
 //   - headMeta  : the page's <head> minus the invariant tags (charset/viewport/fonts/styles/i18n)
 //                 — i.e. the per-page SEO (title, description, canonical, OG/Twitter, JSON-LD). Kept
 //                 verbatim so nothing regresses.
-//   - navLinks  : the contextual <nav class="nav-links"> contents (differ per page).
-//   - body      : everything between <header> and <footer> (the actual page content), scripts pulled out.
+//   - body      : the page content. The shared header (incl. the global nav) and footer live in
+//                 layout.ejs, so source pages carry only their content; any stray header/footer is
+//                 defensively stripped here too. In-body scripts are pulled out.
 //   - scripts   : any in-body <script> (e.g. roadmap.html's timeline renderer), re-emitted after body.
 //
 // Run:  npm run build:pages   (after editing a source page, re-run to regenerate the view).
@@ -41,10 +42,8 @@ for (const file of files) {
   SHARED_HEAD.forEach(sel => head.find(sel).remove());
   const headMeta = (head.html() || '').replace(/^\s*\n/gm, '').trim();
 
-  const navLinks = ($('header.nav nav.nav-links').html() || '').trim();
-
   const body = $('body').clone();
-  body.find('header.nav, footer').remove();
+  body.find('header.nav, footer').remove();   // defensive: layout.ejs owns the header + footer
   const scripts = [];
   body.find('script').each((_, el) => scripts.push($.html(el)));
   body.find('script').remove();
@@ -59,7 +58,6 @@ for (const file of files) {
     view: 'pages/' + name,
     bodyId: $('body').attr('id') || 'top',
     headMeta,
-    navLinks,
     scripts: scripts.join('\n').trim(),
   };
 }
