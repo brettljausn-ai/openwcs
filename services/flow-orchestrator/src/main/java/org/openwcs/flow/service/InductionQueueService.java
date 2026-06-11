@@ -24,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code {IN_TRANSIT, QUEUED}} cap by dispatching RETRIEVE device tasks. The RETRIEVE callback
  * advances the entry to {@code IN_TRANSIT} and dispatches the CONVEY leg; the CONVEY (= arrival)
  * callback advances it to {@code QUEUED} and assigns an arrival sequence (arrival order, R2/R4); the
- * operator completes it to {@code DONE}. Each transition appends an {@link HuTraceService} row (§5).
+ * operator completes it to {@code DONE}. Completion starts the return-to-storage leg: a return
+ * CONVEY (station → storage) whose callback dispatches the STORE/BIN_STORE back into the source
+ * slot. Each transition appends an {@link HuTraceService} row (§5).
  *
  * <p>Lifecycle transitions are driven from {@code DeviceTaskService.completeFromCallback} keyed off
  * the completing task's command; the entry is found by its {@code retrieve_task_id} / {@code convey_task_id}.
@@ -261,7 +263,9 @@ public class InductionQueueService {
 
     /**
      * Mark an entry DONE (operator-driven). Idempotent: an already-DONE entry is returned unchanged.
-     * Frees a cap slot, so the workplace's REQUESTED backlog is re-metered. Flow does NOT store back.
+     * Frees a cap slot, so the workplace's REQUESTED backlog is re-metered. Completing the entry also
+     * starts the return-to-storage leg: a return CONVEY (station → storage) is dispatched exactly
+     * once; its callback then dispatches the STORE back into the source slot (§4.4).
      */
     @Transactional
     public InductionEntryView markDone(UUID entryId, String family, String actor) {
@@ -275,9 +279,94 @@ public class InductionQueueService {
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "station:" + entry.getWorkplaceId(),
                 "DONE", "presentation completed", null, null, entry.getWorkplaceId(), null, entry.getId());
 
+        // Return leg: convey the tote back to storage. Guarded so a return CONVEY is never
+        // dispatched twice (the DONE early-return above already makes repeat calls no-ops).
+        if (entry.getReturnConveyTaskId() == null) {
+            dispatchReturnConvey(entry, actor);
+        }
+
         // A slot freed: re-meter the backlog for this workplace.
         meterRetrievals(entry.getWorkplaceId(), family, actor);
         return InductionEntryView.from(entry);
+    }
+
+    // ---- §4.4 return-to-storage leg -------------------------------------------------------------
+
+    private void dispatchReturnConvey(InductionQueueEntry entry, String actor) {
+        Map<String, Object> payload = new HashMap<>();
+        putIfPresent(payload, "huId", entry.getHuId());
+        putIfPresent(payload, "huCode", entry.getHuCode());
+        putIfPresent(payload, "sourceWorkplaceId", entry.getWorkplaceId());
+        putIfPresent(payload, "returnLocationId", entry.getLocationId());
+        RequestDeviceTask req = new RequestDeviceTask(
+                entry.getWarehouseId(), "CONVEYOR", null, "CONVEY", payload, entry.getHuId());
+        UUID taskId = deviceTasks.request(req, actor).id();
+        entry.setReturnConveyTaskId(taskId);
+        log.debug("Induction entry {} dispatched return CONVEY task {}", entry.getId(), taskId);
+
+        trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "conveyor", "RETURNING",
+                "returning to storage", "station:" + entry.getWorkplaceId(), null, entry.getWorkplaceId(),
+                taskId, entry.getId());
+    }
+
+    /**
+     * Return CONVEY device task COMPLETED (= arrival back at storage): trace {@code RETURN_ARRIVED}
+     * and dispatch the STORE/BIN_STORE back into the source slot. Idempotent: once the store task is
+     * linked, a late/duplicate callback is a no-op.
+     */
+    @Transactional
+    public void onReturnConveyCompleted(UUID returnConveyTaskId, boolean succeeded, String actor) {
+        InductionQueueEntry entry = entries.findByReturnConveyTaskId(returnConveyTaskId).orElse(null);
+        if (entry == null) {
+            return; // CONVEY not tied to a return leg (e.g. the outbound induction convey)
+        }
+        if (!succeeded) {
+            log.debug("Return CONVEY {} FAILED for induction entry {}", returnConveyTaskId, entry.getId());
+            return;
+        }
+        if (entry.getReturnStoreTaskId() != null) {
+            return; // store already dispatched: idempotent
+        }
+        trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "storage", "RETURN_ARRIVED",
+                "arrived back at storage", "conveyor", null, entry.getWorkplaceId(), returnConveyTaskId,
+                entry.getId());
+
+        dispatchReturnStore(entry, actor);
+    }
+
+    private void dispatchReturnStore(InductionQueueEntry entry, String actor) {
+        String family = defaultFamily(entry);
+        String command = "AUTOSTORE".equalsIgnoreCase(family) ? "BIN_STORE" : "STORE";
+        Map<String, Object> payload = new HashMap<>();
+        putIfPresent(payload, "huId", entry.getHuId());
+        putIfPresent(payload, "huCode", entry.getHuCode());
+        putIfPresent(payload, "locationId", entry.getLocationId());
+        RequestDeviceTask req = new RequestDeviceTask(
+                entry.getWarehouseId(), family, null, command, payload, entry.getHuId());
+        UUID taskId = deviceTasks.request(req, actor).id();
+        entry.setReturnStoreTaskId(taskId);
+        log.debug("Induction entry {} dispatched return STORE task {} ({}/{})",
+                entry.getId(), taskId, family, command);
+    }
+
+    /**
+     * STORE/BIN_STORE device task COMPLETED: the tote is back in its source slot, so trace
+     * {@code STORED}, closing the HU's timeline. On failure: log only.
+     */
+    @Transactional
+    public void onReturnStoreCompleted(UUID returnStoreTaskId, boolean succeeded, String actor) {
+        InductionQueueEntry entry = entries.findByReturnStoreTaskId(returnStoreTaskId).orElse(null);
+        if (entry == null) {
+            return; // STORE not tied to an induction return leg
+        }
+        if (!succeeded) {
+            log.debug("Return STORE {} FAILED for induction entry {}", returnStoreTaskId, entry.getId());
+            return;
+        }
+        String slot = entry.getLocationId() == null ? "slot" : "slot:" + entry.getLocationId();
+        trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), slot, "STORED",
+                "stored back to source slot", "storage", null, entry.getWorkplaceId(), returnStoreTaskId,
+                entry.getId());
     }
 
     // ---- §3.2 read ----------------------------------------------------------------------------

@@ -25,6 +25,8 @@ public record InductionEntryView(
         Instant doneAt,
         UUID retrieveTaskId,
         UUID conveyTaskId,
+        UUID returnConveyTaskId,
+        UUID returnStoreTaskId,
         UUID countTaskId,
         UUID countLineId,
         UUID locationId) {
@@ -35,6 +37,7 @@ public record InductionEntryView(
                 e.getHuId(), e.getHuCode(), e.getSkuId(), e.getSkuCode(), e.getQty(), e.getMode(),
                 e.getStatus(), e.getArrivalSeq(), e.getRequestedAt(), e.getInTransitAt(),
                 e.getQueuedAt(), e.getDoneAt(), e.getRetrieveTaskId(), e.getConveyTaskId(),
+                e.getReturnConveyTaskId(), e.getReturnStoreTaskId(),
                 e.getCountTaskId(), e.getCountLineId(), e.getLocationId());
     }
 }

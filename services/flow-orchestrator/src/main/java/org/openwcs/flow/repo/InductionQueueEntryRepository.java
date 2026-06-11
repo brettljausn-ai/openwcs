@@ -15,6 +15,11 @@ public interface InductionQueueEntryRepository extends JpaRepository<InductionQu
 
     Optional<InductionQueueEntry> findByConveyTaskId(UUID conveyTaskId);
 
+    /** Return-leg wiring: find the entry a completing return CONVEY / STORE device task belongs to. */
+    Optional<InductionQueueEntry> findByReturnConveyTaskId(UUID returnConveyTaskId);
+
+    Optional<InductionQueueEntry> findByReturnStoreTaskId(UUID returnStoreTaskId);
+
     /** Cap counting: how many {IN_TRANSIT, QUEUED} entries a workplace holds (optionally by mode). */
     long countByWorkplaceIdAndStatusIn(UUID workplaceId, List<String> statuses);
 

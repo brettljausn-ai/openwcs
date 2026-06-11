@@ -88,6 +88,14 @@ public class InductionQueueEntry extends Auditable {
     @Column(name = "convey_task_id")
     private UUID conveyTaskId;
 
+    /** The return CONVEY device_task (station → storage) dispatched at DONE. */
+    @Column(name = "return_convey_task_id")
+    private UUID returnConveyTaskId;
+
+    /** The STORE/BIN_STORE device_task storing the tote back into the source slot. */
+    @Column(name = "return_store_task_id")
+    private UUID returnStoreTaskId;
+
     @Column(name = "count_task_id")
     private UUID countTaskId;
 
@@ -240,6 +248,22 @@ public class InductionQueueEntry extends Auditable {
 
     public void setConveyTaskId(UUID conveyTaskId) {
         this.conveyTaskId = conveyTaskId;
+    }
+
+    public UUID getReturnConveyTaskId() {
+        return returnConveyTaskId;
+    }
+
+    public void setReturnConveyTaskId(UUID returnConveyTaskId) {
+        this.returnConveyTaskId = returnConveyTaskId;
+    }
+
+    public UUID getReturnStoreTaskId() {
+        return returnStoreTaskId;
+    }
+
+    public void setReturnStoreTaskId(UUID returnStoreTaskId) {
+        this.returnStoreTaskId = returnStoreTaskId;
     }
 
     public UUID getCountTaskId() {

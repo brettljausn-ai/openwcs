@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.openwcs.flow.api.DeviceTaskView;
 import org.openwcs.flow.api.HuTraceView;
 import org.openwcs.flow.api.InductionEntryView;
 import org.openwcs.flow.api.InductionRequest;
@@ -213,6 +214,93 @@ class InductionQueueServiceTest {
         assertThat(after.status()).isEqualTo("REQUESTED");
         // The failed retrieve link is cleared so a re-meter can re-dispatch; no CONVEY was dispatched.
         assertThat(after.conveyTaskId()).isNull();
+    }
+
+    /** Drive an entry through REQUESTED → IN_TRANSIT → QUEUED via the device-task callbacks. */
+    private InductionEntryView driveToQueued(UUID warehouse, UUID workplace, UUID huId, String huCode) {
+        InductionEntryView created = induction.request(req(warehouse, workplace, huId, huCode, "STOCK_COUNT"), "op");
+        deviceTasks.completeFromCallback(created.retrieveTaskId(), "COMPLETED", "retrieved", Map.of());
+        deviceTasks.completeFromCallback(induction.get(created.id()).conveyTaskId(), "COMPLETED", "arrived", Map.of());
+        return induction.get(created.id());
+    }
+
+    @Test
+    void markDoneDispatchesReturnConveyExactlyOnce() {
+        asyncAdapter();
+        cap(5, 5);
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        InductionEntryView queued = driveToQueued(warehouse, workplace, huId, "TOTE-1");
+
+        InductionEntryView done = induction.markDone(queued.id(), "ASRS", "op");
+        assertThat(done.status()).isEqualTo("DONE");
+        assertThat(done.returnConveyTaskId()).isNotNull();
+        assertThat(done.returnStoreTaskId()).isNull(); // STORE only after the return convey arrives
+
+        // The return CONVEY carries the station as source and the source slot as return destination.
+        DeviceTaskView returnConvey = deviceTasks.get(done.returnConveyTaskId());
+        assertThat(returnConvey.command()).isEqualTo("CONVEY");
+        assertThat(returnConvey.family()).isEqualTo("CONVEYOR");
+        assertThat(returnConvey.payload()).containsEntry("sourceWorkplaceId", workplace.toString());
+        assertThat(returnConvey.payload()).containsKey("returnLocationId");
+
+        // The RETURNING trace row is written once, with the station as from_point.
+        assertThat(traces.timeline(huId, warehouse)).extracting(HuTraceView::event).contains("RETURNING");
+
+        // A second DONE is a no-op: same return convey task, no second CONVEY dispatched.
+        InductionEntryView again = induction.markDone(queued.id(), "ASRS", "op");
+        assertThat(again.returnConveyTaskId()).isEqualTo(done.returnConveyTaskId());
+        long returnConveys = deviceTasks.byCorrelation(huId).stream()
+                .filter(t -> "CONVEY".equals(t.command()) && t.payload().containsKey("sourceWorkplaceId"))
+                .count();
+        assertThat(returnConveys).isEqualTo(1);
+        assertThat(traces.timeline(huId, warehouse).stream()
+                .filter(t -> "RETURNING".equals(t.event())).count()).isEqualTo(1);
+    }
+
+    @Test
+    void returnConveyCompletionDispatchesStore() {
+        asyncAdapter();
+        cap(5, 5);
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        InductionEntryView done = induction.markDone(
+                driveToQueued(warehouse, workplace, huId, "TOTE-1").id(), "ASRS", "op");
+
+        // Return CONVEY completes (= arrival back at storage) -> STORE dispatched + RETURN_ARRIVED traced.
+        deviceTasks.completeFromCallback(done.returnConveyTaskId(), "COMPLETED", "arrived", Map.of());
+        InductionEntryView after = induction.get(done.id());
+        assertThat(after.returnStoreTaskId()).isNotNull();
+
+        DeviceTaskView store = deviceTasks.get(after.returnStoreTaskId());
+        assertThat(store.command()).isEqualTo("STORE"); // default family ASRS -> STORE (not BIN_STORE)
+        assertThat(store.family()).isEqualTo("ASRS");
+        assertThat(store.payload()).containsKey("locationId");
+
+        assertThat(traces.timeline(huId, warehouse)).extracting(HuTraceView::event).contains("RETURN_ARRIVED");
+    }
+
+    @Test
+    void storeCompletionWritesStoredTrace() {
+        asyncAdapter();
+        cap(5, 5);
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        InductionEntryView done = induction.markDone(
+                driveToQueued(warehouse, workplace, huId, "TOTE-1").id(), "ASRS", "op");
+        deviceTasks.completeFromCallback(done.returnConveyTaskId(), "COMPLETED", "arrived", Map.of());
+
+        // STORE completes -> STORED trace at the source slot closes the HU's timeline.
+        deviceTasks.completeFromCallback(induction.get(done.id()).returnStoreTaskId(), "COMPLETED", "stored", Map.of());
+        List<HuTraceView> timeline = traces.timeline(huId, warehouse);
+        assertThat(timeline).extracting(HuTraceView::event)
+                .containsSubsequence("DONE", "RETURN_ARRIVED", "STORED");
+        HuTraceView stored = timeline.stream().filter(t -> "STORED".equals(t.event())).findFirst().orElseThrow();
+        assertThat(stored.point()).startsWith("slot:");
+        assertThat(stored.decision()).isEqualTo("stored back to source slot");
     }
 
     @Test
