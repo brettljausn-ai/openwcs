@@ -20,6 +20,10 @@ public interface InductionQueueEntryRepository extends JpaRepository<InductionQu
 
     Optional<InductionQueueEntry> findByReturnStoreTaskId(UUID returnStoreTaskId);
 
+    /** Live-scan trace (ADR-0008 §3): the most recent transport a scanned HU barcode belongs to. */
+    Optional<InductionQueueEntry> findFirstByWarehouseIdAndHuCodeOrderByRequestedAtDesc(UUID warehouseId,
+                                                                                        String huCode);
+
     /** Cap counting: how many {IN_TRANSIT, QUEUED} entries a workplace holds (optionally by mode). */
     long countByWorkplaceIdAndStatusIn(UUID workplaceId, List<String> statuses);
 
