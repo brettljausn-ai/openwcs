@@ -1,0 +1,100 @@
+<section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="hw.eyebrow1">Function · Hardware visualisation <span class="pill pill-roadmap" data-i18n="hw.pill3">Roadmap</span></p>
+      <h1 data-i18n="hw.h1">See the floor, <span class="lime">live.</span></h1>
+      <p class="lead" data-i18n="hw.lead1">
+        A real-time picture of equipment status across the warehouse. Today openWCS visualises the
+        conveyor topology; the live status view of every device is planned, not yet built.
+      </p>
+      <p class="status-line">⚑ Roadmap — live equipment status visualisation is planned, not yet implemented. The conveyor topology editor below exists today.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="hw.eyebrow2">Built today</p>
+        <h2 data-i18n="hw.h2">The conveyor topology editor.</h2>
+        <p data-i18n="hw.p1">
+          The one visualisation that ships today: the editor where admins draw and inspect the conveyor
+          graph — the same graph the routing layer runs against.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <a class="card" href="conveyors.html">
+          <div class="card-head"><div class="tag" data-i18n="hw.tag1">Topology editor</div><span class="pill pill-built" data-i18n="hw.pill1">Built</span></div>
+          <h3 data-i18n="hw.h6">Draw the conveyor graph</h3>
+          <p data-i18n="hw.p2">Admins lay out nodes and edges in a visual editor (React Flow) and set each node's hardware address — the live, editable picture of the conveyor network.</p>
+        </a>
+        <a class="card" href="conveyors.html">
+          <div class="card-head"><div class="tag" data-i18n="hw.tag2">Learned overlay</div><span class="pill pill-built" data-i18n="hw.pill2">Built</span></div>
+          <h3 data-i18n="hw.h7">Review discovered topology</h3>
+          <p data-i18n="hw.p3">Topology learned from sniffed scan traffic surfaces in the same editor as a proposal to accept or diff — visualising what the hardware is actually doing.</p>
+        </a>
+        <a class="card" href="automation.html">
+          <div class="card-head"><div class="tag" data-i18n="hw.tagEmu">Hardware emulator</div><span class="pill pill-built" data-i18n="hw.pillEmu">Built</span></div>
+          <h3 data-i18n="hw.hEmu">No physical hardware needed</h3>
+          <p data-i18n="hw.pEmu">An admin toggle puts every device adapter (conveyors, ASRS, AMR, AutoStore) into emulator mode: it simulates the machines and emits synthetic telemetry, so you can run the whole automation flow with zero hardware. Ideal for evaluation, onboarding, and CI.</p>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="hw.eyebrow3">On the roadmap</p>
+        <h2 data-i18n="hw.h3">Live status across every device class.</h2>
+        <p data-i18n="hw.p4">
+          Extending visualisation from the conveyor graph to the whole automated estate — with live state
+          on each device. Planned, not yet implemented.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hw.tag3">Equipment status</div><span class="pill pill-roadmap" data-i18n="hw.pill4">Roadmap</span></div>
+          <h3 data-i18n="hw.h8">Running / fault / idle</h3>
+          <p data-i18n="hw.p5">Planned: live status across equipment — running, faulted, idle, in maintenance — overlaid on the topology so the floor sees state at a glance.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hw.tag4">ASRS</div><span class="pill pill-roadmap" data-i18n="hw.pill5">Roadmap</span></div>
+          <h3 data-i18n="hw.h9">Aisles, cranes &amp; shuttles</h3>
+          <p data-i18n="hw.p6">Planned: a live view of ASRS aisles, crane/shuttle position and fill, so storage state is visible alongside the conveyors that feed it.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hw.tag5">AMR &amp; AutoStore</div><span class="pill pill-roadmap" data-i18n="hw.pill6">Roadmap</span></div>
+          <h3 data-i18n="hw.h10">Fleets &amp; grids</h3>
+          <p data-i18n="hw.p7">Planned: AMR fleet positions and AutoStore grid/port status, bringing mobile robots and cube storage into the same live picture.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="hw.eyebrow4">At a glance</p>
+        <h2 data-i18n="hw.h4">Topology today → live status on the roadmap.</h2>
+      </div>
+      <div class="arch">
+<pre>  <b>conveyor topology editor</b>  (draw · learned overlay)        (built)
+        │
+        ▼
+  ┄┄┄ roadmap ┄┄┄  live status: equipment · ASRS aisles · AMR fleet · AutoStore grid</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow" data-i18n="hw.eyebrow5">Open &amp; honest</p>
+        <h2 data-i18n="hw.h5">Follow visualisation as it grows.</h2>
+        <p data-i18n="hw.p8">The conveyor topology editor is live today; the live status views are tracked in the open.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="conveyors.html">Conveyor deep dive</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs" data-i18n="hw.btn1">View on GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>

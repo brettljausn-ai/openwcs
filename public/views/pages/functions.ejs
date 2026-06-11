@@ -1,0 +1,156 @@
+<section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="func.eyebrow1">Function overview</p>
+      <h1 data-i18n="func.h1">Everything openWCS does, <span class="lime">honestly tagged.</span></h1>
+      <p class="lead" data-i18n="func.lead1">
+        A single map of the warehouse functions openWCS covers. Each card says plainly whether it is
+        <span class="pill pill-built" data-i18n="func.pill1">Built</span> today or on the
+        <span class="pill pill-roadmap" data-i18n="func.pill13">Roadmap</span> — so you can tell what you can run now from what is
+        designed but not yet implemented.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="func.eyebrow2">Foundations · Built today</p>
+        <h2 data-i18n="func.h2">The core the rest is built on.</h2>
+        <p data-i18n="func.p1">
+          The platform functions every flow leans on: designed processes, event-sourced stock, outbound
+          allocation, the host integration surface, and access control. All implemented today.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <a class="card" href="process-designer.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag1">Process designer</div><span class="pill pill-built" data-i18n="func.pill2">Built</span></div>
+          <h3 data-i18n="func.h6">Admin-designed BPMN</h3>
+          <p data-i18n="func.p2">Model goods-in, outbound and cycle-count flows on an embedded Flowable engine, deploy them, and have service tasks originate real WCS work — including the goods-in put-away delegate.</p>
+        </a>
+        <a class="card" href="inventory.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag2">Inventory</div><span class="pill pill-built" data-i18n="func.pill3">Built</span></div>
+          <h3 data-i18n="func.h7">Event-sourced stock</h3>
+          <p data-i18n="func.p3">Real-time stock projected from an append-only transaction log: SKU- and location-scoped availability / ATP, reservations under a lock, idempotent and rebuildable.</p>
+        </a>
+        <a class="card" href="allocation.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag3">Allocation</div><span class="pill pill-built" data-i18n="func.pill4">Built</span></div>
+          <h3 data-i18n="func.h8">Allocation, cubing &amp; batch</h3>
+          <p data-i18n="func.p4">Outbound pick-location allocation with UoM breakdown, multi-size cubing into shippers (largest-first, line-traceable), per-shipper dispatch labels, and batch picking.</p>
+        </a>
+        <a class="card" href="host-api.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag4">Host API</div><span class="pill pill-built" data-i18n="func.pill5">Built</span></div>
+          <h3 data-i18n="func.h9">Canonical, vendor-neutral</h3>
+          <p data-i18n="func.p5">One Host API for orders, ASNs, SKUs and adjustments in; confirmations out via cursor feed or webhooks; idempotent. SAP and Manhattan adapters translate native messages in.</p>
+        </a>
+        <a class="card" href="security.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag5">Security</div><span class="pill pill-built" data-i18n="func.pill6">Built</span></div>
+          <h3 data-i18n="func.h10">JWT · RBAC · Keycloak</h3>
+          <p data-i18n="func.p6">Gateway JWT validation, per-endpoint role-based access on every service from a shared role→permission catalog, and Keycloak — all toggleable, so you start simple and lock down for production.</p>
+        </a>
+        <a class="card" href="gtp.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag6">Goods-to-person</div><span class="pill pill-built" data-i18n="func.pill7">Built</span></div>
+          <h3 data-i18n="func.h11">Pick-and-put stations</h3>
+          <p data-i18n="func.p7">Station execution: present one stock HU and put-to-light fills many order destinations most-needed-first — the GTP batch. ORDER_LOCATION and PUT_WALL modes share one engine.</p>
+        </a>
+        <a class="card" href="living-docs.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag-livingdocs">Living docs</div><span class="pill pill-built" data-i18n="func.pill-livingdocs">Built</span></div>
+          <h3 data-i18n="func.h-livingdocs">Docs that stay current</h3>
+          <p data-i18n="func.p-livingdocs">In-app help on every screen, plus a docs agent that runs on every merge to main — keeping the README, architecture docs, the GitHub wiki and this site in sync, with in-repo docs reviewed via PR.</p>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="func.eyebrow3">Storage &amp; movement · Built today</p>
+        <h2 data-i18n="func.h3">The functions that move the goods.</h2>
+        <p data-i18n="func.p8">
+          Storage and movement logic and the conveyor control plane — implemented in the engine.
+          Follow a card for the deep dive.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <a class="card" href="slotting.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag7">Slotting</div><span class="pill pill-built" data-i18n="func.pill8">Built</span></div>
+          <h3 data-i18n="func.h12">Put-away engine</h3>
+          <p data-i18n="func.p9">A weighted, configurable put-away scorer places each SKU by velocity, lane, redundancy and aisle balance — with self-taught ABC velocity.</p>
+        </a>
+        <a class="card" href="replenishment.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag8">Replenishment</div><span class="pill pill-built" data-i18n="func.pill9">Built</span></div>
+          <h3 data-i18n="func.h13">Min/max &amp; off-peak top-off</h3>
+          <p data-i18n="func.p10">Min/max refills, opportunistic off-peak top-off to max, and direct-to-pick cross-docking when a forward face has headroom.</p>
+        </a>
+        <a class="card" href="conveyors.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag9">Conveyors</div><span class="pill pill-built" data-i18n="func.pill10">Built</span></div>
+          <h3 data-i18n="func.h14">Routing &amp; self-learning</h3>
+          <p data-i18n="func.p11">Vendor-neutral topology graph, per-scan next-hop pathfinding, loop limits, PLC controllers, and topology discovery from sniffed scan traffic.</p>
+        </a>
+        <a class="card" href="asrs.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag10">ASRS</div><span class="pill pill-built" data-i18n="func.pill11">Built</span></div>
+          <h3 data-i18n="func.h15">Automated storage logic</h3>
+          <p data-i18n="func.p12">Block-level put-away, re-slotting, in-aisle depth and dual-cycle behaviour, plus empty-HU management for shuttle / crane / AutoStore / AMR-GTP.</p>
+        </a>
+        <a class="card" href="gtp.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag11">Goods-to-person</div><span class="pill pill-built" data-i18n="func.pill12">Built</span></div>
+          <h3 data-i18n="func.h16">Pick-and-put stations</h3>
+          <p data-i18n="func.p13">Present one stock HU and put-to-light fills many order destinations most-needed-first — the batch. ORDER_LOCATION and PUT_WALL modes share one engine.</p>
+        </a>
+        <a class="card" href="cycle-counting.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag12">Cycle counting</div><span class="pill pill-roadmap" data-i18n="func.pill14">Roadmap</span></div>
+          <h3 data-i18n="func.h17">Stock counting</h3>
+          <p data-i18n="func.p14">A COUNT order type, a StockAdjusted projection and a sample BPMN skeleton exist; the counting tasks, variance counts and reconciliation UI are roadmap.</p>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="func.eyebrow4">On the roadmap</p>
+        <h2 data-i18n="func.h4">Designed, not yet shipped.</h2>
+        <p data-i18n="func.p15">
+          These have foundations in the codebase but are not implemented end-to-end. They are framed as
+          planned so you always know where the line is.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <a class="card" href="picking.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag13">Picking</div><span class="pill pill-roadmap" data-i18n="func.pill15">Roadmap</span></div>
+          <h3 data-i18n="func.h18">Pick execution</h3>
+          <p data-i18n="func.p16">Today only the planning exists. Operator / goods-to-person pick confirmation, pick-by-light/voice/RF and GTP-station workflow are planned.</p>
+        </a>
+        <a class="card" href="cycle-counting.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag14">Cycle counting</div><span class="pill pill-roadmap" data-i18n="func.pill16">Roadmap</span></div>
+          <h3 data-i18n="func.h19">Counts &amp; reconciliation</h3>
+          <p data-i18n="func.p17">Counting tasks, blind and variance counts, reconciliation and the count UI are planned on top of the existing COUNT order and StockAdjusted projection.</p>
+        </a>
+        <a class="card" href="kpi-dashboards.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag15">KPI dashboards</div><span class="pill pill-roadmap" data-i18n="func.pill17">Roadmap</span></div>
+          <h3 data-i18n="func.h20">Operational metrics</h3>
+          <p data-i18n="func.p18">Throughput, dwell, utilisation and SLA dashboards are planned. There is no metrics store or dashboard layer yet.</p>
+        </a>
+        <a class="card" href="hardware-visualisation.html">
+          <div class="card-head"><div class="tag" data-i18n="func.tag16">Hardware viz</div><span class="pill pill-roadmap" data-i18n="func.pill18">Roadmap</span></div>
+          <h3 data-i18n="func.h21">Live equipment status</h3>
+          <p data-i18n="func.p19">Today only the conveyor topology editor exists. Live equipment / ASRS / AMR / AutoStore status visualisation is planned.</p>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow" data-i18n="func.eyebrow5">Open &amp; vendor-neutral</p>
+        <h2 data-i18n="func.h5">Read the code behind every function.</h2>
+        <p data-i18n="func.p20">openWCS is open source under AGPL-3.0. What's built is in the repo; what's roadmap is tracked in the open — no marketing fog.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki" data-i18n="func.btn1">Read the docs</a>
+        </div>
+      </div>
+    </div>
+  </section>

@@ -1,77 +1,78 @@
-# openWCS public product site
+# openWCS public product site (Express + EJS)
 
-The public-facing marketing/product page for openWCS — positions it as the open, transparent
-alternative to locked-in WCS apps from integrators.
+The public-facing marketing/product site for openWCS. It used to be ~20 standalone static HTML pages;
+it's now an **Express + EJS** app so it can deploy to a Node host (Hostinger), with every page rendered
+through **one shared layout** — the header/nav/lang-switcher/footer live in a single place instead of
+being copy-pasted across pages. Each page's per-page SEO (`<title>`, description, canonical, OG/Twitter,
+JSON-LD) and i18n stay exactly as before.
 
-- **`index.html`** + **`styles.css`** — a self-contained static site (no build step). The visual
-  language follows the openWCS brand tokens (dark forest / herbal-lime / glass; see
-  [`../styling.md`](../styling.md)).
-- **Feature pages** (same static template, reuse `styles.css`):
-  - **`automation.html`** — the Automation / equipment hub: a card grid linking the equipment
-    families with **Built** / **Roadmap** status pills. **`conveyors.html`**, **`asrs.html`** and
-    **`gtp.html`** are sub-pages of Automation (and link back to it); AMR and AutoStore are Roadmap
-    cards (device adapters not built yet).
-  - **`conveyors.html`** — deep dive on conveyor routing (incl. self-learning / topology discovery).
-  - **`asrs.html`** — deep dive on ASRS slotting (incl. in-aisle behaviour and empty-HU management).
-  - **`gtp.html`** — goods-to-person station execution: STOCK + ORDER/PUT_WALL nodes, present one
-    stock HU → put-to-light put-list across many order destinations (the batch), ORDER_LOCATION vs
-    PUT_WALL modes. **Built**.
-  - **`architecture.html`** — a plain-language **Architecture** tour for non-technical buyers: where
-    openWCS sits between the WMS/ERP and the floor, the small specialised services (master data,
-    inventory, orders, allocation, slotting, process engine, flow-orchestrator, device adapters) over
-    a shared event log, the end-to-end journey of a unit of work (goods-in → slotting → storage →
-    order → allocation → pick/GTP → dispatch), and the gateway/security + event-log concepts. Linked
-    from the index nav (`navArch` → `architecture.html`) and the homepage architecture section
-    (`archMore`). Built with HTML/CSS visuals only (`.layer-stack`, `.archmap`, `.steps.journey`).
-  - **`functions.html`** — the Function overview hub: a card grid linking every function (foundations
-    + storage/movement + roadmap) with a one-line description and a **Built** / **Roadmap** status
-    pill (`.pill .pill-built` / `.pill .pill-roadmap` in `styles.css`).
-  - Foundational/built functions: **`process-designer.html`** (admin-designed BPMN on Flowable),
-    **`inventory.html`** (event-sourced stock), **`allocation.html`** (allocation + cubing + batch),
-    **`host-api.html`** (canonical vendor-neutral Host API), **`security.html`** (gateway JWT + RBAC +
-    Keycloak), plus **`slotting.html`** and **`replenishment.html`**.
-  - Roadmap functions (lead with a `Roadmap` pill + a "planned — not yet implemented" note):
-    **`picking.html`** (planning is built; execution is roadmap), **`cycle-counting.html`**,
-    **`kpi-dashboards.html`**, **`hardware-visualisation.html`**.
-  - **`roadmap.html`** + **`roadmap.md`** — the Roadmap page. `roadmap.html` is a thin shell that
-    fetches **`roadmap.md`** at runtime and draws a modern timeline from it (vanilla JS, no build,
-    no markdown library). **`roadmap.md` is the single source of truth** — it's plain text with a
-    self-documenting header: `## Heading` starts a timeline phase, an optional `> caption` adds a
-    subtitle, and each `- [status] Title :: description` line is one item (`status` ∈ `done` /
-    `active` / `planned` / `exploring`). Edit `roadmap.md` to change the roadmap; the page picks it up
-    automatically. The page chrome is translated via `rm.*` keys in `i18n.js`; the item text itself
-    stays in `roadmap.md` (one language, one source). Linked from the nav on every top-level page.
-  - Honesty rule: never present a roadmap capability as existing. Keep each function's `Built` /
-    `Roadmap` tag accurate to what's actually in the codebase.
-- **`favicon.png`** — browser/tab icon.
-- **`Logo_white_solo.png`** — the white wordmark logo shown in the nav bar.
-- **`openwcs.png`** — the hero product image, and the Open Graph / Twitter social-share image.
-- **`robots.txt`** + **`sitemap.xml`** — SEO. `index.html` carries the canonical URL, description,
-  Open Graph / Twitter cards, and `SoftwareApplication` JSON-LD. If the public URL ever changes,
-  update the absolute URLs across those three files together, and bump `<lastmod>` in `sitemap.xml`
-  on meaningful content changes.
-- Open `index.html` directly, or serve the folder: `python3 -m http.server -d public 8088`.
-- Deploy anywhere static: GitHub Pages, Netlify, S3/CloudFront, etc.
+## How it's structured
 
-## Auto-deploy (GitHub Pages)
+```
+public/
+  server.js              Express app (routes from data/pages.json, static assets, 404). Listens on $PORT.
+  views/
+    layout.ejs           The one shared shell: <head> boilerplate + header + footer. Per-page bits are locals.
+    pages/*.ejs          One body view per page (the content between header and footer).
+  data/pages.json        Generated manifest: route → { view, headMeta, navLinks, scripts, bodyId }.
+  static/                Served at the site root: styles.css, i18n.js, images, robots.txt, sitemap.xml, roadmap.md
+  src-html/              The legacy source pages — the editable source for the body + per-page <head>.
+  scripts/
+    convert.js           Regenerates views/pages/*.ejs + data/pages.json from src-html/  (npm run build:pages)
+    build-static.js      Pre-renders the whole site to dist/ as plain HTML            (npm run build:static)
+```
 
-[`.github/workflows/pages.yml`](../.github/workflows/pages.yml) publishes this folder to GitHub
-Pages on every push to `main` that touches `public/**` (and on demand via *Run workflow*). Once it
-has run, the site is live at **https://brettljausn-ai.github.io/openwcs/**. The Pages **Source**
-must be set to **GitHub Actions** under *Settings → Pages* (build type `workflow`) — if it's left
-on "Deploy from a branch", Pages serves a Jekyll render of the repo `README.md` instead of this
-site. Links and assets are relative, so the page works under the project subpath.
+Asset and inter-page links are **relative** (`styles.css`, `asrs.html`), so the same output works both at
+a domain root (Express/Hostinger) and under the GitHub Pages subpath (`/openwcs/`).
 
-## Keep it current
+## Run locally
 
-**This page must track real product capabilities** — update it alongside the code and the
-[wiki](https://github.com/brettljausn-ai/openwcs/wiki) whenever a feature lands that changes what
-openWCS can do (the capabilities grid, the comparison table, or the architecture diagram). Keep
-the claims accurate to what's actually built.
+```
+cd public
+npm install
+npm start            # http://localhost:3000  (PORT overrides)
+```
 
-**Keep the roadmap current too** — when a capability's status changes (a roadmap item ships, work
-starts on it, or new planned work is decided), update the matching `- [status] Title` line in
-[`roadmap.md`](roadmap.md) in the same change. The CI docs agent
-([`scripts/docs-agent.sh`](../scripts/docs-agent.sh)) is instructed to do this on every PR, but it
-applies whoever is editing: `roadmap.md` is the roadmap, so it must track reality, never mark
+## Editing content
+
+The editable source is **`src-html/*.html`** (full pages) — edit there, then regenerate the views:
+
+```
+npm run build:pages
+```
+
+`views/pages/*.ejs` and `data/pages.json` are generated **and committed** (so the app runs on a host with
+no build step). Re-run `build:pages` after any `src-html/` change and commit the result.
+
+> **Keep it current** — this site must track real product capabilities. Update it alongside the code
+> whenever a feature lands that changes what openWCS can do. Keep every function's **Built** / **Roadmap**
+> tag accurate; never present a roadmap capability as existing.
+
+**Roadmap** — `roadmap.html` fetches **`static/roadmap.md`** at runtime and draws the timeline from it.
+`roadmap.md` is the single source of truth: `## Heading` starts a phase, `> caption` adds a subtitle, and
+each `- [status] Title :: description` line is one item (`status` ∈ `done`/`active`/`planned`/`exploring`).
+Edit `roadmap.md` to change the roadmap; the page picks it up automatically. Keep it accurate — never mark
 something `done` before it's built end-to-end.
+
+## Deploy
+
+### Hostinger (Node.js app)
+
+1. In hPanel → **Websites → … → Node.js** (or *Setup Node.js App*), create an app: **Node 18+**, application
+   root = this `public/` folder, **startup file = `server.js`**.
+2. Get the code there — push this repo / upload the `public/` folder (you do **not** need `node_modules/` or
+   `dist/`; the host runs `npm install`). Then **Run NPM install** and **Start**.
+3. The app listens on `process.env.PORT` (Hostinger assigns it) and `trust proxy` is on, so it works behind
+   Hostinger's reverse proxy. Point your domain at the app.
+4. **Update the absolute URLs to your domain**: the canonical/OG/sitemap URLs still say
+   `https://brettljausn-ai.github.io/openwcs/...`. Search-and-replace that origin across `src-html/*.html`
+   and `static/sitemap.xml` to your Hostinger domain, then `npm run build:pages` and commit.
+
+Any other Node host (Render, Fly, a VPS with `pm2 start server.js`, Docker) works the same — it just needs
+`npm install` + `npm start` and a port.
+
+### GitHub Pages (free static mirror)
+
+[`.github/workflows/pages.yml`](../.github/workflows/pages.yml) runs `npm run build:static` on pushes to
+`main` that touch `public/**` and publishes `public/dist/` to Pages — **https://brettljausn-ai.github.io/openwcs/**.
+Pages **Source** must be **GitHub Actions** (Settings → Pages, build type `workflow`).

@@ -1,0 +1,228 @@
+<!-- Hero -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy" data-reveal="">
+        <p class="eyebrow" data-i18n="heroEyebrow">Open-source Warehouse Control System</p>
+        <h1 data-i18n="heroTitle">The WCS you<br><span class="lime">actually control.</span></h1>
+        <p class="lead" data-i18n="heroLead">
+          openWCS orchestrates your automation — conveyors, ASRS, AMRs, AutoStore — and the
+          real-time flow of goods, sitting between your WMS/ERP and the machines. Open,
+          vendor-neutral, and yours to change.
+        </p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="heroPrimary">View on GitHub</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki" data-i18n="heroSecondary">Read the docs</a>
+        </div>
+        <p class="hero-note" data-i18n="heroNote">AGPL-3.0 open source · self-host · no per-flow license fees</p>
+      </div>
+      <div class="hero-visual">
+        <img class="hero-img" src="openwcs.png" width="800" height="447" alt="openWCS orchestrating an automated warehouse — conveyors, racking and robots">
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="flow" aria-label="Where openWCS sits" data-reveal="">
+        <span class="box">WMS / ERP</span>
+        <span class="arrow">→</span>
+        <span class="box mid">openWCS</span>
+        <span class="arrow">→</span>
+        <span class="box" data-i18n="flowConveyor">Conveyor</span>
+        <span class="box">ASRS</span>
+        <span class="box">AMR</span>
+        <span class="box">AutoStore</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Capabilities (the good stuff, first) -->
+  <section id="capabilities">
+    <div class="wrap">
+      <div class="section-head" data-reveal="">
+        <p class="eyebrow" data-i18n="capEyebrow">What openWCS does</p>
+        <h2 data-i18n="capTitle">An open WCS that does the <span class="lime">real work</span> — and lets you change it.</h2>
+        <p data-i18n="capIntro">
+          openWCS is a full warehouse control system built in the open: the same capabilities you
+          expect from a commercial WCS, with none of the lock-in. Run it yourself, read every line,
+          and adapt it to your building.
+        </p>
+      </div>
+      <div class="grid grid-3" data-reveal="">
+        <div class="card">
+          <div class="tag" data-i18n="c1t">Equipment</div>
+          <h3 data-i18n="c1h">Vendor-neutral by design</h3>
+          <p data-i18n="c1p">A uniform device contract with adapters for conveyors, ASRS, AMRs and AutoStore. Add a vendor without re-architecting — their protocol stays in the adapter.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="c2t">Conveyor routing</div>
+          <h3 data-i18n="c2h">Routing you can see</h3>
+          <p data-i18n="c2p">Draw the conveyor topology in a visual editor, route handling units by shortest path through their targets, enforce loop limits — and even learn the layout from live traffic.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="c3t">Processes</div>
+          <h3 data-i18n="c3h">Design your own flows</h3>
+          <p data-i18n="c3p">A built-in BPMN designer: model goods-in, outbound and cycle-count processes in the browser, deploy instantly, and have their steps originate real WCS work.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="c4t">Inventory</div>
+          <h3 data-i18n="c4h">Real-time, event-sourced stock</h3>
+          <p data-i18n="c4p">Durable stock projected from an append-only transaction log, with location-scoped availability and reservations. Rebuildable, auditable, and yours to query.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="c5t">Outbound</div>
+          <h3 data-i18n="c5h">Allocation, cubing &amp; labels</h3>
+          <p data-i18n="c5p">Pick-location allocation with UoM breakdown, multi-size cubing into shippers (largest-first, line-traceable), per-carton dispatch labels, and batch picking.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="c6t">Host API</div>
+          <h3 data-i18n="c6h">Integrate your WMS once</h3>
+          <p data-i18n="c6p">One canonical, vendor-neutral Host API for orders, ASNs and confirmations. SAP and Manhattan adapters translate into it; idempotency and webhooks included.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="c7t">Security</div>
+          <h3 data-i18n="c7h">Secure by design</h3>
+          <p data-i18n="c7p">Gateway JWT validation, per-endpoint role-based access control, and Keycloak — all toggleable so you can start simple and lock down for production.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="c8t">Architecture</div>
+          <h3 data-i18n="c8h">Built to evolve</h3>
+          <p data-i18n="c8p">Independent microservices, schema-per-service Postgres, a Kafka event backbone, and contract-first APIs — so you can extend or replace any part. Cloud-native: every service is stateless and scales horizontally on Kubernetes behind any load balancer.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="c9t">Open</div>
+          <h3 data-i18n="c9h">No lock-in, ever</h3>
+          <p data-i18n="c9p">Open source. Self-host on your own infrastructure, fork it, and integrate whoever you like. Leaving is never a rip-and-replace.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="c10t">Slotting</div>
+          <h3 data-i18n="c10h">Slotting &amp; replenishment</h3>
+          <p data-i18n="c10p">Configurable put-away for ASRS/AutoStore/AMR blocks — velocity-to-exit, multi-deep same-SKU lanes, aisle redundancy and fill balancing — plus fixed pick-face min/max with opportunistic replenishment and direct-to-pick.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why (the problem with locked-in WCS, second) -->
+  <section id="why">
+    <div class="wrap">
+      <div class="section-head" data-reveal="">
+        <p class="eyebrow" data-i18n="whyEyebrow">The problem</p>
+        <h2 data-i18n="whyTitle">Your WCS shouldn’t be a <span class="lime">black box</span>.</h2>
+        <p data-i18n="whyIntro">
+          Most warehouse control systems are shipped by the integrator who installed your
+          equipment — closed software, tied to their stack and their contract. The logic that
+          routes your totes and allocates your stock is hidden, and every change goes through
+          them. That’s fine until you need to move fast.
+        </p>
+      </div>
+      <div class="grid grid-3" data-reveal="">
+        <div class="card problem">
+          <div class="tag" data-i18n="p1t">Opaque</div>
+          <h3 data-i18n="p1h">Black-box logic</h3>
+          <p data-i18n="p1p">You can’t see how routing, allocation or cubing decisions are actually made — so you can’t trust, tune, or debug them.</p>
+        </div>
+        <div class="card problem">
+          <div class="tag" data-i18n="p2t">Slow</div>
+          <h3 data-i18n="p2h">Every change is a quote</h3>
+          <p data-i18n="p2p">A new pick path or process tweak means a change request, a price, and a place in someone else’s queue.</p>
+        </div>
+        <div class="card problem">
+          <div class="tag" data-i18n="p3t">Locked in</div>
+          <h3 data-i18n="p3h">One vendor, one stack</h3>
+          <p data-i18n="p3p">The WCS is bound to the integrator’s preferred hardware and protocols. Adding a new device family means going back to them.</p>
+        </div>
+        <div class="card problem">
+          <div class="tag" data-i18n="p4t">Hostage</div>
+          <h3 data-i18n="p4h">Your data isn’t yours</h3>
+          <p data-i18n="p4p">Operational history and live state live inside a system you can’t query or export on your terms.</p>
+        </div>
+        <div class="card problem">
+          <div class="tag" data-i18n="p5t">Risk</div>
+          <h3 data-i18n="p5h">Their roadmap, not yours</h3>
+          <p data-i18n="p5p">Their priorities, their pricing, their support window. Switching later means a rip-and-replace project.</p>
+        </div>
+        <div class="card problem">
+          <div class="tag" data-i18n="p6t">Cost</div>
+          <h3 data-i18n="p6h">Pay to keep the lights on</h3>
+          <p data-i18n="p6p">Licenses, support contracts and change fees compound — for software you’ll never own or fully see.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Compare -->
+  <section id="compare">
+    <div class="wrap">
+      <div class="section-head" data-reveal="">
+        <p class="eyebrow" data-i18n="cmpEyebrow">openWCS vs. a locked-in integrator WCS</p>
+        <h2 data-i18n="cmpTitle">Same control floor. <span class="lime">Different rules.</span></h2>
+      </div>
+      <div class="compare-wrap" data-reveal="">
+        <table class="compare">
+          <thead>
+            <tr>
+              <th data-i18n="cmpFeat">Capability</th>
+              <th data-i18n="cmpThem">Typical integrator WCS</th>
+              <th class="us" data-i18n="cmpUs">openWCS</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="feat" data-i18n="r1f">Source &amp; ownership</td><td class="dim" data-i18n="r1d">Closed binary you license</td><td class="us" data-i18n="r1u">Open source you run and own</td></tr>
+            <tr><td class="feat" data-i18n="r2f">Change a process or pick path</td><td class="dim" data-i18n="r2d">Paid change request, weeks of lead time</td><td class="us" data-i18n="r2u">Draw it in the BPMN/topology editor and deploy yourself</td></tr>
+            <tr><td class="feat" data-i18n="r3f">Equipment vendors</td><td class="dim" data-i18n="r3d">Tied to the integrator’s preferred hardware</td><td class="us" data-i18n="r3u">Vendor-neutral adapters over a uniform device contract</td></tr>
+            <tr><td class="feat" data-i18n="r4f">Conveyor routing logic</td><td class="dim" data-i18n="r4d">Opaque PLC / black-box rules</td><td class="us" data-i18n="r4u">Visual, shortest-path, editable — and learnable from traffic</td></tr>
+            <tr><td class="feat" data-i18n="r5f">WMS / ERP integration</td><td class="dim" data-i18n="r5d">Bespoke interface, re-built per integrator</td><td class="us" data-i18n="r5u">One canonical Host API; SAP/Manhattan adapters translate in</td></tr>
+            <tr><td class="feat" data-i18n="r6f">Your operational data</td><td class="dim" data-i18n="r6d">Trapped inside the vendor’s system</td><td class="us" data-i18n="r6u">Event-sourced log + Postgres you host and query</td></tr>
+            <tr><td class="feat" data-i18n="r7f">Switching / exit</td><td class="dim" data-i18n="r7d">Rip-and-replace project</td><td class="us" data-i18n="r7u">No license lock-in — fork, self-host, extend</td></tr>
+            <tr><td class="feat" data-i18n="r8f">Cost model</td><td class="dim" data-i18n="r8d">License + support + per-change fees</td><td class="us" data-i18n="r8u">Free core; pay only for hardware, ops and the partners you choose</td></tr>
+            <tr><td class="feat" data-i18n="r9f">Slotting &amp; replenishment</td><td class="dim" data-i18n="r9d">Vendor's fixed rules, opaque and hard to tune</td><td class="us" data-i18n="r9u">Configurable put-away scoring + min/max replenishment you can read and change</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture -->
+  <section id="architecture">
+    <div class="wrap">
+      <div class="section-head" data-reveal="">
+        <p class="eyebrow" data-i18n="archEyebrow">Under the hood</p>
+        <h2 data-i18n="archTitle">Transparent by construction.</h2>
+        <p data-i18n="archIntro">
+          A clean microservice architecture you can read end to end: each service owns its data,
+          movements are events on an append-only log, and equipment lives behind adapters.
+        </p>
+      </div>
+      <div class="arch" data-reveal="">
+<pre>            ┌──────────── <b>API gateway</b> ── JWT · RBAC ────────────┐
+  WMS / ERP ─►  <b>Host API</b>  ─►  order-management · master-data · inventory
+            │                          │  (event-sourced transaction log → Kafka)
+            │   <b>process-engine</b> (BPMN) ─► flow-orchestrator ─► device adapters
+            │   allocation · slotting · <b>goods-to-person</b> (put-to-light) stations
+            └──────────────────────────┴────►  Conveyor · ASRS · AMR · AutoStore</pre>
+      </div>
+      <div class="grid grid-3" style="margin-top:1.2rem" data-reveal="">
+        <div class="card"><div class="tag" data-i18n="a1t">Java 21 · Spring Boot</div><h3 data-i18n="a1h">Domain services</h3><p data-i18n="a1p">master-data, inventory, orders, allocation, slotting, goods-to-person stations, flow-orchestrator, txlog, IAM — each independently deployable.</p></div>
+        <div class="card"><div class="tag" data-i18n="a2t">Go</div><h3 data-i18n="a2h">Equipment adapters</h3><p data-i18n="a2p">Lightweight drivers that speak each vendor’s protocol and the uniform device contract.</p></div>
+        <div class="card"><div class="tag" data-i18n="a3t">Postgres · Kafka</div><h3 data-i18n="a3h">Event backbone</h3><p data-i18n="a3p">Schema-per-service stores and an append-only event log — auditable, replayable, rebuildable.</p></div>
+      </div>
+      <div class="hero-cta" style="margin-top:1.6rem" data-reveal="">
+        <a class="btn btn-ghost" href="architecture.html" data-i18n="archMore">How openWCS is built — the plain-language tour →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section>
+    <div class="wrap">
+      <div class="cta-band" data-reveal="">
+        <p class="eyebrow" data-i18n="ctaEyebrow">Built in the open</p>
+        <h2 data-i18n="ctaTitle">Take control of your control system.</h2>
+        <p data-i18n="ctaP">Read the code, run the stack with Docker Compose, and shape it to your warehouse. Contributions welcome.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="ctaPrimary">View on GitHub</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs/wiki" data-i18n="ctaSecondary">Read the docs</a>
+          <a class="btn btn-ghost" href="https://www.patreon.com/c/karlfriesenbichler" data-i18n="ctaSponsor">Sponsor on Patreon</a>
+        </div>
+      </div>
+    </div>
+  </section>

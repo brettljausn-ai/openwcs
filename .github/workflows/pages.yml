@@ -1,8 +1,9 @@
 name: Deploy public site
 
-# Publishes the static product site in /public to GitHub Pages on every push to main that
-# touches it (and on demand). Pages source must be "GitHub Actions" — configure-pages attempts
-# to enable it automatically on the first run.
+# The product site in /public is now an Express + EJS app (deploy it to a Node host such as Hostinger).
+# For the free GitHub Pages mirror we pre-render it to static HTML (`npm run build:static` → public/dist)
+# and publish that. Runs on every push to main that touches it (and on demand). Pages source must be
+# "GitHub Actions" — configure-pages attempts to enable it automatically on the first run.
 on:
   push:
     branches: [main]
@@ -24,19 +25,29 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: public
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install & pre-render static site
+        run: |
+          npm ci
+          npm run build:static
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
-      - name: Upload /public artifact
+      - name: Upload static artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: public
+          path: public/dist
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

@@ -1,0 +1,97 @@
+<section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="sec.eyebrow1">Function · Security <span class="pill pill-built" data-i18n="sec.pill1">Built</span></p>
+      <h1 data-i18n="sec.h1">Secure by design, <span class="lime">simple to start.</span></h1>
+      <p class="lead" data-i18n="sec.lead1">
+        openWCS validates a JWT at the gateway, enforces per-endpoint role-based access on every service,
+        and delegates authentication to Keycloak. All of it is toggleable — run wide-open in dev, then
+        flip security on and lock down for production without rewiring the app.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="sec.eyebrow2">How it works</p>
+        <h2 data-i18n="sec.h2">Authenticate at the edge, authorize per endpoint.</h2>
+        <p data-i18n="sec.p1">
+          The gateway proves who you are and forwards the identity; each service decides what you may do
+          from a shared role→permission catalog. Authentication is Keycloak's job; openWCS layers RBAC on
+          top.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag" data-i18n="sec.tag1">Gateway JWT</div>
+          <h3 data-i18n="sec.h5">Validate at the edge</h3>
+          <p data-i18n="sec.p2">With security enabled, the gateway validates the JWT against the Keycloak realm, requires auth on every <code>/api/**</code> route, and forwards the identity (user + roles) to the services behind it.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="sec.tag2">Keycloak</div>
+          <h3 data-i18n="sec.h6">Auth is delegated</h3>
+          <p data-i18n="sec.p3">Authentication itself is Keycloak's job — compose imports an openWCS realm. openWCS doesn't reinvent login; it trusts the validated token and focuses on what each role is allowed to do.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="sec.tag3">Per-endpoint RBAC</div>
+          <h3 data-i18n="sec.h7">Every service guards itself</h3>
+          <p data-i18n="sec.p4">An RbacFilter on each service maps HTTP method + path to a required coded permission — so authorization is enforced at every service, not only at the gateway. Defence in depth, not a single front door.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="sec.tag4">Role catalog</div>
+          <h3 data-i18n="sec.h8">Roles → permissions</h3>
+          <p data-i18n="sec.p5">A pure role→permission catalog in shared code defines coded permissions (ALLOCATION_RUN, DEVICE_OPERATE, ORDER_VIEW, TXLOG_VIEW, and more). One catalog, consistently applied across services.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="sec.tag5">Identity propagation</div>
+          <h3 data-i18n="sec.h9">Carry the caller inward</h3>
+          <p data-i18n="sec.p6">Service-to-service calls forward the asserted identity, so a downstream service (allocation → inventory) authorizes against the original caller's roles — not a blanket service account.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="sec.tag6">Toggleable</div>
+          <h3 data-i18n="sec.h10">Start simple, lock down</h3>
+          <p data-i18n="sec.p7">The whole stack is gated by a single switch. Develop and demo with security off, then enable JWT validation and RBAC for production — no code change, just configuration.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="sec.tag7">Warehouse scope</div>
+          <h3 data-i18n="sec.h11">Scoped to their warehouses</h3>
+          <p data-i18n="sec.p11">Each user is mapped to the warehouses they may work in, with one default selected automatically on login. The gateway rejects any request outside that set — operators only ever see and act on their own sites.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="sec.eyebrow3">At a glance</p>
+        <h2 data-i18n="sec.h3">Token → identity → permission.</h2>
+      </div>
+      <div class="arch">
+<pre>  client ─► <b>Keycloak</b> (authenticate) ─► JWT
+                                              │
+  request ─► <b>API gateway</b>  ── validate JWT vs realm · require auth on /api/**
+                       │  forward identity (X-Auth-User · X-Auth-Roles)
+                       ▼
+            service <b>RbacFilter</b>  ── method + path → required permission
+                       │  role→permission catalog (shared)
+                       │  service→service calls propagate the caller's identity
+                       ▼
+            allowed ── or 403  ·  (all of it toggleable: dev off → prod on)</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow" data-i18n="sec.eyebrow4">Open &amp; auditable</p>
+        <h2 data-i18n="sec.h4">Access control you can read.</h2>
+        <p data-i18n="sec.p8">The role catalog, the gateway and every RbacFilter are open source — so you can see exactly which role may call which endpoint, and change it. No hidden grants.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+          <a class="btn btn-ghost" href="host-api.html" data-i18n="sec.btn1">Host API deep dive</a>
+        </div>
+      </div>
+    </div>
+  </section>

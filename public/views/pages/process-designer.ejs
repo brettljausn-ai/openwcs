@@ -1,0 +1,90 @@
+<section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="pd.eyebrow1">Function · Process designer <span class="pill pill-built" data-i18n="pd.pill1">Built</span></p>
+      <h1 data-i18n="pd.h1">Design your flows, <span class="lime">deploy them yourself.</span></h1>
+      <p class="lead" data-i18n="pd.lead1">
+        The processes that run your warehouse — goods-in, outbound, cycle-count — are BPMN models, not
+        integrator code. openWCS runs them on an embedded Flowable engine, and their service tasks
+        originate <strong>real</strong> WCS work: device tasks, conveyor routes, order release and
+        goods-in put-away.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="pd.eyebrow2">How it works</p>
+        <h2 data-i18n="pd.h2">BPMN in, real warehouse work out.</h2>
+        <p data-i18n="pd.p1">
+          A process is standard BPMN 2.0. Deploy a definition, start an instance, and as the flow
+          advances each service task calls a delegate that drives an openWCS service — so a diagram
+          becomes movement on the floor.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag" data-i18n="pd.tag1">Flowable engine</div>
+          <h3 data-i18n="pd.h5">Embedded BPMN runtime</h3>
+          <p data-i18n="pd.p2">An embedded Flowable engine runs admin-designed processes, managing its own tables on the shared datasource. Definitions on the classpath auto-deploy at startup; new ones deploy on demand.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="pd.tag2">Deploy</div>
+          <h3 data-i18n="pd.h6">Model &amp; release</h3>
+          <p data-i18n="pd.p3">List and deploy BPMN 2.0 definitions as raw XML, then start an instance with a process key, an optional business key and variables — no rebuild, no integrator change request.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="pd.tag3">Service tasks</div>
+          <h3 data-i18n="pd.h7">Originate WCS work</h3>
+          <p data-i18n="pd.p4">Service tasks reference Spring-bean delegates: <code>dispatchDeviceTask</code> drives a flow-orchestrator device task, <code>assignRoute</code> a conveyor route plan, <code>releaseOrder</code> an order release/allocate.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="pd.tag4">Put-away delegate</div>
+          <h3 data-i18n="pd.h8">Goods-in to a slot</h3>
+          <p data-i18n="pd.p5">The goods-in process includes a put-away delegate, so a received unit flows from the BPMN model straight into a slotting decision and a put-away move — the receipt-to-storage path as a diagram.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="pd.tag5">User tasks</div>
+          <h3 data-i18n="pd.h9">Wait for an operator</h3>
+          <p data-i18n="pd.p6">Processes can pause on user/wait tasks — list them by instance or assignee, then complete one with variables. So a flow can hold for a confirm-pick or count step before it continues.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="pd.tag6">Sample flows</div>
+          <h3 data-i18n="pd.h10">Goods-in · outbound · count</h3>
+          <p data-i18n="pd.p7">Three processes ship and auto-deploy: <strong>goods-in</strong> (dispatch a device task), <strong>outbound</strong> (release → confirm-pick user task → dispatch move) and <strong>cycle-count</strong> (operator count task).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="pd.eyebrow3">At a glance</p>
+        <h2 data-i18n="pd.h3">A diagram that drives the floor.</h2>
+      </div>
+      <div class="arch">
+<pre>  admin ─► deploy <b>BPMN</b> definition ─► start instance
+                                              │
+   ┌─ service task ─► <b>dispatchDeviceTask</b> ─► flow-orchestrator ─► device adapter
+   ├─ service task ─► <b>assignRoute</b>        ─► conveyor route plan
+   ├─ service task ─► <b>releaseOrder</b>       ─► order-management release / allocate
+   ├─ service task ─► <b>put-away</b>           ─► slotting decision → put-away move
+   └─ user task    ─► wait for operator (confirm pick · count) ─► complete</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow" data-i18n="pd.eyebrow4">Configurable &amp; open</p>
+        <h2 data-i18n="pd.h4">Your processes, in your hands.</h2>
+        <p data-i18n="pd.p8">The engine and the delegates are open source. Model a new flow in BPMN, point its service tasks at the work you need, and deploy it yourself — a designer UI is the remaining follow-up.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+          <a class="btn btn-ghost" href="functions.html" data-i18n="pd.btn1">Back to functions</a>
+        </div>
+      </div>
+    </div>
+  </section>

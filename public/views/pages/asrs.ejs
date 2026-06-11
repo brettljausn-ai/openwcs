@@ -1,0 +1,163 @@
+<section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="asrs.eyebrow1">Automation · Automated storage &amp; retrieval</p>
+      <h1 data-i18n="asrs.h1">Storage that <span class="lime">comes to you.</span></h1>
+      <p class="lead" data-i18n="asrs.lead1">
+        Shuttle and crane ASRS, AutoStore, and AMR goods-to-person systems store handling units densely
+        and bring them to an operator on demand — no one walks the aisles. openWCS drives the moves and
+        knows exactly where every unit is. <em>What</em> goes where is the
+        <a href="slotting.html">Slotting</a> function; this page is about the automation itself.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="asrs.eyebrow2">How an ASRS is built</p>
+        <h2 data-i18n="asrs.h2">Aisles, sides, cells — addressed exactly.</h2>
+        <p data-i18n="asrs.p1">
+          An aisle has a rack on each side and a shuttle or crane working the gap between them, with lifts
+          at the end moving units (and sometimes the shuttles) between levels. openWCS models every storage
+          position as a cell, so a unit's location is always precisely known.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag" data-i18n="asrs.tag1">Address</div>
+          <h3 data-i18n="asrs.h8">aisle · side · x · y · z</h3>
+          <p data-i18n="asrs.p2">Each cell is identified by its aisle, the side of the aisle, the horizontal position (x), the level (y) and the depth (z). A handling unit is booked to that exact cell — never just "somewhere in the block".</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="asrs.tag2">Machines</div>
+          <h3 data-i18n="asrs.h9">Shuttles, cranes, lifts</h3>
+          <p data-i18n="asrs.p3">Captive or roaming shuttles work a level; a crane works a whole aisle; lifts bridge levels and the pre-zone. openWCS dispatches store and retrieve commands over the uniform device contract, vendor-neutral behind an adapter.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="asrs.tag3">Families</div>
+          <h3 data-i18n="asrs.h10">Shuttle · crane · AutoStore · AMR</h3>
+          <p data-i18n="asrs.p4">Rack shuttle/crane ASRS, AutoStore's bin grid, and AMR rack-to-person all fit the same model: a pool of cells, machines that move units, and a port that presents them. See the <a href="automation.html">Automation overview</a>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="asrs.eyebrow3">Store &amp; retrieve</p>
+        <h2 data-i18n="asrs.h3">Goods to the person, then back.</h2>
+        <p data-i18n="asrs.p5">
+          The operator never travels into storage. The system retrieves the handling unit a task needs,
+          presents it at a goods-to-person station, and returns it — and openWCS sequences those moves to
+          keep the station fed and the machines busy.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <a class="card" href="gtp.html">
+          <div class="card-head"><div class="tag" data-i18n="asrs.tag4">Goods-to-person</div><span class="pill pill-built" data-i18n="asrs.pill1">Built</span></div>
+          <h3 data-i18n="asrs.h11">Presented at a station</h3>
+          <p data-i18n="asrs.p6">Units are retrieved to a workstation for picking, decanting, counting, QC or maintenance, then returned to storage. See the goods-to-person deep dive.</p>
+        </a>
+        <a class="card" href="slotting.html">
+          <div class="card-head"><div class="tag" data-i18n="asrs.tag5">Slotting</div><span class="pill pill-built" data-i18n="asrs.pill2">Built</span></div>
+          <h3 data-i18n="asrs.h12">Where a unit is stored</h3>
+          <p data-i18n="asrs.p7">Choosing the cell at put-away — velocity-to-exit, same-SKU lanes, aisle redundancy and fill balance — is the <strong>Slotting</strong> function, shared across all automation. See the Slotting page.</p>
+        </a>
+        <div class="card">
+          <div class="tag" data-i18n="asrs.tag6">Re-store anywhere</div>
+          <h3 data-i18n="asrs.h13">No fixed home</h3>
+          <p data-i18n="asrs.p8">When a unit comes back from a station it's slotted again — it doesn't have to return to its old cell. Random/dynamic storage keeps density high and the fast positions free.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="asrs.eyebrow4">In-aisle behaviour</p>
+        <h2 data-i18n="asrs.h4">Depth, not just <span class="lime">which aisle.</span></h2>
+        <p data-i18n="asrs.p9">
+          Inside a lane, <em>where</em> a unit sits — and which unit the machine reaches for — drives the
+          cycle time the station actually feels.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag" data-i18n="asrs.tag7">Depth</div>
+          <h3 data-i18n="asrs.h14">Shallow for fast movers</h3>
+          <p data-i18n="asrs.p10">Distance-to-exit is measured down the lane, not just to the aisle: fast movers sit in the shallowest cells for a short reach, slow movers go deep where the long reach rarely costs anything.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="asrs.tag8">Multi-deep lanes</div>
+          <h3 data-i18n="asrs.h15">Fill front-to-back, pick LIFO</h3>
+          <p data-i18n="asrs.p11">A deep lane (cells z1…zN) holds one SKU and fills from the back forward, so retrieval pulls the front unit first — last-in, first-out within the lane.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="asrs.tag9">Dual-cycle</div>
+          <h3 data-i18n="asrs.h16">Drop-off near the next pick</h3>
+          <p data-i18n="asrs.p12">A machine that has just stored a unit is positioned to grab a retrieval on the way back, so it travels loaded in both directions instead of deadheading.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="asrs.eyebrow5">Empty-HU management</p>
+        <h2 data-i18n="asrs.h5">Empties out of the <span class="lime">hot zone.</span></h2>
+        <p data-i18n="asrs.p13">
+          Empty carriers, trays and totes are inventory too — and if they sit near the exit they steal the
+          fast positions from real stock. openWCS treats empties as a managed pool.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="tag" data-i18n="asrs.tag10">Far from the exit</div>
+          <h3 data-i18n="asrs.h17">Park empties deep</h3>
+          <p data-i18n="asrs.p14">Empty HUs are stored in the cells furthest from the aisle port — slots a fast mover would never want — so short-cycle real estate stays reserved for stock that ships.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="asrs.tag11">Low priority</div>
+          <h3 data-i18n="asrs.h18">Move them when it's quiet</h3>
+          <p data-i18n="asrs.p15">Consolidating and relocating empties runs at a lower transport priority than order-driven moves, filling idle gaps instead of competing with throughput at peak.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="asrs.tag12">Decanting</div>
+          <h3 data-i18n="asrs.h19">Feed the next put-away</h3>
+          <p data-i18n="asrs.p16">When inbound needs a carrier that's storable in the automation, an empty is pulled for decanting — so a fresh HU is ready at the station without a separate trip mid-receipt.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="asrs.eyebrow6">At a glance</p>
+        <h2 data-i18n="asrs.h6">Store, present, return.</h2>
+      </div>
+      <div class="arch">
+<pre>  put-away ─►  <b>slotting</b> picks a cell (aisle·side·x·y·z)  ──►  shuttle/crane stores the HU
+  order ─────► retrieve HU ──► lift/conveyor ──► <b>goods-to-person station</b> (pick/decant/count/QC)
+                                                      │
+                                  HU returned ──► slotted again (anywhere) · empties parked deep</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow" data-i18n="asrs.eyebrow7">Vendor-neutral &amp; open</p>
+        <h2 data-i18n="asrs.h7">Drive any ASRS, your way.</h2>
+        <p data-i18n="asrs.p17">One uniform device contract behind adapters — add a vendor without re-architecting. The storage logic is open and configurable, not a locked-in integrator black box.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+          <a class="btn btn-ghost" href="slotting.html" data-i18n="asrs.btn1">How slotting works →</a>
+        </div>
+      </div>
+    </div>
+  </section>
