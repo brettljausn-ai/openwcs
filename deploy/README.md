@@ -131,20 +131,23 @@ The `ui` service already mounts a host cert dir (`${OPENWCS_TLS_DIR:-/etc/openwc
 and nginx serves the ACME HTTP-01 challenge over port 80 — so issuing a real cert is
 one command, no downtime, no compose edits.
 
-1. **Point DNS** — create an `A` record for your domain at the server's IP, e.g.
-   `openwcs.brettljausn.ai` → `141.136.36.170`. Open ports **80 and 443** (HTTP-01
+1. **Point DNS** — create an `A` record for each domain at the server's IP, e.g.
+   `app.openwcs.ai` → `141.136.36.170`. Open ports **80 and 443** (HTTP-01
    needs 80).
 2. **Issue the cert** (certbot runs in a one-shot container; installs the cert where
-   nginx reads it and hot-reloads):
+   nginx reads it and hot-reloads). Pass a comma-separated list to cover several domains
+   with one SAN cert:
    ```bash
-   sudo /opt/openwcs/scripts/issue-cert.sh openwcs.brettljausn.ai you@brettljausn.ai
+   sudo /opt/openwcs/scripts/issue-cert.sh app.openwcs.ai,openwcs.brettljausn.ai you@openwcs.ai
    ```
-   Then browse **`https://openwcs.brettljausn.ai/`** — no browser warning.
+   Then browse **`https://app.openwcs.ai/`** — no browser warning.
 3. **Auto-renew** — Let's Encrypt certs last 90 days. Add a cron (the script renews
-   only when near expiry, then reloads nginx):
+   only when near expiry, then reloads nginx). **Use the same domain list as step 2** —
+   renewing a shorter list would drop the other names from the cert and bring back the
+   browser warning:
    ```bash
    # crontab -e  (root)
-   0 3 * * * /opt/openwcs/scripts/issue-cert.sh openwcs.brettljausn.ai you@brettljausn.ai >> /var/log/openwcs-cert.log 2>&1
+   0 3 * * * /opt/openwcs/scripts/issue-cert.sh app.openwcs.ai,openwcs.brettljausn.ai you@openwcs.ai >> /var/log/openwcs-cert.log 2>&1
    ```
 
 Once you're on a real cert you can safely enable **HSTS** — uncomment the
