@@ -90,6 +90,13 @@
     "headMeta": "<title data-i18n=\"kpi.title\">KPI dashboards — openWCS</title>\n  <meta name=\"description\" content=\"KPI dashboards in openWCS are on the roadmap: throughput, dwell, utilisation and SLA metrics with operational dashboards are planned. There is no metrics store or dashboard layer yet.\">\n  <meta name=\"theme-color\" content=\"#061812\">\n  <link rel=\"canonical\" href=\"https://brettljausn-ai.github.io/openwcs/kpi-dashboards.html\">\n  <link rel=\"icon\" type=\"image/png\" href=\"favicon.png\">\n  <meta property=\"og:title\" content=\"KPI dashboards — openWCS\">\n  <meta property=\"og:description\" content=\"Roadmap: throughput, dwell, utilisation and SLA dashboards. No metrics store or dashboards exist yet.\">\n  <meta property=\"og:type\" content=\"article\">\n  <meta property=\"og:image\" content=\"https://brettljausn-ai.github.io/openwcs/openwcs.png\">",
     "scripts": ""
   },
+  "/license.html": {
+    "file": "license.html",
+    "view": "pages/license",
+    "bodyId": "top",
+    "headMeta": "<title data-i18n=\"lic.title\">License — openWCS is AGPL-3.0</title>\n  <meta name=\"description\" content=\"openWCS is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). Plain-language explanation: the four freedoms, copyleft, the AGPL network clause (§13), and what it means for self-hosting, modifying and offering openWCS as a service.\">\n  <meta name=\"theme-color\" content=\"#061812\">\n  <link rel=\"canonical\" href=\"https://brettljausn-ai.github.io/openwcs/license.html\">\n  <link rel=\"icon\" type=\"image/png\" href=\"favicon.png\">\n  <meta property=\"og:title\" content=\"openWCS license — AGPL-3.0, explained\">\n  <meta property=\"og:description\" content=\"What the AGPL-3.0 license means for openWCS: the four freedoms, strong copyleft, the network-use clause, and what you can and must do.\">\n  <meta property=\"og:type\" content=\"article\">\n  <meta property=\"og:image\" content=\"https://brettljausn-ai.github.io/openwcs/openwcs.png\">",
+    "scripts": ""
+  },
   "/living-docs.html": {
     "file": "living-docs.html",
     "view": "pages/living-docs",
