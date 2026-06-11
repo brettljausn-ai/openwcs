@@ -1,35 +1,38 @@
 # Docs agent
 
-An automated agent that keeps user-facing documentation in sync with the code. It runs in two places,
-so documentation lands **with** the change rather than chasing it afterwards:
+An automated agent that keeps user-facing documentation in sync with the code. It runs in two places:
 
 | When | Workflow | Script | Scope |
 |---|---|---|---|
-| On every pull request | [`.github/workflows/docs-agent.yml`](../.github/workflows/docs-agent.yml) | [`scripts/docs-agent.sh`](../scripts/docs-agent.sh) | In-repo docs — `README.md`, `docs/`, `public/` — committed onto the PR branch |
+| Daily (23:00 UTC) | [`.github/workflows/docs-agent.yml`](../.github/workflows/docs-agent.yml) | [`scripts/docs-agent.sh`](../scripts/docs-agent.sh) | In-repo docs — `README.md`, `docs/`, `public/` — committed directly to `main` |
 | After merge to `main`  | [`.github/workflows/docs-wiki.yml`](../.github/workflows/docs-wiki.yml)  | [`scripts/docs-wiki.sh`](../scripts/docs-wiki.sh)   | The GitHub **wiki** (separate repo, pushed directly) |
 
 Both can also be run manually from the Actions tab (**Run workflow**).
 
 ## Why two stages
 
-The in-repo docs belong **in the PR** that changes the behaviour — so review and merge are atomic and
-there is no pile-up of after-the-fact `docs/auto-*` PRs. The **wiki is a separate git repo** and cannot
-be part of a PR, so it is synced once the change is actually on `main`.
+The in-repo docs are swept once a day over everything that landed on `main`, so the documentation
+stays current without a per-PR agent committing onto every branch. The **wiki is a separate git repo**
+and cannot live in the repo, so it is synced immediately after each merge to `main`.
 
 ## What it does
 
-### On a pull request (`docs-agent.sh`)
+### Daily on `main` (`docs-agent.sh`)
 
-A Claude Code agent reviews the **whole PR diff** (`git diff origin/<base>...HEAD`) and, **only if the
-change warrants it**:
+A Claude Code agent reviews **everything that landed on `main` in the last 24 hours**
+(`git diff <last-commit-before-the-window>..HEAD`) and, **only if the change warrants it**:
 
 1. Updates the in-repo docs — `README.md`, `docs/AS-BUILT.md`, `docs/DEVELOPMENT-STATUS.md`.
-2. Updates the **public marketing site** under `public/` (keeping `public/i18n.js` in 4-language
-   parity, verified with `public/i18n-check.js`) — for user-facing capabilities only.
+2. Updates the **public marketing site** (Express + EJS) — editing the source pages in
+   `public/src-html/` and the strings in `public/static/i18n.js` (keeping all four languages in
+   parity), then regenerating the views with `npm run build:pages` and verifying with
+   `node public/static/i18n-check.js` — for user-facing capabilities only.
+3. Updates `public/static/roadmap.md` when a capability's status changed.
 
-The script then commits those edits (scoped to `README.md` / `docs/` / `public/`) back onto the **PR
-branch** with a `[docs-agent]` marker, so they merge together with the code. It makes no changes — and
-no commit — for diffs with no documentation impact.
+The script then commits those edits (scoped to `README.md` / `docs/` / `public/`) directly to `main`
+with a `[docs-agent]` marker. It makes no changes — and no commit — when the window has no commits, or
+none with documentation impact. The diff window can be overridden with the `DOCS_AGENT_WINDOW` env var
+(a `git --before` expression, default `24 hours ago`).
 
 ### After merge to `main` (`docs-wiki.sh`)
 
@@ -50,37 +53,33 @@ runner). Add **one** of these as a repository secret — Settings → Secrets an
 
 Provide just one; the workflows pass both env vars and Claude Code uses whichever is set.
 
-### Token note (required status checks)
+### Token note (pushing to protected `main`)
 
-The PR job pushes its docs commit to the PR branch. A push made with the default **`GITHUB_TOKEN`**
-does **not** re-trigger workflows, so the new docs commit won't get a fresh run of your required PR
-checks — and a branch ruleset that requires those checks would then block the merge until the checks
-are re-run. If `main` requires status checks, add a **`DOCS_AGENT_TOKEN`** secret (a PAT or GitHub App
-token with repo **`contents: write`**); the PR workflow uses it in preference to `GITHUB_TOKEN`, so the
-docs commit triggers the checks like any human push. Without required checks, the `GITHUB_TOKEN`
-fallback is fine. (The wiki job only needs the built-in `GITHUB_TOKEN`.)
+The daily job pushes its docs commit **directly to `main`**, which is protected by the `guardMain`
+ruleset. The default **`GITHUB_TOKEN`** cannot push to a protected branch, so add a
+**`DOCS_AGENT_TOKEN`** secret — a PAT or GitHub App token with repo **`contents: write`** whose
+identity is on the ruleset's **bypass list**. The workflow uses it in preference to `GITHUB_TOKEN`
+(the latter is only a non-functional fallback for unprotected forks). The wiki job only needs the
+built-in `GITHUB_TOKEN`.
 
 ## Loop protection
 
-The agent commits as the author **`openwcs-docs-agent`**, and both jobs skip when the triggering
-commit was authored by it (matching on author, not message, so a human commit that merely *mentions*
-the agent never trips the guard):
+The agent commits as the author **`openwcs-docs-agent`** (matching on author, not message, so a human
+commit that merely *mentions* the agent never trips a guard):
 
 - **Wiki job** — its `if:` skips any push whose head commit author is `openwcs-docs-agent`.
-- **PR job** — if a `DOCS_AGENT_TOKEN` is used, the agent's own push re-triggers the PR workflow; the
-  script skips when the branch tip was authored by the agent, so it never loops. (With the
-  `GITHUB_TOKEN` fallback the push doesn't re-trigger at all.)
+- **Daily job** — it is time-triggered, so its own push to `main` does not re-trigger it. As a belt
+  guard it also skips when the only commits in the window were authored by the agent.
 
 The agent's commits also carry a `[docs-agent]` marker in the message for easy scanning of history.
-It runs again — and adds another docs commit — whenever a human pushes more code on top, which is the
-intended behaviour.
 
 ## Tuning
 
 - **Model / cost** — both run `--model sonnet` for cost efficiency; bump to `opus` in the scripts for
   higher-quality prose.
-- **When the PR job runs** — it triggers on `opened` / `synchronize` / `reopened` / `ready_for_review`
-  and skips drafts. Narrow it to, say, only `ready_for_review` (or gate on a label) if you'd rather it
-  run once the PR is finalised instead of on every push.
+- **When the daily job runs** — the `cron` in `docs-agent.yml` is `0 23 * * *` (23:00 UTC). GitHub
+  cron has no timezone or DST handling, so adjust the hour if you want a different local time.
+- **Diff window** — the daily job looks back `24 hours` by default; override with the
+  `DOCS_AGENT_WINDOW` env var (any `git --before` expression).
 - **Scope** — the prompts in the scripts define what each stage touches and the "make no changes for
   trivial diffs" guard; edit them to widen or narrow scope.

@@ -3,9 +3,9 @@
       <p class="eyebrow" data-i18n="doc.eyebrow1">Function · Documentation <span class="pill pill-built" data-i18n="doc.pill1">Built</span></p>
       <h1 data-i18n="doc.h1">Living documentation — <span class="lime">always current, automatically.</span></h1>
       <p class="lead" data-i18n="doc.lead1">
-        Every screen carries its own help, and a docs agent runs on every merge to main — it reviews the
-        change and keeps the README, the architecture docs, the GitHub wiki and this very site in sync.
-        Your team's documentation is never the thing that fell behind.
+        Every screen carries its own help, the GitHub wiki syncs on every merge to main, and a daily docs
+        agent reviews the last 24 hours of commits and keeps the README, the architecture docs and this very
+        site in sync. Your team's documentation is never the thing that fell behind.
       </p>
     </div>
   </section>
@@ -16,7 +16,7 @@
         <p class="eyebrow" data-i18n="doc.eyebrow2">How it works</p>
         <h2 data-i18n="doc.h2">Write the code, the docs follow.</h2>
         <p data-i18n="doc.p1">
-          Help where you work and an agent that watches the merge queue: when a change lands, the docs are
+          Help where you work and an agent that sweeps the day's commits: each day the in-repo docs are
           read, reviewed and brought back into line — from one source of truth, in the open.
         </p>
       </div>
@@ -28,8 +28,8 @@
         </div>
         <div class="card">
           <div class="tag" data-i18n="doc.tag2">Docs agent</div>
-          <h3 data-i18n="doc.h6">Runs on every merge</h3>
-          <p data-i18n="doc.p3">On every merge to main an automated docs agent reviews exactly what changed and updates the documentation to match. Docs are part of the pipeline, not an afterthought someone remembers a release later.</p>
+          <h3 data-i18n="doc.h6">Wiki on merge, docs daily</h3>
+          <p data-i18n="doc.p3">The GitHub wiki syncs on every merge to main, and once a day an automated docs agent reviews the last 24 hours of commits and updates the in-repo documentation to match. Docs are part of the pipeline, not an afterthought someone remembers a release later.</p>
         </div>
         <div class="card">
           <div class="tag" data-i18n="doc.tag3">One source of truth</div>
@@ -37,9 +37,9 @@
           <p data-i18n="doc.p4">The README, the architecture &amp; as-built docs, the GitHub wiki and the marketing site all track the same change — so there are no stale wikis contradicting the code and no two pages telling a different story.</p>
         </div>
         <div class="card">
-          <div class="tag" data-i18n="doc.tag4">Reviewed via PR</div>
+          <div class="tag" data-i18n="doc.tag4">Recorded in git</div>
           <h3 data-i18n="doc.h8">Open &amp; auditable</h3>
-          <p data-i18n="doc.p5">In-repo docs are updated by a pull request, so every change to the documentation is diffed, reviewed and recorded in git history. The docs are open and auditable — exactly like the code they describe.</p>
+          <p data-i18n="doc.p5">The daily docs agent commits its updates straight to main, so every change to the documentation is recorded in git history — fully diffable and auditable. The docs are open — exactly like the code they describe.</p>
         </div>
         <div class="card">
           <div class="tag" data-i18n="doc.tag5">Four languages</div>
@@ -49,7 +49,7 @@
         <div class="card">
           <div class="tag" data-i18n="doc.tag6">Always current</div>
           <h3 data-i18n="doc.h10">Docs you can trust</h3>
-          <p data-i18n="doc.p7">Because the docs move with every merge, what you read is what the system actually does today. Onboarding, support and audits all start from documentation that is current by construction — not by good intentions.</p>
+          <p data-i18n="doc.p7">Because the docs are swept daily, what you read is what the system actually does today. Onboarding, support and audits all start from documentation that is current by construction — not by good intentions.</p>
         </div>
       </div>
     </div>
@@ -59,13 +59,14 @@
     <div class="wrap">
       <div class="section-head">
         <p class="eyebrow" data-i18n="doc.eyebrow3">At a glance</p>
-        <h2 data-i18n="doc.h3">Merge → review → docs in sync.</h2>
+        <h2 data-i18n="doc.h3">Commits → daily sweep → docs in sync.</h2>
       </div>
       <div class="arch">
-<pre>  merge to <b>main</b> ─► <b>docs agent</b> reads the diff · understands what changed
+<pre>  merge to <b>main</b> ─► GitHub <b>wiki</b>                       ── synced on every merge
+
+  daily <b>23:00 UTC</b> ─► <b>docs agent</b> reads the last 24h of commits · understands what changed
                                        │
-                                       ├─► README · architecture &amp; as-built  ── opens a <b>PR</b> (reviewed)
-                                       ├─► GitHub <b>wiki</b>                       ── kept in sync
+                                       ├─► README · architecture &amp; as-built  ── committed to <b>main</b> (diffable in git)
                                        └─► marketing <b>site</b> (en · de · fr · es) ── parity-checked
                                        │
             in-app <b>help drawer</b>  ── summary · getting started · key actions · fields &amp; filters · tips</pre>
@@ -78,7 +79,7 @@
       <div class="cta-band">
         <p class="eyebrow" data-i18n="doc.eyebrow4">Open &amp; auditable</p>
         <h2 data-i18n="doc.h4">Documentation that keeps its promises.</h2>
-        <p data-i18n="doc.p8">The help drawers, the docs agent and every page it maintains are open source — so you can see how the docs are produced, read the PRs that change them, and trust that current really means current.</p>
+        <p data-i18n="doc.p8">The help drawers, the docs agent and every page it maintains are open source — so you can see how the docs are produced, read the commits that change them, and trust that current really means current.</p>
         <div class="hero-cta" style="justify-content:center">
           <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
           <a class="btn btn-ghost" href="functions.html" data-i18n="doc.btn1">Browse the functions</a>
