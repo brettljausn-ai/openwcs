@@ -75,6 +75,74 @@ export interface TwinSnapshot {
   stats: TwinStats
 }
 
+/** A handling unit at rest in storage, placed at its cell position inside the rendered ASRS rack
+ *  (ADR-0009 §5). Pure representation of the HU registry (live since PR #218). */
+export interface StoredTote {
+  huId: string
+  huCode: string
+  pos: [number, number, number]
+}
+
+/** Minimal slices of the master-data location / inventory HU shapes the rack view needs. */
+export interface StorageCell {
+  id: string
+  aisle?: string | null
+  side?: string | null // LEFT/RIGHT or L/R
+  posX?: number | null // cell X along the aisle
+  posY?: number | null // shuttle level
+  posZ?: number | null // channel depth, 1 = aisle face
+}
+export interface StoredHu {
+  huId?: string
+  code: string
+  locationId?: string | null
+  status: string
+}
+
+/** Map every stored HU to a world position inside the (first) placed ASRS rack: cell X spreads along
+ *  the rack length, the shuttle level (posY) stacks up the rack height, the side picks the rack
+ *  flanking the aisle, and the channel depth (posZ) pushes outward from the aisle. HUs without a
+ *  resolvable located cell are skipped — never guessed. */
+export function deriveStoredTotes(
+  hus: StoredHu[],
+  cells: StorageCell[],
+  topo: AutomationTopology,
+): StoredTote[] {
+  const rack = topo.equipment.find((e) => (e.category ?? '') === 'asrs')
+  if (!rack) return []
+  const cellById = new Map(cells.map((c) => [c.id, c]))
+  const located = cells.filter((c) => typeof c.posX === 'number' && typeof c.posY === 'number')
+  if (!located.length) return []
+  const maxX = Math.max(...located.map((c) => c.posX as number), 1)
+  const maxY = Math.max(...located.map((c) => c.posY as number), 1)
+
+  const baseY = rack.posYM || 0
+  const L = rack.lengthM || 1
+  const W = rack.widthM || 1
+  const H = rack.heightM || 1
+  const yaw = ((rack.rotationDeg || 0) * Math.PI) / 180
+  const cos = Math.cos(-yaw)
+  const sin = Math.sin(-yaw)
+
+  const out: StoredTote[] = []
+  for (const hu of hus) {
+    if (!hu.huId || !hu.locationId) continue
+    const cell = cellById.get(hu.locationId)
+    if (!cell || typeof cell.posX !== 'number' || typeof cell.posY !== 'number') continue
+    // Local rack frame: X along the rack length, Z across (aisle in the middle, racks both sides).
+    const lx = ((cell.posX + 0.5) / (maxX + 1) - 0.5) * L * 0.92
+    const sideSign = (cell.side ?? '').toUpperCase().startsWith('L') ? -1 : 1
+    const depth = Math.max(1, cell.posZ ?? 1)
+    const lz = sideSign * (W * 0.18 + (depth - 1) * W * 0.14)
+    const y = baseY + 0.35 + ((cell.posY - 0.5) / maxY) * (H * 0.82)
+    // Rotate the local frame by the rack's yaw and translate to its centre.
+    const wx = rack.posXM + lx * cos - lz * sin
+    const wz = rack.posZM + lx * sin + lz * cos
+    out.push({ huId: hu.huId, huCode: hu.code, pos: [wx, y, wz] })
+  }
+  return out
+}
+
 /** Optional live inputs for deriveTwin beyond the device-task feed (ADR-0008 replay). */
 export interface TwinLiveInputs {
   /** Per-HU transport-trace rows (any order; only SCANNED rows are used). */

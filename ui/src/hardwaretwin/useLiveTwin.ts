@@ -3,8 +3,17 @@ import { loadAutomationTopology, type AutomationTopology } from '../topology/aut
 import { listEquipment, type Equipment } from '../masterdata/api'
 import { listDeviceTasks, listHuTrace } from '../transport/api'
 import { getStationQueue } from '../gtpops/api'
+import { listLocations } from '../masterdata/api'
+import { listHandlingUnits } from '../inventory/api'
 import { loadConveyorNodePositions } from './api'
-import { deriveTwin, type ScanRow, type TwinSnapshot } from './twin'
+import {
+  deriveStoredTotes,
+  deriveTwin,
+  type ScanRow,
+  type StorageCell,
+  type StoredTote,
+  type TwinSnapshot,
+} from './twin'
 
 // Live "digital twin" for the Hardware visualisation page. The geometry (automation topology) is
 // loaded ONCE per warehouse; the live picture (equipment activity + moving totes) is re-derived on a
@@ -31,6 +40,8 @@ export interface UseLiveTwinResult {
    *  same way the topology editor does (conveyor vs rack vs sorter). Loaded once per warehouse. */
   lib: Map<string, Equipment>
   snapshot: TwinSnapshot | null
+  /** HUs at rest in storage, positioned at their cell inside the ASRS rack (ADR-0009 §5). */
+  storedTotes: StoredTote[]
   loading: boolean
   error: string | null
   lastUpdated: Date | null
@@ -46,6 +57,7 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
   const [topology, setTopology] = useState<AutomationTopology | null>(null)
   const [lib, setLib] = useState<Map<string, Equipment>>(EMPTY_LIB)
   const [snapshot, setSnapshot] = useState<TwinSnapshot | null>(null)
+  const [storedTotes, setStoredTotes] = useState<StoredTote[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
@@ -57,6 +69,8 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
   // Routing-node world positions (code → [x,z]) — loaded once per warehouse alongside the topology;
   // non-fatal when absent (no projected graph → no scan replay, totes degrade to strict anchors).
   const nodeXZRef = useRef<Map<string, [number, number]>>(new Map())
+  // Storage cells (master-data locations with cell coordinates) — loaded once per warehouse.
+  const cellsRef = useRef<StorageCell[]>([])
 
   // Load the static topology ONCE per warehouse.
   useEffect(() => {
@@ -77,13 +91,22 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
       loadAutomationTopology(warehouseId),
       listEquipment(warehouseId).catch(() => [] as Equipment[]),
       loadConveyorNodePositions(warehouseId).catch(() => new Map<string, [number, number]>()),
+      listLocations(warehouseId).catch(() => []),
     ])
-      .then(([topo, equipment, nodeXZ]) => {
+      .then(([topo, equipment, nodeXZ, locations]) => {
         if (cancelled) return
         const map = new Map<string, Equipment>()
         for (const e of equipment) if (e.id) map.set(e.id, e)
         setLib(map)
         nodeXZRef.current = nodeXZ
+        cellsRef.current = locations.map((l) => ({
+          id: l.id ?? '',
+          aisle: l.aisle,
+          side: l.side,
+          posX: l.posX,
+          posY: l.posY,
+          posZ: l.posZ,
+        }))
         setTopology(topo)
       })
       .catch((e) => {
@@ -152,9 +175,20 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
             .map((e) => ({ huId: e.huId as string, huCode: e.huCode ?? null })),
         )
       }
-      setSnapshot(
-        deriveTwin(tasks, topo, Date.now(), { tracesByHu, nodeXZ: nodeXZRef.current, queuedByStation }),
-      )
+      const snap = deriveTwin(tasks, topo, Date.now(), {
+        tracesByHu,
+        nodeXZ: nodeXZRef.current,
+        queuedByStation,
+      })
+      setSnapshot(snap)
+      // Rack contents: every registry HU at rest, excluding HUs currently shown as live totes.
+      try {
+        const hus = await listHandlingUnits(warehouseId)
+        const liveIds = new Set(snap.totes.map((t) => t.huId))
+        setStoredTotes(deriveStoredTotes(hus, cellsRef.current, topo).filter((t) => !liveIds.has(t.huId)))
+      } catch {
+        /* keep the last rack snapshot on a transient failure */
+      }
       setError(null)
       setLastUpdated(new Date())
     } catch (e) {
@@ -192,5 +226,5 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
     void refreshRef.current()
   }, [])
 
-  return { topology, lib, snapshot, loading, error, lastUpdated, refresh: refreshNow }
+  return { topology, lib, snapshot, storedTotes, loading, error, lastUpdated, refresh: refreshNow }
 }
