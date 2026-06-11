@@ -116,7 +116,13 @@ public class DeviceTaskService {
         if ("RETRIEVE".equals(command) || "BIN_RETRIEVE".equals(command)) {
             induction.onRetrieveCompleted(task.getId(), completed, task.getActor());
         } else if ("CONVEY".equals(command)) {
+            // The outbound (induction) and return-to-storage legs share the CONVEY command; each
+            // hook looks the entry up by its own task-id column and is a no-op on a miss, so
+            // routing the callback to both is safe: at most one of them matches.
             induction.onConveyCompleted(task.getId(), completed, task.getResult(), task.getActor());
+            induction.onReturnConveyCompleted(task.getId(), completed, task.getActor());
+        } else if ("STORE".equals(command) || "BIN_STORE".equals(command)) {
+            induction.onReturnStoreCompleted(task.getId(), completed, task.getActor());
         }
     }
 
