@@ -4,12 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title data-i18n="cc.title">Cycle counting — openWCS</title>
-  <meta name="description" content="Cycle / stock counting in openWCS: a COUNT order type, a StockAdjusted projection and a sample BPMN skeleton exist today; counting tasks, blind and variance counts, reconciliation and the count UI are on the roadmap." />
+  <meta name="description" content="Cycle / stock counting in openWCS: count tasks, blind and variance counts, reconciliation, and at-station blind counting via the GTP console are all built today. A standalone general count-capture screen is the one remaining item." />
   <meta name="theme-color" content="#061812" />
   <link rel="canonical" href="https://brettljausn-ai.github.io/openwcs/cycle-counting.html" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <meta property="og:title" content="Cycle counting — openWCS" />
-  <meta property="og:description" content="Foundations exist (COUNT order, StockAdjusted projection, sample BPMN); counting tasks, blind/variance counts, reconciliation and UI are roadmap." />
+  <meta property="og:description" content="Count tasks, blind and variance counts, reconciliation, and at-station blind counting are built today. A standalone general count UI is the remaining item." />
   <meta property="og:type" content="article" />
   <meta property="og:image" content="https://brettljausn-ai.github.io/openwcs/openwcs.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -50,41 +50,41 @@
 
   <section class="hero">
     <div class="wrap">
-      <p class="eyebrow" data-i18n="cc.eyebrow1">Function · Cycle counting <span class="pill pill-roadmap" data-i18n="cc.pill4">Roadmap</span></p>
-      <h1 data-i18n="cc.h1">Counting, <span class="lime">scaffolded.</span></h1>
+      <p class="eyebrow" data-i18n="cc.eyebrow1">Function · Cycle counting <span class="pill pill-built" data-i18n="cc.pill4">Built</span></p>
+      <h1 data-i18n="cc.h1">Counting, <span class="lime">working.</span></h1>
       <p class="lead" data-i18n="cc.lead1">
-        Cycle and stock counting keep recorded inventory honest. The foundations exist in openWCS — but
-        the working count cycle is designed, not yet implemented.
+        Cycle and stock counting keep recorded inventory honest. openWCS runs count tasks,
+        blind and variance counts, and reconciliation end-to-end — count totes are
+        auto-routed to GTP workstations, and the full cycle closes with a StockAdjusted event.
       </p>
-      <p class="status-line">⚑ Roadmap — planned, not yet implemented. A COUNT order type, a StockAdjusted projection and a sample BPMN skeleton are in place as the foundation.</p>
     </div>
   </section>
 
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow" data-i18n="cc.eyebrow2">What exists today</p>
-        <h2 data-i18n="cc.h2">The foundations are in the codebase.</h2>
+        <p class="eyebrow" data-i18n="cc.eyebrow2">What's built</p>
+        <h2 data-i18n="cc.h2">Count tasks, blind counts, reconciliation — all working.</h2>
         <p data-i18n="cc.p1">
-          These pieces are present already — the order, the event projection and a process skeleton — so
-          the roadmap builds on real groundwork rather than a blank page.
+          Count tasks, blind and variance counts, and reconciliation are implemented end-to-end.
+          Count totes are auto-routed from ASRS, AMR and AutoStore cells to the active GTP STOCK_COUNT workstation.
         </p>
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="cc.tag1">COUNT order</div><span class="pill pill-built" data-i18n="cc.pill1">Built</span></div>
-          <h3 data-i18n="cc.h6">An order type to count</h3>
-          <p data-i18n="cc.p2">A dedicated COUNT order type exists, giving counting work a first-class place in the order model rather than bolting it on later.</p>
+          <div class="card-head"><div class="tag" data-i18n="cc.tag1">Count tasks</div><span class="pill pill-built" data-i18n="cc.pill1">Built</span></div>
+          <h3 data-i18n="cc.h6">Count by scope &amp; schedule</h3>
+          <p data-i18n="cc.p2">Count tasks target any scope — location, SKU, zone or storage block — with blind or variance mode and ABC-cadence scheduling. Count totes are auto-routed to the active GTP STOCK_COUNT workstation.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="cc.tag2">Projection</div><span class="pill pill-built" data-i18n="cc.pill2">Built</span></div>
-          <h3 data-i18n="cc.h7">StockAdjusted events</h3>
-          <p data-i18n="cc.p3">A StockAdjusted projection is in place, so an adjustment arising from a count has a defined event and read model to land in.</p>
+          <div class="card-head"><div class="tag" data-i18n="cc.tag2">Blind &amp; variance</div><span class="pill pill-built" data-i18n="cc.pill2">Built</span></div>
+          <h3 data-i18n="cc.h7">Honest counts, always</h3>
+          <p data-i18n="cc.p3">Blind mode hides the expected quantity — the operator enters what they see, never the system figure. Variance mode flags mismatches. Two counts that agree confirm a variance and post a StockAdjusted event automatically.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="cc.tag3">BPMN skeleton</div><span class="pill pill-built" data-i18n="cc.pill3">Built</span></div>
-          <h3 data-i18n="cc.h8">A sample process</h3>
-          <p data-i18n="cc.p4">A sample BPMN skeleton sketches the count flow, ready to grow into the real orchestration that drives tasks and reconciliation.</p>
+          <div class="card-head"><div class="tag" data-i18n="cc.tag3">At-station count</div><span class="pill pill-built" data-i18n="cc.pill3">Built</span></div>
+          <h3 data-i18n="cc.h8">Blind count at the GTP console</h3>
+          <p data-i18n="cc.p4">When a count tote arrives at a GTP STOCK_COUNT station, the operator console switches to a blind-count panel. Enter the quantity — no expected qty shown. Two agreeing counts close the tote and post the StockAdjusted event automatically.</p>
         </div>
       </div>
     </div>
@@ -93,33 +93,18 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow" data-i18n="cc.eyebrow3">On the roadmap</p>
-        <h2 data-i18n="cc.h3">The working count cycle.</h2>
+        <p class="eyebrow" data-i18n="cc.eyebrow3">One more to go</p>
+        <h2 data-i18n="cc.h3">The general count screen.</h2>
         <p data-i18n="cc.p5">
-          Turning the scaffold into an operable function: generating tasks, capturing counts without
-          bias, resolving variances and giving operators a UI.
+          The counting service is fully built. The one remaining item is a standalone operator
+          screen for entering counts outside a GTP station.
         </p>
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="cc.tag4">Tasks</div><span class="pill pill-roadmap" data-i18n="cc.pill5">Roadmap</span></div>
-          <h3 data-i18n="cc.h9">Counting tasks</h3>
-          <p data-i18n="cc.p6">Planned: generating and dispatching counting tasks — by location, by velocity class or on a cycle — from the COUNT order. Not yet implemented.</p>
-        </div>
-        <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="cc.tag5">Count modes</div><span class="pill pill-roadmap" data-i18n="cc.pill6">Roadmap</span></div>
-          <h3 data-i18n="cc.h10">Blind &amp; variance counts</h3>
-          <p data-i18n="cc.p7">Planned: blind counts that hide the expected quantity, plus variance counts that re-count only where the first pass disagreed. Designed for, not yet built.</p>
-        </div>
-        <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="cc.tag6">Reconciliation</div><span class="pill pill-roadmap" data-i18n="cc.pill7">Roadmap</span></div>
-          <h3 data-i18n="cc.h11">Resolve &amp; adjust</h3>
-          <p data-i18n="cc.p8">Planned: reconciliation that compares counted vs recorded, posts a StockAdjusted event within tolerance and escalates the rest. Not yet implemented.</p>
-        </div>
-        <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="cc.tag7">UI</div><span class="pill pill-roadmap" data-i18n="cc.pill8">Roadmap</span></div>
-          <h3 data-i18n="cc.h12">Operator &amp; review screens</h3>
-          <p data-i18n="cc.p9">Planned: the count UI for operators to enter counts and for supervisors to review variances and approve adjustments. Designed, not yet built.</p>
+          <div class="card-head"><div class="tag" data-i18n="cc.tag7">Count UI</div><span class="pill pill-roadmap" data-i18n="cc.pill8">Roadmap</span></div>
+          <h3 data-i18n="cc.h12">General count screen</h3>
+          <p data-i18n="cc.p9">A standalone operator screen for entering counts and reviewing variances outside a GTP station. The counting service is fully built — this is the UI wrapping it for general operator use.</p>
         </div>
       </div>
     </div>
@@ -129,13 +114,19 @@
     <div class="wrap">
       <div class="section-head">
         <p class="eyebrow" data-i18n="cc.eyebrow4">At a glance</p>
-        <h2 data-i18n="cc.h4">Foundation today → cycle on the roadmap.</h2>
+        <h2 data-i18n="cc.h4">Count cycle built → general UI coming.</h2>
       </div>
       <div class="arch">
-<pre>  <b>COUNT order</b> · <b>StockAdjusted projection</b> · <b>sample BPMN</b>     (built)
+<pre>  count task · scope (location/SKU/zone/block) · blind or variance mode
         │
         ▼
-  ┄┄┄ roadmap ┄┄┄  tasks → blind/variance count → reconcile → adjust · UI</pre>
+  count tote auto-routed to GTP STOCK_COUNT station           (built)
+        │
+        ▼
+  operator counts blind → two-agree reconcile → StockAdjusted  (built)
+        │
+        ▼
+  ┄┄┄ next ┄┄┄  standalone general count-capture screen</pre>
       </div>
     </div>
   </section>
@@ -143,9 +134,9 @@
   <section>
     <div class="wrap">
       <div class="cta-band">
-        <p class="eyebrow" data-i18n="cc.eyebrow5">Open &amp; honest</p>
-        <h2 data-i18n="cc.h5">Follow counting as it's built.</h2>
-        <p data-i18n="cc.p10">The COUNT order and StockAdjusted projection are in the repo today; the count cycle is tracked in the open.</p>
+        <p class="eyebrow" data-i18n="cc.eyebrow5">Built &amp; open</p>
+        <h2 data-i18n="cc.h5">Counting works — open source.</h2>
+        <p data-i18n="cc.p10">The full count cycle is live in the repo today. The general count screen is the one remaining item, tracked in the open.</p>
         <div class="hero-cta" style="justify-content:center">
           <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
           <a class="btn btn-ghost" href="functions.html" data-i18n="cc.btn1">Back to functions</a>

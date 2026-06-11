@@ -51,7 +51,7 @@
 > Active development
 
 - [active] Pick execution :: Operator and goods-to-person pick confirmation, pick-by-light / voice / RF, and the GTP-station pick workflow on top of today's allocation and planning.
-- [active] Cycle counting :: Counting tasks, blind and variance counts, reconciliation and the count UI — built on the existing COUNT order type and StockAdjusted projection.
+- [active] Cycle counting :: Count tasks, blind and variance counts, and reconciliation are built; at-station blind counting runs via the GTP console. A standalone general count-capture screen is the remaining item.
 
 ## Next up
 > Designed, build queued
