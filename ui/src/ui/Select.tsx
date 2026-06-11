@@ -38,6 +38,9 @@ export default function Select({
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null)
+  // The menu's clamped left edge: it sizes to its CONTENT (capped), so once rendered we measure it
+  // and shift it left if it would overflow the right viewport edge. Null until measured.
+  const [menuLeft, setMenuLeft] = useState<number | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLUListElement>(null)
   const listId = useId()
@@ -52,7 +55,10 @@ export default function Select({
 
   // Measure before paint when opening, and follow scroll/resize while open.
   useLayoutEffect(() => {
-    if (!open) return
+    if (!open) {
+      setMenuLeft(null)
+      return
+    }
     reposition()
     const onScroll = () => reposition()
     window.addEventListener('scroll', onScroll, true)
@@ -62,6 +68,14 @@ export default function Select({
       window.removeEventListener('resize', onScroll)
     }
   }, [open, reposition])
+
+  // After the menu renders (content-sized), keep it inside the viewport: align to the trigger's
+  // left edge, but shift left when the wider-than-trigger menu would spill off the right side.
+  useLayoutEffect(() => {
+    if (!open || !rect) return
+    const w = menuRef.current?.getBoundingClientRect().width ?? rect.width
+    setMenuLeft(Math.max(8, Math.min(rect.left, window.innerWidth - 8 - w)))
+  }, [open, rect, options])
 
   useEffect(() => {
     if (!open) return
@@ -147,7 +161,17 @@ export default function Select({
           role="listbox"
           id={listId}
           aria-label={ariaLabel}
-          style={{ position: 'fixed', top: rect.top, left: rect.left, width: rect.width }}
+          style={{
+            position: 'fixed',
+            top: rect.top,
+            left: menuLeft ?? rect.left,
+            // Size to the content so long option labels stay readable; never narrower than the
+            // trigger, capped so a pathological label can't span the screen, and kept on-screen
+            // by the menuLeft clamp above.
+            width: 'max-content',
+            minWidth: rect.width,
+            maxWidth: Math.min(420, window.innerWidth - 16),
+          }}
         >
           {options.length === 0 && <li className="select-empty">No options</li>}
           {options.map((o, i) => (
@@ -156,6 +180,7 @@ export default function Select({
               role="option"
               aria-selected={o.value === value}
               className={`select-option${o.value === value ? ' is-selected' : ''}${i === active ? ' is-active' : ''}${o.disabled ? ' is-disabled' : ''}`}
+              title={o.hint ? `${o.label} — ${o.hint}` : o.label}
               onMouseEnter={() => setActive(i)}
               onMouseDown={(e) => {
                 e.preventDefault()
