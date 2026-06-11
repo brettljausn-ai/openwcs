@@ -2758,10 +2758,14 @@ export function FunctionPointMarker({
   fp,
   eq,
   onSelect,
+  showLabels = true,
 }: {
   fp: AutomationFunctionPoint
   eq: AutomationEquipment
   onSelect: () => void
+  // When false the short type label (SCAN/QRY/DIV…) is hidden — only the cone/diamond glyph shows.
+  // Defaults true so the editor is unchanged; the read-only hardware twin toggles it off to declutter.
+  showLabels?: boolean
 }) {
   const at = pointAlong(eq, fp.offsetM)
   // Left/right is perpendicular to travel direction on the ground plane. With dir (dx,dz),
@@ -2801,11 +2805,13 @@ export function FunctionPointMarker({
         {isPort ? <octahedronGeometry args={[0.26, 0]} /> : <coneGeometry args={[0.16, 0.5, 16]} />}
         <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.45} />
       </mesh>
-      <Html position={[0, 0.7, 0]} center distanceFactor={16} occlude={false}>
-        <div className="atopo-fpmarker" style={{ borderColor: color, color }}>
-          {short}
-        </div>
-      </Html>
+      {showLabels && (
+        <Html position={[0, 0.7, 0]} center distanceFactor={16} occlude={false}>
+          <div className="atopo-fpmarker" style={{ borderColor: color, color }}>
+            {short}
+          </div>
+        </Html>
+      )}
     </group>
   )
 }
@@ -3001,6 +3007,8 @@ interface EquipmentMeshProps {
   onMoveWaypoint: (index: number, x: number, z: number) => void
   onAnchorWaypoint: (index: number) => void
   onHandleDragChange: (active: boolean) => void
+  // When false the equipment's code label is hidden (declutter). Defaults true (editor unchanged).
+  showLabels?: boolean
 }
 
 export function EquipmentMesh({
@@ -3018,6 +3026,7 @@ export function EquipmentMesh({
   onMoveWaypoint,
   onAnchorWaypoint,
   onHandleDragChange,
+  showLabels = true,
 }: EquipmentMeshProps) {
   // Highlight either the editor selection or (in connect mode) the chosen source.
   const highlight = connectMode ? connectSource : selected
@@ -3040,6 +3049,7 @@ export function EquipmentMesh({
         onMoveWaypoint={onMoveWaypoint}
         onAnchorWaypoint={onAnchorWaypoint}
         onHandleDragChange={onHandleDragChange}
+        showLabels={showLabels}
       />
     )
   }
@@ -3134,9 +3144,11 @@ export function EquipmentMesh({
           <lineBasicMaterial color={highlightColor} />
         </lineSegments>
       )}
-      <Html position={[0, eq.heightM / 2 + 0.4, 0]} center distanceFactor={18} occlude={false}>
-        <div className="atopo-label">{eq.code}</div>
-      </Html>
+      {showLabels && (
+        <Html position={[0, eq.heightM / 2 + 0.4, 0]} center distanceFactor={18} occlude={false}>
+          <div className="atopo-label">{eq.code}</div>
+        </Html>
+      )}
     </group>
   )
 
@@ -3160,6 +3172,7 @@ export function EquipmentMesh({
         onMoveWaypoint={onMoveWaypoint}
         onAnchorWaypoint={onAnchorWaypoint}
         onHandleDragChange={onHandleDragChange}
+        showLabels={showLabels}
       />
     ) : null
 
@@ -3250,6 +3263,7 @@ interface ConveyorPathProps {
   onMoveWaypoint: (index: number, x: number, z: number) => void
   onAnchorWaypoint: (index: number) => void
   onHandleDragChange: (active: boolean) => void
+  showLabels?: boolean
 }
 
 // Renders a conveyor as a DIRECTED section graph: one box per section `[i,j]` (length = |path[i]
@@ -3269,6 +3283,7 @@ function ConveyorPath({
   onMoveWaypoint,
   onAnchorWaypoint,
   onHandleDragChange,
+  showLabels = true,
 }: ConveyorPathProps) {
   const path = (eq.path ?? []) as number[][]
   const sections = effectiveSections(eq)
@@ -3402,7 +3417,7 @@ function ConveyorPath({
       })}
 
       {/* Code label near the first waypoint. */}
-      {first && (
+      {first && showLabels && (
         <Html
           position={[first[0], top + 0.4, first[1]]}
           center

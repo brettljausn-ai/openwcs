@@ -46,6 +46,8 @@ export interface HardwareTwin3DProps {
   activeLevelId?: string | null
   selectedPlacedId?: string | null
   selectedHuId?: string | null
+  /** Show equipment code + function-point (SCAN/QRY/DIV) text labels. Defaults true. */
+  showLabels?: boolean
   onSelectEquipment?: (placedId: string | null) => void
   onSelectTote?: (huId: string | null) => void
 }
@@ -57,6 +59,7 @@ export default function HardwareTwin3D({
   activeLevelId = null,
   selectedPlacedId = null,
   selectedHuId = null,
+  showLabels = true,
   onSelectEquipment,
   onSelectTote,
 }: HardwareTwin3DProps): JSX.Element {
@@ -100,6 +103,7 @@ export default function HardwareTwin3D({
         activeLevelId={activeLevelId}
         selectedPlacedId={selectedPlacedId}
         selectedHuId={selectedHuId}
+        showLabels={showLabels}
         onSelectEquipment={onSelectEquipment}
         onSelectTote={onSelectTote}
       />
@@ -127,6 +131,7 @@ interface SceneContentProps {
   activeLevelId: string | null
   selectedPlacedId: string | null
   selectedHuId: string | null
+  showLabels: boolean
   onSelectEquipment?: (placedId: string | null) => void
   onSelectTote?: (huId: string | null) => void
 }
@@ -138,6 +143,7 @@ function SceneContent({
   activeLevelId,
   selectedPlacedId,
   selectedHuId,
+  showLabels,
   onSelectEquipment,
   onSelectTote,
 }: SceneContentProps): JSX.Element {
@@ -180,6 +186,7 @@ function SceneContent({
           onMoveWaypoint={noop}
           onAnchorWaypoint={noop}
           onHandleDragChange={noop}
+          showLabels={showLabels}
         />
       ))}
 
@@ -188,7 +195,13 @@ function SceneContent({
         const eq = byId.get(fp.placedId)
         if (!eq || !visibleIds.has(eq.id)) return null
         return (
-          <TopoFunctionPointMarker key={fp.id} fp={fp} eq={eq} onSelect={() => onSelectEquipment?.(eq.id)} />
+          <TopoFunctionPointMarker
+            key={fp.id}
+            fp={fp}
+            eq={eq}
+            showLabels={showLabels}
+            onSelect={() => onSelectEquipment?.(eq.id)}
+          />
         )
       })}
 
