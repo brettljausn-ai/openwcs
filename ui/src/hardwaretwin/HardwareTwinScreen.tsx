@@ -140,6 +140,7 @@ export default function HardwareTwinScreen() {
           <StatChip label="Throughput /min" value={stats?.throughputPerMin ?? 0} kind="success" />
           <StatChip label="Recirculations" value={stats?.recirculations ?? 0} kind="warning" />
           <StatChip label="Faults" value={stats?.faults ?? 0} kind={stats && stats.faults > 0 ? 'danger' : 'muted'} />
+          <StatChip label="In storage" value={storedTotes.length} kind="muted" />
         </div>
 
         {levels.length > 1 && (
