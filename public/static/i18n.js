@@ -4739,6 +4739,8 @@
           if (result.ok && result.body && result.body.ok === true) {
             setStatus('contactSuccess', true);
             form.reset();
+            // Let the confirmation show briefly, then close the dialog.
+            setTimeout(close, 1800);
           } else {
             setStatus('contactError', false);
           }

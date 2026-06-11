@@ -35,7 +35,13 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'static'), {
   maxAge: '1h',
   setHeaders(res, filePath) {
-    if (/\.(md|xml|txt)$/.test(filePath)) {
+    if (/\.(css|js)$/.test(filePath)) {
+      // styles.css / i18n.js change on every deploy. Serve them with revalidation (ETag/
+      // Last-Modified → 304 when unchanged) so a deploy is picked up on the next load instead
+      // of being masked by the 1h-cached old copy — that staleness made the grouped nav and the
+      // contact modal look broken until a hard refresh.
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (/\.(md|xml|txt)$/.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=300');
     }
   },
