@@ -96,4 +96,24 @@ class TransactionLogServiceTest {
         assertThat(other.getSeq()).isEqualTo(1);
         assertThat(events.maxSeq("HU-3")).isEqualTo(1);
     }
+
+    @Test
+    void clearAllWipesJournalAndOutboxWithoutLoadingRows() {
+        service.append(goodsReceived("clear-stream-1", null));
+        service.append(goodsReceived("clear-stream-1", null));
+        service.append(goodsReceived("clear-stream-2", null));
+        assertThat(events.count()).isGreaterThanOrEqualTo(3);
+
+        TransactionLogService.ClearCounts counts = service.clearAll();
+
+        assertThat(counts.events()).isGreaterThanOrEqualTo(3);
+        assertThat(events.count()).isZero();
+        assertThat(outbox.count()).isZero();
+
+        // The journal accepts new events after a clear (sequences are per stream and start over
+        // only because the stream rows are gone; positions keep increasing at the DB level).
+        Event next = service.append(goodsReceived("clear-stream-1", null));
+        assertThat(next.getSeq()).isEqualTo(1);
+        assertThat(events.count()).isEqualTo(1);
+    }
 }

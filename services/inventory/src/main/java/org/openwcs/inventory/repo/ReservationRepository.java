@@ -5,6 +5,9 @@ import java.util.List;
 import java.util.UUID;
 import org.openwcs.inventory.domain.Reservation;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -39,4 +42,9 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
             @Param("warehouseId") UUID warehouseId,
             @Param("skuId") UUID skuId,
             @Param("locationId") UUID locationId);
+
+    /** Bulk-delete all rows for a warehouse in one DELETE statement (demo-mode reset). */
+    @Modifying
+    @Query("delete from Reservation e where e.warehouseId = :warehouseId")
+    int deleteBulkByWarehouseId(@Param("warehouseId") UUID warehouseId);
 }

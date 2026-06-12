@@ -27,16 +27,18 @@ import org.openwcs.masterdata.repo.ShipperRepository;
 import org.openwcs.masterdata.repo.SkuRepository;
 import org.openwcs.masterdata.repo.SystemConfigurationRepository;
 import org.openwcs.masterdata.repo.UnitOfMeasureRepository;
+import org.openwcs.masterdata.repo.WarehouseFulfillmentConfigRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Demo mode (build.md). Switching demo mode ON seeds a sample catalog directly via the repositories
  * — bypassing the host-managed guard on the SKU controller, since this is an internal operation —
- * but ONLY when the system is empty (no SKUs ⇒ no host data). Switching it OFF removes everything
- * demo mode created (all {@code DEMO-} prefixed master data) and leaves topology / GTP / other
- * configuration untouched. Every demo record is tagged with a {@code DEMO-} code/name so cleanup is
- * exact.
+ * but ONLY when the system is empty (no SKUs ⇒ no host data). Switching it OFF is a full catalog
+ * reset: the whole SKU catalog (with UoMs and barcodes) plus the demo shippers and demo HU type are
+ * removed, while warehouses, locations, storage blocks, topology and GTP / other configuration are
+ * kept. Since demo mode only enables on an empty catalog, removing every SKU restores exactly the
+ * pre-demo state.
  */
 @Service
 public class DemoSeedService {
@@ -69,10 +71,12 @@ public class DemoSeedService {
     private final ShipperRepository shippers;
     private final LocationRepository locations;
     private final SystemConfigurationRepository config;
+    private final WarehouseFulfillmentConfigRepository fulfillmentConfigs;
 
     public DemoSeedService(SkuRepository skus, UnitOfMeasureRepository uoms, BarcodeRepository barcodes,
             BarcodeTypeRepository barcodeTypes, HandlingUnitTypeRepository huTypes, ShipperRepository shippers,
-            LocationRepository locations, SystemConfigurationRepository config) {
+            LocationRepository locations, SystemConfigurationRepository config,
+            WarehouseFulfillmentConfigRepository fulfillmentConfigs) {
         this.skus = skus;
         this.uoms = uoms;
         this.barcodes = barcodes;
@@ -81,6 +85,7 @@ public class DemoSeedService {
         this.shippers = shippers;
         this.locations = locations;
         this.config = config;
+        this.fulfillmentConfigs = fulfillmentConfigs;
     }
 
     /** A fun, unique demo product name for SKU index i (1-based). */
@@ -195,58 +200,33 @@ public class DemoSeedService {
         return new DemoResult(skuN, uomN, bcN, shipperN, huN);
     }
 
-    /** Remove everything demo mode created (DEMO-prefixed master data); leave other config alone. */
+    /**
+     * Full catalog reset. Demo mode only ever enables on an empty (host-free) system, so on
+     * disable the WHOLE SKU catalog goes — every SKU with its units of measure, barcodes and
+     * profiles — not just the DEMO-prefixed rows, restoring the pre-demo empty catalog. Demo
+     * shippers and the demo HU type are removed too; warehouses, locations, storage blocks,
+     * topology and other configuration are kept.
+     */
     @Transactional
     public DemoResult disable() {
-        List<Sku> demoSkus = skus.findAll().stream()
-                .filter(s -> s.getCode() != null && s.getCode().startsWith(SKU_PREFIX))
-                .toList();
+        // Bulk statements only — an emulator run can grow the data far beyond what should ever
+        // be loaded into memory. Counts are taken first, then each table is cleared with a single
+        // DELETE. Order is FK-safe: barcode (references uom + sku) → uom → sku. Deleting all UoM
+        // rows in ONE statement also satisfies the parent_uom_id self-FK (constraints are checked
+        // per statement), which the old row-by-row delete had to order around. sku_profile and
+        // dangerous_goods cascade at the DB level (ON DELETE CASCADE on sku).
+        int bcN = (int) barcodes.count();
+        int uomN = (int) uoms.count();
+        int skuN = (int) skus.count();
+        barcodes.deleteAllInBatch();
+        uoms.deleteAllInBatch();
+        skus.deleteAllInBatch();
 
-        int bcN = 0;
-        for (Sku sku : demoSkus) {
-            for (Barcode b : barcodes.findBySkuId(sku.getId())) {
-                barcodes.delete(b);
-                bcN++;
-            }
-        }
-        barcodes.flush();
-
-        // Delete child UoMs (the PACK references its base via parent_uom_id) BEFORE the base ones,
-        // flushing between, so the self-referential FK is never violated (the cause of the
-        // "request conflicts with existing data" error on disable).
-        List<UnitOfMeasure> demoUoms = new ArrayList<>();
-        for (Sku sku : demoSkus) {
-            demoUoms.addAll(uoms.findBySkuId(sku.getId()));
-        }
-        int uomN = 0;
-        for (UnitOfMeasure u : demoUoms) {
-            if (!u.isBaseUnit()) {
-                uoms.delete(u);
-                uomN++;
-            }
-        }
-        uoms.flush();
-        for (UnitOfMeasure u : demoUoms) {
-            if (u.isBaseUnit()) {
-                uoms.delete(u);
-                uomN++;
-            }
-        }
-        uoms.flush();
-
-        for (Sku sku : demoSkus) {
-            skus.delete(sku);
-        }
-        skus.flush();
-        int skuN = demoSkus.size();
-
-        int shipperN = 0;
-        for (Shipper sh : shippers.findAll()) {
-            if (sh.getCode() != null && sh.getCode().startsWith(SHIPPER_PREFIX)) {
-                shippers.delete(sh);
-                shipperN++;
-            }
-        }
+        // The cubing config's default_shipper_id carries a FK to shipper. When an admin picked a
+        // demo carton as the default, deleting the shipper would violate that FK (the cause of the
+        // 409 "request conflicts with existing data" on disable) — unset the reference first.
+        fulfillmentConfigs.clearDefaultShipperByCodePrefix(SHIPPER_PREFIX);
+        int shipperN = shippers.deleteByCodePrefix(SHIPPER_PREFIX);
 
         int huN = 0;
         var hu = huTypes.findByName(STORAGE_HU_NAME);

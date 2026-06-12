@@ -1,9 +1,7 @@
 package org.openwcs.orders.service;
 
-import java.util.List;
 import java.util.UUID;
 import org.openwcs.orders.api.DemoClearResult;
-import org.openwcs.orders.domain.OutboundOrder;
 import org.openwcs.orders.repo.OrderOutboxRepository;
 import org.openwcs.orders.repo.OutboundOrderRepository;
 import org.springframework.stereotype.Service;
@@ -29,12 +27,13 @@ public class DemoResetService {
 
     @Transactional
     public DemoClearResult clear(UUID warehouseId) {
-        List<OutboundOrder> warehouseOrders = orders.findByWarehouseId(warehouseId);
-        orders.deleteAll(warehouseOrders);
+        // Bulk statements only — order books can be large; the DB cascades lines, line
+        // transactions and their outbox rows (ON DELETE CASCADE), so one DELETE per table.
+        int ordersRemoved = orders.deleteBulkByWarehouseId(warehouseId);
 
         long outboxRemoved = outbox.count();
-        outbox.deleteAll();
+        outbox.deleteAllInBatch();
 
-        return new DemoClearResult(warehouseOrders.size(), outboxRemoved);
+        return new DemoClearResult(ordersRemoved, outboxRemoved);
     }
 }

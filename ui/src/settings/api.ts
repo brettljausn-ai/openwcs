@@ -210,6 +210,7 @@ export interface DemoResult {
   shippers: number
   handlingUnitTypes: number
   handlingUnits?: number
+  emptyHandlingUnits?: number
   stockRows?: number
 }
 
@@ -254,30 +255,47 @@ export async function enableDemo(warehouseId: string): Promise<DemoResult> {
   const skuIds = await idsFrom('/api/master-data/skus?ownerClient=DEMO&size=500')
   const inv = (await demoPost('/api/inventory/demo/seed', { warehouseId, huTypeId, locationIds, skuIds })) as {
     handlingUnits: number
+    emptyHandlingUnits: number
     stockRows: number
   }
-  return { ...cat, handlingUnits: inv.handlingUnits, stockRows: inv.stockRows }
+  return { ...cat, handlingUnits: inv.handlingUnits, emptyHandlingUnits: inv.emptyHandlingUnits, stockRows: inv.stockRows }
 }
 
 /**
  * Disable demo mode = full operational reset for the warehouse: purge all transactional data across
- * services (stock, reservations, handling units, orders, transports, counts, GTP work), then remove
- * the master-data catalog. Infrastructure (warehouses, blocks, locations, topology, GTP/station
- * config, equipment, users) is kept. Per-service clears are best-effort so one unavailable service
- * doesn't block the reset. Admin-only.
+ * services (stock, reservations, handling units, orders, transports, counts, GTP work, and the
+ * transaction journal), then remove the whole SKU catalog from master data. Infrastructure
+ * (warehouses, blocks, locations, topology, GTP/station config, equipment, users) is kept.
+ * All clears are attempted even if some fail, and the master-data catalog removal always runs;
+ * a failed clear is then surfaced (not swallowed) so the admin knows the reset was partial and
+ * can flip the toggle again once the service is back. Admin-only.
  */
 export async function disableDemo(warehouseId: string): Promise<DemoResult> {
+  const failed: string[] = []
   if (warehouseId) {
     const wh = encodeURIComponent(warehouseId)
-    await Promise.allSettled([
-      demoPost(`/api/inventory/demo/clear?warehouseId=${wh}`),
-      demoPost(`/api/orders/demo/clear?warehouseId=${wh}`),
-      demoPost(`/api/counting/demo/clear?warehouseId=${wh}`),
-      demoPost(`/api/flow/demo/clear?warehouseId=${wh}`),
-      demoPost(`/api/gtp/demo/clear?warehouseId=${wh}`),
-    ])
+    const clears: Array<[string, string]> = [
+      ['inventory', `/api/inventory/demo/clear?warehouseId=${wh}`],
+      ['orders', `/api/orders/demo/clear?warehouseId=${wh}`],
+      ['counting', `/api/counting/demo/clear?warehouseId=${wh}`],
+      ['flow', `/api/flow/demo/clear?warehouseId=${wh}`],
+      ['gtp', `/api/gtp/demo/clear?warehouseId=${wh}`],
+      ['txlog', '/api/txlog/demo/clear'], // the journal is global, not warehouse-scoped
+    ]
+    const settled = await Promise.allSettled(clears.map(([, url]) => demoPost(url)))
+    settled.forEach((s, i) => {
+      if (s.status === 'rejected') failed.push(clears[i][0])
+    })
   }
-  return (await demoPost('/api/master-data/demo/disable')) as DemoResult
+  const result = (await demoPost('/api/master-data/demo/disable')) as DemoResult
+  if (failed.length) {
+    throw new Error(
+      `Demo data was removed from master data, but the reset is incomplete: clearing failed for ${failed.join(
+        ', ',
+      )}. Check those services and toggle demo mode off again to retry.`,
+    )
+  }
+  return result
 }
 
 // ---- cubing config (warehouse fulfillment config + shipper catalog) ----

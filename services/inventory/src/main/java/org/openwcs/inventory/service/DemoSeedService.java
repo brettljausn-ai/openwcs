@@ -22,15 +22,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Demo mode for the inventory service (build.md §4.8). Registers a handful of demo handling
- * units against existing master-data locations and a demo HU type, and fills them with sample
- * AVAILABLE stock of the seeded SKUs, so the handling-unit registry and stock overview screens
- * are populated. Reproducible (fixed RNG seed) and reversible (clear by warehouse).
+ * units against existing master-data locations and a demo HU type, fills them with sample
+ * AVAILABLE stock of the seeded SKUs, and adds 50 EMPTY handling units (no stock) so the
+ * empty-HU flows — ASRS empty-HU management, GTP order totes — have totes to work with.
+ * Reproducible (fixed RNG seed) and reversible (clear by warehouse).
  */
 @Service
 public class DemoSeedService {
 
     /** Demo HU codes share this prefix so {@link #clear(UUID)} can recognise and remove them. */
     private static final String DEMO_HU_PREFIX = "DEMO-HU-";
+    /** Empty handling units seeded alongside the stocked ones (empty-HU management, GTP order totes). */
+    private static final int EMPTY_HU_COUNT = 50;
     private static final long SEED = 20260604L;
 
     private final HandlingUnitRepository handlingUnits;
@@ -57,7 +60,7 @@ public class DemoSeedService {
         List<UUID> locationIds = req.locationIds();
         List<UUID> skuIds = req.skuIds();
         if (locationIds == null || locationIds.isEmpty() || skuIds == null || skuIds.isEmpty()) {
-            return new DemoSeedResult(0, 0);
+            return new DemoSeedResult(0, 0, 0);
         }
 
         Random rnd = new Random(SEED);
@@ -93,38 +96,42 @@ public class DemoSeedService {
                 stockCreated++;
             }
         }
-        return new DemoSeedResult(huCreated, stockCreated);
+
+        // Empty handling units (no stock rows): feed the empty-HU flows — ASRS empty-HU
+        // management, GTP order totes / put walls — so a demo system has totes to hand out.
+        // Codes continue the DEMO-HU numbering; locations round-robin like the stocked ones.
+        int emptyCreated = 0;
+        for (int e = 0; e < EMPTY_HU_COUNT; e++) {
+            HandlingUnit hu = new HandlingUnit();
+            hu.setCode(String.format("%s%03d", DEMO_HU_PREFIX, count + e));
+            hu.setWarehouseId(req.warehouseId());
+            hu.setHuTypeId(req.huTypeId());
+            hu.setLocationId(locationIds.get((count + e) % locationIds.size()));
+            hu.setStatus("ACTIVE");
+            handlingUnits.save(hu);
+            emptyCreated++;
+        }
+
+        return new DemoSeedResult(huCreated + emptyCreated, emptyCreated, stockCreated);
     }
 
     /**
      * Full operational reset for a warehouse (build.md §4.8): purge ALL transactional
      * inventory state — reservations, stock, handling units, serial units and batches —
-     * while leaving infrastructure and master-data references intact. Deleting in
-     * FK-safe order (reservations and stock reference handling units / batches, so they
-     * go first): Reservation → Stock → HandlingUnit → SerialUnit → Batch.
+     * while leaving infrastructure and master-data references intact. One bulk DELETE per
+     * table (a long emulator run can leave millions of rows; never load them into memory),
+     * in FK-safe order: {@code batch} is the only referenced table (by reservation, stock
+     * and serial_unit), so it goes last; handling units are referenced by plain uuid columns
+     * only (no FK), so any order works for them.
      */
     @Transactional
     public DemoClearResult clear(UUID warehouseId) {
-        List<Reservation> reservationRows = reservations.findByWarehouseId(warehouseId);
-        reservations.deleteAll(reservationRows);
+        int reservationRows = reservations.deleteBulkByWarehouseId(warehouseId);
+        int stockRows = stock.deleteBulkByWarehouseId(warehouseId);
+        int serials = serialUnits.deleteBulkByWarehouseId(warehouseId);
+        int hus = handlingUnits.deleteBulkByWarehouseId(warehouseId);
+        int batchRows = batches.deleteBulkByWarehouseId(warehouseId);
 
-        List<Stock> stockRows = stock.findByWarehouseId(warehouseId);
-        stock.deleteAll(stockRows);
-
-        List<HandlingUnit> hus = handlingUnits.findByWarehouseId(warehouseId);
-        handlingUnits.deleteAll(hus);
-
-        List<SerialUnit> serials = serialUnits.findByWarehouseId(warehouseId);
-        serialUnits.deleteAll(serials);
-
-        List<Batch> batchRows = batches.findByWarehouseId(warehouseId);
-        batches.deleteAll(batchRows);
-
-        return new DemoClearResult(
-                reservationRows.size(),
-                stockRows.size(),
-                hus.size(),
-                serials.size(),
-                batchRows.size());
+        return new DemoClearResult(reservationRows, stockRows, hus, serials, batchRows);
     }
 }

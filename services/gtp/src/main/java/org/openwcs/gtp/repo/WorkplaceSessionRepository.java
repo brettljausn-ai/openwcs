@@ -5,6 +5,9 @@ import java.util.Optional;
 import java.util.UUID;
 import org.openwcs.gtp.domain.WorkplaceSession;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface WorkplaceSessionRepository extends JpaRepository<WorkplaceSession, UUID> {
 
@@ -16,4 +19,9 @@ public interface WorkplaceSessionRepository extends JpaRepository<WorkplaceSessi
 
     /** All sessions for a set of workplaces (used by the demo full-reset clear). */
     List<WorkplaceSession> findByStationIdIn(List<UUID> stationIds);
+
+    /** Bulk-delete every session of the given stations (demo-mode reset). */
+    @Modifying
+    @Query("delete from WorkplaceSession s where s.stationId in :stationIds")
+    int deleteBulkByStationIds(@Param("stationIds") java.util.Collection<UUID> stationIds);
 }

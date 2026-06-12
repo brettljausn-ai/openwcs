@@ -77,6 +77,25 @@ public class TransactionLogService {
         return events.findByPositionGreaterThanOrderByPositionAsc(afterPosition, PageRequest.of(0, limit));
     }
 
+    /** What {@link #clearAll()} removed. */
+    public record ClearCounts(long events, long outboxMessages) {}
+
+    /**
+     * Wipe the journal: every event and any unpublished outbox rows (demo-mode reset, §4.8).
+     * One TRUNCATE over both tables — never loads the (potentially huge) journal into memory,
+     * and deliberately bypasses the append-only row trigger on events (ordinary DELETE is
+     * rejected by design; TRUNCATE is the explicit admin reset seam). Position values are never
+     * reused (Postgres sequences keep counting), so feed cursors held by consumers stay safe:
+     * they simply see no rows until new events arrive.
+     */
+    @Transactional
+    public ClearCounts clearAll() {
+        long eventCount = events.count();
+        long outboxCount = outbox.count();
+        events.truncateJournal();
+        return new ClearCounts(eventCount, outboxCount);
+    }
+
     private String serialize(EventEnvelope envelope) {
         try {
             return objectMapper.writeValueAsString(envelope);
