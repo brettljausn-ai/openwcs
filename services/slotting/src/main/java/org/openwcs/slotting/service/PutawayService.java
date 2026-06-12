@@ -133,6 +133,8 @@ public class PutawayService {
         factors.put("distanceToExit", distanceToExit(chosen));
         factors.put("transportPriority", "LOW");
         PutawayAssignment saved = persist(req, null, List.of(), blockId, chosen.id(), "RESERVE", null, factors);
+        log.info("put-away (empty HU): hu {} -> location {} in block {} (farthest from exit, distance {}, LOW priority)",
+                req.huId(), chosen.id(), blockId, distanceToExit(chosen));
         return new PutawayDecision(saved.getId(), chosen.id(), blockId, "RESERVE", null, factors, "LOW");
     }
 
@@ -159,6 +161,8 @@ public class PutawayService {
         }
         Map<String, Object> factors = Map.of("reason", "direct-to-pick", "headroom", bestHeadroom);
         PutawayAssignment saved = persist(req, req.skuId(), List.of(req.skuId()), null, best.getLocationId(), "DIRECT_TO_PICK", null, factors);
+        log.info("put-away (direct-to-pick): hu {} sku {} -> pick face {} (headroom {})",
+                req.huId(), req.skuId(), best.getLocationId(), bestHeadroom);
         return new PutawayDecision(saved.getId(), best.getLocationId(), null, "DIRECT_TO_PICK", null, factors, "NORMAL");
     }
 
@@ -219,6 +223,8 @@ public class PutawayService {
         PutawayScorer.Result best = ranked.get(0);
         PutawayAssignment saved = persist(req, dominantSku, new ArrayList<>(skuIds), blockId, best.locationId(),
                 "RESERVE", BigDecimal.valueOf(best.score()), best.factors());
+        log.info("put-away: hu {} sku {} -> location {} in block {} (score {}, factors {})",
+                req.huId(), dominantSku, best.locationId(), blockId, best.score(), best.factors());
         return new PutawayDecision(saved.getId(), best.locationId(), blockId, "RESERVE",
                 BigDecimal.valueOf(best.score()), best.factors(), "NORMAL");
     }
