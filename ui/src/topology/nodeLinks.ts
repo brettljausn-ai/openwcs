@@ -40,6 +40,8 @@ export interface EquipNode {
 /** A meeting point between two pieces of equipment: the closest node pair of the pair, or an
  *  explicitly drawn node-level connection. */
 export interface MeetingPoint {
+  /** The explicit connection behind this link, when state === 'explicit' (clickable/removable). */
+  connectionId?: string
   a: EquipNode
   b: EquipNode
   distM: number
@@ -213,7 +215,7 @@ export function computeMeetingPoints(
       explicitPairs.add(key)
       byPair.set(key, [])
     }
-    byPair.get(key)!.push({ a, b, distM: dist(a, b), state: 'explicit' })
+    byPair.get(key)!.push({ a, b, distM: dist(a, b), state: 'explicit', connectionId: c.id })
   }
 
   return [...byPair.values()].flat()

@@ -529,6 +529,8 @@ export default function AutomationTopology3D({
   const [stations, setStations] = useState<Station[]>([])
   const [activeLevelId, setActiveLevelId] = useState<string>('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // The 2D plan's selected waypoint: scopes the Connections panel to that node.
+  const [planSelectedWp, setPlanSelectedWp] = useState<{ eqId: string; index: number } | null>(null)
   // Which editor surface is shown in the centre column. Both share all the state above.
   const [view, setView] = useState<'3d' | '2d'>('3d')
 
@@ -1872,6 +1874,8 @@ export default function AutomationTopology3D({
               onEditFunctionPoint={setEditFpId}
               onAddDivertBranch={addDivertBranch}
               onAddAsrsPortStub={addAsrsPortStub}
+              onWaypointSelect={setPlanSelectedWp}
+              onDeleteConnection={deleteConnection}
             />
           ) : (
             <>
@@ -2042,6 +2046,7 @@ export default function AutomationTopology3D({
                 equipment={equipment}
                 lib={libById}
                 connections={connections}
+                focusIndex={planSelectedWp && planSelectedWp.eqId === selected.id ? planSelectedWp.index : null}
                 onAdd={addConnection}
                 onDelete={deleteConnection}
               />
@@ -2455,6 +2460,7 @@ function NodeLinksPanel({
   equipment,
   lib,
   connections,
+  focusIndex = null,
   onAdd,
   onDelete,
 }: {
@@ -2463,6 +2469,8 @@ function NodeLinksPanel({
   equipment: AutomationEquipment[]
   lib: Map<string, Equipment>
   connections: AutomationConnection[]
+  // When a single node (2D waypoint) is selected, show only that node's connection options.
+  focusIndex?: number | null
   onAdd: (conn: AutomationConnection) => void
   onDelete: (id: string) => void
 }) {
@@ -2473,10 +2481,19 @@ function NodeLinksPanel({
     () => equipment.map((e) => equipmentNodes(e, category(e, lib))),
     [equipment, lib],
   )
-  const rows = useMemo(
+  const allRows = useMemo(
     () => nodeLinkStatuses(eq.id, nodesByEquip, connections),
     [eq.id, nodesByEquip, connections],
   )
+  // A selected waypoint scopes the list to its node; an override shows all again. A waypoint that
+  // is not a routable node (a mid-path corner) keeps the full list.
+  const [showAll, setShowAll] = useState(false)
+  useEffect(() => {
+    setShowAll(false)
+  }, [eq.id, focusIndex])
+  const focusedRows = focusIndex == null ? allRows : allRows.filter((r) => r.node.index === focusIndex)
+  const focused = !showAll && focusIndex != null && focusedRows.length > 0
+  const rows = focused ? focusedRows : allRows
   // Clear the feedback note when the selection moves to another equipment.
   useEffect(() => {
     setNote(null)
@@ -2491,6 +2508,14 @@ function NodeLinksPanel({
           example="OUT stub end → BIN_CONVEYOR-1#0 · 0.3 m · auto"
         />
       </div>
+      {focused && (
+        <p className="atopo-muted atopo-links-scope">
+          Selected node only ·{' '}
+          <button type="button" className="atopo-linklike" onClick={() => setShowAll(true)}>
+            show all nodes
+          </button>
+        </p>
+      )}
       {rows.length === 0 ? (
         <p className="atopo-muted atopo-fps-empty">No routable nodes on this equipment.</p>
       ) : (
@@ -4337,6 +4362,9 @@ function Styles() {
         gap: .8rem; color: var(--text-dim); text-align: center; padding: 1rem;
       }
       .atopo-muted { color: var(--text-dim); font-size: .8125rem; }
+      .atopo-links-scope { margin: .25rem 0 .5rem; }
+      .atopo-linklike { background: none; border: none; padding: 0; color: var(--herbal-lime); cursor: pointer; font-size: inherit; text-decoration: underline; }
+      .atopo-linklike:hover { opacity: .85; }
       .atopo-libgroup { margin-bottom: .8rem; }
       .atopo-libgroup-head {
         font-family: var(--font-mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .1em;

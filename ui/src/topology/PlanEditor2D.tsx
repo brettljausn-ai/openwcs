@@ -60,6 +60,11 @@ interface PlanEditor2DProps {
   connectMode: boolean
   connectFrom: string | null
   onConnectPick: (id: string) => void
+  // Reports the selected waypoint (eqId + path index) so the parent can scope panels (e.g. the
+  // Connections panel shows only the selected node's link options). null = no waypoint selected.
+  onWaypointSelect?: (sel: { eqId: string; index: number } | null) => void
+  // Remove an explicit connection (a clicked link line's X) — same as deleteConnection in the parent.
+  onDeleteConnection?: (id: string) => void
   // All equipment connections (any level) — drawn as lines between the linked items' centres.
   connections: AutomationConnection[]
   onSelect: (id: string | null) => void
@@ -220,6 +225,8 @@ export default function PlanEditor2D({
   onEditFunctionPoint,
   onAddDivertBranch,
   onAddAsrsPortStub,
+  onWaypointSelect,
+  onDeleteConnection,
 }: PlanEditor2DProps) {
   // View transform: pixels-per-metre and a pan offset (in pixels) of the world origin.
   const [pxPerM, setPxPerM] = useState(40)
@@ -300,6 +307,8 @@ export default function PlanEditor2D({
   // affordance; Delete/Backspace removes it via onDeleteWaypoint. Cleared on canvas click, equipment
   // change, draw-mode toggle, or when the path shrinks under the index.
   const [selectedWp, setSelectedWp] = useState<{ eqId: string; index: number } | null>(null)
+  // A clicked explicit link line (by connection id): shows the remove (X) affordance.
+  const [selectedLink, setSelectedLink] = useState<string | null>(null)
 
   // The divert DIRECTION PICKER draft: dropping the palette's DIV chip on a conveyor stores the
   // snapped target here and opens a small anchored popover with Left / Straight / Right checkboxes
@@ -525,6 +534,29 @@ export default function PlanEditor2D({
     const path = Array.isArray(eq?.path) ? eq.path : []
     if (!eq || selectedWp.index >= path.length) setSelectedWp(null)
   }, [items, selectedWp])
+  // Scope the parent's panels to the selected node.
+  useEffect(() => {
+    onWaypointSelect?.(selectedWp)
+  }, [selectedWp, onWaypointSelect])
+  // Drop the link selection when the connection is gone (deleted here or from the panel).
+  useEffect(() => {
+    if (selectedLink && !connections.some((c) => c.id === selectedLink)) setSelectedLink(null)
+  }, [connections, selectedLink])
+  // Delete/Backspace removes the selected link (mirrors the waypoint flow).
+  useEffect(() => {
+    if (!selectedLink) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        onDeleteConnection?.(selectedLink)
+        setSelectedLink(null)
+      } else if (e.key === 'Escape') {
+        setSelectedLink(null)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedLink, onDeleteConnection])
 
   // Delete the selected waypoint (Delete/Backspace key, or the ✕ affordance next to it).
   // No side-effects inside a setState updater (React may run updaters twice) — read the plain state.
@@ -900,8 +932,9 @@ export default function PlanEditor2D({
       if (d && d.kind === 'pan') {
         const moved = Math.hypot(e.clientX - d.startX, e.clientY - d.startY)
         if (moved < 4) {
-          // A plain canvas click clears the waypoint selection (and deselects when not drawing).
+          // A plain canvas click clears the waypoint/link selection (and deselects when not drawing).
           setSelectedWp(null)
+          setSelectedLink(null)
           if (!drawing) onSelect(null)
         }
       }
@@ -1142,45 +1175,102 @@ export default function PlanEditor2D({
         {/* Node-link indicators at meeting points (the 2D twin of the 3D rings): green = the
             routing projection will link the two nodes (auto by proximity / explicit connection);
             amber + dashed = near but out of range ("not linked", with the gap in metres). */}
-        <g pointerEvents="none">
-          {meetingPoints.map((m, i) => {
-            const [ax, ay] = toPx(m.a.x, m.a.z)
-            const [bx, by] = toPx(m.b.x, m.b.z)
-            const linked = m.state !== 'near'
-            const color = linked ? '#8DC63F' : '#f4b860'
-            const mx = (ax + bx) / 2
-            const my = (ay + by) / 2
-            return (
-              <g key={`link-${i}`}>
-                {m.distM > 0.05 && (
-                  <line
-                    x1={ax}
-                    y1={ay}
-                    x2={bx}
-                    y2={by}
-                    stroke={color}
-                    strokeWidth={1.5}
-                    strokeOpacity={0.85}
-                    strokeDasharray={linked ? undefined : '5 4'}
-                  />
-                )}
-                <circle cx={mx} cy={my} r={6} fill="none" stroke={color} strokeWidth={2} strokeOpacity={0.9} />
-                <text
-                  x={mx + 9}
-                  y={my - 6}
-                  fill={color}
-                  style={{ font: '10px var(--font-mono, monospace)' }}
+        {meetingPoints.map((m, i) => {
+          const [ax, ay] = toPx(m.a.x, m.a.z)
+          const [bx, by] = toPx(m.b.x, m.b.z)
+          const linked = m.state !== 'near'
+          const isSelected = m.connectionId != null && m.connectionId === selectedLink
+          const color = isSelected ? '#d6f08a' : linked ? '#8DC63F' : '#f4b860'
+          const mx = (ax + bx) / 2
+          const my = (ay + by) / 2
+          // Explicit links are clickable: select to reveal the remove (X) affordance.
+          const clickable = m.state === 'explicit' && m.connectionId != null
+          return (
+            <g key={`link-${i}`} pointerEvents={clickable ? undefined : 'none'}>
+              {m.distM > 0.05 && (
+                <line
+                  x1={ax}
+                  y1={ay}
+                  x2={bx}
+                  y2={by}
+                  stroke={color}
+                  strokeWidth={isSelected ? 3 : 1.5}
+                  strokeOpacity={0.85}
+                  strokeDasharray={linked ? undefined : '5 4'}
+                />
+              )}
+              {clickable && m.distM > 0.05 && (
+                <line
+                  x1={ax}
+                  y1={ay}
+                  x2={bx}
+                  y2={by}
+                  stroke="transparent"
+                  strokeWidth={12}
+                  style={{ cursor: 'pointer' }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSelectedLink(m.connectionId!)
+                    setSelectedWp(null)
+                  }}
+                />
+              )}
+              <circle
+                cx={mx}
+                cy={my}
+                r={6}
+                fill="none"
+                stroke={color}
+                strokeWidth={2}
+                strokeOpacity={0.9}
+                style={clickable ? { cursor: 'pointer' } : undefined}
+                onClick={
+                  clickable
+                    ? (e) => {
+                        e.stopPropagation()
+                        setSelectedLink(m.connectionId!)
+                        setSelectedWp(null)
+                      }
+                    : undefined
+                }
+              />
+              <text
+                x={mx + 9}
+                y={my - 6}
+                fill={color}
+                pointerEvents="none"
+                style={{ font: '10px var(--font-mono, monospace)' }}
+              >
+                {linked
+                  ? m.state === 'explicit'
+                    ? `linked · explicit${isSelected ? ' · selected' : ''}`
+                    : 'linked'
+                  : `not linked · ${m.distM.toFixed(1)} m`}
+              </text>
+              {isSelected && (
+                <g
+                  style={{ cursor: 'pointer' }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDeleteConnection?.(m.connectionId!)
+                    setSelectedLink(null)
+                  }}
                 >
-                  {linked
-                    ? m.state === 'explicit'
-                      ? 'linked · explicit'
-                      : 'linked'
-                    : `not linked · ${m.distM.toFixed(1)} m`}
-                </text>
-              </g>
-            )
-          })}
-        </g>
+                  <circle cx={mx + 14} cy={my - 14} r={8} fill="#ff6b5e" />
+                  <text
+                    x={mx + 14}
+                    y={my - 10.5}
+                    textAnchor="middle"
+                    fill="#0a1f15"
+                    style={{ font: 'bold 11px var(--font-mono, monospace)' }}
+                  >
+                    ✕
+                  </text>
+                </g>
+              )}
+            </g>
+          )
+        })}
 
         {/* Snap preview: a ring on the conveyor centreline where the dragged point would land. */}
         {(() => {
@@ -1393,7 +1483,9 @@ export default function PlanEditor2D({
                 : 'Drag onto a conveyor to place · drop off any conveyor (or Esc) to cancel'
             : drawing
               ? 'Draw a section: click a start point, then an end point — the section runs in that order. Click the conveyor (point or body) to start/end on it; click empty grid for a free point. Double-click a waypoint (or Esc) to finish.'
-              : selectedWp
+              : selectedLink
+                ? 'Link selected · press Delete/Backspace (or click the ✕) to remove the explicit connection · click empty space to deselect'
+                : selectedWp
                 ? 'Waypoint selected · press Delete/Backspace (or click the ✕) to remove it · drag to move · double-click to draw from it · click empty space to deselect'
                 : 'Drag an item to move (snapped) · click a waypoint to select it (Delete removes) · double-click a waypoint to draw from it · drag empty space to pan · scroll to zoom'}
       </div>
