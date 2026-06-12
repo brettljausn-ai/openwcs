@@ -22,8 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Demo mode for the inventory service (build.md §4.8). Registers a handful of demo handling
- * units against existing master-data locations and a demo HU type, fills them with sample
- * AVAILABLE stock of the seeded SKUs, and adds 50 EMPTY handling units (no stock) so the
+ * units against existing master-data locations and a demo HU type, fills each with sample
+ * AVAILABLE stock of exactly one SKU (the demo HU type has one compartment, and a compartment
+ * holds one SKU), and adds 50 EMPTY handling units (no stock) so the
  * empty-HU flows — ASRS empty-HU management, GTP order totes — have totes to work with.
  * Reproducible (fixed RNG seed) and reversible (clear by warehouse).
  */
@@ -79,22 +80,21 @@ public class DemoSeedService {
             hu = handlingUnits.save(hu);
             huCreated++;
 
-            int rows = 1 + rnd.nextInt(2); // 1 or 2 stock rows per HU
-            for (int r = 0; r < rows; r++) {
-                UUID skuId = skuIds.get(skuCursor % skuIds.size());
-                skuCursor++;
+            // One SKU per HU: the demo storage HU type has a single compartment, and one
+            // compartment holds exactly one SKU — never mix SKUs into a 1-compartment tote.
+            UUID skuId = skuIds.get(skuCursor % skuIds.size());
+            skuCursor++;
 
-                Stock s = new Stock();
-                s.setWarehouseId(req.warehouseId());
-                s.setSkuId(skuId);
-                s.setLocationId(hu.getLocationId());
-                s.setHuId(hu.getHuId());
-                s.setStatus("AVAILABLE");
-                s.setQty(BigDecimal.valueOf(5 + rnd.nextInt(46))); // 5..50
-                s.setUomCode("EA");
-                stock.save(s);
-                stockCreated++;
-            }
+            Stock s = new Stock();
+            s.setWarehouseId(req.warehouseId());
+            s.setSkuId(skuId);
+            s.setLocationId(hu.getLocationId());
+            s.setHuId(hu.getHuId());
+            s.setStatus("AVAILABLE");
+            s.setQty(BigDecimal.valueOf(5 + rnd.nextInt(46))); // 5..50
+            s.setUomCode("EA");
+            stock.save(s);
+            stockCreated++;
         }
 
         // Empty handling units (no stock rows): feed the empty-HU flows — ASRS empty-HU
