@@ -302,6 +302,13 @@ public class RoutingProjectionService {
         // slow down or break "Generate routing" (a slow/unreachable gtp is bounded by a short timeout
         // in GtpClient, and any failure is swallowed here).
         ProjectionResult result = persist(warehouseId, stagedByCode, stagedEdges, stagedLoops, warnings);
+        log.info("routing graph projected for warehouse {}: {} nodes, {} edges, {} loops from {} "
+                        + "placed equipment ({} warnings); previous graph replaced", warehouseId,
+                result.nodes(), result.edges(), stagedLoops.size(), equipment.size(),
+                result.warnings().size());
+        for (String warning : result.warnings()) {
+            log.warn("projection warning for warehouse {}: {}", warehouseId, warning);
+        }
         try {
             syncStationNodes(model);
         } catch (Throwable t) {

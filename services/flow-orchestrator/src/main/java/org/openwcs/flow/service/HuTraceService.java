@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class HuTraceService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(HuTraceService.class);
+
     private final HuTransportTraceRepository traces;
 
     public HuTraceService(HuTransportTraceRepository traces) {
@@ -43,6 +45,8 @@ public class HuTraceService {
         t.setCorrelationId(huId);
         t.setTaskId(taskId);
         t.setInductionEntryId(inductionEntryId);
+        // Per-row trace writes stay DEBUG; the deciding transitions log themselves at INFO.
+        log.debug("trace: hu {} {} at {} ({})", huCode != null ? huCode : huId, event, point, decision);
         return traces.save(t);
     }
 

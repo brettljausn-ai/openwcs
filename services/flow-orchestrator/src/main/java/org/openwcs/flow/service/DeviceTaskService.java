@@ -59,6 +59,8 @@ public class DeviceTaskService {
         task.setActor(actor);
         task.setStatus("REQUESTED");
         tasks.saveAndFlush(task); // assign the id before dispatch
+        log.info("device task {} created: {} {} for hu {} (correlation {}, actor {})",
+                task.getId(), request.family(), request.command(), huOf(task), request.correlationId(), actor);
 
         task.setStatus("DISPATCHED");
         try {
@@ -67,17 +69,24 @@ public class DeviceTaskService {
                 // Asynchronous device: it acked the dispatch and will POST the terminal result back to
                 // /{id}/result (see completeFromCallback). Leave the task DISPATCHED until then.
                 task.setDetail(result.detail());
+                log.info("device task {} ({} for hu {}) acked by adapter, awaiting result callback",
+                        task.getId(), task.getCommand(), huOf(task));
             } else if (result != null && "COMPLETED".equals(result.status())) {
                 task.setStatus("COMPLETED");
                 task.setDetail(result.detail());
                 task.setResult(result.resultPayload());
+                log.info("device task {} ({} for hu {}) completed synchronously by adapter",
+                        task.getId(), task.getCommand(), huOf(task));
             } else {
                 task.setStatus("FAILED");
                 task.setDetail(result == null ? "adapter returned no result" : result.detail());
                 task.setResult(result == null ? null : result.resultPayload());
+                log.warn("device task {} ({} for hu {}) FAILED at dispatch: {} (adapter rejected it)",
+                        task.getId(), task.getCommand(), huOf(task), task.getDetail());
             }
         } catch (RestClientException e) {
-            log.warn("Device task {} dispatch failed: {}", task.getId(), e.toString());
+            log.warn("device task {} ({} for hu {}) dispatch failed, recording FAILED: {}",
+                    task.getId(), task.getCommand(), huOf(task), e.toString());
             task.setStatus("FAILED");
             task.setDetail("adapter call failed: " + e.getMessage());
         }
@@ -93,16 +102,27 @@ public class DeviceTaskService {
     public DeviceTaskView completeFromCallback(UUID taskId, String status, String detail,
                                                Map<String, Object> resultPayload) {
         DeviceTask task = tasks.findById(taskId)
-                .orElseThrow(() -> new DeviceTaskNotFoundException(taskId));
+                .orElseThrow(() -> {
+                    log.warn("result callback for unknown device task {} (reported status {}): rejecting with 404",
+                            taskId, status);
+                    return new DeviceTaskNotFoundException(taskId);
+                });
         if ("COMPLETED".equals(task.getStatus()) || "FAILED".equals(task.getStatus())) {
-            log.debug("Ignoring callback for already-terminal device task {} ({})", taskId, task.getStatus());
+            log.warn("ignoring duplicate result callback for device task {} ({} for hu {}): already {}",
+                    taskId, task.getCommand(), huOf(task), task.getStatus());
             return DeviceTaskView.from(task);
         }
         boolean completed = "COMPLETED".equals(status);
         task.setStatus(completed ? "COMPLETED" : "FAILED");
         task.setDetail(detail);
         task.setResult(resultPayload);
-        log.debug("Device task {} -> {} via callback", taskId, task.getStatus());
+        if (completed) {
+            log.info("device task {} ({} for hu {}) -> COMPLETED via adapter callback", taskId,
+                    task.getCommand(), huOf(task));
+        } else {
+            log.warn("device task {} ({} for hu {}) -> FAILED via adapter callback: {}", taskId,
+                    task.getCommand(), huOf(task), detail);
+        }
 
         // §4 lifecycle wiring: a completing RETRIEVE/CONVEY task advances its linked induction entry.
         // The early-return guard above means this runs exactly once per device task (idempotent).
@@ -159,5 +179,18 @@ public class DeviceTaskService {
 
     private static String blankToNull(String s) {
         return (s == null || s.isBlank()) ? null : s;
+    }
+
+    /**
+     * The human-readable HU identifier carried in the task payload for log lines: {@code huCode}
+     * when present (device-task payloads usually carry it), else {@code huId}, else "-".
+     */
+    private static String huOf(DeviceTask task) {
+        Map<String, Object> payload = task.getPayload();
+        Object code = payload == null ? null : payload.get("huCode");
+        if (code == null && payload != null) {
+            code = payload.get("huId");
+        }
+        return code == null ? "-" : code.toString();
     }
 }
