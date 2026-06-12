@@ -14,6 +14,8 @@ import org.openwcs.allocation.domain.Pick;
 import org.openwcs.allocation.domain.PickBatch;
 import org.openwcs.allocation.repo.OrderAllocationRepository;
 import org.openwcs.allocation.repo.PickBatchRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class BatchingService {
+
+    private static final Logger log = LoggerFactory.getLogger(BatchingService.class);
 
     private final OrderAllocationRepository allocations;
     private final PickBatchRepository batches;
@@ -48,9 +52,16 @@ public class BatchingService {
         List<String> notBatched = new ArrayList<>();
         for (String orderRef : orderRefs) {
             OrderAllocation allocation = allocations.findByOrderRef(orderRef).orElse(null);
-            if (allocation == null
-                    || !"FULFILLABLE".equals(allocation.getStatus())
-                    || totalPieces(allocation) > config.batchMaxPieces()) {
+            if (allocation == null) {
+                log.warn("order {} not batched: no allocation found (must be allocated before batching)", orderRef);
+                notBatched.add(orderRef);
+            } else if (!"FULFILLABLE".equals(allocation.getStatus())) {
+                log.warn("order {} not batched: allocation status {} (only FULFILLABLE orders are batchable)",
+                        orderRef, allocation.getStatus());
+                notBatched.add(orderRef);
+            } else if (totalPieces(allocation) > config.batchMaxPieces()) {
+                log.warn("order {} not batched: {} pieces exceeds batchMaxPieces {} (picks as a single order instead)",
+                        orderRef, totalPieces(allocation), config.batchMaxPieces());
                 notBatched.add(orderRef);
             } else {
                 eligible.add(allocation);
@@ -61,7 +72,14 @@ public class BatchingService {
         List<PickBatchView> created = new ArrayList<>();
         for (int i = 0; i < eligible.size(); i += perTote) {
             List<OrderAllocation> group = eligible.subList(i, Math.min(i + perTote, eligible.size()));
-            created.add(PickBatchView.from(buildBatch(warehouseId, config.pickToteShipperId(), group)));
+            PickBatch batch = buildBatch(warehouseId, config.pickToteShipperId(), group);
+            log.info("pick batch {} built for warehouse {}: {} orders in one tote [{}], {} merged pick lines"
+                            + " (closed: {})",
+                    batch.getId(), warehouseId, group.size(),
+                    group.stream().map(OrderAllocation::getOrderRef).reduce((a, b) -> a + ", " + b).orElse(""),
+                    batch.getPickLines().size(),
+                    group.size() == perTote ? "tote full at batchMaxOrders " + perTote : "no more eligible orders");
+            created.add(PickBatchView.from(batch));
         }
         return new BatchingResult(created, notBatched);
     }
