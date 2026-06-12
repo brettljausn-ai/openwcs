@@ -104,8 +104,43 @@ public class HandlingUnitController {
         existing.setLocationId(targetLocationId);
         // The stock RIDES IN the tote: its rows' location must follow the HU, or the stock overview
         // keeps pointing at the slot the tote left (observed live after retrieves and dig-out moves).
+        //
+        // Rows that would COLLIDE at the target merge first: the bucket key is (warehouse, sku,
+        // batch, location, hu, status), and after the move every row shares one location — so two
+        // rows differing only by location (e.g. a counting adjustment that landed on a stale
+        // location) must become ONE row, or this whole booking dies on stock_bucket_uniq and rolls
+        // back (observed live: DEMO-HU-004 stayed booked at its station after storing back).
         int followed = 0;
+        int merged = 0;
+        java.util.Map<String, Stock> survivors = new java.util.LinkedHashMap<>();
         for (Stock s : stock.findByHuId(id)) {
+            String bucket = s.getSkuId() + "|" + s.getBatchId() + "|" + s.getStatus();
+            Stock survivor = survivors.get(bucket);
+            if (survivor == null) {
+                survivors.put(bucket, s);
+                continue;
+            }
+            if (s.getUomCode() != null && !s.getUomCode().equals(survivor.getUomCode())) {
+                log.warn("merging stock buckets with DIFFERENT UoMs on hu {} ({}): sku {} has {} {} and"
+                                + " {} {} — quantities summed, check the upstream booking",
+                        existing.getCode(), id, s.getSkuId(), survivor.getQty(), survivor.getUomCode(),
+                        s.getQty(), s.getUomCode());
+            }
+            survivor.setQty(survivor.getQty().add(s.getQty()));
+            stock.delete(s);
+            merged++;
+            log.info("stock buckets merged on hu {} ({}): sku {} status {} now one row of qty {} —"
+                            + " the rows differed only by location and would collide when the stock"
+                            + " follows the hu to {}",
+                    existing.getCode(), id, s.getSkuId(), s.getStatus(), survivor.getQty(),
+                    targetLocationId);
+        }
+        if (merged > 0) {
+            // The duplicates' DELETEs must hit the database before the survivors' location UPDATEs,
+            // or the flush order (updates before deletes) re-creates the very collision we removed.
+            stock.flush();
+        }
+        for (Stock s : survivors.values()) {
             s.setLocationId(targetLocationId);
             stock.save(s);
             followed++;
