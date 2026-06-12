@@ -579,18 +579,19 @@ function OperatorConsole({
         <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginBottom: '1rem' }} role="group" aria-label="Operating mode">
           {modes.map((m) => {
             const on = m === activeMode
+            const accent = modeAccent(m)
             return (
               <button
                 key={m}
                 type="button"
-                className={`badge ${on ? 'badge-info' : ''}`}
+                className="badge"
                 aria-pressed={on}
                 onClick={() => chooseMode(m)}
                 style={{
                   cursor: 'pointer',
-                  border: on ? '1px solid var(--herbal-lime)' : '1px solid var(--glass-border)',
-                  background: on ? undefined : 'transparent',
-                  color: on ? undefined : 'var(--text-dim)',
+                  border: on ? `1px solid ${accent.solid}` : '1px solid var(--glass-border)',
+                  background: on ? accent.bg : 'transparent',
+                  color: on ? accent.solid : 'var(--text-dim)',
                   fontWeight: on ? 600 : 400,
                 }}
               >
@@ -671,7 +672,14 @@ function OperatorConsole({
             />
           ) : (
             <>
-              <ActiveTotePanel head={head} cycle={null} warehouseId={workplace.warehouseId} error={null} fill />
+              <ActiveTotePanel
+                head={head}
+                cycle={null}
+                warehouseId={workplace.warehouseId}
+                error={null}
+                fill
+                accentBorder={modeAccent('STOCK_COUNT').border}
+              />
               <button
                 className="btn btn-primary btn-lg"
                 style={{ alignSelf: 'flex-start' }}
@@ -987,7 +995,10 @@ function WaitingForTotes({ loaded }: { loaded: boolean }) {
 
 function ModePlaceholder({ mode }: { mode: OperatingMode }) {
   return (
-    <div className="glass" style={{ padding: '2.5rem', maxWidth: 560, textAlign: 'center' }}>
+    <div
+      className="glass"
+      style={{ padding: '2.5rem', maxWidth: 560, textAlign: 'center', borderColor: modeAccent(mode).border }}
+    >
       <div style={{ fontSize: '2rem', marginBottom: '.5rem' }}>🛠</div>
       <h2 style={{ marginTop: 0 }}>{modeLabel(mode)} mode is active.</h2>
       <p style={{ color: 'var(--text-dim)', margin: 0 }}>Guided flow coming soon.</p>
@@ -1006,6 +1017,28 @@ const MODE_LABELS: Record<string, string> = {
 }
 function modeLabel(mode: OperatingMode): string {
   return MODE_LABELS[mode] ?? mode
+}
+
+// Per-mode accent hue so the operator can tell at a glance which mode the station is in: counting
+// is orange, QC and maintenance are red, picking (and decanting) keep the default green. Reuses the
+// theme tokens (--warning, --danger, --herbal-lime) and the established glass borderColor pattern.
+interface ModeAccent {
+  solid: string // full-strength accent (active mode pill border/text)
+  bg: string // soft fill for the active mode pill
+  border: string // soft border tint for mode-specific glass panels
+}
+const GREEN_ACCENT: ModeAccent = {
+  solid: 'var(--herbal-lime)',
+  bg: 'rgba(141, 198, 63, .12)',
+  border: 'rgba(141, 198, 63, .35)',
+}
+const MODE_ACCENTS: Partial<Record<OperatingMode, ModeAccent>> = {
+  STOCK_COUNT: { solid: 'var(--warning)', bg: 'rgba(244, 184, 96, .12)', border: 'rgba(244, 184, 96, .5)' },
+  QC: { solid: 'var(--danger)', bg: 'rgba(255, 107, 94, .12)', border: 'rgba(255, 107, 94, .5)' },
+  MAINTENANCE: { solid: 'var(--danger)', bg: 'rgba(255, 107, 94, .12)', border: 'rgba(255, 107, 94, .5)' },
+}
+function modeAccent(mode: OperatingMode): ModeAccent {
+  return MODE_ACCENTS[mode] ?? GREEN_ACCENT
 }
 
 // Shown when the arrived head tote requires a different operating mode than the station is currently
@@ -1253,12 +1286,14 @@ function ActiveTotePanel({
   warehouseId,
   error,
   fill,
+  accentBorder,
 }: {
   head: StationQueueEntry | null
   cycle: WorkCycle | null
   warehouseId: string
   error: string | null
   fill?: boolean
+  accentBorder?: string // mode accent for the panel border (defaults to the green picking accent)
 }) {
   const [skus, setSkus] = useState<Sku[]>([])
   const [hus, setHus] = useState<HandlingUnit[]>([])
@@ -1301,7 +1336,7 @@ function ActiveTotePanel({
         flexWrap: 'wrap',
         alignItems: 'center',
         justifyContent: fill ? 'center' : 'flex-start',
-        borderColor: 'rgba(141, 198, 63, .35)',
+        borderColor: accentBorder ?? GREEN_ACCENT.border,
         ...(fill ? { flex: 1, minHeight: '60vh' } : {}),
       }}
     >
@@ -1459,7 +1494,7 @@ function CountPanel({
         flexWrap: 'wrap',
         alignItems: 'center',
         justifyContent: 'center',
-        borderColor: 'rgba(141, 198, 63, .35)',
+        borderColor: modeAccent('STOCK_COUNT').border,
         flex: 1,
         minHeight: '60vh',
       }}
