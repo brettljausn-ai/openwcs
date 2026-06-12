@@ -44,16 +44,19 @@ public class RoutingService {
     private final HuRouteRepository routes;
     private final InductionQueueEntryRepository inductionEntries;
     private final HuTraceService trace;
+    private final ReportingService reporting;
 
     public RoutingService(ConveyorNodeRepository nodes, ConveyorEdgeRepository edges,
                           ConveyorLoopRepository loops, HuRouteRepository routes,
-                          InductionQueueEntryRepository inductionEntries, HuTraceService trace) {
+                          InductionQueueEntryRepository inductionEntries, HuTraceService trace,
+                          ReportingService reporting) {
         this.nodes = nodes;
         this.edges = edges;
         this.loops = loops;
         this.routes = routes;
         this.inductionEntries = inductionEntries;
         this.trace = trace;
+        this.reporting = reporting;
     }
 
     @Transactional
@@ -86,12 +89,39 @@ public class RoutingService {
      */
     @Transactional
     public RoutingDecision decide(ScanRequest scan) {
-        RoutingDecision decision = evaluate(scan);
+        ScanFlags flags = new ScanFlags();
+        RoutingDecision decision = evaluate(scan, flags);
         recordScan(scan, decision);
+        count(scan, flags, decision);
         return decision;
     }
 
-    private RoutingDecision evaluate(ScanRequest scan) {
+    /**
+     * Reporting counters: every scan bumps the node's daily scan-quality row (with its read-error
+     * / unknown-plan flags), and every ROUTE answer (planned hop or divert default) bumps the
+     * edge's daily traffic row. {@link ReportingService#countDecision} runs them as atomic upserts
+     * in its own transaction, so this catch fully isolates the scan path: a counter failure is
+     * WARNed (today's reporting rows undercount) and the scan is still answered.
+     */
+    private void count(ScanRequest scan, ScanFlags flags, RoutingDecision decision) {
+        try {
+            String routedTo = "ROUTE".equals(decision.action()) ? decision.toNode() : null;
+            reporting.countDecision(scan.warehouseId(), scan.node(), isReadError(scan.barcode()),
+                    flags.unknownBarcode, routedTo);
+        } catch (Throwable t) {
+            log.warn("reporting counters failed for the scan at node {} (ignored, the scan is still "
+                    + "answered; today's scan_stat/edge_traffic rows undercount): {}",
+                    scan.node(), t.toString());
+        }
+    }
+
+    /** Per-scan facts {@code evaluate} learns that the decision alone doesn't carry (counters). */
+    private static final class ScanFlags {
+        /** The barcode read fine but no active route plan exists for it. */
+        boolean unknownBarcode;
+    }
+
+    private RoutingDecision evaluate(ScanRequest scan, ScanFlags flags) {
         ConveyorNode here = nodes.findByWarehouseIdAndCode(scan.warehouseId(), scan.node()).orElse(null);
         if (here == null) {
             log.warn("scan of barcode {} at unknown node {}: answering EXCEPTION (node not in the routing graph)",
@@ -118,6 +148,7 @@ public class RoutingService {
             // No plan steering this HU (unknown HU or no route plan assigned): follow the divert
             // default / the only exit, or stop at a decision point. Every scan asks fresh, so a
             // plan assigned mid-journey takes over at the very next scan.
+            flags.unknownBarcode = true;
             RoutingDecision unplanned = decideWithoutPath(scan, here, "no route plan");
             if (unplanned != null) {
                 return unplanned;

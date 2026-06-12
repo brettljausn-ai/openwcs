@@ -3,9 +3,11 @@ package org.openwcs.flow.service;
 import java.util.UUID;
 import org.openwcs.flow.api.DemoClearResult;
 import org.openwcs.flow.repo.DeviceTaskRepository;
+import org.openwcs.flow.repo.EdgeTrafficRepository;
 import org.openwcs.flow.repo.HuRouteRepository;
 import org.openwcs.flow.repo.HuTransportTraceRepository;
 import org.openwcs.flow.repo.InductionQueueEntryRepository;
+import org.openwcs.flow.repo.ScanStatRepository;
 import org.openwcs.flow.repo.TopologyObservationRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,16 +26,21 @@ public class FlowDemoService {
     private final TopologyObservationRepository observations;
     private final InductionQueueEntryRepository induction;
     private final HuTransportTraceRepository traces;
+    private final ScanStatRepository scanStats;
+    private final EdgeTrafficRepository edgeTraffic;
 
     public FlowDemoService(DeviceTaskRepository deviceTasks, HuRouteRepository huRoutes,
                            TopologyObservationRepository observations,
                            InductionQueueEntryRepository induction,
-                           HuTransportTraceRepository traces) {
+                           HuTransportTraceRepository traces, ScanStatRepository scanStats,
+                           EdgeTrafficRepository edgeTraffic) {
         this.deviceTasks = deviceTasks;
         this.huRoutes = huRoutes;
         this.observations = observations;
         this.induction = induction;
         this.traces = traces;
+        this.scanStats = scanStats;
+        this.edgeTraffic = edgeTraffic;
     }
 
     /**
@@ -51,6 +58,11 @@ public class FlowDemoService {
         // ADR-0007 §3c-1 induction queue + HU transport trace are transactional flow state too.
         induction.deleteBulkByWarehouseId(warehouseId);
         traces.deleteBulkByWarehouseId(warehouseId);
+
+        // Reporting counters are derived from the operational state purged above: clearing them
+        // keeps the Reporting screens consistent with the (now empty) device tasks and traces.
+        scanStats.deleteBulkByWarehouseId(warehouseId);
+        edgeTraffic.deleteBulkByWarehouseId(warehouseId);
 
         return new DemoClearResult(tasks, routes, obs);
     }

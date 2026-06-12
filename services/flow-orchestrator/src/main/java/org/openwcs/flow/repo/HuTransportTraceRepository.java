@@ -1,5 +1,6 @@
 package org.openwcs.flow.repo;
 
+import java.sql.Date;
 import java.util.List;
 import java.util.UUID;
 import org.openwcs.flow.domain.HuTransportTrace;
@@ -23,4 +24,35 @@ public interface HuTransportTraceRepository extends JpaRepository<HuTransportTra
     @Modifying
     @Query("delete from HuTransportTrace e where e.warehouseId = :warehouseId")
     int deleteBulkByWarehouseId(@Param("warehouseId") UUID warehouseId);
+
+    /**
+     * Reporting: one transit-time sample per induction entry, the milliseconds between the entry's
+     * INDUCTED trace row (HU left storage onto the conveyor) and its ARRIVED row (HU reached the
+     * induction point), attributed to the arrival's day. Last {@code days} days; entries still in
+     * transit (no ARRIVED yet) are excluded. p50/p95 are computed in Java over the day's samples.
+     */
+    @Query(value = """
+            SELECT date(a.arrived) AS "day",
+                   CAST(EXTRACT(EPOCH FROM (a.arrived - i.inducted)) * 1000 AS bigint) AS "ms"
+            FROM (SELECT induction_entry_id, min(ts) AS inducted
+                  FROM flow.hu_transport_trace
+                  WHERE warehouse_id = :warehouseId AND event = 'INDUCTED'
+                    AND induction_entry_id IS NOT NULL
+                  GROUP BY induction_entry_id) i
+            JOIN (SELECT induction_entry_id, min(ts) AS arrived
+                  FROM flow.hu_transport_trace
+                  WHERE warehouse_id = :warehouseId AND event = 'ARRIVED'
+                    AND induction_entry_id IS NOT NULL
+                  GROUP BY induction_entry_id) a USING (induction_entry_id)
+            WHERE a.arrived >= CURRENT_DATE - (:days - 1)
+            ORDER BY 1
+            """, nativeQuery = true)
+    List<TransitSampleAgg> transitSamples(@Param("warehouseId") UUID warehouseId,
+                                          @Param("days") int days);
+
+    interface TransitSampleAgg {
+        Date getDay();
+
+        long getMs();
+    }
 }
