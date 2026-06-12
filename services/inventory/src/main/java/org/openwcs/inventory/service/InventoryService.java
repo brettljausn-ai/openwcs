@@ -12,6 +12,8 @@ import org.openwcs.inventory.domain.Stock;
 import org.openwcs.inventory.repo.HandlingUnitRepository;
 import org.openwcs.inventory.repo.ReservationRepository;
 import org.openwcs.inventory.repo.StockRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class InventoryService {
+
+    private static final Logger log = LoggerFactory.getLogger(InventoryService.class);
 
     private static final String HELD = "HELD";
     private static final String RELEASED = "RELEASED";
@@ -109,6 +113,11 @@ public class InventoryService {
         BigDecimal availableToPromise = onHand.subtract(reserved);
 
         if (command.qty().compareTo(availableToPromise) > 0) {
+            log.warn("reservation rejected: {} of sku {} requested for order {}{} but only {} available to promise"
+                            + " (on hand {}, held {}); the caller gets an insufficient-stock error and no hold is placed",
+                    command.qty(), command.skuId(), command.orderRef(),
+                    command.locationId() == null ? "" : " at location " + command.locationId(),
+                    availableToPromise, onHand, reserved);
             throw new InsufficientStockException(command.skuId(), command.qty(), availableToPromise);
         }
 
@@ -123,7 +132,13 @@ public class InventoryService {
         reservation.setQty(command.qty());
         reservation.setStatus(HELD);
         reservation.setExpiresAt(command.expiresAt());
-        return reservations.save(reservation);
+        Reservation saved = reservations.save(reservation);
+        log.info("reservation held: {} of sku {} for order {} (reservation {}){}"
+                        + " because available to promise {} covered the request",
+                saved.getQty(), saved.getSkuId(), saved.getOrderRef(), saved.getId(),
+                saved.getLocationId() == null ? "" : " at location " + saved.getLocationId(),
+                availableToPromise);
+        return saved;
     }
 
     @Transactional
@@ -131,6 +146,13 @@ public class InventoryService {
         Reservation reservation = require(reservationId);
         if (HELD.equals(reservation.getStatus())) {
             reservation.setStatus(RELEASED);
+            log.info("reservation released: {} of sku {} for order {} (reservation {})"
+                            + " because the hold is no longer needed; the qty counts as available to promise again",
+                    reservation.getQty(), reservation.getSkuId(), reservation.getOrderRef(), reservationId);
+        } else {
+            log.warn("reservation release skipped: reservation {} for order {} is {} not HELD;"
+                            + " status left unchanged (release is idempotent)",
+                    reservationId, reservation.getOrderRef(), reservation.getStatus());
         }
         return reservations.save(reservation);
     }
@@ -140,6 +162,13 @@ public class InventoryService {
         Reservation reservation = require(reservationId);
         if (HELD.equals(reservation.getStatus())) {
             reservation.setStatus(CONSUMED);
+            log.info("reservation consumed: {} of sku {} for order {} (reservation {})"
+                            + " because the reserved stock was taken by the pick",
+                    reservation.getQty(), reservation.getSkuId(), reservation.getOrderRef(), reservationId);
+        } else {
+            log.warn("reservation consume skipped: reservation {} for order {} is {} not HELD;"
+                            + " status left unchanged (consume is idempotent)",
+                    reservationId, reservation.getOrderRef(), reservation.getStatus());
         }
         return reservations.save(reservation);
     }

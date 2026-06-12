@@ -9,6 +9,8 @@ import org.openwcs.slotting.domain.PickSlot;
 import org.openwcs.slotting.domain.ReplenishmentTask;
 import org.openwcs.slotting.repo.PickSlotRepository;
 import org.openwcs.slotting.repo.ReplenishmentTaskRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class ReplenishmentService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReplenishmentService.class);
 
     private static final String PLANNED = "PLANNED";
 
@@ -84,6 +88,14 @@ public class ReplenishmentService {
         }
         // Dedup against an already-open task for this face.
         if (!tasks.findByWarehouseIdAndToLocationIdAndStatus(slot.getWarehouseId(), slot.getLocationId(), PLANNED).isEmpty()) {
+            if (belowMin) {
+                log.warn("replenishment for pick face {} skipped: open task already planned"
+                                + " (sku {} on-hand {} at/below min {}); face stays low until that task completes",
+                        slot.getLocationId(), slot.getSkuId(), onHand, slot.getMinQty());
+            } else {
+                log.debug("top-off for pick face {} skipped: open replenishment task already planned",
+                        slot.getLocationId());
+            }
             return null;
         }
 
@@ -106,6 +118,11 @@ public class ReplenishmentService {
         task.setPriority(priority);
         task.setTriggerType(trigger);
         task.setStatus(PLANNED);
-        return tasks.save(task);
+        ReplenishmentTask saved = tasks.save(task);
+        log.info("replenishment task {} for pick face {}: sku {} on-hand {} (min {}, max {}),"
+                        + " refill {} to max ({}, priority {})",
+                saved.getId(), slot.getLocationId(), slot.getSkuId(), onHand,
+                slot.getMinQty(), slot.getMaxQty(), qty, trigger, priority);
+        return saved;
     }
 }

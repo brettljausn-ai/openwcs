@@ -4,6 +4,8 @@ import java.util.UUID;
 import org.openwcs.orders.api.DemoClearResult;
 import org.openwcs.orders.repo.OrderOutboxRepository;
 import org.openwcs.orders.repo.OutboundOrderRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class DemoResetService {
+
+    private static final Logger log = LoggerFactory.getLogger(DemoResetService.class);
 
     private final OutboundOrderRepository orders;
     private final OrderOutboxRepository outbox;
@@ -34,6 +38,8 @@ public class DemoResetService {
         long outboxRemoved = outbox.count();
         outbox.deleteAllInBatch();
 
+        log.info("demo clear for warehouse {}: {} orders deleted (lines and transactions cascade), {} outbox rows drained",
+                warehouseId, ordersRemoved, outboxRemoved);
         return new DemoClearResult(ordersRemoved, outboxRemoved);
     }
 }

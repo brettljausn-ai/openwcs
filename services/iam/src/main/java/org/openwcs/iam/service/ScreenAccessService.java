@@ -9,6 +9,8 @@ import java.util.TreeMap;
 import org.openwcs.iam.api.ScreenAccessView;
 import org.openwcs.iam.domain.ScreenAccess;
 import org.openwcs.iam.repo.ScreenAccessRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class ScreenAccessService {
+
+    private static final Logger log = LoggerFactory.getLogger(ScreenAccessService.class);
 
     private final ScreenAccessRepository repository;
 
@@ -70,11 +74,15 @@ public class ScreenAccessService {
         }
 
         // Anything no longer present (or emptied out) is removed.
+        Set<String> removed = new java.util.TreeSet<>();
         for (String key : existing.keySet()) {
             if (!kept.contains(key)) {
                 repository.deleteById(key);
+                removed.add(key);
             }
         }
+        log.info("screen-access overrides replaced: {} screens now overridden {}, {} reverted to UI defaults {}",
+                kept.size(), new java.util.TreeSet<>(kept), removed.size(), removed);
         return overrides();
     }
 

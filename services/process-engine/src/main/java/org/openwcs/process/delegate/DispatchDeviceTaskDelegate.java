@@ -5,6 +5,8 @@ import java.util.UUID;
 import org.flowable.engine.delegate.DelegateExecution;
 import org.flowable.engine.delegate.JavaDelegate;
 import org.openwcs.process.client.DeviceTaskClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -15,6 +17,8 @@ import org.springframework.stereotype.Component;
  */
 @Component("dispatchDeviceTask")
 public class DispatchDeviceTaskDelegate implements JavaDelegate {
+
+    private static final Logger log = LoggerFactory.getLogger(DispatchDeviceTaskDelegate.class);
 
     private final DeviceTaskClient deviceTasks;
 
@@ -33,7 +37,16 @@ public class DispatchDeviceTaskDelegate implements JavaDelegate {
         Object payload = execution.getVariable("payload");
         Map<String, Object> payloadMap = payload instanceof Map ? (Map<String, Object>) payload : Map.of();
 
-        deviceTasks.dispatch(warehouseId, family, equipmentId, command, payloadMap, correlationId);
+        try {
+            deviceTasks.dispatch(warehouseId, family, equipmentId, command, payloadMap, correlationId);
+        } catch (RuntimeException e) {
+            log.error("dispatchDeviceTask failed: {} command {} (process instance {}, correlation {}): {}",
+                    family, command, execution.getProcessInstanceId(), correlationId, e.toString());
+            throw e;
+        }
+        log.info("device task originated by process {} (instance {}): {} command {} to equipment {} (correlation {})",
+                execution.getProcessInstanceBusinessKey(), execution.getProcessInstanceId(),
+                family, command, equipmentId == null ? "any" : equipmentId, correlationId);
     }
 
     private static UUID asUuid(Object value) {

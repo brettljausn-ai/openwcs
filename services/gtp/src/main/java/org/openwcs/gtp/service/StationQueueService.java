@@ -129,6 +129,9 @@ public class StationQueueService {
         if (done == null) {
             throw new QueueRejectedException("Induction entry not found.");
         }
+        log.info("induction entry {} completed at workplace {}: tote {} (sku {}, mode {}) marked DONE{}",
+                entryId, done.workplaceId(), done.huCode(), done.skuCode(), done.mode(),
+                storeBack ? "" : "; store-back deliberately not attempted (tote leaves circulation)");
         if (storeBack) {
             storeBack(done);
         }
@@ -144,6 +147,7 @@ public class StationQueueService {
     private void storeBack(FlowInductionClient.InductionEntry e) {
         try {
             if (e.huId() == null) {
+                log.debug("store-back skipped for induction entry {}: no handling unit on the entry", e.id());
                 return;
             }
             boolean stillWorking = induction.readQueue(e.workplaceId()).stream()
@@ -151,14 +155,18 @@ public class StationQueueService {
                             && !e.id().equals(o.id())
                             && OPEN.contains(o.status()));
             if (stillWorking) {
-                return; // the tote still has open work, keep it out.
+                // the tote still has open work, keep it out.
+                log.info("store-back deferred for tote {}: another open induction entry at workplace {} "
+                        + "still needs it", e.huCode(), e.workplaceId());
+                return;
             }
             // Don't return it to its source slot: ask slotting for the currently-best storage location
             // (an empty, unreserved slot scored for this SKU).
             Optional<UUID> destination =
                     slotting.bestLocation(e.warehouseId(), e.huId(), e.skuId(), e.qty());
             if (destination.isEmpty()) {
-                log.warn("no put-away location available for tote {}; store-back skipped", e.huCode());
+                log.warn("store-back skipped for tote {} (sku {}): no put-away location available; "
+                        + "the tote stays at workplace {}", e.huCode(), e.skuCode(), e.workplaceId());
                 return;
             }
             // Dispatch to the adapter family that services the destination storage (AutoStore ->
@@ -176,8 +184,8 @@ public class StationQueueService {
             payload.put("destinationLocationId", destination.get());
             payload.put("reason", "STORE");
             UUID transportId = flow.createTransport(e.warehouseId(), family, "STORE", payload, e.huId());
-            log.info("stored tote {} to best location {}; transport {}",
-                    e.huCode(), destination.get(), transportId);
+            log.info("stored tote {} (sku {}) to best location {} via {} transport {}",
+                    e.huCode(), e.skuCode(), destination.get(), family, transportId);
         } catch (Exception ex) {
             log.warn("store-back for tote {} failed (best-effort, ignored): {}", e.huCode(), ex.toString());
         }
@@ -195,12 +203,18 @@ public class StationQueueService {
         GtpStation station = station(stationId);
         OperatingMode mode = OperatingMode.parse(cmd.mode());
         if (!"ACTIVE".equals(station.getStatus())) {
+            log.warn("enqueue rejected at station {}: station status is {} (hu {}, sku {}, mode {})",
+                    station.getCode(), station.getStatus(), cmd.huCode(), cmd.skuCode(), mode);
             throw new QueueRejectedException("Station is not active.");
         }
         if (!station.isAcceptingWork()) {
+            log.warn("enqueue rejected at station {}: station is draining and takes no new work "
+                    + "(hu {}, sku {}, mode {})", station.getCode(), cmd.huCode(), cmd.skuCode(), mode);
             throw new QueueRejectedException("Station is deactivated (draining) and takes no new work.");
         }
         if (!station.supports(mode)) {
+            log.warn("enqueue rejected at station {}: mode {} not supported (supports {}) (hu {}, sku {})",
+                    station.getCode(), mode, station.getSupportedModes(), cmd.huCode(), cmd.skuCode());
             throw new QueueRejectedException("Station does not support mode " + mode + ".");
         }
         boolean picking = mode == OperatingMode.PICKING;
@@ -209,6 +223,10 @@ public class StationQueueService {
                 .count();
         int cap = picking ? station.getMaxInTransitPicking() : station.getMaxInTransitOther();
         if (inFlight >= cap) {
+            log.warn("enqueue rejected at station {}: {} in-transit cap reached ({} of {} in flight); "
+                            + "hu {} (sku {}) is not queued",
+                    station.getCode(), picking ? "PICKING" : "OTHER", inFlight, cap,
+                    cmd.huCode(), cmd.skuCode());
             throw new QueueRejectedException("Station in-transit cap reached (" + cap + ").");
         }
 
@@ -269,6 +287,12 @@ public class StationQueueService {
     public GtpStation setAccepting(UUID stationId, boolean accepting) {
         GtpStation station = station(stationId);
         station.setAcceptingWork(accepting);
+        if (accepting) {
+            log.info("station {} reactivated: accepting new inbound work again", station.getCode());
+        } else {
+            log.info("station {} deactivated (draining): finishes work already queued, "
+                    + "accepts no new inbound units", station.getCode());
+        }
         return stations.save(station);
     }
 

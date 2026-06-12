@@ -66,16 +66,23 @@ public class AllocationService {
         OrderAllocation allocation = allocations.findByOrderRef(orderRef)
                 .orElseThrow(() -> new AllocationNotFoundException(orderRef));
         if (!"CANCELLED".equals(allocation.getStatus())) {
+            int releasedCount = 0;
             for (AllocationLine line : allocation.getLines()) {
                 List<Pick> released = new ArrayList<>();
                 for (Pick pick : line.getPicks()) {
+                    if (pick.reservationId() != null) {
+                        releasedCount++;
+                    }
                     safeRelease(pick.reservationId());
                     released.add(new Pick(pick.locationId(), pick.qty(), null, pick.uomBreakdown()));
                 }
                 line.setPicks(released);
             }
+            String previous = allocation.getStatus();
             allocation.setStatus("CANCELLED");
             allocation.setShippers(List.of());
+            log.info("allocation for order {} cancelled (was {}): {} reservations released across {} lines",
+                    orderRef, previous, releasedCount, allocation.getLines().size());
         }
         return AllocationView.from(allocation);
     }
@@ -87,8 +94,12 @@ public class AllocationService {
         var existing = allocations.findByOrderRef(request.orderRef());
         if (existing.isPresent()) {
             if ("FULFILLABLE".equals(existing.get().getStatus())) {
+                log.debug("order {} already has a FULFILLABLE plan; returning it unchanged (idempotent retry)",
+                        request.orderRef());
                 return AllocationView.from(existing.get());
             }
+            log.debug("order {} re-allocating: discarding prior {} plan", request.orderRef(),
+                    existing.get().getStatus());
             allocations.delete(existing.get());
             allocations.flush();
         }
@@ -126,6 +137,8 @@ public class AllocationService {
                         picks.add(new Pick(location, take, reservationId,
                                 PickBreakdown.split(take.longValue(), config.allowedPickTypes(), caseSize)));
                         remaining = remaining.subtract(take);
+                        log.debug("order {} line {} sku {}: reserved {} at pick location {} (atp was {})",
+                                request.orderRef(), line.lineNo(), line.skuId(), take, location, atp);
                     }
                 }
 
@@ -138,6 +151,10 @@ public class AllocationService {
                 if (remaining.signum() > 0) {
                     allocationLine.setStatus("SHORT");
                     fulfillable = false;
+                    log.warn("order {} line {} short: sku {} requested {}, allocated {} from {} pick locations"
+                                    + " ({} unfulfillable, no remaining available stock)",
+                            request.orderRef(), line.lineNo(), line.skuId(), line.qty(),
+                            allocationLine.getAllocatedQty(), picks.size(), remaining);
                 } else {
                     allocationLine.setStatus("ALLOCATED");
                 }
@@ -160,7 +177,8 @@ public class AllocationService {
                 allocation.setStatus("CUBING_FAILED");
                 allocation.setStatusDetail(e.getMessage());
                 allocation.setShippers(List.of());
-                log.warn("Order {} cubing failed: {}", request.orderRef(), e.getMessage());
+                log.warn("order {} cubing failed, parked CUBING_FAILED with all reservations released: {}",
+                        request.orderRef(), e.getMessage());
                 return AllocationView.from(allocations.save(allocation));
             } catch (RuntimeException e) {
                 // Any other cubing failure (e.g. bad host instruction) must not leak reservations.
@@ -169,6 +187,10 @@ public class AllocationService {
             }
             allocation.setStatus("FULFILLABLE");
             allocation.setShippers(applyDispatchLabels(shippers, request));
+            log.info("order {} allocated FULFILLABLE: {} lines fully reserved ({} picks), cubed into"
+                            + " {} shippers [{}] ({} mode, largest-first fit)",
+                    request.orderRef(), allocation.getLines().size(), reservationsMade.size(),
+                    shippers.size(), shipperCodes(shippers), cubingMode);
         } else {
             // Hold nothing for a non-fulfillable order; keep per-line diagnostics but drop the
             // (now released) reservation ids from the picks.
@@ -176,6 +198,9 @@ public class AllocationService {
             allocation.getLines().forEach(l -> l.setPicks(dropReservations(l.getPicks())));
             allocation.setStatus("NOT_FULFILLABLE");
             allocation.setShippers(List.of());
+            long shortLines = allocation.getLines().stream().filter(l -> "SHORT".equals(l.getStatus())).count();
+            log.warn("order {} NOT_FULFILLABLE: {} of {} lines short; all {} reservations released, nothing held",
+                    request.orderRef(), shortLines, allocation.getLines().size(), reservationsMade.size());
         }
 
         return AllocationView.from(allocations.save(allocation));
@@ -288,6 +313,14 @@ public class AllocationService {
                     contents, BigDecimal.valueOf(weight), BigDecimal.valueOf(volume), null));
         }
         return assignments;
+    }
+
+    /** Human-readable carton summary for logs: "seq:code" per cubed shipper. */
+    private static String shipperCodes(List<ShipperAssignment> shippers) {
+        return shippers.stream()
+                .map(s -> s.seqNo() + ":" + s.shipperCode())
+                .reduce((a, b) -> a + ", " + b)
+                .orElse("");
     }
 
     private static List<ShipperDef> activeShippers(List<ShipperDef> shippers) {

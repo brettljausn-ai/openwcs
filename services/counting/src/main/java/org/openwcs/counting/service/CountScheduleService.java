@@ -82,8 +82,12 @@ public class CountScheduleService {
 
             schedule.setLastRunAt(now);
             schedule.setNextDueAt(now.plus(Duration.ofDays(schedule.getCadenceDays())));
-            log.info("schedule {} ({}) emitted count task; next due {}",
-                    schedule.getId(), schedule.getName(), schedule.getNextDueAt());
+            CountTask emitted = created.get(created.size() - 1);
+            log.info("schedule {} ({}) came due and emitted count task {} (scope {} {}, type {}); "
+                            + "next due {} (cadence {} day(s))",
+                    schedule.getId(), schedule.getName(), emitted.getId(), emitted.getScopeType(),
+                    emitted.getScopeRef(), emitted.getCountType(), schedule.getNextDueAt(),
+                    schedule.getCadenceDays());
         }
         return created;
     }

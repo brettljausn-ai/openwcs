@@ -46,7 +46,8 @@ public class HttpEmulatorModeClient implements EmulatorModeClient {
                         .body(EmulatorStatus.class);
                 lastValue = status != null && status.enabled();
             } catch (RuntimeException e) {
-                log.debug("could not read emulator flag; keeping last known ({}): {}", lastValue, e.toString());
+                log.warn("could not read the hardware-emulator flag from master-data; dispatch keeps "
+                        + "the last known value ({}): {}", lastValue ? "on" : "off", e.toString());
             }
             lastCheckedAt = System.currentTimeMillis();
             return lastValue;

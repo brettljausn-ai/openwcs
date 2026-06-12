@@ -92,33 +92,33 @@ public class StockProjectionService {
             case GOODS_RECEIVED -> {
                 BucketQty p = payload(env, BucketQty.class);
                 addToBucket(p.warehouseId(), p.skuId(), p.batchId(), p.locationId(), p.huId(),
-                        p.status(), required(p.qty(), "qty"), p.uomCode(), eventId);
+                        p.status(), required(p.qty(), "qty"), p.uomCode(), eventId, type);
             }
             case PICKED -> {
                 BucketQty p = payload(env, BucketQty.class);
                 addToBucket(p.warehouseId(), p.skuId(), p.batchId(), p.locationId(), p.huId(),
-                        p.status(), required(p.qty(), "qty").negate(), p.uomCode(), eventId);
+                        p.status(), required(p.qty(), "qty").negate(), p.uomCode(), eventId, type);
             }
             case PUTAWAY_COMPLETED, STOCK_MOVED -> {
                 Move p = payload(env, Move.class);
                 BigDecimal qty = required(p.qty(), "qty");
                 addToBucket(p.warehouseId(), p.skuId(), p.batchId(), p.fromLocationId(), p.fromHuId(),
-                        p.status(), qty.negate(), p.uomCode(), eventId);
+                        p.status(), qty.negate(), p.uomCode(), eventId, type);
                 addToBucket(p.warehouseId(), p.skuId(), p.batchId(), p.toLocationId(), p.toHuId(),
-                        p.status(), qty, p.uomCode(), eventId);
+                        p.status(), qty, p.uomCode(), eventId, type);
             }
             case STOCK_ADJUSTED -> {
                 Adjust p = payload(env, Adjust.class);
                 addToBucket(p.warehouseId(), p.skuId(), p.batchId(), p.locationId(), p.huId(),
-                        p.status(), required(p.qtyDelta(), "qtyDelta"), p.uomCode(), eventId);
+                        p.status(), required(p.qtyDelta(), "qtyDelta"), p.uomCode(), eventId, type);
             }
             case STOCK_STATUS_CHANGED -> {
                 StatusChange p = payload(env, StatusChange.class);
                 BigDecimal qty = required(p.qty(), "qty");
                 addToBucket(p.warehouseId(), p.skuId(), p.batchId(), p.locationId(), p.huId(),
-                        p.fromStatus(), qty.negate(), p.uomCode(), eventId);
+                        p.fromStatus(), qty.negate(), p.uomCode(), eventId, type);
                 addToBucket(p.warehouseId(), p.skuId(), p.batchId(), p.locationId(), p.huId(),
-                        p.toStatus(), qty, p.uomCode(), eventId);
+                        p.toStatus(), qty, p.uomCode(), eventId, type);
             }
             default -> throw new IllegalStateException("Unhandled stock event type: " + type);
         }
@@ -129,13 +129,18 @@ public class StockProjectionService {
      * first increment. Throws rather than corrupt state if a decrement would underflow.
      */
     private void addToBucket(UUID warehouseId, UUID skuId, UUID batchId, UUID locationId, UUID huId,
-                             String status, BigDecimal delta, String uomCode, UUID eventId) {
+                             String status, BigDecimal delta, String uomCode, UUID eventId, String eventType) {
         String resolvedStatus = statusOrDefault(status);
         Stock row = stock.findBucket(warehouseId, skuId, batchId, locationId, huId, resolvedStatus)
                 .orElse(null);
 
+        boolean created = false;
         if (row == null) {
             if (delta.signum() < 0) {
+                log.info("stock integrity error: {} event {} decrements a non-existent bucket"
+                                + " (sku {} location {} hu {} status {}); throwing so the projection"
+                                + " halts instead of corrupting the read model",
+                        eventType, eventId, skuId, locationId, huId, resolvedStatus);
                 throw new IllegalStateException(
                         "Cannot decrement a non-existent stock bucket (sku=%s location=%s status=%s)"
                                 .formatted(skuId, locationId, resolvedStatus));
@@ -149,10 +154,16 @@ public class StockProjectionService {
             row.setStatus(resolvedStatus);
             row.setQty(BigDecimal.ZERO);
             row.setUomCode(uomOrDefault(uomCode));
+            created = true;
         }
 
-        BigDecimal newQty = row.getQty().add(delta);
+        BigDecimal previousQty = row.getQty();
+        BigDecimal newQty = previousQty.add(delta);
         if (newQty.signum() < 0) {
+            log.info("stock integrity error: {} event {} would drive bucket"
+                            + " (sku {} location {} hu {} status {}) negative (qty {} delta {});"
+                            + " throwing so the projection halts instead of corrupting the read model",
+                    eventType, eventId, skuId, locationId, huId, resolvedStatus, previousQty, delta);
             throw new IllegalStateException(
                     "Insufficient stock: bucket (sku=%s location=%s status=%s) would go negative"
                             .formatted(skuId, locationId, resolvedStatus));
@@ -160,6 +171,21 @@ public class StockProjectionService {
         row.setQty(newQty);
         row.setLastEventId(eventId);
         stock.save(row);
+
+        if (created) {
+            log.info("stock bucket created: sku {} at location {} in hu {} status {} qty {} {}"
+                            + " because first increment from event {} ({})",
+                    skuId, locationId, huId, resolvedStatus, newQty, row.getUomCode(), eventType, eventId);
+        } else if (newQty.signum() == 0) {
+            log.info("stock bucket exhausted: sku {} at location {} in hu {} status {} reached qty 0"
+                            + " after delta {} {} from event {} ({})",
+                    skuId, locationId, huId, resolvedStatus, delta, row.getUomCode(), eventType, eventId);
+        } else {
+            log.debug("stock bucket updated: sku {} at location {} in hu {} status {} qty {} -> {} {}"
+                            + " from event {} ({})",
+                    skuId, locationId, huId, resolvedStatus, previousQty, newQty, row.getUomCode(),
+                    eventType, eventId);
+        }
     }
 
     private void advanceOffset(EventEnvelope env) {

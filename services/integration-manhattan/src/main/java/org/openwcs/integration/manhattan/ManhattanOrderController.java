@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.UUID;
 import org.openwcs.integration.manhattan.client.HostApiClient;
 import org.openwcs.integration.manhattan.client.MasterDataClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,6 +25,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/integration/manhattan")
 public class ManhattanOrderController {
+
+    private static final Logger log = LoggerFactory.getLogger(ManhattanOrderController.class);
 
     private final HostApiClient hostApi;
     private final MasterDataClient masterData;
@@ -54,6 +58,9 @@ public class ManhattanOrderController {
         }
         host.put("lines", lines(mh.orderLines()));
         hostApi.createOrder(host);
+        log.info("Manhattan order {} translated to canonical host order (same ref): {} lines resolved to SKUs, customer {} (service level {}, route {})",
+                mh.orderId(), mh.orderLines() == null ? 0 : mh.orderLines().size(),
+                mh.customer(), mh.serviceLevel(), mh.route());
     }
 
     @PostMapping("/asns")
@@ -64,6 +71,8 @@ public class ManhattanOrderController {
         host.put("supplierRef", mh.vendor());
         host.put("lines", lines(mh.asnLines()));
         hostApi.createAsn(host);
+        log.info("Manhattan ASN {} translated to canonical host ASN (same ref): {} lines resolved to SKUs, vendor {}",
+                mh.asnId(), mh.asnLines() == null ? 0 : mh.asnLines().size(), mh.vendor());
     }
 
     private List<Map<String, Object>> lines(List<ManhattanLine> lines) {
@@ -72,6 +81,8 @@ public class ManhattanOrderController {
             for (ManhattanLine line : lines) {
                 UUID skuId = masterData.skuIdByCode(line.itemId());
                 if (skuId == null) {
+                    log.warn("Manhattan message rejected: item {} has no SKU in master-data, returning 422 to Manhattan; sync the SKU first, then resend",
+                            line.itemId());
                     throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                             "Unknown item (no SKU with code " + line.itemId() + ")");
                 }

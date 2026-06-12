@@ -61,8 +61,11 @@ public class OutboxRelay {
             } catch (Exception e) {
                 // Stop at the first failure to preserve ordering; retry on the next tick.
                 message.recordAttempt();
-                log.warn("Outbox relay halted at message {} (attempt {}): {}",
-                        message.getId(), message.getAttempts(), e.toString());
+                log.warn("outbox relay halted at message {} (event {}, topic {}, attempt {}): {};"
+                                + " {} message(s) of this batch stay queued to preserve ordering"
+                                + " and will be retried on the next tick",
+                        message.getId(), message.getEventId(), message.getTopic(),
+                        message.getAttempts(), e.toString(), batch.size() - published);
                 break;
             }
         }

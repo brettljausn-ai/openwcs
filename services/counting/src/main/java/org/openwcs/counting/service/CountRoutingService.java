@@ -95,7 +95,15 @@ public class CountRoutingService {
         task.setRoutingAttempts(task.getRoutingAttempts() + 1);
         task.setRoutingAttemptAt(Instant.now());
         tasks.save(task);
-        log.info("count task {} routing -> {} ({})", task.getId(), status, reason);
+        if (FAILED.equals(status)) {
+            log.warn("count task {} (scope {} {}) routing FAILED on attempt {}: {}; the task stays "
+                            + "OPEN and the retry sweep will re-attempt",
+                    task.getId(), task.getScopeType(), task.getScopeRef(),
+                    task.getRoutingAttempts(), reason);
+        } else {
+            log.info("count task {} (scope {} {}) routing -> {} ({})",
+                    task.getId(), task.getScopeType(), task.getScopeRef(), status, reason);
+        }
     }
 
     private Outcome computeOutcome(CountTask task) {
@@ -140,8 +148,8 @@ public class CountRoutingService {
                     asrsRouted++;
                 }
             } catch (Throwable e) {
-                log.warn("could not route count cell (location {}, sku {}) to station {}: {}",
-                        line.getLocationId(), line.getSkuId(), stationId, e.toString());
+                log.warn("could not route count cell of task {} (location {}, sku {}) to station {}: {}",
+                        task.getId(), line.getLocationId(), line.getSkuId(), stationId, e.toString());
                 if (firstError == null) {
                     firstError = e.getMessage() == null ? e.toString() : e.getMessage();
                 }
@@ -177,6 +185,8 @@ public class CountRoutingService {
         Optional<InventoryClient.HandlingUnit> hu =
                 inventory.findHuAt(warehouseId, line.getSkuId(), line.getLocationId());
         if (hu.isEmpty()) {
+            log.debug("count cell (location {}, sku {}) has no handling unit; nothing to route",
+                    line.getLocationId(), line.getSkuId());
             return false; // no tote to move.
         }
         InventoryClient.HandlingUnit tote = hu.get();
@@ -191,8 +201,9 @@ public class CountRoutingService {
                 line.getSkuId(), skuCode, qty, line.getLocationId(), MODE, family,
                 line.getCountTaskId(), line.getId()));
 
-        log.info("requested presentation of count tote {} (sku {}) at GTP station {} for stock "
-                + "count; induction entry {}", tote.huCode(), skuCode, stationId, entryId);
+        log.info("requested presentation of count tote {} (sku {}, qty {}) at GTP station {} for "
+                        + "count task {} line {}; flow induction entry {}",
+                tote.huCode(), skuCode, qty, stationId, line.getCountTaskId(), line.getId(), entryId);
         return true;
     }
 

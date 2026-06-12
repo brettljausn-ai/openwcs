@@ -140,9 +140,15 @@ public class VelocityClassifier {
             List<StorageProfile> matches = profiles.findByWarehouseIdAndSkuId(warehouseId, row.getSkuId());
             for (StorageProfile profile : matches) {
                 if (profile.isManualOverride()) {
+                    log.debug("sku {} keeps manual velocity class {} in block {} (manual override; learned {})",
+                            row.getSkuId(), profile.getVelocityClass(), profile.getBlockId(),
+                            row.getVelocityClass());
                     continue;
                 }
                 if (!row.getVelocityClass().equals(profile.getVelocityClass())) {
+                    log.info("sku {} velocity reclassified {} -> {} in block {} (decayed EWMA score {})",
+                            row.getSkuId(), profile.getVelocityClass(), row.getVelocityClass(),
+                            profile.getBlockId(), row.getScore());
                     profile.setVelocityClass(row.getVelocityClass());
                     profiles.save(profile);
                 }

@@ -16,6 +16,8 @@ import org.openwcs.masterdata.repo.BarcodeRepository;
 import org.openwcs.masterdata.repo.BarcodeTypeRepository;
 import org.openwcs.masterdata.repo.SkuRepository;
 import org.openwcs.masterdata.repo.UnitOfMeasureRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class SkuSyncService {
+
+    private static final Logger log = LoggerFactory.getLogger(SkuSyncService.class);
 
     private final SkuRepository skus;
     private final UnitOfMeasureRepository uoms;
@@ -68,8 +72,13 @@ public class SkuSyncService {
             } else {
                 updated++;
             }
+            log.debug("sku synced: {} {} with {} uoms and {} barcodes reconciled from the host payload",
+                    r.code(), r.action(), r.uoms(), r.barcodes());
             results.add(r);
         }
+        log.info("host sku sync applied: {} skus received, {} created, {} updated"
+                        + " because the host is authoritative for the catalog",
+                requests.size(), created, updated);
         return new SyncReport(requests.size(), created, updated, results);
     }
 

@@ -101,6 +101,9 @@ public class InductionQueueService {
         entry.setCountLineId(req.countLineId());
         entry.setStatus("REQUESTED");
         entries.saveAndFlush(entry);
+        log.info("induction entry {} REQUESTED: hu {} (sku {}, qty {}) to workplace {} (mode {}, actor {})",
+                entry.getId(), entry.getHuCode(), entry.getSkuCode(), entry.getQty(), entry.getWorkplaceId(),
+                entry.getMode(), actor);
 
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "request", "REQUESTED",
                 null, null, null, entry.getWorkplaceId(), null, entry.getId());
@@ -128,8 +131,14 @@ public class InductionQueueService {
                 continue; // already retrieving (or mid-dig-out) — occupies a cap slot, no new dispatch
             }
             int cap = isPicking(entry.getMode()) ? caps.picking() : caps.other();
-            if (capUsage(workplaceId, entry.getMode()) >= cap) {
-                continue; // cap full for this mode class: leave it REQUESTED (uncapped backlog)
+            long usage = capUsage(workplaceId, entry.getMode());
+            if (usage >= cap) {
+                // Cap full for this mode class: leave it REQUESTED (uncapped backlog).
+                log.warn("retrieve deferred for hu {} (induction entry {}): in-transit cap {} reached "
+                                + "at workplace {} ({} in flight, mode class {}); entry stays REQUESTED "
+                                + "until a slot frees", entry.getHuCode(), entry.getId(), cap,
+                        workplaceId, usage, isPicking(entry.getMode()) ? "picking" : "other");
+                continue;
             }
             dispatchRetrieve(entry, family == null ? defaultFamily(entry) : family, actor);
         }
@@ -182,8 +191,9 @@ public class InductionQueueService {
                 entry.getWarehouseId(), family, null, command, payload, entry.getHuId());
         UUID taskId = deviceTasks.request(req, actor).id();
         entry.setRetrieveTaskId(taskId);
-        log.debug("Induction entry {} dispatched RETRIEVE task {} ({}/{})",
-                entry.getId(), taskId, family, command);
+        log.info("induction entry {}: dispatched {} task {} for hu {} from location {} ({} family, "
+                        + "cap slot taken at workplace {})", entry.getId(), command, taskId,
+                entry.getHuCode(), entry.getLocationId(), family, entry.getWorkplaceId());
     }
 
     // ---- ADR-0009 dig-out: RELOCATE chain before a blocked retrieve ----------------------------
@@ -201,14 +211,16 @@ public class InductionQueueService {
         try {
             plan = slotting.plan(entry.getWarehouseId(), entry.getLocationId());
         } catch (RuntimeException e) {
-            log.warn("Relocation-plan lookup failed for induction entry {} (location {}); "
-                    + "dispatching the RETRIEVE degraded: {}", entry.getId(), entry.getLocationId(), e.toString());
+            log.warn("relocation-plan lookup failed for hu {} (induction entry {}, location {}); "
+                    + "dispatching the RETRIEVE degraded: {}", entry.getHuCode(), entry.getId(),
+                    entry.getLocationId(), e.toString());
             return false;
         }
         if (plan == null || plan.steps() == null || plan.steps().isEmpty()) {
             if (plan != null && plan.blocked()) {
-                log.warn("Channel of induction entry {} (location {}) is blocked but unplannable; "
-                        + "dispatching the RETRIEVE degraded", entry.getId(), entry.getLocationId());
+                log.warn("channel of hu {} (induction entry {}, location {}) is blocked but unplannable; "
+                        + "dispatching the RETRIEVE degraded", entry.getHuCode(), entry.getId(),
+                        entry.getLocationId());
             }
             return false; // channel clear (or degraded): retrieve directly
         }
@@ -225,8 +237,11 @@ public class InductionQueueService {
                 entry.getWarehouseId(), family, null, command, payload, entry.getHuId());
         UUID taskId = deviceTasks.request(req, actor).id();
         entry.setRelocateTaskId(taskId);
-        log.debug("Induction entry {} dispatched RELOCATE task {} for blocker {} ({} -> {})",
-                entry.getId(), taskId, step.huId(), step.fromLocationId(), step.toLocationId());
+        log.info("dig-out for hu {} (induction entry {}): dispatched {} task {} moving blocker {} "
+                        + "from location {} to {} ({} step(s) in the plan); RETRIEVE waits until the "
+                        + "channel is clear", entry.getHuCode(), entry.getId(), command, taskId,
+                step.huCode() != null ? step.huCode() : step.huId(), step.fromLocationId(),
+                step.toLocationId(), plan.steps().size());
         return true;
     }
 
@@ -246,8 +261,9 @@ public class InductionQueueService {
             return; // RELOCATE not tied to an induction dig-out
         }
         if (!succeeded) {
-            log.debug("RELOCATE {} FAILED for induction entry {}; leaving REQUESTED", relocateTaskId,
-                    entry.getId());
+            log.warn("RELOCATE task {} FAILED for hu {} (induction entry {}): dig-out chain stopped, "
+                            + "entry left REQUESTED so the next meter pass retries", relocateTaskId,
+                    entry.getHuCode(), entry.getId());
             entry.setRelocateTaskId(null);
             return;
         }
@@ -257,17 +273,23 @@ public class InductionQueueService {
         UUID to = uuidOf(payload, "toLocationId");
 
         // The blocker left its channel: book its registry row into the new slot (best-effort,
-        // isolated — a booking failure must never break the dig-out chain).
+        // isolated: a booking failure must never break the dig-out chain).
         if (blockerHuId != null && to != null) {
             try {
                 inventory.bookLocation(blockerHuId, to);
             } catch (RuntimeException e) {
-                log.warn("Blocker HU {} location booking ({}) failed for relocate task {}: {}",
-                        blockerHuId, to, relocateTaskId, e.toString());
+                log.warn("location booking to {} failed for blocker hu {} ({}) after relocate task {}; "
+                                + "registry stale but dig-out continues: {}", to,
+                        blockerHuCode != null ? blockerHuCode : blockerHuId, blockerHuId, relocateTaskId,
+                        e.toString());
             }
         }
 
         String target = entry.getHuCode() != null ? entry.getHuCode() : String.valueOf(entry.getHuId());
+        log.info("dig-out for hu {} (induction entry {}): blocker hu {} relocated from location {} to {} "
+                        + "(task {}); re-running the dispatch decision (next blocker or the RETRIEVE)",
+                target, entry.getId(), blockerHuCode != null ? blockerHuCode : blockerHuId, from, to,
+                relocateTaskId);
         trace.record(entry.getWarehouseId(), blockerHuId, blockerHuCode,
                 to == null ? "slot" : "slot:" + to, "RELOCATED",
                 "relocated out of channel for " + target,
@@ -294,7 +316,9 @@ public class InductionQueueService {
         }
         if (!succeeded) {
             // Leave REQUESTED so a retry can re-meter; drop the failed task link so it re-dispatches.
-            log.debug("RETRIEVE {} FAILED for induction entry {}; leaving REQUESTED", retrieveTaskId, entry.getId());
+            log.warn("RETRIEVE task {} FAILED for hu {} (induction entry {}): entry left REQUESTED, "
+                            + "task link cleared so the next meter pass re-dispatches", retrieveTaskId,
+                    entry.getHuCode(), entry.getId());
             entry.setRetrieveTaskId(null);
             return;
         }
@@ -303,6 +327,9 @@ public class InductionQueueService {
         }
         entry.setStatus("IN_TRANSIT");
         entry.setInTransitAt(java.time.Instant.now());
+        log.info("induction entry {}: hu {} REQUESTED -> IN_TRANSIT (RETRIEVE task {} completed); "
+                        + "dispatching the CONVEY leg to workplace {}", entry.getId(), entry.getHuCode(),
+                retrieveTaskId, entry.getWorkplaceId());
 
         String slot = entry.getLocationId() == null ? "slot" : "slot:" + entry.getLocationId();
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), slot, "RETRIEVED",
@@ -331,7 +358,11 @@ public class InductionQueueService {
                 entry.getWarehouseId(), "CONVEYOR", null, "CONVEY", payload, entry.getHuId());
         UUID taskId = deviceTasks.request(req, actor).id();
         entry.setConveyTaskId(taskId);
-        log.debug("Induction entry {} dispatched CONVEY task {}", entry.getId(), taskId);
+        log.info("induction entry {}: dispatched CONVEY task {} for hu {} to workplace {} ({})",
+                entry.getId(), taskId, entry.getHuCode(), entry.getWorkplaceId(),
+                payload.containsKey("entryNode")
+                        ? "live walk " + payload.get("entryNode") + " -> " + payload.get("destinationNode")
+                        : "atomic, no route plan");
     }
 
     /**
@@ -344,7 +375,7 @@ public class InductionQueueService {
     private void assignLiveRoute(InductionQueueEntry entry, Map<String, Object> payload,
                                  List<String> entryCandidates, List<String> destinationCandidates) {
         if (entryCandidates.isEmpty() || destinationCandidates.isEmpty() || entry.getHuCode() == null) {
-            log.debug("Induction entry {} dispatching CONVEY without a route plan "
+            log.debug("induction entry {} dispatching CONVEY without a route plan "
                             + "(entryCandidates={}, destinationCandidates={}, huCode={})", entry.getId(),
                     entryCandidates.size(), destinationCandidates.size(), entry.getHuCode());
             return;
@@ -364,13 +395,16 @@ public class InductionQueueService {
                         List.of(dest)));
                 payload.put("entryNode", from);
                 payload.put("destinationNode", dest);
-                log.debug("Induction entry {} assigned route plan {} -> {} for {}", entry.getId(),
-                        from, dest, entry.getHuCode());
+                log.info("induction entry {}: live route plan for hu {} assigned {} -> {} "
+                                + "(first reachable pair of {} entry x {} destination candidates)",
+                        entry.getId(), entry.getHuCode(), from, dest, entryCandidates.size(),
+                        destinationCandidates.size());
                 return;
             }
         }
-        log.warn("Induction entry {}: no reachable entry->destination pair on the projected graph "
-                + "({} entry x {} destination candidates) — dispatching atomically", entry.getId(),
+        log.warn("induction entry {}: no reachable entry->destination pair on the projected graph "
+                + "for hu {} ({} entry x {} destination candidates); dispatching atomically without "
+                + "a route plan", entry.getId(), entry.getHuCode(),
                 entryCandidates.size(), destinationCandidates.size());
     }
 
@@ -388,7 +422,9 @@ public class InductionQueueService {
             return;
         }
         if (!succeeded) {
-            log.debug("CONVEY {} FAILED for induction entry {}; leaving IN_TRANSIT", conveyTaskId, entry.getId());
+            log.warn("CONVEY task {} FAILED for hu {} (induction entry {}): entry stays IN_TRANSIT, "
+                            + "tote did not arrive at workplace {}", conveyTaskId, entry.getHuCode(),
+                    entry.getId(), entry.getWorkplaceId());
             return;
         }
         if (!"IN_TRANSIT".equals(entry.getStatus())) {
@@ -398,6 +434,9 @@ public class InductionQueueService {
         entry.setStatus("QUEUED");
         entry.setQueuedAt(java.time.Instant.now());
         entry.setArrivalSeq(seq);
+        log.info("induction entry {}: hu {} IN_TRANSIT -> QUEUED at workplace {} (CONVEY task {} "
+                        + "completed, arrival_seq {})", entry.getId(), entry.getHuCode(),
+                entry.getWorkplaceId(), conveyTaskId, seq);
 
         // R4: the emulator reports the conveyor decision points (divert / recirculate) it passed; trace
         // them before ARRIVED so the timeline explains why arrival diverged from request order.
@@ -429,6 +468,9 @@ public class InductionQueueService {
             String point = pointObj == null ? "sorter" : pointObj.toString();
             String event = eventObj == null ? "DECISION" : eventObj.toString();
             Object decision = m.get("decision");
+            // Divert/recirculate decisions are INFO: they explain why arrival diverged from request order.
+            log.info("conveyor decision for hu {} at {}: {} ({}), reported by CONVEY task {}",
+                    entry.getHuCode(), point, event, decision, conveyTaskId);
             trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), point,
                     event, decision == null ? null : decision.toString(), "conveyor", null,
                     entry.getWorkplaceId(), conveyTaskId, entry.getId());
@@ -455,8 +497,12 @@ public class InductionQueueService {
         if ("DONE".equals(entry.getStatus())) {
             return InductionEntryView.from(entry);
         }
+        String before = entry.getStatus();
         entry.setStatus("DONE");
         entry.setDoneAt(java.time.Instant.now());
+        log.info("induction entry {}: hu {} {} -> DONE at workplace {} (operator {}); starting "
+                        + "the return-to-storage leg and re-metering the backlog", entry.getId(),
+                entry.getHuCode(), before, entry.getWorkplaceId(), actor);
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "station:" + entry.getWorkplaceId(),
                 "DONE", "presentation completed", null, null, entry.getWorkplaceId(), null, entry.getId());
 
@@ -488,7 +534,12 @@ public class InductionQueueService {
                 entry.getWarehouseId(), "CONVEYOR", null, "CONVEY", payload, entry.getHuId());
         UUID taskId = deviceTasks.request(req, actor).id();
         entry.setReturnConveyTaskId(taskId);
-        log.debug("Induction entry {} dispatched return CONVEY task {}", entry.getId(), taskId);
+        log.info("induction entry {}: dispatched return CONVEY task {} for hu {} from workplace {} "
+                        + "back to storage ({})", entry.getId(), taskId, entry.getHuCode(),
+                entry.getWorkplaceId(),
+                payload.containsKey("entryNode")
+                        ? "live walk " + payload.get("entryNode") + " -> " + payload.get("destinationNode")
+                        : "atomic, no route plan");
 
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "conveyor", "RETURNING",
                 "returning to storage", "station:" + entry.getWorkplaceId(), null, entry.getWorkplaceId(),
@@ -507,12 +558,17 @@ public class InductionQueueService {
             return; // CONVEY not tied to a return leg (e.g. the outbound induction convey)
         }
         if (!succeeded) {
-            log.debug("Return CONVEY {} FAILED for induction entry {}", returnConveyTaskId, entry.getId());
+            log.warn("return CONVEY task {} FAILED for hu {} (induction entry {}): tote did not arrive "
+                            + "back at storage, no STORE dispatched", returnConveyTaskId, entry.getHuCode(),
+                    entry.getId());
             return;
         }
         if (entry.getReturnStoreTaskId() != null) {
             return; // store already dispatched: idempotent
         }
+        log.info("induction entry {}: hu {} arrived back at storage (return CONVEY task {} completed); "
+                        + "dispatching the STORE into location {}", entry.getId(), entry.getHuCode(),
+                returnConveyTaskId, entry.getLocationId());
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "storage", "RETURN_ARRIVED",
                 "arrived back at storage", "conveyor", null, entry.getWorkplaceId(), returnConveyTaskId,
                 entry.getId());
@@ -531,8 +587,8 @@ public class InductionQueueService {
                 entry.getWarehouseId(), family, null, command, payload, entry.getHuId());
         UUID taskId = deviceTasks.request(req, actor).id();
         entry.setReturnStoreTaskId(taskId);
-        log.debug("Induction entry {} dispatched return STORE task {} ({}/{})",
-                entry.getId(), taskId, family, command);
+        log.info("induction entry {}: dispatched return {} task {} for hu {} into location {} ({} family)",
+                entry.getId(), command, taskId, entry.getHuCode(), entry.getLocationId(), family);
     }
 
     /**
@@ -546,9 +602,14 @@ public class InductionQueueService {
             return; // STORE not tied to an induction return leg
         }
         if (!succeeded) {
-            log.debug("Return STORE {} FAILED for induction entry {}", returnStoreTaskId, entry.getId());
+            log.warn("return STORE task {} FAILED for hu {} (induction entry {}): tote not booked back "
+                            + "into location {}, timeline left open", returnStoreTaskId, entry.getHuCode(),
+                    entry.getId(), entry.getLocationId());
             return;
         }
+        log.info("induction entry {}: hu {} stored back into location {} (STORE task {} completed); "
+                        + "transport round trip closed", entry.getId(), entry.getHuCode(),
+                entry.getLocationId(), returnStoreTaskId);
         String slot = entry.getLocationId() == null ? "slot" : "slot:" + entry.getLocationId();
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), slot, "STORED",
                 "stored back to source slot", "storage", null, entry.getWorkplaceId(), returnStoreTaskId,
@@ -570,8 +631,9 @@ public class InductionQueueService {
         try {
             inventory.bookLocation(entry.getHuId(), locationId);
         } catch (RuntimeException e) {
-            log.warn("HU {} location booking ({}) failed for induction entry {}: {}",
-                    entry.getHuId(), locationId, entry.getId(), e.toString());
+            log.warn("location booking to {} failed for hu {} ({}, induction entry {}); registry stale "
+                            + "but the transport pipeline continues: {}", locationId, entry.getHuCode(),
+                    entry.getHuId(), entry.getId(), e.toString());
         }
     }
 

@@ -22,6 +22,8 @@ import org.openwcs.orders.domain.OutboundOrder;
 import org.openwcs.orders.domain.TransactionType;
 import org.openwcs.orders.repo.OrderOutboxRepository;
 import org.openwcs.orders.repo.OutboundOrderRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class OrderService {
+
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private final OutboundOrderRepository orders;
     private final AllocationClient allocation;
@@ -85,7 +89,11 @@ public class OrderService {
             orderLine.setQty(line.qty());
             order.addLine(orderLine);
         }
-        return OrderView.from(orders.save(order));
+        OutboundOrder saved = orders.save(order);
+        log.info("order {} received: type {}, {} lines, priority {}, dispatch by {}",
+                saved.getOrderRef(), saved.getOrderType(), saved.getLines().size(),
+                saved.getPriority(), saved.getDispatchBy());
+        return OrderView.from(saved);
     }
 
     @Transactional(readOnly = true)
@@ -117,10 +125,13 @@ public class OrderService {
     /** Release all CREATED orders due by the cut-off, most urgent first. */
     @Transactional
     public List<OrderView> releaseDue(UUID warehouseId, Instant cutoff) {
-        return orders.dueForRelease(warehouseId, cutoff).stream()
+        List<OrderView> released = orders.dueForRelease(warehouseId, cutoff).stream()
                 .map(this::releaseOrder)
                 .map(OrderView::from)
                 .toList();
+        log.info("release-due pass for warehouse {}: {} orders due by {} processed", warehouseId,
+                released.size(), cutoff);
+        return released;
     }
 
     @Transactional
@@ -134,10 +145,13 @@ public class OrderService {
         }
         // Release any held reservations via the allocation service (no-op for a CREATED
         // order that was never released).
+        OrderStatus previous = order.getStatus();
         if (order.getStatus() != OrderStatus.CREATED) {
             allocation.cancel(order.getOrderRef());
         }
         order.setStatus(OrderStatus.CANCELLED);
+        log.info("order {} cancelled (was {}{})", order.getOrderRef(), previous,
+                previous == OrderStatus.CREATED ? "" : "; held reservations released");
         return OrderView.from(order);
     }
 
@@ -148,6 +162,7 @@ public class OrderService {
             throw new IllegalOrderStateException("Only ALLOCATED orders can ship (was " + order.getStatus() + ")");
         }
         order.setStatus(OrderStatus.SHIPPED);
+        log.info("order {} dispatched: ALLOCATED -> SHIPPED", order.getOrderRef());
         return OrderView.from(order);
     }
 
@@ -183,6 +198,9 @@ public class OrderService {
         outbox.save(new OrderOutboxMessage(
                 txn.getId(), line.getId().toString(), eventTypeFor(txnType),
                 order.getId(), actor, payload));
+        log.info("order {} line {}: {} posted by {} (sku {}, qty {}, location {}, hu {})",
+                order.getOrderRef(), lineNo, txnType, actor, line.getSkuId(), request.qty(),
+                request.locationId(), request.huId());
         return OrderView.from(order);
     }
 
@@ -250,13 +268,18 @@ public class OrderService {
         if (result.fulfillable()) {
             order.setStatus(OrderStatus.ALLOCATED);
             order.setStatusDetail(null);
+            log.info("order {} released: all {} lines allocated, status ALLOCATED", order.getOrderRef(), lines.size());
         } else if (result.cubingFailed()) {
             // A SKU is larger than the biggest carton; surface the reason for the UI.
             order.setStatus(OrderStatus.CUBING_FAILED);
             order.setStatusDetail(result.detail());
+            log.warn("order {} release parked in CUBING_FAILED: {} (an operator must resolve shipper sizes)",
+                    order.getOrderRef(), result.detail());
         } else {
             order.setStatus(OrderStatus.NOT_FULFILLABLE);
             order.setStatusDetail(result.detail());
+            log.warn("order {} release left NOT_FULFILLABLE: {} (eligible for re-release once stock arrives)",
+                    order.getOrderRef(), result.detail());
         }
         return order;
     }

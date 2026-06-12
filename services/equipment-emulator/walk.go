@@ -173,6 +173,15 @@ func fetchTopology(base, warehouseID string) (map[string]map[string]float64, err
 	return costs, nil
 }
 
+// edgeCount tallies the directed edges in a fetched topology (for the walk-start log line).
+func edgeCount(costs map[string]map[string]float64) int {
+	n := 0
+	for _, m := range costs {
+		n += len(m)
+	}
+	return n
+}
+
 // postScan reports the barcode at a node and returns flow's routing decision. One retry on any
 // HTTP error.
 func postScan(base, warehouseID, node, barcode string) (routingDecision, error) {
@@ -243,7 +252,8 @@ func runLiveWalk(family string, req deviceTaskRequest) deviceTaskResult {
 
 	if shouldFault() {
 		sim.recordFailed(family, req.Command)
-		log.Printf("%s: task %s family=%s command=%s SIMULATED FAULT before live walk", serviceName, req.TaskID, family, req.Command)
+		log.Printf("%s: WARNING task %s (%s %s for %s) SIMULATED FAULT before live walk: deterministic fault injection hit (faultEvery=%d); task FAILED, tote never entered at %s",
+			serviceName, req.TaskID, family, req.Command, huRef(req.Payload), faultEvery.Load(), orUnknown(entryNode))
 		return deviceTaskResult{
 			Status: "FAILED",
 			Detail: "conveyor simulated equipment fault on " + req.Command,
@@ -261,7 +271,8 @@ func runLiveWalk(family string, req deviceTaskRequest) deviceTaskResult {
 
 	fail := func(detail string, scans, holds int, decisions []map[string]interface{}) deviceTaskResult {
 		sim.recordFailed(family, req.Command)
-		log.Printf("%s: task %s live walk FAILED at scan %d: %s", serviceName, req.TaskID, scans, detail)
+		log.Printf("%s: task %s live walk FAILED for hu %s (entered at %s) at scan %d after %d holds: %s; task FAILED, flow must reroute or resolve",
+			serviceName, req.TaskID, orUnknown(barcode), orUnknown(entryNode), scans, holds, detail)
 		return deviceTaskResult{
 			Status: "FAILED",
 			Detail: detail,
@@ -292,6 +303,9 @@ func runLiveWalk(family string, req deviceTaskRequest) deviceTaskResult {
 		return fail(err.Error(), 0, 0, nil)
 	}
 
+	log.Printf("%s: task %s live walk started: hu %s enters at %s toward %s (warehouse %s, %d edges in topology, speed %.2f m/s); flow decides every hop",
+		serviceName, req.TaskID, barcode, entryNode, orUnknown(payloadString(req.Payload, "destinationNode")), warehouseID, edgeCount(costs), speedMps())
+
 	current := entryNode
 	scans, holds := 0, 0
 	noRouteRetries := 0
@@ -312,8 +326,12 @@ func runLiveWalk(family string, req deviceTaskRequest) deviceTaskResult {
 			}
 			cost := costs[current][dec.ToNode]
 			if cost <= 0 {
+				log.Printf("%s: WARNING task %s: edge %s -> %s missing from topology (or zero cost) for hu %s; assuming 1 m so the walk continues, but the topology likely needs fixing",
+					serviceName, req.TaskID, current, dec.ToNode, barcode)
 				cost = 1 // edge not in the topology (or cost unset) → assume 1 m
 			}
+			log.Printf("%s: task %s scan at node %s: hu %s routed to %s by flow (target %s), travelling %.1f m",
+				serviceName, req.TaskID, current, barcode, dec.ToNode, orUnknown(dec.CurrentTarget), cost)
 			time.Sleep(edgeTravel(cost))
 			decisions = append(decisions, map[string]interface{}{
 				"point":    current,
@@ -322,12 +340,14 @@ func runLiveWalk(family string, req deviceTaskRequest) deviceTaskResult {
 			})
 			current = dec.ToNode
 		case "HOLD":
+			holds++
+			log.Printf("%s: task %s scan at node %s: hu %s HELD by flow: %s (hold %d, recirculating); rescanning same node after dwell",
+				serviceName, req.TaskID, current, barcode, orUnknown(dec.Detail), holds)
 			decisions = append(decisions, map[string]interface{}{
 				"point":    current,
 				"event":    "HELD",
 				"decision": dec.Detail,
 			})
-			holds++
 			time.Sleep(holdWait())
 			// rescan the SAME node
 		case "COMPLETE":
@@ -339,8 +359,8 @@ func runLiveWalk(family string, req deviceTaskRequest) deviceTaskResult {
 			elapsed := time.Since(start)
 			sim.recordCompleted(family, req.Command)
 			sim.recordWalk()
-			log.Printf("%s: task %s live walk COMPLETED at %s after %d scans (%d holds) in %s",
-				serviceName, req.TaskID, current, scans, holds, elapsed)
+			log.Printf("%s: task %s live walk COMPLETED: hu %s arrived at %s (target %s) after %d scans (%d holds) in %s",
+				serviceName, req.TaskID, barcode, current, orUnknown(dec.TargetReached), scans, holds, elapsed)
 			return deviceTaskResult{
 				Status: "COMPLETED",
 				Detail: "conveyor walked " + req.Command + " to " + current,
@@ -362,6 +382,8 @@ func runLiveWalk(family string, req deviceTaskRequest) deviceTaskResult {
 			// scanner. Retry the same node a few times before declaring the walk dead.
 			if noRouteRetries < maxNoRouteRetries {
 				noRouteRetries++
+				log.Printf("%s: WARNING task %s scan at node %s: flow has no route yet for hu %s (likely dispatch race, route plan not committed); rescan %d of %d after %s dwell",
+					serviceName, req.TaskID, current, barcode, noRouteRetries, maxNoRouteRetries, noRouteDwell)
 				decisions = append(decisions, map[string]interface{}{
 					"point": current, "event": "RESCAN",
 					"decision": fmt.Sprintf("no route yet — rescan %d/%d", noRouteRetries, maxNoRouteRetries),
