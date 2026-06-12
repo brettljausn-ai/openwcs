@@ -1,6 +1,7 @@
 package org.openwcs.flow.client;
 
 import java.time.Duration;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,8 +53,30 @@ public class WorkplaceClient {
         }
     }
 
+    /**
+     * The workplace's code (e.g. {@code PP1}) for operational-location bookings, or empty when gtp
+     * is unreachable / the station is unknown — the caller then falls back to the workplace id.
+     */
+    public Optional<String> code(UUID workplaceId) {
+        try {
+            StationCode s = http.get()
+                    .uri("/api/gtp/stations/{id}", workplaceId)
+                    .retrieve()
+                    .body(StationCode.class);
+            return s == null ? Optional.empty() : Optional.ofNullable(s.code());
+        } catch (RestClientException e) {
+            log.warn("code lookup for workplace {} failed (operational-location booking falls back "
+                    + "to the workplace id): {}", workplaceId, e.toString());
+            return Optional.empty();
+        }
+    }
+
     /** Per-mode-class in-transit caps for a workplace. */
     public record Caps(int picking, int other) {
+    }
+
+    /** Slice of the gtp station view we need for bookings; extra fields are ignored. */
+    private record StationCode(String code) {
     }
 
     /** Slice of the gtp station view we need; extra fields in the response are ignored. */

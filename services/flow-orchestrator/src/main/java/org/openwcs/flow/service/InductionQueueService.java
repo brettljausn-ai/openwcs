@@ -11,9 +11,12 @@ import org.openwcs.flow.api.InductionRequest;
 import org.openwcs.flow.api.RequestDeviceTask;
 import org.openwcs.flow.api.RoutingDtos.RouteRequest;
 import org.openwcs.flow.client.InventoryClient;
+import org.openwcs.flow.client.MasterDataClient;
 import org.openwcs.flow.client.SlottingClient;
 import org.openwcs.flow.client.WorkplaceClient;
+import org.openwcs.flow.domain.ConveyorNode;
 import org.openwcs.flow.domain.InductionQueueEntry;
+import org.openwcs.flow.repo.ConveyorNodeRepository;
 import org.openwcs.flow.repo.InductionQueueEntryRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,9 +31,14 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code {IN_TRANSIT, QUEUED}} cap by dispatching RETRIEVE device tasks. The RETRIEVE callback
  * advances the entry to {@code IN_TRANSIT} and dispatches the CONVEY leg; the CONVEY (= arrival)
  * callback advances it to {@code QUEUED} and assigns an arrival sequence (arrival order, R2/R4); the
- * operator completes it to {@code DONE}. Completion starts the return-to-storage leg: a return
- * CONVEY (station → storage) whose callback dispatches the STORE/BIN_STORE back into the source
- * slot. Each transition appends an {@link HuTraceService} row (§5).
+ * operator completes it to {@code DONE}. Completion starts the return-to-storage leg: ONLY
+ * slotting decides where the tote goes (never the source slot). When slotting answers, the return
+ * CONVEY (station → storage) is routed and its callback dispatches the STORE/BIN_STORE into the
+ * slotting-chosen location. When slotting errors or has no answer, the return CONVEY still goes
+ * out (the tote must leave the workplace) but with NO destination and NO route plan — the tote
+ * stays on the conveyor, the entry is marked awaiting-slot, and a scheduled sweep
+ * ({@link #retryAwaitingSlots}) retries slotting until it answers. Each transition appends an
+ * {@link HuTraceService} row (§5).
  *
  * <p>ADR-0008 §1: both CONVEY dispatches (outbound and return) resolve the transport's entry and
  * destination nodes on the projected routing graph via {@link TransportNodeResolver}; when both
@@ -63,11 +71,14 @@ public class InductionQueueService {
     private final RoutingService routing;
     private final InventoryClient inventory;
     private final SlottingClient slotting;
+    private final MasterDataClient masterData;
+    private final ConveyorNodeRepository conveyorNodes;
 
     public InductionQueueService(InductionQueueEntryRepository entries, HuTraceService trace,
                                  DeviceTaskService deviceTasks, WorkplaceClient workplaces,
                                  TransportNodeResolver transportNodes, RoutingService routing,
-                                 InventoryClient inventory, SlottingClient slotting) {
+                                 InventoryClient inventory, SlottingClient slotting,
+                                 MasterDataClient masterData, ConveyorNodeRepository conveyorNodes) {
         this.entries = entries;
         this.trace = trace;
         this.deviceTasks = deviceTasks;
@@ -76,6 +87,8 @@ public class InductionQueueService {
         this.routing = routing;
         this.inventory = inventory;
         this.slotting = slotting;
+        this.masterData = masterData;
+        this.conveyorNodes = conveyorNodes;
     }
 
     // ---- §3.1 request -------------------------------------------------------------------------
@@ -338,10 +351,6 @@ public class InductionQueueService {
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "conveyor", "INDUCTED",
                 "inducted onto conveyor", null, null, entry.getWorkplaceId(), retrieveTaskId, entry.getId());
 
-        // The tote left its slot: book the HU registry out of the location (null = in transit / at
-        // a workplace; the transport trace is the truth while away).
-        bookLocation(entry, null);
-
         dispatchConvey(entry, actor);
     }
 
@@ -363,6 +372,11 @@ public class InductionQueueService {
                 payload.containsKey("entryNode")
                         ? "live walk " + payload.get("entryNode") + " -> " + payload.get("destinationNode")
                         : "atomic, no route plan");
+
+        // The tote is on the conveyor now: book the HU to the entry conveyor's operational
+        // location (every conveyor automatically has a location named after it). Unresolvable
+        // (un-projected warehouse / master-data down) books null — inventory maps it to UNKNOWN.
+        bookLocation(entry, conveyorOperationalLocation(entry, payload));
     }
 
     /**
@@ -447,6 +461,10 @@ public class InductionQueueService {
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "station:" + entry.getWorkplaceId(),
                 "QUEUED", "queued at arrival_seq " + seq, null, null, entry.getWorkplaceId(),
                 conveyTaskId, entry.getId());
+
+        // The tote is physically at the workplace now: book the HU to the workplace's operational
+        // location (workplaces automatically have a location named after them too).
+        bookLocation(entry, workplaceOperationalLocation(entry));
     }
 
     /**
@@ -488,7 +506,7 @@ public class InductionQueueService {
      * Mark an entry DONE (operator-driven). Idempotent: an already-DONE entry is returned unchanged.
      * Frees a cap slot, so the workplace's REQUESTED backlog is re-metered. Completing the entry also
      * starts the return-to-storage leg: a return CONVEY (station → storage) is dispatched exactly
-     * once; its callback then dispatches the STORE back into the source slot (§4.4).
+     * once; where the tote goes is decided by SLOTTING alone (§4.4) — never the source slot.
      */
     @Transactional
     public InductionEntryView markDone(UUID entryId, String family, String actor) {
@@ -519,37 +537,78 @@ public class InductionQueueService {
 
     // ---- §4.4 return-to-storage leg -------------------------------------------------------------
 
+    /**
+     * Dispatch the return CONVEY (workplace → conveyor). ONLY slotting decides the storage
+     * destination: when it answers, the destination is stamped on the entry, the route plan targets
+     * the storage entry and arrival fires the STORE into the slotting-chosen location. When
+     * slotting errors or has no answer, the CONVEY still goes out — the tote must leave the
+     * workplace — but with NO destination and NO route plan: the tote stays ON the conveyor
+     * (circulating / following divert defaults), the entry is marked awaiting-slot and the
+     * scheduled sweep retries slotting. The source slot is NEVER a fallback destination.
+     */
     private void dispatchReturnConvey(InductionQueueEntry entry, String actor) {
+        UUID destination = null;
+        String slottingFailure = null;
+        try {
+            destination = slotting
+                    .bestLocation(entry.getWarehouseId(), entry.getHuId(), entry.getSkuId(), entry.getQty())
+                    .orElse(null);
+            if (destination == null) {
+                slottingFailure = "slotting returned no put-away location";
+            }
+        } catch (RuntimeException e) {
+            slottingFailure = e.toString();
+        }
+
         Map<String, Object> payload = new HashMap<>();
         putIfPresent(payload, "huId", entry.getHuId());
         putIfPresent(payload, "huCode", entry.getHuCode());
         putIfPresent(payload, "sourceWorkplaceId", entry.getWorkplaceId());
-        putIfPresent(payload, "returnLocationId", entry.getLocationId());
-        // Return leg: the roles swap — entry = the workplace's node, destination = the storage node.
-        assignLiveRoute(entry, payload,
-                transportNodes.destinationCandidates(entry.getWarehouseId(), entry.getWorkplaceId()),
-                transportNodes.storageCandidates(entry.getWarehouseId(),
-                        TransportNodeResolver.StorageDirection.RETURN));
+        if (destination != null) {
+            entry.setStorageLocationId(destination);
+            entry.setAwaitingSlot(false);
+            payload.put("destinationLocationId", destination);
+            log.info("induction entry {}: slotting answered for hu {} — return leg will STORE into "
+                            + "location {}", entry.getId(), entry.getHuCode(), destination);
+            // Return leg: the roles swap — entry = the workplace's node, destination = the storage node.
+            assignLiveRoute(entry, payload,
+                    transportNodes.destinationCandidates(entry.getWarehouseId(), entry.getWorkplaceId()),
+                    transportNodes.storageCandidates(entry.getWarehouseId(),
+                            TransportNodeResolver.StorageDirection.RETURN));
+        } else {
+            entry.setAwaitingSlot(true);
+            log.warn("induction entry {}: slotting failed for hu {} ({}); tote stays on the conveyor "
+                            + "with no storage destination and no route plan, retrying slotting on the "
+                            + "awaiting-slot sweep", entry.getId(), entry.getHuCode(), slottingFailure);
+        }
         RequestDeviceTask req = new RequestDeviceTask(
                 entry.getWarehouseId(), "CONVEYOR", null, "CONVEY", payload, entry.getHuId());
         UUID taskId = deviceTasks.request(req, actor).id();
         entry.setReturnConveyTaskId(taskId);
         log.info("induction entry {}: dispatched return CONVEY task {} for hu {} from workplace {} "
-                        + "back to storage ({})", entry.getId(), taskId, entry.getHuCode(),
+                        + "onto the conveyor ({})", entry.getId(), taskId, entry.getHuCode(),
                 entry.getWorkplaceId(),
                 payload.containsKey("entryNode")
                         ? "live walk " + payload.get("entryNode") + " -> " + payload.get("destinationNode")
                         : "atomic, no route plan");
 
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "conveyor", "RETURNING",
-                "returning to storage", "station:" + entry.getWorkplaceId(), null, entry.getWorkplaceId(),
-                taskId, entry.getId());
+                destination != null
+                        ? "returning to storage location " + destination
+                        : "left workplace without a slot (awaiting slotting); circulating on the conveyor",
+                "station:" + entry.getWorkplaceId(), null, entry.getWorkplaceId(), taskId, entry.getId());
+
+        // The tote left the workplace onto the conveyor: book the HU to the entry conveyor's
+        // operational location (null/UNKNOWN when unresolvable).
+        bookLocation(entry, conveyorOperationalLocation(entry, payload));
     }
 
     /**
      * Return CONVEY device task COMPLETED (= arrival back at storage): trace {@code RETURN_ARRIVED}
-     * and dispatch the STORE/BIN_STORE back into the source slot. Idempotent: once the store task is
-     * linked, a late/duplicate callback is a no-op.
+     * and dispatch the STORE/BIN_STORE into the slotting-chosen location. An entry still awaiting
+     * its slot dispatches NOTHING — the tote stays on the conveyor and the retry sweep fires the
+     * STORE once slotting answers. Idempotent: once the store task is linked, a late/duplicate
+     * callback is a no-op.
      */
     @Transactional
     public void onReturnConveyCompleted(UUID returnConveyTaskId, boolean succeeded, String actor) {
@@ -566,9 +625,16 @@ public class InductionQueueService {
         if (entry.getReturnStoreTaskId() != null) {
             return; // store already dispatched: idempotent
         }
+        if (entry.getStorageLocationId() == null) {
+            log.info("induction entry {}: return CONVEY task {} completed for hu {} but slotting has "
+                            + "not answered yet; no STORE dispatched — tote stays on the conveyor, the "
+                            + "awaiting-slot sweep stores it once a slot is assigned", entry.getId(),
+                    returnConveyTaskId, entry.getHuCode());
+            return;
+        }
         log.info("induction entry {}: hu {} arrived back at storage (return CONVEY task {} completed); "
-                        + "dispatching the STORE into location {}", entry.getId(), entry.getHuCode(),
-                returnConveyTaskId, entry.getLocationId());
+                        + "dispatching the STORE into slotting-chosen location {}", entry.getId(),
+                entry.getHuCode(), returnConveyTaskId, entry.getStorageLocationId());
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "storage", "RETURN_ARRIVED",
                 "arrived back at storage", "conveyor", null, entry.getWorkplaceId(), returnConveyTaskId,
                 entry.getId());
@@ -582,18 +648,19 @@ public class InductionQueueService {
         Map<String, Object> payload = new HashMap<>();
         putIfPresent(payload, "huId", entry.getHuId());
         putIfPresent(payload, "huCode", entry.getHuCode());
-        putIfPresent(payload, "locationId", entry.getLocationId());
+        putIfPresent(payload, "locationId", entry.getStorageLocationId());
         RequestDeviceTask req = new RequestDeviceTask(
                 entry.getWarehouseId(), family, null, command, payload, entry.getHuId());
         UUID taskId = deviceTasks.request(req, actor).id();
         entry.setReturnStoreTaskId(taskId);
-        log.info("induction entry {}: dispatched return {} task {} for hu {} into location {} ({} family)",
-                entry.getId(), command, taskId, entry.getHuCode(), entry.getLocationId(), family);
+        log.info("induction entry {}: dispatched return {} task {} for hu {} into slotting-chosen "
+                        + "location {} ({} family)", entry.getId(), command, taskId, entry.getHuCode(),
+                entry.getStorageLocationId(), family);
     }
 
     /**
-     * STORE/BIN_STORE device task COMPLETED: the tote is back in its source slot, so trace
-     * {@code STORED}, closing the HU's timeline. On failure: log only.
+     * STORE/BIN_STORE device task COMPLETED: the tote is in its slotting-chosen slot, so trace
+     * {@code STORED}, closing the HU's timeline, and book the final slot. On failure: log only.
      */
     @Transactional
     public void onReturnStoreCompleted(UUID returnStoreTaskId, boolean succeeded, String actor) {
@@ -602,21 +669,118 @@ public class InductionQueueService {
             return; // STORE not tied to an induction return leg
         }
         if (!succeeded) {
-            log.warn("return STORE task {} FAILED for hu {} (induction entry {}): tote not booked back "
+            log.warn("return STORE task {} FAILED for hu {} (induction entry {}): tote not booked "
                             + "into location {}, timeline left open", returnStoreTaskId, entry.getHuCode(),
-                    entry.getId(), entry.getLocationId());
+                    entry.getId(), entry.getStorageLocationId());
             return;
         }
-        log.info("induction entry {}: hu {} stored back into location {} (STORE task {} completed); "
-                        + "transport round trip closed", entry.getId(), entry.getHuCode(),
-                entry.getLocationId(), returnStoreTaskId);
-        String slot = entry.getLocationId() == null ? "slot" : "slot:" + entry.getLocationId();
+        log.info("induction entry {}: hu {} stored into slotting-chosen location {} (STORE task {} "
+                        + "completed); transport round trip closed", entry.getId(), entry.getHuCode(),
+                entry.getStorageLocationId(), returnStoreTaskId);
+        String slot = entry.getStorageLocationId() == null ? "slot" : "slot:" + entry.getStorageLocationId();
         trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), slot, "STORED",
-                "stored back to source slot", "storage", null, entry.getWorkplaceId(), returnStoreTaskId,
-                entry.getId());
+                "stored to slotting-chosen location", "storage", null, entry.getWorkplaceId(),
+                returnStoreTaskId, entry.getId());
 
-        // The tote is physically back in its source slot: book the HU registry back into it.
-        bookLocation(entry, entry.getLocationId());
+        // The tote is physically in its slot: book the HU registry into the final location.
+        bookLocation(entry, entry.getStorageLocationId());
+    }
+
+    // ---- awaiting-slot retry sweep --------------------------------------------------------------
+
+    /**
+     * Retry slotting for every awaiting-slot entry (scheduled ~30s via {@code InductionSlotSweeper}).
+     * When slotting answers: stamp the destination, clear the flag, assign the route plan toward the
+     * storage entry — routing is per-scan, so an already-walking tote adapts at its next scan — and,
+     * when the return CONVEY has already completed (the tote finished its plan-less leg), dispatch
+     * the STORE immediately so the arrival → STORE wiring still closes the round trip.
+     */
+    @Transactional
+    public void retryAwaitingSlots(String actor) {
+        for (InductionQueueEntry entry : entries.findByAwaitingSlotTrue()) {
+            UUID destination;
+            try {
+                destination = slotting
+                        .bestLocation(entry.getWarehouseId(), entry.getHuId(), entry.getSkuId(), entry.getQty())
+                        .orElse(null);
+            } catch (RuntimeException e) {
+                log.warn("awaiting-slot retry for hu {} (induction entry {}) failed; tote stays on the "
+                                + "conveyor, retrying: {}", entry.getHuCode(), entry.getId(), e.toString());
+                continue;
+            }
+            if (destination == null) {
+                log.warn("awaiting-slot retry for hu {} (induction entry {}): slotting still has no "
+                        + "put-away location; tote stays on the conveyor, retrying", entry.getHuCode(),
+                        entry.getId());
+                continue;
+            }
+            entry.setStorageLocationId(destination);
+            entry.setAwaitingSlot(false);
+            log.info("slot assigned mid-journey for hu {} (induction entry {}): slotting answered "
+                            + "location {}; the circulating tote adapts at its next scan", entry.getHuCode(),
+                    entry.getId(), destination);
+            trace.record(entry.getWarehouseId(), entry.getHuId(), entry.getHuCode(), "conveyor",
+                    "SLOT_ASSIGNED", "slot assigned mid-journey: " + destination, null, "storage",
+                    entry.getWorkplaceId(), entry.getReturnConveyTaskId(), entry.getId());
+
+            // Route the circulating tote toward the storage entry (per-scan: it adapts wherever it is).
+            if (entry.getHuCode() != null) {
+                List<String> storageTargets = transportNodes.storageCandidates(entry.getWarehouseId(),
+                        TransportNodeResolver.StorageDirection.RETURN);
+                if (!storageTargets.isEmpty()) {
+                    routing.assignRoute(new RouteRequest(entry.getWarehouseId(), entry.getHuCode(),
+                            List.of(storageTargets.get(0))));
+                }
+            }
+
+            // The return CONVEY may have completed while we waited (plan-less leg): fire the STORE now.
+            if (entry.getReturnStoreTaskId() == null && entry.getReturnConveyTaskId() != null
+                    && "COMPLETED".equals(deviceTasks.get(entry.getReturnConveyTaskId()).status())) {
+                log.info("induction entry {}: return CONVEY had already completed while awaiting the "
+                                + "slot; dispatching the STORE into location {} now", entry.getId(),
+                        destination);
+                dispatchReturnStore(entry, actor);
+            }
+        }
+    }
+
+    // ---- operational-location bookings ----------------------------------------------------------
+
+    /**
+     * The operational location of the conveyor the tote entered on, resolved from the dispatched
+     * payload's {@code entryNode} (node codes look like {@code BIN_CONVEYOR-1#0}: the equipment name
+     * is the part before {@code #}; a projected node's own name field wins when set). Returns null
+     * when nothing resolves (un-projected warehouse, unknown node, master-data down).
+     */
+    private UUID conveyorOperationalLocation(InductionQueueEntry entry, Map<String, Object> payload) {
+        Object entryNode = payload.get("entryNode");
+        if (entryNode == null) {
+            return null;
+        }
+        String nodeCode = entryNode.toString();
+        String conveyorName = conveyorNodes
+                .findByWarehouseIdAndCode(entry.getWarehouseId(), nodeCode)
+                .map(ConveyorNode::getName)
+                .filter(n -> n != null && !n.isBlank())
+                .orElseGet(() -> {
+                    int hash = nodeCode.indexOf('#');
+                    return hash > 0 ? nodeCode.substring(0, hash) : nodeCode;
+                });
+        return masterData.operationalLocation(entry.getWarehouseId(), "EQUIPMENT", conveyorName);
+    }
+
+    /**
+     * The operational location of the entry's workplace, named by the workplace's code (fetched from
+     * gtp; the workplace id string when gtp can't resolve it). Null when master-data can't resolve.
+     */
+    private UUID workplaceOperationalLocation(InductionQueueEntry entry) {
+        if (entry.getWorkplaceId() == null) {
+            return null;
+        }
+        String name = workplaces.code(entry.getWorkplaceId())
+                .filter(c -> !c.isBlank())
+                .orElse(entry.getWorkplaceId().toString());
+        return masterData.operationalLocation(entry.getWarehouseId(), "WORKPLACE", name);
     }
 
     /**

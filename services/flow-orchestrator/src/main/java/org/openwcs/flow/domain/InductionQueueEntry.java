@@ -52,9 +52,21 @@ public class InductionQueueEntry extends Auditable {
     @Column(name = "qty")
     private BigDecimal qty;
 
-    /** Source storage slot (for store-back by gtp). */
+    /** Source storage slot (retrieve origin only — NEVER a return destination; slotting decides). */
     @Column(name = "location_id")
     private UUID locationId;
+
+    /** The slotting-chosen destination for the return-leg STORE. NULL until slotting answers. */
+    @Column(name = "storage_location_id")
+    private UUID storageLocationId;
+
+    /**
+     * True when the return CONVEY was dispatched without a storage destination because slotting
+     * errored / had no answer: the tote stays on the conveyor and the scheduled sweep retries
+     * slotting until it answers (then clears this flag and stamps {@link #storageLocationId}).
+     */
+    @Column(name = "awaiting_slot", nullable = false)
+    private boolean awaitingSlot;
 
     /** PICKING | STOCK_COUNT | … */
     @Column(name = "mode", nullable = false)
@@ -183,6 +195,22 @@ public class InductionQueueEntry extends Auditable {
 
     public void setLocationId(UUID locationId) {
         this.locationId = locationId;
+    }
+
+    public UUID getStorageLocationId() {
+        return storageLocationId;
+    }
+
+    public void setStorageLocationId(UUID storageLocationId) {
+        this.storageLocationId = storageLocationId;
+    }
+
+    public boolean isAwaitingSlot() {
+        return awaitingSlot;
+    }
+
+    public void setAwaitingSlot(boolean awaitingSlot) {
+        this.awaitingSlot = awaitingSlot;
     }
 
     public String getMode() {

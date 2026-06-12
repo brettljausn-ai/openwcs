@@ -23,9 +23,10 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>Since 3c-1 the inbound presentation queue is owned by <strong>flow-orchestrator</strong>: the
  * workstation screen's queue feed ({@code GET /stations/{id}/queue}) reads flow's induction slice,
- * and operator completion ({@code POST /queue/{id}/complete}) marks the flow entry DONE then runs
- * gtp's store-back. The inbound enqueue ({@code POST /stations/{id}/queue}) is deprecated: counting
- * no longer calls it (it requests presentation from flow instead).
+ * and operator completion ({@code POST /queue/{id}/complete}) marks the flow entry DONE — flow then
+ * runs the return-to-storage leg where ONLY slotting decides the destination (gtp dispatches no
+ * store-back of its own). The inbound enqueue ({@code POST /stations/{id}/queue}) is deprecated:
+ * counting no longer calls it (it requests presentation from flow instead).
  */
 @RestController
 @RequestMapping("/api/gtp")
@@ -66,8 +67,8 @@ public class StationQueueController {
     }
 
     /**
-     * Operator completion of the head tote: mark the flow induction entry DONE, then store back
-     * (ADR-0007 §6.2). The path variable is the flow induction entry id.
+     * Operator completion of the head tote: mark the flow induction entry DONE (ADR-0007 §6.2).
+     * Flow owns the return leg (slotting decides). The path variable is the flow induction entry id.
      */
     @PostMapping("/queue/{entryId}/complete")
     public StationQueueEntryView complete(@PathVariable UUID entryId) {
@@ -90,7 +91,7 @@ public class StationQueueController {
 
     /**
      * Dirty-tote exception: pull the tote into a CLEANING maintenance order and mark its flow
-     * induction entry DONE WITHOUT a store-back (it goes to maintenance, not back to stock).
+     * induction entry DONE (it goes to maintenance; gtp dispatches no transport).
      */
     @PostMapping("/stations/{stationId}/exceptions/dirty-tote")
     public MaintenanceOrderView dirtyTote(@PathVariable UUID stationId, @RequestBody ExceptionRequest req) {

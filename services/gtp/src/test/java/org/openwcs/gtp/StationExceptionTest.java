@@ -2,7 +2,6 @@ package org.openwcs.gtp;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -10,8 +9,6 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -36,10 +33,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * The act-on-completion behaviours, now driven off the flow-owned induction entry (ADR-0007 §6.2): a
- * completed tote with no other open work stores back via a STORE transport to the destination storage
- * family; the dirty-tote exception opens a maintenance order and marks the flow entry DONE without
- * storing back; the broken-product exception posts a negative DAMAGED stock adjustment.
+ * The act-on-completion behaviours, now driven off the flow-owned induction entry (ADR-0007 §6.2):
+ * the dirty-tote exception opens a maintenance order and marks the flow entry DONE (flow owns any
+ * return transport — gtp dispatches none); the broken-product exception posts a negative DAMAGED
+ * stock adjustment. The old gtp store-back was removed: only slotting (asked by flow) slots a tote.
  */
 @SpringBootTest
 @Testcontainers
@@ -63,9 +60,6 @@ class StationExceptionTest {
 
     @MockBean
     TxLogClient txlog;
-
-    @MockBean
-    org.openwcs.gtp.client.SlottingClient slotting;
 
     @MockBean
     org.openwcs.gtp.client.MasterDataClient masterData;
@@ -95,46 +89,16 @@ class StationExceptionTest {
     }
 
     @Test
-    void completeWithNoOtherEntryStoresBackToTheBestSlot() {
+    void completeCreatesNoTransportFlowOwnsTheReturnLeg() {
         GtpStation s = station("GTP-X1");
         UUID entryId = UUID.randomUUID();
         InductionEntry done = entry(entryId, s, UUID.randomUUID());
         when(induction.markDone(entryId)).thenReturn(done);
-        when(induction.readQueue(s.getId())).thenReturn(List.of());
-        UUID bestLocation = UUID.randomUUID();
-        // Slotting picks the currently-best put-away slot (not the tote's source location).
-        when(slotting.bestLocation(any(), any(), any(), any())).thenReturn(Optional.of(bestLocation));
-        // Destination is a shuttle ASRS block -> dispatch to the ASRS adapter family.
-        when(masterData.storageTypeOfLocation(s.getWarehouseId(), bestLocation))
-                .thenReturn(Optional.of("SHUTTLE_ASRS"));
 
         assertThat(queue.completeInduction(entryId).status()).isEqualTo("DONE");
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass((Class) Map.class);
-        verify(flow).createTransport(eq(s.getWarehouseId()), eq("ASRS"), eq("STORE"),
-                payload.capture(), eq(done.huId()));
-        assertThat(payload.getValue()).containsEntry("destinationLocationId", bestLocation);
-    }
-
-    @Test
-    void storeBackDispatchesToTheDestinationStorageFamily() {
-        GtpStation s = station("GTP-X1b");
-        UUID entryId = UUID.randomUUID();
-        InductionEntry done = entry(entryId, s, UUID.randomUUID());
-        when(induction.markDone(entryId)).thenReturn(done);
-        when(induction.readQueue(s.getId())).thenReturn(List.of());
-        UUID bestLocation = UUID.randomUUID();
-        when(slotting.bestLocation(any(), any(), any(), any())).thenReturn(Optional.of(bestLocation));
-        // Destination is an AutoStore block -> the STORE transport must go to the AUTOSTORE adapter,
-        // not a hardcoded ASRS.
-        when(masterData.storageTypeOfLocation(s.getWarehouseId(), bestLocation))
-                .thenReturn(Optional.of("AUTOSTORE"));
-
-        assertThat(queue.completeInduction(entryId).status()).isEqualTo("DONE");
-
-        verify(flow).createTransport(eq(s.getWarehouseId()), eq("AUTOSTORE"), eq("STORE"),
-                any(), eq(done.huId()));
+        // Only slotting (asked by flow's return leg) slots a tote: gtp dispatches no STORE.
+        verify(flow, never()).createTransport(any(), any(), any(), any(), any());
     }
 
     @Test

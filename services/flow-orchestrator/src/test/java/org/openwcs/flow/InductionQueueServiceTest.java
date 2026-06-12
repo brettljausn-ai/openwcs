@@ -18,6 +18,7 @@ import org.openwcs.flow.api.InductionEntryView;
 import org.openwcs.flow.api.InductionRequest;
 import org.openwcs.flow.client.DeviceClient;
 import org.openwcs.flow.client.InventoryClient;
+import org.openwcs.flow.client.MasterDataClient;
 import org.openwcs.flow.client.SlottingClient;
 import org.openwcs.flow.client.WorkplaceClient;
 import org.openwcs.flow.service.DeviceTaskService;
@@ -66,6 +67,9 @@ class InductionQueueServiceTest {
     @MockBean
     SlottingClient slottingClient;
 
+    @MockBean
+    MasterDataClient masterDataClient;
+
     @Autowired
     InductionQueueService induction;
 
@@ -88,6 +92,14 @@ class InductionQueueServiceTest {
 
     private static SlottingClient.RelocationPlan planOf(SlottingClient.RelocationStep... steps) {
         return new SlottingClient.RelocationPlan(List.of(steps), false);
+    }
+
+    /** Slotting answers the return-leg put-away with the given location. */
+    private UUID slotAnswer() {
+        UUID slot = UUID.randomUUID();
+        when(slottingClient.bestLocation(any(), any(), any(), any()))
+                .thenReturn(java.util.Optional.of(slot));
+        return slot;
     }
 
     private void asyncAdapter() {
@@ -254,6 +266,7 @@ class InductionQueueServiceTest {
     void markDoneDispatchesReturnConveyExactlyOnce() {
         asyncAdapter();
         cap(5, 5);
+        UUID slot = slotAnswer();
         UUID warehouse = UUID.randomUUID();
         UUID workplace = UUID.randomUUID();
         UUID huId = UUID.randomUUID();
@@ -263,13 +276,17 @@ class InductionQueueServiceTest {
         assertThat(done.status()).isEqualTo("DONE");
         assertThat(done.returnConveyTaskId()).isNotNull();
         assertThat(done.returnStoreTaskId()).isNull(); // STORE only after the return convey arrives
+        assertThat(done.storageLocationId()).isEqualTo(slot); // slotting decided the destination
+        assertThat(done.awaitingSlot()).isFalse();
 
-        // The return CONVEY carries the station as source and the source slot as return destination.
+        // The return CONVEY carries the station as source and the SLOTTING-chosen destination —
+        // never the source slot.
         DeviceTaskView returnConvey = deviceTasks.get(done.returnConveyTaskId());
         assertThat(returnConvey.command()).isEqualTo("CONVEY");
         assertThat(returnConvey.family()).isEqualTo("CONVEYOR");
         assertThat(returnConvey.payload()).containsEntry("sourceWorkplaceId", workplace.toString());
-        assertThat(returnConvey.payload()).containsKey("returnLocationId");
+        assertThat(returnConvey.payload()).containsEntry("destinationLocationId", slot.toString());
+        assertThat(returnConvey.payload()).doesNotContainKey("returnLocationId");
 
         // The RETURNING trace row is written once, with the station as from_point.
         assertThat(traces.timeline(huId, warehouse)).extracting(HuTraceView::event).contains("RETURNING");
@@ -286,9 +303,10 @@ class InductionQueueServiceTest {
     }
 
     @Test
-    void returnConveyCompletionDispatchesStore() {
+    void returnConveyCompletionDispatchesStoreIntoTheSlottingChosenLocation() {
         asyncAdapter();
         cap(5, 5);
+        UUID slot = slotAnswer();
         UUID warehouse = UUID.randomUUID();
         UUID workplace = UUID.randomUUID();
         UUID huId = UUID.randomUUID();
@@ -303,7 +321,9 @@ class InductionQueueServiceTest {
         DeviceTaskView store = deviceTasks.get(after.returnStoreTaskId());
         assertThat(store.command()).isEqualTo("STORE"); // default family ASRS -> STORE (not BIN_STORE)
         assertThat(store.family()).isEqualTo("ASRS");
-        assertThat(store.payload()).containsKey("locationId");
+        // The STORE goes into the slotting-chosen location, NOT the entry's source slot.
+        assertThat(store.payload()).containsEntry("locationId", slot.toString());
+        assertThat(store.payload().get("locationId")).isNotEqualTo(after.locationId().toString());
 
         assertThat(traces.timeline(huId, warehouse)).extracting(HuTraceView::event).contains("RETURN_ARRIVED");
     }
@@ -312,6 +332,7 @@ class InductionQueueServiceTest {
     void storeCompletionWritesStoredTrace() {
         asyncAdapter();
         cap(5, 5);
+        UUID slot = slotAnswer();
         UUID warehouse = UUID.randomUUID();
         UUID workplace = UUID.randomUUID();
         UUID huId = UUID.randomUUID();
@@ -319,14 +340,14 @@ class InductionQueueServiceTest {
                 driveToQueued(warehouse, workplace, huId, "TOTE-1").id(), "ASRS", "op");
         deviceTasks.completeFromCallback(done.returnConveyTaskId(), "COMPLETED", "arrived", Map.of());
 
-        // STORE completes -> STORED trace at the source slot closes the HU's timeline.
+        // STORE completes -> STORED trace at the slotting-chosen slot closes the HU's timeline.
         deviceTasks.completeFromCallback(induction.get(done.id()).returnStoreTaskId(), "COMPLETED", "stored", Map.of());
         List<HuTraceView> timeline = traces.timeline(huId, warehouse);
         assertThat(timeline).extracting(HuTraceView::event)
                 .containsSubsequence("DONE", "RETURN_ARRIVED", "STORED");
         HuTraceView stored = timeline.stream().filter(t -> "STORED".equals(t.event())).findFirst().orElseThrow();
-        assertThat(stored.point()).startsWith("slot:");
-        assertThat(stored.decision()).isEqualTo("stored back to source slot");
+        assertThat(stored.point()).isEqualTo("slot:" + slot);
+        assertThat(stored.decision()).isEqualTo("stored to slotting-chosen location");
     }
 
     @Test
@@ -345,9 +366,10 @@ class InductionQueueServiceTest {
     }
 
     @Test
-    void returnStoreCompletionBooksTheHuBackIntoItsSourceSlot() {
+    void returnStoreCompletionBooksTheHuIntoTheSlottingChosenLocation() {
         asyncAdapter();
         cap(5, 5);
+        UUID slot = slotAnswer();
         UUID warehouse = UUID.randomUUID();
         UUID workplace = UUID.randomUUID();
         UUID huId = UUID.randomUUID();
@@ -359,14 +381,133 @@ class InductionQueueServiceTest {
         deviceTasks.completeFromCallback(done.returnConveyTaskId(), "COMPLETED", "arrived", Map.of());
         deviceTasks.completeFromCallback(induction.get(done.id()).returnStoreTaskId(), "COMPLETED", "stored", Map.of());
 
-        // The tote is physically back: the HU registry is booked back into the source slot.
-        verify(inventoryClient).bookLocation(huId, sourceSlot);
+        // The tote is physically stored: the HU registry is booked into the SLOTTING-chosen slot —
+        // and never back into the source slot.
+        verify(inventoryClient).bookLocation(huId, slot);
+        verify(inventoryClient, org.mockito.Mockito.never()).bookLocation(huId, sourceSlot);
+    }
+
+    @Test
+    void slottingFailureLeavesTheToteOnTheConveyorAwaitingSlot() {
+        asyncAdapter();
+        cap(5, 5);
+        // Slotting errors (e.g. 400 "no storage profile / block for sku"): NO source-slot fallback.
+        when(slottingClient.bestLocation(any(), any(), any(), any()))
+                .thenThrow(new RuntimeException("400 no storage profile / block for sku"));
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        InductionEntryView queued = driveToQueued(warehouse, workplace, huId, "TOTE-1");
+
+        InductionEntryView done = induction.markDone(queued.id(), "ASRS", "op");
+
+        // The return CONVEY is dispatched anyway (the tote must leave the workplace) ...
+        assertThat(done.returnConveyTaskId()).isNotNull();
+        DeviceTaskView returnConvey = deviceTasks.get(done.returnConveyTaskId());
+        // ... but with NO storage destination and NO route plan: the tote stays on the conveyor.
+        assertThat(returnConvey.payload())
+                .doesNotContainKeys("destinationLocationId", "returnLocationId", "entryNode",
+                        "destinationNode");
+        assertThat(done.awaitingSlot()).isTrue();
+        assertThat(done.storageLocationId()).isNull();
+
+        // Even when the CONVEY completes, NO STORE goes out while the slot is missing — and the
+        // source slot is never used.
+        deviceTasks.completeFromCallback(done.returnConveyTaskId(), "COMPLETED", "circulating", Map.of());
+        assertThat(induction.get(done.id()).returnStoreTaskId()).isNull();
+    }
+
+    @Test
+    void retrySweepAssignsSlotAndStoresAfterTheConveyAlreadyCompleted() {
+        asyncAdapter();
+        cap(5, 5);
+        when(slottingClient.bestLocation(any(), any(), any(), any()))
+                .thenReturn(java.util.Optional.empty()); // no answer yet
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        InductionEntryView done = induction.markDone(
+                driveToQueued(warehouse, workplace, huId, "TOTE-1").id(), "ASRS", "op");
+        assertThat(done.awaitingSlot()).isTrue();
+        // The plan-less return CONVEY completes while the tote is still slot-less: no STORE.
+        deviceTasks.completeFromCallback(done.returnConveyTaskId(), "COMPLETED", "circulating", Map.of());
+        assertThat(induction.get(done.id()).returnStoreTaskId()).isNull();
+
+        // A sweep while slotting still has no answer changes nothing.
+        induction.retryAwaitingSlots("sweep");
+        assertThat(induction.get(done.id()).awaitingSlot()).isTrue();
+
+        // Slotting finally answers: the sweep stamps the destination and fires the STORE directly
+        // (the arrival callback already came and went).
+        UUID slot = slotAnswer();
+        induction.retryAwaitingSlots("sweep");
+        InductionEntryView after = induction.get(done.id());
+        assertThat(after.awaitingSlot()).isFalse();
+        assertThat(after.storageLocationId()).isEqualTo(slot);
+        assertThat(after.returnStoreTaskId()).isNotNull();
+        assertThat(deviceTasks.get(after.returnStoreTaskId()).payload())
+                .containsEntry("locationId", slot.toString());
+    }
+
+    @Test
+    void retrySweepAssignsSlotMidJourneyAndArrivalDispatchesTheStore() {
+        asyncAdapter();
+        cap(5, 5);
+        when(slottingClient.bestLocation(any(), any(), any(), any()))
+                .thenReturn(java.util.Optional.empty()); // no answer at completion time
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        InductionEntryView done = induction.markDone(
+                driveToQueued(warehouse, workplace, huId, "TOTE-1").id(), "ASRS", "op");
+        assertThat(done.awaitingSlot()).isTrue();
+
+        // Slotting answers while the tote is still walking: destination stamped, no STORE yet.
+        UUID slot = slotAnswer();
+        induction.retryAwaitingSlots("sweep");
+        InductionEntryView assigned = induction.get(done.id());
+        assertThat(assigned.awaitingSlot()).isFalse();
+        assertThat(assigned.storageLocationId()).isEqualTo(slot);
+        assertThat(assigned.returnStoreTaskId()).isNull();
+        assertThat(traces.timeline(huId, warehouse)).extracting(HuTraceView::event)
+                .contains("SLOT_ASSIGNED");
+
+        // The return CONVEY then arrives: the existing arrival -> STORE wiring fires into the slot.
+        deviceTasks.completeFromCallback(done.returnConveyTaskId(), "COMPLETED", "arrived", Map.of());
+        InductionEntryView after = induction.get(done.id());
+        assertThat(after.returnStoreTaskId()).isNotNull();
+        assertThat(deviceTasks.get(after.returnStoreTaskId()).payload())
+                .containsEntry("locationId", slot.toString());
+    }
+
+    @Test
+    void conveyDispatchAndQueuedBookOperationalLocations() {
+        asyncAdapter();
+        cap(5, 5);
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        UUID workplaceLocation = UUID.randomUUID();
+        // gtp knows the workplace code; master-data resolves its operational location.
+        when(workplaceClient.code(workplace)).thenReturn(java.util.Optional.of("PP1"));
+        when(masterDataClient.operationalLocation(warehouse, "WORKPLACE", "PP1"))
+                .thenReturn(workplaceLocation);
+
+        InductionEntryView created = induction.request(req(warehouse, workplace, huId, "TOTE-1", "STOCK_COUNT"), "op");
+        deviceTasks.completeFromCallback(created.retrieveTaskId(), "COMPLETED", "retrieved", Map.of());
+        // Un-projected warehouse: no entry node resolves, so the CONVEY dispatch books null (UNKNOWN).
+        verify(inventoryClient).bookLocation(huId, null);
+
+        // Arrival at the workplace (QUEUED) books the WORKPLACE's operational location.
+        deviceTasks.completeFromCallback(induction.get(created.id()).conveyTaskId(), "COMPLETED", "arrived", Map.of());
+        verify(inventoryClient).bookLocation(huId, workplaceLocation);
     }
 
     @Test
     void locationBookingFailureNeverBreaksThePipeline() {
         asyncAdapter();
         cap(5, 5);
+        slotAnswer();
         doThrow(new RuntimeException("inventory down")).when(inventoryClient).bookLocation(any(), any());
         UUID warehouse = UUID.randomUUID();
         UUID workplace = UUID.randomUUID();

@@ -2,7 +2,6 @@ package org.openwcs.gtp;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,8 +31,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * Since ADR-0007 Phase 3c-1 the inbound presentation queue ({@code REQUESTED → IN_TRANSIT → QUEUED →
  * DONE}, with the in-transit cap) is owned by flow, not gtp. These tests cover gtp's remaining
  * responsibilities at the workplace: the screen queue feed reads flow's induction slice (incl.
- * REQUESTED, in-storage rows), and operator completion marks the flow entry DONE then runs gtp's
- * store-back. (The lifecycle/cap assertions that used to live here moved to flow's test suite.)
+ * REQUESTED, in-storage rows), and operator completion marks the flow entry DONE — and dispatches
+ * NO transport: flow owns the return-to-storage leg, where only slotting decides the destination.
+ * (The lifecycle/cap assertions that used to live here moved to flow's test suite.)
  */
 @SpringBootTest
 @Testcontainers
@@ -54,9 +54,6 @@ class StationQueueTest {
 
     @MockBean
     FlowClient flow;
-
-    @MockBean
-    org.openwcs.gtp.client.SlottingClient slotting;
 
     @MockBean
     org.openwcs.gtp.client.MasterDataClient masterData;
@@ -94,41 +91,17 @@ class StationQueueTest {
     }
 
     @Test
-    void completeMarksFlowEntryDoneThenStoresBack() {
+    void completeMarksFlowEntryDoneAndCreatesNoTransport() {
         GtpStation s = station("GTP-Q2");
         UUID entryId = UUID.randomUUID();
         InductionEntry done = entry(entryId, s.getId(), s.getWarehouseId(), "DONE", 1L);
         when(induction.markDone(entryId)).thenReturn(done);
-        when(induction.readQueue(s.getId())).thenReturn(List.of()); // no other open work for the HU
-        UUID bestLocation = UUID.randomUUID();
-        when(slotting.bestLocation(any(), any(), any(), any())).thenReturn(java.util.Optional.of(bestLocation));
-        when(masterData.storageTypeOfLocation(s.getWarehouseId(), bestLocation))
-                .thenReturn(java.util.Optional.of("SHUTTLE_ASRS"));
 
         var result = queue.completeInduction(entryId);
 
         assertThat(result.status()).isEqualTo("DONE");
         verify(induction).markDone(entryId);
-        verify(flow).createTransport(eq(s.getWarehouseId()), eq("ASRS"), eq("STORE"), any(), eq(done.huId()));
-    }
-
-    @Test
-    void completeDoesNotStoreBackWhileTheHuStillHasOpenWork() {
-        GtpStation s = station("GTP-Q3");
-        UUID entryId = UUID.randomUUID();
-        UUID huId = UUID.randomUUID();
-        InductionEntry done = new InductionEntry(entryId, s.getWarehouseId(), s.getId(), huId, "HU-7",
-                UUID.randomUUID(), "SKU-7", new BigDecimal("3"), "PICKING", "DONE", 1L,
-                Instant.now(), null, Instant.now(), null, null, null);
-        // The same HU still has another QUEUED entry at the workplace -> keep it out of storage.
-        InductionEntry other = new InductionEntry(UUID.randomUUID(), s.getWarehouseId(), s.getId(), huId,
-                "HU-7", UUID.randomUUID(), "SKU-7", new BigDecimal("3"), "PICKING", "QUEUED", 2L,
-                Instant.now(), null, Instant.now(), null, null, null);
-        when(induction.markDone(entryId)).thenReturn(done);
-        when(induction.readQueue(s.getId())).thenReturn(List.of(other));
-
-        queue.completeInduction(entryId);
-
+        // Flow owns the return leg (only slotting slots a tote): gtp dispatches NO transport.
         verify(flow, never()).createTransport(any(), any(), any(), any(), any());
     }
 }

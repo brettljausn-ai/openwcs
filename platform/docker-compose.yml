@@ -222,11 +222,10 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
       SPRING_DATASOURCE_USERNAME: openwcs
       SPRING_DATASOURCE_PASSWORD: openwcs
-      # Store-back transports go to flow-orchestrator; broken-product write-offs go to txlog;
-      # store-back asks slotting for the best put-away location.
+      # Operator completion fans out to flow-orchestrator (which owns the slotting-only return
+      # leg); broken-product write-offs go to txlog. gtp no longer calls slotting itself.
       OPENWCS_FLOW_ORCHESTRATOR_BASE_URL: http://flow-orchestrator:8085
       OPENWCS_TXLOG_BASE_URL: http://txlog:8086
-      OPENWCS_SLOTTING_BASE_URL: http://slotting:8093
 
   counting:
     restart: unless-stopped
@@ -278,9 +277,11 @@ services:
       OPENWCS_FLOW_SELF_BASE_URL: http://flow-orchestrator:8085
       # Project topology STOCK/ORDER interactions into GTP station nodes (best-effort on routing projection).
       OPENWCS_GTP_BASE_URL: http://gtp:8094
-      # Book HU registry locations through the transport lifecycle (retrieve -> null, store-back -> slot).
+      # Book HU registry locations through the transport lifecycle (CONVEY -> conveyor's
+      # operational location, QUEUED -> workplace's, STORE -> the slotting-chosen slot).
       OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
-      # Ask slotting for relocation plans before retrieving out of multi-deep channels (ADR-0009).
+      # Ask slotting for relocation plans before retrieving out of multi-deep channels (ADR-0009)
+      # and for the return-leg put-away destination (slotting-only store-back).
       OPENWCS_SLOTTING_BASE_URL: http://slotting:8093
 
   txlog:

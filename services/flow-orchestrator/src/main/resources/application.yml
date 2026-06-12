@@ -38,8 +38,11 @@ openwcs:
     # Single equipment-emulator: when HARDWARE_EMULATOR_ENABLED is on, every family is dispatched
     # here instead of to the per-family adapters above.
     emulator-url: ${OPENWCS_EMULATOR_URL:http://localhost:9097}
-    # master-data base URL — read the hardware-emulator flag to choose emulator vs real adapters.
+    # master-data base URL — the hardware-emulator flag (emulator vs real adapters) and the
+    # operational locations of conveyors/workplaces for HU current-location bookings.
     master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
+    # how often the awaiting-slot sweep re-asks slotting for circulating return totes (~30s).
+    slot-retry-millis: ${OPENWCS_FLOW_SLOT_RETRY_MILLIS:30000}
     # This service's own base URL, sent to the device as the async result-callback target.
     self-base-url: ${OPENWCS_FLOW_SELF_BASE_URL:http://localhost:8085}
     # gtp service base URL — projecting topology STOCK/ORDER interactions into station nodes.

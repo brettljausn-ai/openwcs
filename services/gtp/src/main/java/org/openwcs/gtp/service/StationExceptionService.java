@@ -18,8 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <ul>
  *   <li>dirty-tote: the tote is flagged for cleaning. It is pulled out of circulation into a
- *       {@link MaintenanceOrder} and the flow induction entry is marked DONE WITHOUT a store-back (it
- *       goes to maintenance, not back to stock).</li>
+ *       {@link MaintenanceOrder} and the flow induction entry is marked DONE. gtp dispatches no
+ *       store-back of its own (flow owns the return leg; suppressing flow's return CONVEY for
+ *       maintenance-bound totes is a known follow-up — gtp could never suppress it before either).</li>
  *   <li>broken-product: some quantity on the tote is damaged. A negative {@code StockAdjusted} (reason
  *       DAMAGED) is posted to the txlog so inventory writes the loss off; the tote stays in the queue
  *       so the operator keeps working it.</li>
@@ -46,7 +47,7 @@ public class StationExceptionService {
 
     /**
      * Dirty-tote: open a CLEANING maintenance order from the flow induction entry and mark the entry
-     * DONE without storing it back. The tote is routed to maintenance instead of returning to inventory.
+     * DONE. The tote is routed to maintenance; gtp dispatches no transport (flow owns the return leg).
      */
     @Transactional
     public MaintenanceOrder markDirty(UUID stationId, UUID inductionEntryId) {
@@ -62,7 +63,7 @@ public class StationExceptionService {
         order.setStatus(MaintenanceOrder.Status.OPEN.name());
         MaintenanceOrder saved = maintenance.save(order);
 
-        queueService.completeInductionWithoutStoreBack(inductionEntryId);
+        queueService.completeInduction(inductionEntryId);
         log.info("tote {} flagged dirty at station {}; maintenance order {} opened (CLEANING)",
                 e.huCode(), stationId, saved.getId());
         return saved;

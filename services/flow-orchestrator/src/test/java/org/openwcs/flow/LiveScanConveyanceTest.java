@@ -24,6 +24,7 @@ import org.openwcs.flow.api.RoutingDtos.ScanRequest;
 import org.openwcs.flow.api.RoutingDtos.Topology;
 import org.openwcs.flow.client.DeviceClient;
 import org.openwcs.flow.client.InventoryClient;
+import org.openwcs.flow.client.MasterDataClient;
 import org.openwcs.flow.client.SlottingClient;
 import org.openwcs.flow.client.WorkplaceClient;
 import org.openwcs.flow.repo.HuTransportTraceRepository;
@@ -77,6 +78,9 @@ class LiveScanConveyanceTest {
     // dispatch the RETRIEVE directly, exactly as before the dig-out chain existed.
     @MockBean
     SlottingClient slottingClient;
+
+    @MockBean
+    MasterDataClient masterDataClient;
 
     @Autowired
     InductionQueueService induction;
@@ -264,6 +268,9 @@ class LiveScanConveyanceTest {
         UUID warehouse = UUID.randomUUID();
         UUID workplace = UUID.randomUUID();
         projectedWarehouse(warehouse, workplace, true);
+        // Slotting decides the return destination; only then is the return leg routed.
+        when(slottingClient.bestLocation(any(), any(), any(), any()))
+                .thenReturn(java.util.Optional.of(UUID.randomUUID()));
 
         InductionEntryView created = induction.request(req(warehouse, workplace, UUID.randomUUID(), "TOTE-5"), "op");
         deviceTasks.completeFromCallback(created.retrieveTaskId(), "COMPLETED", "retrieved", Map.of());
@@ -279,5 +286,25 @@ class LiveScanConveyanceTest {
         RouteView route = routing.getRoute(warehouse, "TOTE-5").orElseThrow();
         assertThat(route.targets()).containsExactly("ASRS_OUT");
         assertThat(route.status()).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void conveyDispatchBooksTheEntryConveyorsOperationalLocation() {
+        asyncAdapter();
+        cap(5, 5);
+        UUID warehouse = UUID.randomUUID();
+        UUID workplace = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        projectedWarehouse(warehouse, workplace, true);
+        UUID conveyorLocation = UUID.randomUUID();
+        // The CONVEY enters the graph at ASRS_OUT (node name = code here): master-data resolves the
+        // conveyor's operational location and the HU is booked onto it.
+        org.mockito.Mockito.when(masterDataClient.operationalLocation(warehouse, "EQUIPMENT", "ASRS_OUT"))
+                .thenReturn(conveyorLocation);
+
+        InductionEntryView created = induction.request(req(warehouse, workplace, huId, "TOTE-6"), "op");
+        deviceTasks.completeFromCallback(created.retrieveTaskId(), "COMPLETED", "retrieved", Map.of());
+
+        org.mockito.Mockito.verify(inventoryClient).bookLocation(huId, conveyorLocation);
     }
 }

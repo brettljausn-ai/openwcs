@@ -2,12 +2,9 @@ package org.openwcs.gtp.service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import org.openwcs.gtp.client.FlowClient;
 import org.openwcs.gtp.client.FlowInductionClient;
 import org.openwcs.gtp.domain.GtpStation;
 import org.openwcs.gtp.domain.OperatingMode;
@@ -26,8 +23,10 @@ import org.springframework.transaction.annotation.Transactional;
  * <strong>flow-orchestrator</strong>, not gtp: the workstation screen reads the slice from flow (via
  * {@link FlowInductionClient}) and operator completion fans the entry out to flow's DONE endpoint.
  *
- * <p>What STAYS in gtp (this class): the act-on-completion <em>store-back</em> — when a presented
- * tote has finished its station work it is returned to storage via a flow {@code STORE} transport.
+ * <p>The return-to-storage decision is owned by flow too: marking the entry DONE starts flow's
+ * return leg, where ONLY slotting decides the destination. gtp dispatches no store-back transport
+ * of its own anymore (the old best-effort {@code storeBack} double-dispatched against flow's
+ * return leg and is removed).
  *
  * <p>The legacy gtp-owned inbound queue ({@link #enqueue}, {@link #queue}, {@link #complete}, the
  * {@code CONVEYOR_MPS} arrival computation and the local in-transit cap) is {@link Deprecated} and no
@@ -48,29 +47,19 @@ public class StationQueueService {
     @Deprecated
     private static final double CONVEYOR_MPS = 0.5;
     private static final List<String> ACTIVE = List.of(Status.IN_TRANSIT.name(), Status.QUEUED.name());
-    /** Flow induction statuses that mean the HU still has open work (i.e. is not DONE). */
-    private static final List<String> OPEN = List.of("REQUESTED", "IN_TRANSIT", "QUEUED");
 
     private final GtpStationRepository stations;
     private final StationQueueEntryRepository queue;
     private final org.openwcs.gtp.repo.StationNodeRepository nodes;
-    private final FlowClient flow;
     private final FlowInductionClient induction;
-    private final org.openwcs.gtp.client.SlottingClient slotting;
-    private final org.openwcs.gtp.client.MasterDataClient masterData;
 
     public StationQueueService(GtpStationRepository stations, StationQueueEntryRepository queue,
-                               org.openwcs.gtp.repo.StationNodeRepository nodes, FlowClient flow,
-                               FlowInductionClient induction,
-                               org.openwcs.gtp.client.SlottingClient slotting,
-                               org.openwcs.gtp.client.MasterDataClient masterData) {
+                               org.openwcs.gtp.repo.StationNodeRepository nodes,
+                               FlowInductionClient induction) {
         this.stations = stations;
         this.queue = queue;
         this.nodes = nodes;
-        this.flow = flow;
         this.induction = induction;
-        this.slotting = slotting;
-        this.masterData = masterData;
     }
 
     /**
@@ -110,85 +99,21 @@ public class StationQueueService {
     }
 
     /**
-     * Operator completion of a presented tote (ADR-0007 §6.2): mark the flow induction entry DONE,
-     * then run gtp's store-back. Returns the DONE flow entry.
+     * Operator completion of a presented tote (ADR-0007 §6.2): mark the flow induction entry DONE.
+     * Flow owns the return leg from here — only slotting decides where the tote goes, and gtp
+     * dispatches NO transport of its own (the old parallel store-back double-dispatched against
+     * flow's return leg). Returns the DONE flow entry.
      */
     @Transactional
     public FlowInductionClient.InductionEntry completeInduction(UUID entryId) {
-        return completeInduction(entryId, true);
-    }
-
-    /** Mark the flow entry DONE but never store back (e.g. dirty tote → maintenance, not storage). */
-    @Transactional
-    public FlowInductionClient.InductionEntry completeInductionWithoutStoreBack(UUID entryId) {
-        return completeInduction(entryId, false);
-    }
-
-    private FlowInductionClient.InductionEntry completeInduction(UUID entryId, boolean storeBack) {
         FlowInductionClient.InductionEntry done = induction.markDone(entryId);
         if (done == null) {
             throw new QueueRejectedException("Induction entry not found.");
         }
-        log.info("induction entry {} completed at workplace {}: tote {} (sku {}, mode {}) marked DONE{}",
-                entryId, done.workplaceId(), done.huCode(), done.skuCode(), done.mode(),
-                storeBack ? "" : "; store-back deliberately not attempted (tote leaves circulation)");
-        if (storeBack) {
-            storeBack(done);
-        }
+        log.info("induction entry {} completed at workplace {}: tote {} (sku {}, mode {}) marked DONE; "
+                        + "flow owns the return leg (slotting decides the destination)",
+                entryId, done.workplaceId(), done.huCode(), done.skuCode(), done.mode());
         return done;
-    }
-
-    /**
-     * Best-effort store-back: when a tote has finished all of its station work (no other open
-     * induction entry for the same HU at the workplace) and we know its warehouse, dispatch a STORE
-     * transport to return it to the currently-best storage location. Never throws (a store-back
-     * failure must not break completion).
-     */
-    private void storeBack(FlowInductionClient.InductionEntry e) {
-        try {
-            if (e.huId() == null) {
-                log.debug("store-back skipped for induction entry {}: no handling unit on the entry", e.id());
-                return;
-            }
-            boolean stillWorking = induction.readQueue(e.workplaceId()).stream()
-                    .anyMatch(o -> e.huId().equals(o.huId())
-                            && !e.id().equals(o.id())
-                            && OPEN.contains(o.status()));
-            if (stillWorking) {
-                // the tote still has open work, keep it out.
-                log.info("store-back deferred for tote {}: another open induction entry at workplace {} "
-                        + "still needs it", e.huCode(), e.workplaceId());
-                return;
-            }
-            // Don't return it to its source slot: ask slotting for the currently-best storage location
-            // (an empty, unreserved slot scored for this SKU).
-            Optional<UUID> destination =
-                    slotting.bestLocation(e.warehouseId(), e.huId(), e.skuId(), e.qty());
-            if (destination.isEmpty()) {
-                log.warn("store-back skipped for tote {} (sku {}): no put-away location available; "
-                        + "the tote stays at workplace {}", e.huCode(), e.skuCode(), e.workplaceId());
-                return;
-            }
-            // Dispatch to the adapter family that services the destination storage (AutoStore ->
-            // AUTOSTORE, AMR-GTP -> AMR, shuttle/crane -> ASRS), not a hardcoded ASRS.
-            String family = org.openwcs.gtp.client.MasterDataClient.deviceFamilyOf(
-                    masterData.storageTypeOfLocation(e.warehouseId(), destination.get()).orElse(null));
-            if (family == null) {
-                family = "ASRS";
-            }
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("huId", e.huId());
-            payload.put("huCode", e.huCode());
-            payload.put("skuId", e.skuId());
-            payload.put("skuCode", e.skuCode());
-            payload.put("destinationLocationId", destination.get());
-            payload.put("reason", "STORE");
-            UUID transportId = flow.createTransport(e.warehouseId(), family, "STORE", payload, e.huId());
-            log.info("stored tote {} (sku {}) to best location {} via {} transport {}",
-                    e.huCode(), e.skuCode(), destination.get(), family, transportId);
-        } catch (Exception ex) {
-            log.warn("store-back for tote {} failed (best-effort, ignored): {}", e.huCode(), ex.toString());
-        }
     }
 
     // ---------------------------------------------------------------------------------------------
