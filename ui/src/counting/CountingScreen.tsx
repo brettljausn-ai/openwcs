@@ -419,6 +419,13 @@ export default function CountingScreen() {
                       <span className={`badge ${routingBadge(t.routingStatus)}`}>
                         {routingLabel(t.routingStatus)}
                       </span>
+                      {/* A failed routing's reason is essential for the operator, so show it
+                          visibly rather than only in the hover tooltip. */}
+                      {t.routingStatus === 'FAILED' && t.routingReason && (
+                        <div style={{ fontSize: '.75rem', color: 'var(--text-dim)', maxWidth: 220 }}>
+                          {t.routingReason}
+                        </div>
+                      )}
                     </td>
                     <td>{t.countType || '—'}</td>
                     <td>{t.origin || '—'}</td>
@@ -860,7 +867,7 @@ function ScheduleDialog({
                   className="form-control"
                   value={form.scopeRef}
                   onChange={(e) => setForm({ ...form, scopeRef: e.target.value })}
-                  placeholder="optional"
+                  placeholder="blank = all of this scope"
                 />
               </label>
             )}
@@ -907,7 +914,7 @@ function ScheduleDialog({
                 step="any"
                 value={form.tolerance}
                 onChange={(e) => setForm({ ...form, tolerance: e.target.value })}
-                placeholder="optional"
+                placeholder="blank = exact match"
               />
             </label>
             <label style={fieldLabel}>
