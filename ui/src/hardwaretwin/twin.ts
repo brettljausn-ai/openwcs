@@ -50,6 +50,10 @@ export interface ToteView {
   // world point (the station it queues at / the equipment of its last task). Null when unknown — the
   // scene hides the tote rather than inventing a position.
   anchorPlacedId: string | null
+  /** Position in the station's induction queue (0 = head). The 3D layer lines queued totes up on
+   *  the station's INBOUND conveyor at this index (spaced upstream from the link point) instead of
+   *  stacking them all inside the workstation box. */
+  queueIndex?: number
   /** Observed live position (ADR-0008 replay): the last scanned node, the answered next node, and the
    *  scan timestamp. The 3D layer interpolates fromXZ → toXZ at the conveyor speed (0.5 m/s) from
    *  tsMs, per frame — continuous motion between polls, derived only from observed scans. */
@@ -414,6 +418,8 @@ export function deriveTwin(
   const totes: ToteView[] = []
   let inTransit = 0
   let queued = 0
+  // Queue order for the inferred-queued fallback (no live queue data): arrival-task order per station.
+  const inferredQueueCount = new Map<string, number>()
   for (const [hu, t] of latestByHu) {
     const status = (t.status || '').toUpperCase()
     const created = tsMs(t.createdAt)
@@ -423,6 +429,7 @@ export function deriveTwin(
 
     let state: ToteRuntimeState
     let anchorPlacedId: string | null = null
+    let queueIndex: number | undefined
     let scan: ToteView['scan'] = null
     if (RUNNING_STATUSES.has(status)) {
       state = held ? 'recirculating' : 'in-transit'
@@ -445,6 +452,8 @@ export function deriveTwin(
         // No queue data available — fall back to inferring queued from the arrival task.
         state = 'queued'
         anchorPlacedId = placedByStationId.get(destWp) ?? null
+        queueIndex = inferredQueueCount.get(destWp) ?? 0
+        inferredQueueCount.set(destWp, queueIndex + 1)
         queued++
       } else if (nowMs - created <= TOTE_DONE_LINGER_MS) {
         state = 'done'
@@ -465,6 +474,7 @@ export function deriveTwin(
       huCode: payloadStr(t, 'huCode') ?? null,
       state,
       anchorPlacedId,
+      queueIndex,
       scan,
       lastCommand: t.command,
       lastTs: t.createdAt,
@@ -479,7 +489,7 @@ export function deriveTwin(
     for (const [stationId, entries] of live.queuedByStation) {
       const placedId = placedByStationId.get(stationId)
       if (!placedId) continue
-      for (const e of entries) {
+      entries.forEach((e, queuePos) => {
         queued++
         const existing = totes.findIndex((tv) => tv.huId === e.huId)
         const view: ToteView = {
@@ -487,6 +497,7 @@ export function deriveTwin(
           huCode: e.huCode ?? null,
           state: 'queued',
           anchorPlacedId: placedId,
+          queueIndex: queuePos,
           scan: null,
           lastTs: new Date(nowMs).toISOString(),
           correlationId: e.huId,
@@ -498,7 +509,7 @@ export function deriveTwin(
         } else {
           totes.push(view)
         }
-      }
+      })
     }
   }
 

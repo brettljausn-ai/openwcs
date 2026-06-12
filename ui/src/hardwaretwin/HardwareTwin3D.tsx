@@ -38,11 +38,17 @@ import {
 import {
   RENDER_DELAY_MS,
   buildBeltLocator,
+  buildBeltSpacer,
   buildPathResolver,
+  makePath,
   newSmoothState,
+  pointAtLen,
+  projectPointOnPath,
   sampleTimeline,
   smoothStep,
+  type PathSample,
   type SmoothState,
+  type SpacingItem,
   type ToteTimeline,
   type XZ,
 } from './motion'
@@ -237,6 +243,46 @@ function SceneContent({
   )
   const locateBelt = useMemo(() => buildBeltLocator(conveyorGeoms), [conveyorGeoms])
 
+  // --- Queue lineup geometry -----------------------------------------------------------------------
+  // Walkable PathSample per conveyor placement (queue slots are arc-length stations on these).
+  const beltPaths = useMemo(() => {
+    const m = new Map<string, PathSample>()
+    for (const g of conveyorGeoms) {
+      if (g.worldPath && g.worldPath.length >= 2) m.set(g.id, makePath(g.worldPath))
+    }
+    return m
+  }, [conveyorGeoms])
+
+  // Where each NON-conveyor placement's queue forms: the point on its linked conveyor where the two
+  // meet (the editor's explicit node links). An INBOUND link (conveyor → station) wins over an
+  // outbound one — totes wait on the belt that DELIVERS to the station. Queued totes line up here,
+  // spaced upstream, instead of teleporting into the workstation box (physically impossible).
+  const queueHeads = useMemo(() => {
+    const m = new Map<string, { beltId: string; s: number; inbound: boolean }>()
+    const consider = (stationPlacedId: string, beltId: string, pathIdx: number | null | undefined, inbound: boolean) => {
+      const path = beltPaths.get(beltId)
+      if (!path) return
+      const prev = m.get(stationPlacedId)
+      if (prev && (prev.inbound || !inbound)) return
+      let s: number
+      if (pathIdx != null && pathIdx >= 0 && pathIdx < path.cum.length) {
+        s = path.cum[pathIdx]
+      } else {
+        const g = geomById.get(stationPlacedId)
+        if (!g) return
+        s = projectPointOnPath(path, [g.center[0], g.center[2]]).s
+      }
+      m.set(stationPlacedId, { beltId, s, inbound })
+    }
+    for (const c of topology.connections) {
+      const fromConv = beltPaths.has(c.fromPlacedId)
+      const toConv = beltPaths.has(c.toPlacedId)
+      if (fromConv && !toConv) consider(c.toPlacedId, c.fromPlacedId, c.fromPathIndex, true)
+      else if (!fromConv && toConv) consider(c.fromPlacedId, c.toPlacedId, c.toPathIndex, false)
+    }
+    return m
+  }, [topology.connections, beltPaths, geomById])
+
   // Jam hysteresis: each raw jam reading extends the belt's orange window by JAM_HOLD_MS, so a
   // single slow hop / borderline density poll cannot strobe the skin. The Map is read per-frame
   // by each skin (cheap), re-armed once per snapshot (poll) here.
@@ -288,10 +334,12 @@ function SceneContent({
           eq={eq}
           conveyor={topoIsConveyor(eq, lib)}
           cat={topoCategory(eq, lib)}
-          color={
-            topoIsConveyor(eq, lib)
-              ? BELT_BODY_COLORS[beltStates.get(eq.id) ?? 'ok']
-              : topoColorFor(eq, lib)
+          color={topoColorFor(eq, lib)}
+          /* The conveyor BODY wears the live state colour. This must go through bodyTint — the
+             editor's ConveyorPath ignores `color` for real conveyors (it always drew the default
+             light blue, which is why the state colours never showed on the floor). */
+          bodyTint={
+            topoIsConveyor(eq, lib) ? BELT_BODY_COLORS[beltStates.get(eq.id) ?? 'ok'] : undefined
           }
           selected={false}
           connectMode={false}
@@ -352,6 +400,9 @@ function SceneContent({
         timelines={timelines}
         clockOffsetMsRef={clockOffsetMsRef}
         geomById={geomById}
+        beltPaths={beltPaths}
+        queueHeads={queueHeads}
+        conveyorGeoms={conveyorGeoms}
         selectedHuId={selectedHuId}
         onSelectTote={onSelectTote}
       />
@@ -443,9 +494,17 @@ interface TotesProps {
   timelines?: Map<string, ToteTimeline>
   clockOffsetMsRef?: MutableRefObject<number | null>
   geomById: Map<string, PlacementGeom>
+  /** Walkable polyline per conveyor placement (queue slots live on these). */
+  beltPaths: Map<string, PathSample>
+  /** Per non-conveyor placement: where its induction queue forms on the linked inbound conveyor. */
+  queueHeads: Map<string, { beltId: string; s: number }>
+  conveyorGeoms: PlacementGeom[]
   selectedHuId: string | null
   onSelectTote?: (huId: string | null) => void
 }
+
+/** Spacing between queue slots along the belt (tote 0.6 m + a visible gap). */
+const QUEUE_SPACING_M = 0.8
 
 // Smooth, honest tote motion (motion.ts): the per-frame target is the buffered scan timeline
 // sampled at `now - RENDER_DELAY_MS` and interpolated along the conveyor polylines — only ever
@@ -454,7 +513,17 @@ interface TotesProps {
 // discontinuities (rack store/retrieve, induction) still teleport. The animation itself is pure
 // rAF/delta-time (useFrame) and fully independent of poll timing. Totes without a timeline fall
 // back to the single latest scan, then to their (strict) anchor.
-function Totes({ totes, timelines, clockOffsetMsRef, geomById, selectedHuId, onSelectTote }: TotesProps): JSX.Element {
+function Totes({
+  totes,
+  timelines,
+  clockOffsetMsRef,
+  geomById,
+  beltPaths,
+  queueHeads,
+  conveyorGeoms,
+  selectedHuId,
+  onSelectTote,
+}: TotesProps): JSX.Element {
   // The delayed render clock (data-anchored, monotonic): survives across frames.
   const renderClockRef = useRef<number | null>(null)
   const groupRefs = useRef<Map<string, THREE.Group>>(new Map())
@@ -462,6 +531,9 @@ function Totes({ totes, timelines, clockOffsetMsRef, geomById, selectedHuId, onS
 
   // Conveyor-geometry path resolver (memoised per endpoint pair inside).
   const pathBetween = useMemo(() => buildPathResolver(Array.from(geomById.values())), [geomById])
+  // Per-frame anti-overlap pass: totes are solid — followers are clamped behind the tote ahead
+  // along the belt's own geometry (never sideways), queue slots act as fixed obstacles.
+  const spaceOnBelts = useMemo(() => buildBeltSpacer(conveyorGeoms), [conveyorGeoms])
 
   const resolved = useMemo(() => {
     const out: Array<{ tote: ToteView; anchor: THREE.Vector3 | null }> = []
@@ -501,17 +573,30 @@ function Totes({ totes, timelines, clockOffsetMsRef, geomById, selectedHuId, onS
     const prevT = renderClockRef.current
     const renderT = prevT == null ? raw : Math.max(prevT, Math.min(raw, prevT + delta * 2000))
     renderClockRef.current = renderT
+    // Pass 1 — raw per-tote targets from the observed state.
+    const targets: Array<{ tote: ToteView; xz: XZ; y: number; fixed: boolean }> = []
     for (const { tote, anchor } of resolved) {
-      const g = groups.get(tote.huId)
-      if (!g) continue
+      if (!groups.get(tote.huId)) continue
 
-      // Where the observed state puts the tote THIS frame. Queued totes sit at their station
-      // anchor (the real induction queue is the truth there) — the timeline only drives motion.
+      // Where the observed state puts the tote THIS frame. Queued totes line up ON the inbound
+      // conveyor at the station's link point — slot `queueIndex` sits queueIndex × spacing
+      // UPSTREAM (lower arc length) of the head, so the queue is a visible line of totes waiting
+      // on the belt, not a stack inside the workstation box.
       let xz: XZ | null = null
       let y = SCAN_BELT_Y + BELT_LIFT
-      if (tote.state === 'queued' && anchor) {
-        xz = [anchor.x, anchor.z]
-        y = anchor.y
+      let fixed = false
+      if (tote.state === 'queued') {
+        const head = tote.anchorPlacedId ? queueHeads.get(tote.anchorPlacedId) : undefined
+        const beltPath = head ? beltPaths.get(head.beltId) : undefined
+        if (head && beltPath) {
+          xz = pointAtLen(beltPath, Math.max(0, head.s - (tote.queueIndex ?? 0) * QUEUE_SPACING_M))
+          fixed = true
+        } else if (anchor) {
+          // No linked conveyor in the topology — the station anchor stays the honest fallback.
+          xz = [anchor.x, anchor.z]
+          y = anchor.y
+          fixed = true
+        }
       }
       const tl = timelines?.get(tote.huId)
       if (!xz && tl && tl.points.length) {
@@ -536,7 +621,20 @@ function Totes({ totes, timelines, clockOffsetMsRef, geomById, selectedHuId, onS
         y = anchor.y
       }
       if (!xz) continue
+      targets.push({ tote, xz, y, fixed })
+    }
 
+    // Pass 2 — totes are solid: on each belt, clamp every follower at least a tote-length behind
+    // the one ahead (queue slots are fixed obstacles, so movers stack up behind the queue tail).
+    const spaced = spaceOnBelts(
+      targets.map((t): SpacingItem => ({ id: t.tote.huId, xz: t.xz, fixed: t.fixed })),
+    )
+
+    // Pass 3 — smooth toward the (possibly clamped) target and apply.
+    for (const { tote, xz: rawXz, y } of targets) {
+      const g = groups.get(tote.huId)
+      if (!g) continue
+      const xz = spaced.get(tote.huId) ?? rawXz
       let st = sm.get(tote.huId)
       if (!st) {
         st = newSmoothState()
