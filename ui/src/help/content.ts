@@ -27,7 +27,7 @@ export const HELP: Record<string, ScreenHelp> = {
     "sections": [
       {
         "heading": "What you do here",
-        "body": "Watch the floor: equipment pulses amber while it works and turns red on a fault, so you spot trouble at a glance.\nFollow a tote: totes glide between the points their scans reported; nothing on this screen is invented.\nInvestigate: click any machine to see its recent device tasks, or click a tote to see its full transport trace.\nDeclutter: use the level selector for multi-floor sites and the Labels toggle to hide names.\nThis screen is read-only: watching never changes anything on the floor."
+        "body": "Read the floor: conveyor belts wear their state as a colour skin - green means healthy, orange means congestion (a stalled tote or totes packed densely on the belt), red means a hardware fault; other equipment (ASRS, stations) pulses an amber orb while it works and turns red on a fault.\nFollow a tote: totes glide between the points their scans reported; nothing on this screen is invented.\nInvestigate: click any machine to see its recent device tasks, or click a tote to see its full transport trace.\nDeclutter: use the level selector for multi-floor sites and the Labels toggle to hide names.\nThis screen is read-only: watching never changes anything on the floor."
       },
       {
         "heading": "On the floor",
@@ -35,7 +35,7 @@ export const HELP: Record<string, ScreenHelp> = {
       },
       {
         "heading": "If something goes wrong",
-        "body": "A tote sits still on the conveyor: it may be waiting at a divert with no default direction, or waiting for slotting to assign a storage slot; click it and check the last trace entry.\nEquipment shows red: it reported a failed device task; click it to read the task and reason, then check the Transport screen for the same correlation.\nNothing moves at all: check that the hardware emulator is ON (Settings, Hardware emulator) on a demo system, and that the topology has been saved and projected.\nA tote you expect is missing: it only appears while it has device tasks; totes resting in storage show inside the rack, not on the belts."
+        "body": "A tote sits still on the conveyor: it may be waiting at a divert with no default direction, or waiting for slotting to assign a storage slot; click it and check the last trace entry.\nA belt shows orange but totes keep moving: the density threshold tripped - traffic is heavy rather than stopped; watch for a queue forming at the next divert.\nA belt or machine shows red: it reported a failed device task; click it to read the task and reason, then check the Transport screen for the same correlation.\nNothing moves at all: check that the hardware emulator is ON (Settings, Hardware emulator) on a demo system, and that the topology has been saved and projected.\nA tote you expect is missing: it only appears while it has device tasks; totes resting in storage show inside the rack, not on the belts."
       }
     ],
     "tips": [
