@@ -376,8 +376,8 @@ the induction entry, the return CONVEY is routed to the storage entry and arriva
 STORE into the slotting-chosen location. Slotting errored / no answer → the return CONVEY still
 goes out (the tote must leave the workplace) but with **no destination and no route plan**: the
 tote stays on the conveyor (recirculating), the entry is flagged `awaiting_slot`
-(`V14__induction_slotting_storeback.sql`) and a ShedLock-guarded sweep (`InductionSlotSweeper`,
-~30s, `flow.shedlock` via `V15__shedlock.sql`) retries slotting; on an answer the destination +
+(`V15__induction_slotting_storeback.sql`) and a ShedLock-guarded sweep (`InductionSlotSweeper`,
+~30s, `flow.shedlock` via `V16__shedlock.sql`) retries slotting; on an answer the destination +
 route plan are assigned mid-journey (routing is per-scan, the tote adapts at its next scan; a
 `SLOT_ASSIGNED` trace row is written) — or the STORE fires directly when the plan-less CONVEY
 already completed. **HU location bookings**: every CONVEY dispatch books the HU to the entry
