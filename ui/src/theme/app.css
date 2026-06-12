@@ -557,7 +557,8 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
   font-family: var(--font-mono); font-size: .68rem; letter-spacing: .14em; text-transform: uppercase;
   color: var(--herbal-lime); margin: 0 0 .4rem;
 }
-.help-section p { color: var(--text-dim); font-size: .9rem; line-height: 1.55; margin: 0; }
+/* pre-line so help bodies can use \n for steps, worked examples and if/then items */
+.help-section p { color: var(--text-dim); font-size: .9rem; line-height: 1.55; margin: 0; white-space: pre-line; }
 .help-tips { margin: 0; padding-left: 1.1rem; color: var(--text-dim); font-size: .9rem; line-height: 1.5; }
 .help-tips li { margin-bottom: .35rem; }
 
