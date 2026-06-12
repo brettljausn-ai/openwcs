@@ -10,6 +10,8 @@ import org.openwcs.gtp.domain.GtpStation;
 import org.openwcs.gtp.domain.WorkplaceSession;
 import org.openwcs.gtp.repo.GtpStationRepository;
 import org.openwcs.gtp.repo.WorkplaceSessionRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class WorkplaceSessionService {
+
+    private static final Logger log = LoggerFactory.getLogger(WorkplaceSessionService.class);
 
     /** Reason recorded (and reported to the superseded console) when a session is taken over. */
     public static final String REASON_SUPERSEDED = "superseded";
@@ -44,12 +48,15 @@ public class WorkplaceSessionService {
      */
     @Transactional
     public WorkplaceSession claim(UUID stationId, String operator) {
-        requireStation(stationId);
+        GtpStation station = requireStation(stationId);
 
         sessions.findByStationIdAndStatus(stationId, WorkplaceSession.ACTIVE).ifPresent(prev -> {
             prev.setStatus(WorkplaceSession.SUPERSEDED);
             prev.setSupersededReason(REASON_SUPERSEDED);
             prev.setClosedAt(Instant.now());
+            log.info("workplace {} taken over: session {} of operator {} superseded by a new claim "
+                            + "from operator {}; the old console stops on its next heartbeat",
+                    station.getCode(), prev.getId(), prev.getOperator(), operator);
         });
         // Release the freed ACTIVE slot before inserting the new one (the partial unique index
         // allows only a single ACTIVE row per workplace).
@@ -62,7 +69,10 @@ public class WorkplaceSessionService {
         Instant now = Instant.now();
         session.setClaimedAt(now);
         session.setLastHeartbeatAt(now);
-        return sessions.save(session);
+        WorkplaceSession saved = sessions.save(session);
+        log.info("workplace {} claimed by operator {} (session {})",
+                station.getCode(), operator, saved.getId());
+        return saved;
     }
 
     /**
@@ -87,6 +97,8 @@ public class WorkplaceSessionService {
             session.setStatus(WorkplaceSession.RELEASED);
             session.setSupersededReason(REASON_RELEASED);
             session.setClosedAt(Instant.now());
+            log.info("workplace session {} released cleanly by operator {} (station {})",
+                    sessionId, session.getOperator(), stationId);
         }
         return session;
     }

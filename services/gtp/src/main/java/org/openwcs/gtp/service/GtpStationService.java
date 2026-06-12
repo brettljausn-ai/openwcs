@@ -20,6 +20,8 @@ import org.openwcs.gtp.domain.StationNode;
 import org.openwcs.gtp.repo.DestinationDemandRepository;
 import org.openwcs.gtp.repo.GtpStationRepository;
 import org.openwcs.gtp.repo.StationNodeRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class GtpStationService {
+
+    private static final Logger log = LoggerFactory.getLogger(GtpStationService.class);
 
     private static final Map<String, String> MODES = Map.of(
             "ORDER_LOCATION", "ORDER_LOCATION", "PUT_WALL", "PUT_WALL");
@@ -96,7 +100,12 @@ public class GtpStationService {
         station.setName(request.name());
         station.setMode(mode);
         if (request.status() != null && !request.status().isBlank()) {
-            station.setStatus(request.status().trim());
+            String newStatus = request.status().trim();
+            if (!newStatus.equals(station.getStatus())) {
+                log.info("station {} status changed {} -> {} by configuration update",
+                        station.getCode(), station.getStatus(), newStatus);
+            }
+            station.setStatus(newStatus);
         }
         if (request.supportedModes() != null) {
             station.setSupportedModeSet(parseModes(request.supportedModes()));
@@ -119,6 +128,8 @@ public class GtpStationService {
     public GtpStation setSupportedModes(UUID stationId, List<String> modes) {
         GtpStation station = requireStation(stationId);
         station.setSupportedModeSet(parseModes(modes));
+        log.info("station {} supported operating modes set to {}",
+                station.getCode(), station.getSupportedModes());
         return station;
     }
 
@@ -135,6 +146,8 @@ public class GtpStationService {
         GtpStation station = requireStation(stationId);
         station.setMaxInTransitPicking(maxInTransitPicking);
         station.setMaxInTransitOther(maxInTransitOther);
+        log.info("station {} in-transit caps set: picking {}, other {}",
+                station.getCode(), maxInTransitPicking, maxInTransitOther);
         return station;
     }
 
@@ -211,12 +224,20 @@ public class GtpStationService {
         }
         java.util.Set<String> wanted = new java.util.HashSet<>();
         int pos = 0;
+        int matched = 0;
+        int added = 0;
         for (NodeSyncSpec s : specs) {
             if (!"STOCK".equals(s.role()) && !"ORDER".equals(s.role())) {
                 continue;
             }
             wanted.add(s.code());
-            StationNode node = byCode.getOrDefault(s.code(), new StationNode());
+            StationNode existingNode = byCode.get(s.code());
+            StationNode node = existingNode != null ? existingNode : new StationNode();
+            if (existingNode != null) {
+                matched++;
+            } else {
+                added++;
+            }
             node.setStationId(stationId);
             node.setRole(s.role());
             node.setCode(s.code());
@@ -229,11 +250,24 @@ public class GtpStationService {
             nodes.save(node);
         }
         // Drop nodes the topology no longer defines, but only when nothing depends on them.
+        int removed = 0;
+        int keptWithDemand = 0;
         for (StationNode n : existing) {
-            if (!wanted.contains(n.getCode()) && demands.findByStationNodeId(n.getId()).isEmpty()) {
-                nodes.delete(n);
+            if (!wanted.contains(n.getCode())) {
+                if (demands.findByStationNodeId(n.getId()).isEmpty()) {
+                    nodes.delete(n);
+                    removed++;
+                } else {
+                    keptWithDemand++;
+                    log.warn("node sync at station {}: stale node {} is no longer in the topology "
+                                    + "but still carries demand; kept until the demand is resolved",
+                            station.getCode(), n.getCode());
+                }
             }
         }
+        log.info("node sync at station {}: {} node(s) from topology ({} matched by code, {} added), "
+                        + "{} stale removed, {} stale kept (open demand)",
+                station.getCode(), pos, matched, added, removed, keptWithDemand);
         return station;
     }
 
@@ -273,7 +307,10 @@ public class GtpStationService {
         demand.setSkuId(request.skuId());
         demand.setRequestedQty(request.qty());
         demand.setPuttedQty(BigDecimal.ZERO);
-        return demands.save(demand);
+        DestinationDemand saved = demands.save(demand);
+        log.info("destination opened at node {}: order {} demands qty {} of sku {} (order hu {})",
+                node.getCode(), request.orderRef(), request.qty(), request.skuId(), request.orderHuId());
+        return saved;
     }
 
     @Transactional(readOnly = true)
