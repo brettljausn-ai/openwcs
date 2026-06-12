@@ -55,6 +55,9 @@ class StockProjectionServiceTest {
     @Autowired
     ProcessedEventRepository processedEvents;
 
+    @Autowired
+    org.openwcs.inventory.repo.HandlingUnitRepository handlingUnits;
+
     private long seq = 1;
 
     private EventEnvelope envelope(String type, Map<String, Object> payload) {
@@ -147,6 +150,29 @@ class StockProjectionServiceTest {
 
         assertThat(stock.sumAvailable(wh, sku)).isEqualByComparingTo("9");
         assertThat(processedEvents.existsById(env.eventId())).isTrue();
+    }
+
+    @Test
+    void huBoundAdjustmentBooksToTheHusCurrentLocationNotTheEventsStaleOne() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID staleSlot = UUID.randomUUID(); // where the count line captured the stock
+        UUID station = UUID.randomUUID(); // where the tote ACTUALLY is when the count confirms
+
+        org.openwcs.inventory.domain.HandlingUnit tote = new org.openwcs.inventory.domain.HandlingUnit();
+        tote.setWarehouseId(wh);
+        tote.setCode("HU-PROJ-1");
+        tote.setLocationId(station);
+        tote = handlingUnits.save(tote);
+
+        projection.apply(envelope(InventoryEventTypes.STOCK_ADJUSTED, Map.of(
+                "warehouseId", wh, "skuId", sku, "locationId", staleSlot, "huId", tote.getHuId(),
+                "qtyDelta", new BigDecimal("15"))));
+
+        // Stock rides in the HU: the bucket lands where the tote IS, never at the stale slot.
+        assertThat(stock.findBucket(wh, sku, null, station, tote.getHuId(), "AVAILABLE"))
+                .get().satisfies(s -> assertThat(s.getQty()).isEqualByComparingTo("15"));
+        assertThat(stock.findBucket(wh, sku, null, staleSlot, tote.getHuId(), "AVAILABLE")).isEmpty();
     }
 
     @Test

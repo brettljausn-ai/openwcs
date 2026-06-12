@@ -69,9 +69,13 @@ class HandlingUnitLocationTest {
     }
 
     private Stock stockInHu(UUID warehouseId, UUID huId, UUID locationId, String qty) {
+        return stockInHu(warehouseId, huId, locationId, qty, UUID.randomUUID());
+    }
+
+    private Stock stockInHu(UUID warehouseId, UUID huId, UUID locationId, String qty, UUID skuId) {
         Stock row = new Stock();
         row.setWarehouseId(warehouseId);
-        row.setSkuId(UUID.randomUUID());
+        row.setSkuId(skuId);
         row.setLocationId(locationId);
         row.setHuId(huId);
         row.setStatus("AVAILABLE");
@@ -93,6 +97,32 @@ class HandlingUnitLocationTest {
         assertThat(handlingUnits.findById(tote.getHuId()).orElseThrow().getLocationId()).isEqualTo(slot);
         // The stock rides in the tote: its rows must follow the booking.
         assertThat(stock.findById(riding.getId()).orElseThrow().getLocationId()).isEqualTo(slot);
+    }
+
+    @Test
+    void mergesBucketsThatWouldCollideWhenTheStockFollowsTheHu() {
+        // The DEMO-HU-004 shape: 29 units booked with the tote at the station, plus a phantom
+        // 15-unit bucket of the SAME sku already sitting at the target slot (a counting adjustment
+        // that landed on a stale location). Booking the tote to the slot used to die on
+        // stock_bucket_uniq and roll back — now the rows merge into one.
+        UUID warehouse = UUID.randomUUID();
+        UUID station = UUID.randomUUID();
+        UUID slot = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        HandlingUnit tote = hu("HU-LOC-5", warehouse, station);
+        Stock atStation = stockInHu(warehouse, tote.getHuId(), station, "29", sku);
+        Stock phantomAtSlot = stockInHu(warehouse, tote.getHuId(), slot, "15", sku);
+
+        HandlingUnit updated = controller.updateLocation(tote.getHuId(), new LocationUpdateRequest(slot));
+
+        assertThat(updated.getLocationId()).isEqualTo(slot);
+        // One surviving bucket carrying the summed quantity, at the slot.
+        var rows = stock.findByHuId(tote.getHuId());
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).getLocationId()).isEqualTo(slot);
+        assertThat(rows.get(0).getQty()).isEqualByComparingTo("44");
+        // Exactly one of the two original rows survived (which one is an implementation detail).
+        assertThat(rows.get(0).getId()).isIn(atStation.getId(), phantomAtSlot.getId());
     }
 
     @Test

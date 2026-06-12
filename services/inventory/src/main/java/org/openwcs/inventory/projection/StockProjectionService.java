@@ -20,6 +20,7 @@ import org.openwcs.inventory.projection.StockMovementPayloads.Adjust;
 import org.openwcs.inventory.projection.StockMovementPayloads.BucketQty;
 import org.openwcs.inventory.projection.StockMovementPayloads.Move;
 import org.openwcs.inventory.projection.StockMovementPayloads.StatusChange;
+import org.openwcs.inventory.repo.HandlingUnitRepository;
 import org.openwcs.inventory.repo.ProcessedEventRepository;
 import org.openwcs.inventory.repo.ProjectionOffsetRepository;
 import org.openwcs.inventory.repo.StockRepository;
@@ -54,15 +55,18 @@ public class StockProjectionService {
     private final StockRepository stock;
     private final ProcessedEventRepository processedEvents;
     private final ProjectionOffsetRepository offsets;
+    private final HandlingUnitRepository handlingUnits;
     private final ObjectMapper objectMapper;
 
     public StockProjectionService(StockRepository stock,
                                   ProcessedEventRepository processedEvents,
                                   ProjectionOffsetRepository offsets,
+                                  HandlingUnitRepository handlingUnits,
                                   ObjectMapper objectMapper) {
         this.stock = stock;
         this.processedEvents = processedEvents;
         this.offsets = offsets;
+        this.handlingUnits = handlingUnits;
         this.objectMapper = objectMapper;
     }
 
@@ -91,15 +95,18 @@ public class StockProjectionService {
         switch (type) {
             case GOODS_RECEIVED -> {
                 BucketQty p = payload(env, BucketQty.class);
-                addToBucket(p.warehouseId(), p.skuId(), p.batchId(), p.locationId(), p.huId(),
+                UUID loc = bucketLocation(p.huId(), p.locationId(), type, eventId);
+                addToBucket(p.warehouseId(), p.skuId(), p.batchId(), loc, p.huId(),
                         p.status(), required(p.qty(), "qty"), p.uomCode(), eventId, type);
             }
             case PICKED -> {
                 BucketQty p = payload(env, BucketQty.class);
-                addToBucket(p.warehouseId(), p.skuId(), p.batchId(), p.locationId(), p.huId(),
+                UUID loc = bucketLocation(p.huId(), p.locationId(), type, eventId);
+                addToBucket(p.warehouseId(), p.skuId(), p.batchId(), loc, p.huId(),
                         p.status(), required(p.qty(), "qty").negate(), p.uomCode(), eventId, type);
             }
             case PUTAWAY_COMPLETED, STOCK_MOVED -> {
+                // Deliberate from→to moves keep their explicit locations — the move IS the truth here.
                 Move p = payload(env, Move.class);
                 BigDecimal qty = required(p.qty(), "qty");
                 addToBucket(p.warehouseId(), p.skuId(), p.batchId(), p.fromLocationId(), p.fromHuId(),
@@ -109,19 +116,49 @@ public class StockProjectionService {
             }
             case STOCK_ADJUSTED -> {
                 Adjust p = payload(env, Adjust.class);
-                addToBucket(p.warehouseId(), p.skuId(), p.batchId(), p.locationId(), p.huId(),
+                UUID loc = bucketLocation(p.huId(), p.locationId(), type, eventId);
+                addToBucket(p.warehouseId(), p.skuId(), p.batchId(), loc, p.huId(),
                         p.status(), required(p.qtyDelta(), "qtyDelta"), p.uomCode(), eventId, type);
             }
             case STOCK_STATUS_CHANGED -> {
                 StatusChange p = payload(env, StatusChange.class);
                 BigDecimal qty = required(p.qty(), "qty");
-                addToBucket(p.warehouseId(), p.skuId(), p.batchId(), p.locationId(), p.huId(),
+                UUID loc = bucketLocation(p.huId(), p.locationId(), type, eventId);
+                addToBucket(p.warehouseId(), p.skuId(), p.batchId(), loc, p.huId(),
                         p.fromStatus(), qty.negate(), p.uomCode(), eventId, type);
-                addToBucket(p.warehouseId(), p.skuId(), p.batchId(), p.locationId(), p.huId(),
+                addToBucket(p.warehouseId(), p.skuId(), p.batchId(), loc, p.huId(),
                         p.toStatus(), qty, p.uomCode(), eventId, type);
             }
             default -> throw new IllegalStateException("Unhandled stock event type: " + type);
         }
+    }
+
+    /**
+     * Stock RIDES IN its handling unit: when an event names an HU, the bucket books to the HU's
+     * CURRENT location, not the location stamped into the event. Count lines, for example, capture
+     * the location when the count task is created — by the time the count is confirmed at a GTP
+     * station the tote is at the station, and applying the adjustment to the old ASRS slot creates
+     * a phantom bucket there (observed live: DEMO-HU-004's return-leg booking then died on
+     * stock_bucket_uniq and the HU stayed booked at the station). Events without an HU, and
+     * deliberate from→to moves, keep their explicit locations.
+     */
+    private UUID bucketLocation(UUID huId, UUID eventLocationId, String eventType, UUID eventId) {
+        if (huId == null) {
+            return eventLocationId;
+        }
+        return handlingUnits.findById(huId)
+                .map(hu -> {
+                    UUID current = hu.getLocationId();
+                    if (current != null && !current.equals(eventLocationId)) {
+                        log.info("{} event {}: hu {} ({}) has moved since the event's location was"
+                                        + " captured — booking the bucket to the hu's current location {}"
+                                        + " instead of {} (stock follows the hu)",
+                                eventType, eventId, hu.getCode(), huId, current, eventLocationId);
+                        return current;
+                    }
+                    return eventLocationId;
+                })
+                .orElse(eventLocationId);
     }
 
     /**
