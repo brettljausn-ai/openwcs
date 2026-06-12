@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.openwcs.flow.api.ReportingDtos.DecisionLatencyStats;
 import org.openwcs.flow.api.ReportingDtos.DeviceMovementRow;
 import org.openwcs.flow.api.ReportingDtos.ScanQualityRow;
 import org.openwcs.flow.api.ReportingDtos.StorageMovementRow;
@@ -18,6 +19,7 @@ import org.openwcs.flow.api.RoutingDtos.ScanRequest;
 import org.openwcs.flow.api.RoutingDtos.Topology;
 import org.openwcs.flow.domain.HuTransportTrace;
 import org.openwcs.flow.repo.HuTransportTraceRepository;
+import org.openwcs.flow.service.DecisionLatencyTracker;
 import org.openwcs.flow.service.ReportingService;
 import org.openwcs.flow.service.RoutingService;
 import org.openwcs.flow.service.TopologyService;
@@ -58,6 +60,9 @@ class ReportingTest {
 
     @Autowired
     ReportingService reporting;
+
+    @Autowired
+    DecisionLatencyTracker decisionLatency;
 
     @Autowired
     HuTransportTraceRepository traces;
@@ -152,6 +157,32 @@ class ReportingTest {
         return rows.stream()
                 .filter(r -> r.fromNode().equals(from) && r.toNode().equals(to))
                 .mapToLong(TrafficRow::count).sum();
+    }
+
+    // ------------------------------------------------------------------ decision latency metric
+
+    @Test
+    void decisionLatencyReportsRingBufferPercentilesAfterDecides() {
+        UUID wh = UUID.randomUUID();
+        divertTopology(wh);
+        routing.assignRoute(new RouteRequest(wh, "HU-LAT", List.of("PACK")));
+
+        // 200 warm decides at INDUCT (the plan keeps steering toward PACK, never reached here),
+        // so every call exercises the full planned-scan path.
+        for (int i = 0; i < 200; i++) {
+            routing.decide(new ScanRequest(wh, "INDUCT", "HU-LAT"));
+        }
+
+        DecisionLatencyStats stats = decisionLatency.stats();
+        // Land the measured numbers in the test output (before/after evidence for the fast path).
+        System.out.printf("decision latency over %d decides: p50=%.3f ms p95=%.3f ms p99=%.3f ms max=%.3f ms%n",
+                stats.count(), stats.p50Ms(), stats.p95Ms(), stats.p99Ms(), stats.maxMs());
+
+        assertThat(stats.count()).isGreaterThanOrEqualTo(200);
+        assertThat(stats.p50Ms()).isGreaterThan(0);
+        assertThat(stats.p50Ms()).isLessThanOrEqualTo(stats.p95Ms());
+        assertThat(stats.p95Ms()).isLessThanOrEqualTo(stats.p99Ms());
+        assertThat(stats.p99Ms()).isLessThanOrEqualTo(stats.maxMs());
     }
 
     // ----------------------------------------------------------- storage movements (device_task)

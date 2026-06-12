@@ -26,7 +26,9 @@ import org.openwcs.flow.repo.InductionQueueEntryRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Conveyor routing: assign a handling unit a route plan (ordered target nodes) and, on each
@@ -38,6 +40,9 @@ public class RoutingService {
 
     private static final Logger log = LoggerFactory.getLogger(RoutingService.class);
 
+    /** Per-decision latency budget (ADR-0008): adapters expect the answer within ~10 ms. */
+    private static final long DECISION_BUDGET_NANOS = 10_000_000L;
+
     private final ConveyorNodeRepository nodes;
     private final ConveyorEdgeRepository edges;
     private final ConveyorLoopRepository loops;
@@ -45,11 +50,14 @@ public class RoutingService {
     private final InductionQueueEntryRepository inductionEntries;
     private final HuTraceService trace;
     private final ReportingService reporting;
+    private final DecisionLatencyTracker latency;
+    private final TransactionTemplate decideTx;
 
     public RoutingService(ConveyorNodeRepository nodes, ConveyorEdgeRepository edges,
                           ConveyorLoopRepository loops, HuRouteRepository routes,
                           InductionQueueEntryRepository inductionEntries, HuTraceService trace,
-                          ReportingService reporting) {
+                          ReportingService reporting, DecisionLatencyTracker latency,
+                          PlatformTransactionManager transactionManager) {
         this.nodes = nodes;
         this.edges = edges;
         this.loops = loops;
@@ -57,6 +65,8 @@ public class RoutingService {
         this.inductionEntries = inductionEntries;
         this.trace = trace;
         this.reporting = reporting;
+        this.latency = latency;
+        this.decideTx = new TransactionTemplate(transactionManager);
     }
 
     @Transactional
@@ -86,14 +96,38 @@ public class RoutingService {
      * live transport (an induction entry exists for the barcode) is appended to the HU transport
      * trace as a {@code SCANNED} row carrying the answer — the trace becomes a true, live
      * material-flow timeline. Unknown barcodes (no entry) are answered but never traced.
+     *
+     * <p>Hard-real-time path: conveyor adapters expect the answer within ~10 ms per scan. The whole
+     * decision is timed end to end with {@link System#nanoTime()} (the routing transaction runs via
+     * {@link TransactionTemplate} INSIDE the measured window, so commit time is included), recorded
+     * in the {@link DecisionLatencyTracker} ring buffer, and any single decision over budget WARNs
+     * with its per-phase breakdown so a slow site is diagnosable from the log alone.
      */
-    @Transactional
     public RoutingDecision decide(ScanRequest scan) {
+        long start = System.nanoTime();
         ScanFlags flags = new ScanFlags();
-        RoutingDecision decision = evaluate(scan, flags);
+        RoutingDecision decision = decideTx.execute(status -> evaluate(scan, flags));
+        long afterRouting = System.nanoTime();
         recordScan(scan, decision);
+        long afterTrace = System.nanoTime();
         count(scan, flags, decision);
+        long end = System.nanoTime();
+
+        long total = end - start;
+        latency.record(total);
+        if (total > DECISION_BUDGET_NANOS) {
+            log.warn("slow routing decision for barcode {} at node {}: {} took {} ms (budget 10 ms; "
+                            + "adapters may fall back to the divert default) — breakdown: routing+commit "
+                            + "{} ms, scan trace {} ms, reporting counters {} ms",
+                    scan.barcode(), scan.node(), decision.action(), ms(total),
+                    ms(afterRouting - start), ms(afterTrace - afterRouting), ms(end - afterTrace));
+        }
         return decision;
+    }
+
+    /** Nanos as milliseconds with two decimals, for the slow-decision log line. */
+    private static double ms(long nanos) {
+        return Math.round(nanos / 10_000.0) / 100.0;
     }
 
     /**

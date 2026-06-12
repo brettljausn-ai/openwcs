@@ -343,6 +343,25 @@ paths:
                 items: { $ref: '#/components/schemas/TransitTimeRow' }
         "403":
           description: Missing DEVICE_VIEW
+  /reports/decision-latency:
+    get:
+      tags: [Reports]
+      summary: Per-scan routing decision latency of this instance
+      description: >
+        End-to-end latency of the per-scan routing decision (POST /conveyor/routing-requests),
+        measured in-process and held in a fixed-size in-memory ring buffer (the last 4096
+        decisions). Per replica and reset on restart: a live health gauge for the hard-real-time
+        scan path's ~10 ms budget, not durable history (the daily counters cover history).
+        Requires DEVICE_VIEW.
+      operationId: reportDecisionLatency
+      responses:
+        "200":
+          description: Latency percentiles over this instance's ring-buffer window
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DecisionLatencyStats' }
+        "403":
+          description: Missing DEVICE_VIEW
 
 components:
   parameters:
@@ -566,3 +585,14 @@ components:
         count: { type: integer, format: int64, description: Induction entries that arrived that day. }
         p50Ms: { type: integer, format: int64, description: Median transit time in milliseconds. }
         p95Ms: { type: integer, format: int64, description: 95th-percentile transit time in milliseconds. }
+    DecisionLatencyStats:
+      type: object
+      description: >
+        Per-scan routing decision latency of one instance, over its in-memory ring-buffer window
+        (the last up-to-4096 decisions). Milliseconds with microsecond resolution.
+      properties:
+        count: { type: integer, format: int64, description: Decisions in the window the percentiles are computed over. }
+        p50Ms: { type: number, format: double, description: Median decision latency in milliseconds. }
+        p95Ms: { type: number, format: double }
+        p99Ms: { type: number, format: double }
+        maxMs: { type: number, format: double, description: Slowest decision in the window. }
