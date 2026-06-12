@@ -47,11 +47,29 @@ class RoutingServiceTest {
     RoutingService routing;
 
     private static NodeDto node(String code) {
-        return new NodeDto(code, code, null, 0d, 0d, null, null, null);
+        return new NodeDto(code, code, null, 0d, 0d, null, null, null, null);
     }
 
     private static NodeDto loopNode(String code, String loop) {
-        return new NodeDto(code, code, null, 0d, 0d, loop, null, null);
+        return new NodeDto(code, code, null, 0d, 0d, loop, null, null, null);
+    }
+
+    private static NodeDto divertNode(String code, String defaultExitCode) {
+        return new NodeDto(code, code, null, 0d, 0d, null, null, null, defaultExitCode);
+    }
+
+    // INDUCT → DIVERT → {PACK, SHIP}: DIVERT is a decision point, optionally with a default exit.
+    private void divertTopology(UUID wh, String defaultExitCode, NodeDto... extraNodes) {
+        List<NodeDto> nodes = new java.util.ArrayList<>(List.of(
+                node("INDUCT"), divertNode("DIVERT", defaultExitCode), node("PACK"), node("SHIP")));
+        nodes.addAll(List.of(extraNodes));
+        topology.replace(wh, new Topology(
+                nodes,
+                List.of(
+                        new EdgeDto("INDUCT", "DIVERT", "straight", 1),
+                        new EdgeDto("DIVERT", "PACK", "divert", 1),
+                        new EdgeDto("DIVERT", "SHIP", "bypass", 1)),
+                List.of(), List.of()));
     }
 
     @Test
@@ -97,6 +115,113 @@ class RoutingServiceTest {
         topology.replace(wh, new Topology(List.of(node("N1")), List.of(), List.of(), List.of()));
         RoutingDecision d = routing.decide(new ScanRequest(wh, "N1", "GHOST"));
         assertThat(d.action()).isEqualTo("NO_ROUTE");
+    }
+
+    @Test
+    void unroutedHuFollowsTheDivertDefault() {
+        UUID wh = UUID.randomUUID();
+        divertTopology(wh, "SHIP");
+
+        // No route plan exists for FREE-1: at the divert it takes the configured default exit.
+        RoutingDecision d = routing.decide(new ScanRequest(wh, "DIVERT", "FREE-1"));
+        assertThat(d.action()).isEqualTo("ROUTE");
+        assertThat(d.toNode()).isEqualTo("SHIP");
+        assertThat(d.exitCode()).isEqualTo("bypass");
+        assertThat(d.detail()).contains("divert default");
+    }
+
+    @Test
+    void unroutedHuContinuesAlongASingleExitNode() {
+        UUID wh = UUID.randomUUID();
+        divertTopology(wh, null);
+
+        // INDUCT has exactly one out-edge: a plain conveyor segment never strands a tote.
+        RoutingDecision d = routing.decide(new ScanRequest(wh, "INDUCT", "FREE-2"));
+        assertThat(d.action()).isEqualTo("ROUTE");
+        assertThat(d.toNode()).isEqualTo("DIVERT");
+        assertThat(d.exitCode()).isEqualTo("straight");
+    }
+
+    @Test
+    void readErrorFollowsTheDivertDefault() {
+        UUID wh = UUID.randomUUID();
+        divertTopology(wh, "SHIP");
+
+        // The scanner failed to read: blank and "NOREAD" barcodes follow the default like an
+        // unknown HU.
+        for (String noRead : new String[] {"", "  ", "NOREAD", null}) {
+            RoutingDecision d = routing.decide(new ScanRequest(wh, "DIVERT", noRead));
+            assertThat(d.action()).isEqualTo("ROUTE");
+            assertThat(d.toNode()).isEqualTo("SHIP");
+            assertThat(d.detail()).contains("divert default");
+        }
+    }
+
+    @Test
+    void readErrorStopsAtADivertWithoutADefault() {
+        UUID wh = UUID.randomUUID();
+        divertTopology(wh, null);
+
+        RoutingDecision d = routing.decide(new ScanRequest(wh, "DIVERT", "NOREAD"));
+        assertThat(d.action()).isEqualTo("HOLD");
+        assertThat(d.detail()).contains("no default at divert DIVERT");
+    }
+
+    @Test
+    void unroutedHuStopsAtADivertWithoutADefault() {
+        UUID wh = UUID.randomUUID();
+        divertTopology(wh, null);
+
+        // A real decision point with no plan and no default: the tote stops (HOLD, rescanned).
+        RoutingDecision d = routing.decide(new ScanRequest(wh, "DIVERT", "FREE-3"));
+        assertThat(d.action()).isEqualTo("HOLD");
+        assertThat(d.detail()).contains("no default at divert DIVERT");
+    }
+
+    @Test
+    void routedHuIgnoresTheDivertDefault() {
+        UUID wh = UUID.randomUUID();
+        divertTopology(wh, "SHIP");
+
+        // The plan says PACK; the default (SHIP) must not interfere.
+        routing.assignRoute(new RouteRequest(wh, "HU-PLAN", List.of("PACK")));
+        RoutingDecision d = routing.decide(new ScanRequest(wh, "DIVERT", "HU-PLAN"));
+        assertThat(d.action()).isEqualTo("ROUTE");
+        assertThat(d.toNode()).isEqualTo("PACK");
+        assertThat(d.exitCode()).isEqualTo("divert");
+    }
+
+    @Test
+    void huAssignedAPlanMidWalkFollowsItAtTheNextScan() {
+        UUID wh = UUID.randomUUID();
+        divertTopology(wh, "SHIP");
+
+        // First scan: no plan yet, the HU rides the conveyor (single exit at INDUCT).
+        RoutingDecision before = routing.decide(new ScanRequest(wh, "INDUCT", "HU-LATE"));
+        assertThat(before.action()).isEqualTo("ROUTE");
+        assertThat(before.toNode()).isEqualTo("DIVERT");
+
+        // A plan arrives mid-journey: the very next scan follows it instead of the default.
+        routing.assignRoute(new RouteRequest(wh, "HU-LATE", List.of("PACK")));
+        RoutingDecision after = routing.decide(new ScanRequest(wh, "DIVERT", "HU-LATE"));
+        assertThat(after.action()).isEqualTo("ROUTE");
+        assertThat(after.toNode()).isEqualTo("PACK");
+        assertThat(after.currentTarget()).isEqualTo("PACK");
+    }
+
+    @Test
+    void routedHuWithoutAPathFollowsTheDefaultAndStaysActive() {
+        UUID wh = UUID.randomUUID();
+        // ISLAND exists but is unreachable: the plan cannot be satisfied from the divert.
+        divertTopology(wh, "SHIP", node("ISLAND"));
+
+        routing.assignRoute(new RouteRequest(wh, "HU-ADAPT", List.of("ISLAND")));
+        RoutingDecision d = routing.decide(new ScanRequest(wh, "DIVERT", "HU-ADAPT"));
+        assertThat(d.action()).isEqualTo("ROUTE");
+        assertThat(d.toNode()).isEqualTo("SHIP");
+        assertThat(d.detail()).contains("divert default");
+        // The plan is NOT failed: it stays ACTIVE and is re-evaluated at every scan.
+        assertThat(routing.getRoute(wh, "HU-ADAPT").orElseThrow().status()).isEqualTo("ACTIVE");
     }
 
     // ENTRY → [L1 ⇄ L2] (loop) → EXIT, with an overflow branch ENTRY → BUFFER.

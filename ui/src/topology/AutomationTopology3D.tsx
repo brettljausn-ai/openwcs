@@ -2239,6 +2239,28 @@ function FunctionPointDialog({
           />
         </label>
 
+        {active.some(isDivertType) && (
+          <label className="atopo-field">
+            <span>
+              Default direction{' '}
+              <InfoTip
+                text="Where a tote goes at this divert when no route tells it otherwise: Straight keeps it on the main line, Branch sends it down the divert. With None it stops and waits at the divert until a route arrives."
+                example="Straight"
+              />
+            </span>
+            <Select
+              ariaLabel="Default direction"
+              value={fp.defaultExit ?? ''}
+              onChange={(v) => onUpdate(fp.id, { defaultExit: v || null })}
+              options={[
+                { value: '', label: 'None (stop)' },
+                { value: 'STRAIGHT', label: 'Straight (main line)' },
+                { value: 'BRANCH', label: 'Branch (divert)' },
+              ]}
+            />
+          </label>
+        )}
+
         <div className="atopo-modal-actions">
           <button
             type="button"

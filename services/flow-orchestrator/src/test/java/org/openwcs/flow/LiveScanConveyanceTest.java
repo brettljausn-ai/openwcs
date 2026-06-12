@@ -115,7 +115,7 @@ class LiveScanConveyanceTest {
     }
 
     private static NodeDto node(String code, double x, double y) {
-        return new NodeDto(code, code, null, x, y, null, null, null);
+        return new NodeDto(code, code, null, x, y, null, null, null, null);
     }
 
     private static PlacedEquipmentDto placed(UUID id, String code, String category, UUID stationId,
@@ -127,7 +127,7 @@ class LiveScanConveyanceTest {
 
     private static FunctionPointDto fp(UUID placedId, String functionType, String nodeCode) {
         return new FunctionPointDto(UUID.randomUUID(), placedId, functionType, nodeCode,
-                BigDecimal.ZERO, null, nodeCode, "ACTIVE");
+                BigDecimal.ZERO, null, nodeCode, null, "ACTIVE");
     }
 
     /**
@@ -248,10 +248,12 @@ class LiveScanConveyanceTest {
                 .filter(t -> "SCANNED".equals(t.event()))
                 .map(HuTraceView::decision)).contains("destination reached");
 
-        // A stray barcode is answered (NO_ROUTE) but never traced.
+        // A stray barcode is answered (at a single-exit node it rides the conveyor on: a plain
+        // segment never strands a tote) but never traced.
         long before = traceRows.findByWarehouseId(warehouse).size();
         RoutingDecision stray = routing.decide(new ScanRequest(warehouse, "ASRS_OUT", "GHOST"));
-        assertThat(stray.action()).isEqualTo("NO_ROUTE");
+        assertThat(stray.action()).isEqualTo("ROUTE");
+        assertThat(stray.toNode()).isEqualTo("MID");
         assertThat(traceRows.findByWarehouseId(warehouse)).hasSize((int) before);
     }
 

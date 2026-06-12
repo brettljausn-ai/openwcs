@@ -166,6 +166,16 @@ export default function RoutingGraphTables() {
     },
     { key: 'loopCode', header: 'Loop', sortable: true, sortValue: (r) => r.loopCode ?? '', render: (r) => r.loopCode ?? <span className="muted">—</span> },
     {
+      key: 'defaultExitCode',
+      header: 'Default exit',
+      sortable: true,
+      sortValue: (r) => r.defaultExitCode ?? '',
+      render: (r) =>
+        r.defaultExitCode
+          ? <span style={{ fontFamily: 'var(--font-mono)' }} title="Where an unrouted tote goes by default at this divert (set on the divert point in the topology editor)">{r.defaultExitCode}</span>
+          : <span className="muted">—</span>,
+    },
+    {
       key: 'controller',
       header: 'Controller / address',
       sortValue: (r) => r.controllerCode ?? r.hardwareAddress ?? '',

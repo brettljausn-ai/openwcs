@@ -51,7 +51,7 @@ class DiscoveryServiceTest {
         UUID wh = UUID.randomUUID();
         // A is already configured; B/C/SHIP are new (to be discovered).
         topology.replace(wh, new Topology(
-                List.of(new NodeDto("A", "A", null, 0d, 0d, null, null, null)), List.of(), List.of(), List.of()));
+                List.of(new NodeDto("A", "A", null, 0d, 0d, null, null, null, null)), List.of(), List.of(), List.of()));
 
         // HU1: A → B → SHIP ; HU2: A → C → SHIP
         observe(wh, "A", "HU1");

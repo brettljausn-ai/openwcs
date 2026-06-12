@@ -72,6 +72,10 @@ export interface AutomationFunctionPoint {
   offsetM: number
   side?: string | null
   nodeCode?: string | null
+  // For a divert: the default direction a tote takes when no route demands otherwise.
+  // 'STRAIGHT' (continue the main line) | 'BRANCH' (take the divert's branch) | null (stop at the
+  // divert until a route arrives).
+  defaultExit?: string | null
   status?: string
 }
 
