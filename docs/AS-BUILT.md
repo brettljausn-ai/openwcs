@@ -22,7 +22,7 @@ What is **actually implemented** today (not the target architecture). Design int
 |---|---|---|---|
 | gateway | 8080 | ✅ | Spring Cloud Gateway; routes `/api/<service>/**`; JWT validation (toggleable) + forwards `X-Auth-User`/`X-Auth-Roles`. |
 | master-data | 8081 | ✅ | Catalog + outbound config (below). |
-| inventory | 8082 | ✅ | Durable stock projection + availability/reservations (SKU- and location-scoped). **HU location registry** (`PUT /api/inventory/handling-units/{id}/location`): records a handling unit's current storage location; bookings made by flow-orchestrator at each transport milestone (REQUESTED, IN_TRANSIT, ARRIVED, STORED, RELOCATED) so the registry stays live; consumed by ADR-0009 dig-out occupancy checks. |
+| inventory | 8082 | ✅ | Durable stock projection + availability/reservations (SKU- and location-scoped). **HU location registry** (`PUT /api/inventory/handling-units/{id}/location`): records a handling unit's current storage location; bookings made by flow-orchestrator at each transport milestone (REQUESTED, IN_TRANSIT, ARRIVED, STORED, RELOCATED) so the registry stays live; consumed by ADR-0009 dig-out occupancy checks. **Null bookings go to the warehouse's UNKNOWN operational location** (HU + riding stock rows; resolved from master-data, 503 if unreachable); stock at UNKNOWN is visible in the overview but excluded from availability/ATP and can never be reserved. |
 | order-management | 8084 | ✅ | Orders (all types) + lifecycle + release management + line transactions; delegates allocation. |
 | allocation | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing, batch picking. |
 | slotting | 8093 | ✅ | Put-away assignment for automated rack/GTP blocks (weighted scorer: velocity-to-exit · same-SKU lane consolidation · aisle redundancy · fill balance; the exit distance uses `location.distance_to_exit` when set, else a fallback derived from the cell coordinate — (posX−1)+(posY−1)+(posZ−1), port assumed at position 1, ground level — so generated racks without maintained distances still place fast movers near the port), manual pick-face slotting + min/max replenishment (opportunistic top-off), and off-peak re-slotting. ADR 0003. **Relocation plan** (`POST /api/slotting/relocation-plan {warehouseId, locationId}`): for ADR-0009 multi-deep shuttle channels, returns an ordered `[{huId, fromLocationId, toLocationId}]` dig-out sequence for blockers in front of the target; same-`cellY` hard constraint (no lift move), same-aisle preferred; empty when the channel is clear. |
@@ -85,6 +85,13 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
 - **Catalog**: warehouses, SKUs (+ per-warehouse `SkuProfile` overlays, UoMs, barcodes,
   dangerous-goods), attribute-schemas, barcode-types, handling-unit-types, locations,
   equipment; SKU search/paging; bulk SKU import; soft-archive on delete.
+- **Operational locations** (`GET /locations/operational?warehouseId=&kind=EQUIPMENT|WORKPLACE|UNKNOWN&name=`):
+  every conveyor and workplace automatically has a location carrying its name, and each warehouse
+  has an `UNKNOWN` catch-all, so HUs are always booked to a real location. Resolved lazily
+  (created on first use; idempotent under concurrency via the `(warehouse_id, code)` unique
+  constraint with a retry-fetch on conflict). Mapping: EQUIPMENT → `CONVEYOR_SEGMENT`/`TRANSPORT`
+  (code = equipment name), WORKPLACE → `STATION`/`STAGING` (code = workplace name), UNKNOWN →
+  `FREE_SPACE`/`QUARANTINE` (code `UNKNOWN`, no name). All created ACTIVE and unblocked.
 - **Host SKU sync** (`POST /skus/sync`, host-sync only): a list of SKUs each carrying their
   **UoM hierarchy and barcodes inline**, referenced by code (UoM `parentCode`, barcode `uomCode`,
   barcode type by name). This is an **upsert, not a full-catalog replace** — SKUs absent from the
@@ -162,6 +169,17 @@ by consuming `txlog.stream` (idempotent via `processed_event`, cursor in
 **per-location occupancy** (`POST /locations/occupied` → which of a set of locations physically
 hold any stock row or handling unit; consumed by slotting put-away to skip occupied slots).
 Reservations check ATP under a pessimistic lock so concurrent allocations can't over-commit.
+
+**HU location bookings never write null**: `PUT /handling-units/{id}/location` with
+`locationId: null` (the caller does not know the position) books the HU *and the stock rows
+riding in it* to the warehouse's **UNKNOWN** operational location, resolved through a small
+`MasterDataClient` against master-data's `GET /locations/operational` (base URL
+`openwcs.inventory.master-data-base-url`, default `http://localhost:8081`; resolved id cached
+per warehouse in-memory). `stock.location_id` stays NOT NULL, so the old null-booking 500 is
+gone. If master-data is unreachable the booking is rejected with **503** (callers treat it as
+best-effort). **Allocation guard**: stock at UNKNOWN contributes ZERO to availability/ATP and
+can never be reserved (excluded in `InventoryService` availability + reservation paths, logged
+at DEBUG), but stays fully visible in the stock overview so admins can see and resolve it.
 
 ## 5. txlog (system of record)
 

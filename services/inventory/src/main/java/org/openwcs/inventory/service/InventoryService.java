@@ -6,6 +6,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.openwcs.inventory.api.StockOverviewRow;
+import org.openwcs.inventory.client.MasterDataClient;
+import org.openwcs.inventory.client.MasterDataUnavailableException;
 import org.openwcs.inventory.domain.HandlingUnit;
 import org.openwcs.inventory.domain.Reservation;
 import org.openwcs.inventory.domain.Stock;
@@ -34,19 +36,37 @@ public class InventoryService {
     private final StockRepository stock;
     private final ReservationRepository reservations;
     private final HandlingUnitRepository handlingUnits;
+    private final MasterDataClient masterData;
 
     public InventoryService(
             StockRepository stock,
             ReservationRepository reservations,
-            HandlingUnitRepository handlingUnits) {
+            HandlingUnitRepository handlingUnits,
+            MasterDataClient masterData) {
         this.stock = stock;
         this.reservations = reservations;
         this.handlingUnits = handlingUnits;
+        this.masterData = masterData;
     }
 
     @Transactional(readOnly = true)
     public Availability availability(UUID warehouseId, UUID skuId) {
         BigDecimal onHand = nz(stock.sumAvailable(warehouseId, skuId));
+        UUID unknownLocation = unknownLocationOrNull(warehouseId);
+        if (unknownLocation != null) {
+            // Stock at UNKNOWN (HUs booked there because nobody knows where they are) stays
+            // visible in the overview but contributes ZERO to availability / ATP.
+            List<Stock> quarantined = stock.findByWarehouseIdAndSkuIdAndLocationIdAndStatus(
+                    warehouseId, skuId, unknownLocation, "AVAILABLE");
+            if (!quarantined.isEmpty()) {
+                BigDecimal excluded = quarantined.stream()
+                        .map(Stock::getQty).reduce(BigDecimal.ZERO, BigDecimal::add);
+                onHand = onHand.subtract(excluded);
+                log.debug("availability exclusion: {} stock row(s) totalling {} of sku {} sit at the"
+                                + " UNKNOWN location {} and contribute zero to availability",
+                        quarantined.size(), excluded, skuId, unknownLocation);
+            }
+        }
         BigDecimal reserved = nz(reservations.sumHeld(warehouseId, skuId));
         return new Availability(warehouseId, skuId, onHand, reserved, onHand.subtract(reserved));
     }
@@ -54,6 +74,13 @@ public class InventoryService {
     /** Available-to-promise for a SKU at one location (used by pick-location allocation). */
     @Transactional(readOnly = true)
     public Availability availabilityAtLocation(UUID warehouseId, UUID skuId, UUID locationId) {
+        UUID unknownLocation = unknownLocationOrNull(warehouseId);
+        if (unknownLocation != null && unknownLocation.equals(locationId)) {
+            log.debug("availability exclusion: location {} is the UNKNOWN location of warehouse {};"
+                            + " sku {} availability there is reported as zero (never allocatable)",
+                    locationId, warehouseId, skuId);
+            return new Availability(warehouseId, skuId, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+        }
         BigDecimal onHand = nz(stock.sumAvailableAtLocation(warehouseId, skuId, locationId));
         BigDecimal reserved = nz(reservations.sumHeldAtLocation(warehouseId, skuId, locationId));
         return new Availability(warehouseId, skuId, onHand, reserved, onHand.subtract(reserved));
@@ -99,7 +126,17 @@ public class InventoryService {
         // otherwise it is SKU-wide across the warehouse.
         BigDecimal onHand;
         BigDecimal reserved;
+        UUID unknownLocation = unknownLocationOrNull(command.warehouseId());
         if (command.locationId() != null) {
+            if (command.locationId().equals(unknownLocation)) {
+                // Stock at UNKNOWN can never be reserved: nobody knows where it physically is.
+                log.warn("reservation rejected: {} of sku {} requested for order {} at location {} but that"
+                                + " is the UNKNOWN location of warehouse {}; stock there can never be reserved,"
+                                + " the caller gets an insufficient-stock error and no hold is placed",
+                        command.qty(), command.skuId(), command.orderRef(),
+                        command.locationId(), command.warehouseId());
+                throw new InsufficientStockException(command.skuId(), command.qty(), BigDecimal.ZERO);
+            }
             List<Stock> locked = stock.lockAvailableAtLocation(
                     command.warehouseId(), command.skuId(), command.locationId());
             onHand = locked.stream().map(Stock::getQty).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -107,7 +144,19 @@ public class InventoryService {
                     command.warehouseId(), command.skuId(), command.locationId()));
         } else {
             List<Stock> locked = stock.lockAvailable(command.warehouseId(), command.skuId());
-            onHand = locked.stream().map(Stock::getQty).reduce(BigDecimal.ZERO, BigDecimal::add);
+            List<Stock> allocatable = locked;
+            if (unknownLocation != null) {
+                allocatable = locked.stream()
+                        .filter(s -> !unknownLocation.equals(s.getLocationId()))
+                        .toList();
+                int excluded = locked.size() - allocatable.size();
+                if (excluded > 0) {
+                    log.debug("reservation exclusion: {} stock row(s) of sku {} at the UNKNOWN location {}"
+                                    + " excluded from the available-to-promise check",
+                            excluded, command.skuId(), unknownLocation);
+                }
+            }
+            onHand = allocatable.stream().map(Stock::getQty).reduce(BigDecimal.ZERO, BigDecimal::add);
             reserved = nz(reservations.sumHeld(command.warehouseId(), command.skuId()));
         }
         BigDecimal availableToPromise = onHand.subtract(reserved);
@@ -176,6 +225,22 @@ public class InventoryService {
     @Transactional(readOnly = true)
     public List<Reservation> reservationsByOrder(String orderRef) {
         return reservations.findByOrderRef(orderRef);
+    }
+
+    /**
+     * The warehouse's UNKNOWN-location id, or null when master-data cannot be reached. The lookup
+     * is best-effort (and cached per warehouse in the client) so availability reads do not fail
+     * with master-data down; skipping the exclusion can only transiently OVERstate availability.
+     */
+    private UUID unknownLocationOrNull(UUID warehouseId) {
+        try {
+            return masterData.unknownLocationId(warehouseId);
+        } catch (MasterDataUnavailableException e) {
+            log.warn("UNKNOWN-location exclusion skipped for warehouse {} because master-data is"
+                            + " unreachable ({}); stock at UNKNOWN may transiently count as available",
+                    warehouseId, e.getMessage());
+            return null;
+        }
     }
 
     private Reservation require(UUID reservationId) {

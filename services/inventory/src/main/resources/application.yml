@@ -45,6 +45,9 @@ openwcs:
   inventory:
     # Topic carrying the streamed transaction log (build.md §9: `txlog.stream`).
     txlog-topic: txlog.stream
+    # Base URL of the master-data service; resolves the per-warehouse UNKNOWN operational
+    # location that position-less HU bookings go to (HUs are never booked to a null location).
+    master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
 
 management:
   endpoints:

@@ -1,5 +1,6 @@
 package org.openwcs.inventory.api;
 
+import org.openwcs.inventory.client.MasterDataUnavailableException;
 import org.openwcs.inventory.service.HandlingUnitNotFoundException;
 import org.openwcs.inventory.service.InsufficientStockException;
 import org.openwcs.inventory.service.ReservationNotFoundException;
@@ -32,6 +33,15 @@ public class ApiExceptionHandler {
     public ProblemDetail onNotFound(HandlingUnitNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
         problem.setTitle("Handling unit not found");
+        problem.setDetail(ex.getMessage());
+        return problem;
+    }
+
+    /** Master-data could not be reached; location-dependent bookings are rejected, never guessed. */
+    @ExceptionHandler(MasterDataUnavailableException.class)
+    public ProblemDetail onMasterDataUnavailable(MasterDataUnavailableException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.SERVICE_UNAVAILABLE);
+        problem.setTitle("Master data unavailable");
         problem.setDetail(ex.getMessage());
         return problem;
     }
