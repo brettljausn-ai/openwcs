@@ -77,6 +77,24 @@ public class TransactionLogService {
         return events.findByPositionGreaterThanOrderByPositionAsc(afterPosition, PageRequest.of(0, limit));
     }
 
+    /** What {@link #clearAll()} removed. */
+    public record ClearCounts(long events, long outboxMessages) {}
+
+    /**
+     * Wipe the journal: every event and any unpublished outbox rows (demo-mode reset, §4.8).
+     * Two bulk DELETE statements — never loads the (potentially huge) journal into memory.
+     * Position/sequence values are never reused (Postgres sequences keep counting), so feed
+     * cursors held by consumers stay safe: they simply see no rows until new events arrive.
+     */
+    @Transactional
+    public ClearCounts clearAll() {
+        long eventCount = events.count();
+        long outboxCount = outbox.count();
+        outbox.deleteAllInBatch();
+        events.deleteAllInBatch();
+        return new ClearCounts(eventCount, outboxCount);
+    }
+
     private String serialize(EventEnvelope envelope) {
         try {
             return objectMapper.writeValueAsString(envelope);

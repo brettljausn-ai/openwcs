@@ -5,6 +5,9 @@ import java.util.Optional;
 import java.util.UUID;
 import org.openwcs.flow.domain.InductionQueueEntry;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -57,4 +60,9 @@ public interface InductionQueueEntryRepository extends JpaRepository<InductionQu
 
     /** All entries for a warehouse (used by the demo full-reset clear). */
     List<InductionQueueEntry> findByWarehouseId(UUID warehouseId);
+
+    /** Bulk-delete all rows for a warehouse in one DELETE statement (demo-mode reset). */
+    @Modifying
+    @Query("delete from InductionQueueEntry e where e.warehouseId = :warehouseId")
+    int deleteBulkByWarehouseId(@Param("warehouseId") UUID warehouseId);
 }

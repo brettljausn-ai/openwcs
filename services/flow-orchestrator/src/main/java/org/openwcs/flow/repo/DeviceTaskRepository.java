@@ -5,6 +5,9 @@ import java.util.UUID;
 import org.openwcs.flow.domain.DeviceTask;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -30,4 +33,9 @@ public interface DeviceTaskRepository extends JpaRepository<DeviceTask, UUID> {
                             @Param("family") String family,
                             @Param("equipmentId") UUID equipmentId,
                             Pageable pageable);
+
+    /** Bulk-delete all rows for a warehouse in one DELETE statement (demo-mode reset). */
+    @Modifying
+    @Query("delete from DeviceTask e where e.warehouseId = :warehouseId")
+    int deleteBulkByWarehouseId(@Param("warehouseId") UUID warehouseId);
 }

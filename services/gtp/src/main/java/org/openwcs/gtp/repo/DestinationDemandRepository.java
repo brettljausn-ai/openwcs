@@ -4,6 +4,9 @@ import java.util.List;
 import java.util.UUID;
 import org.openwcs.gtp.domain.DestinationDemand;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -26,4 +29,10 @@ public interface DestinationDemandRepository extends JpaRepository<DestinationDe
             + "order by (d.requestedQty - d.puttedQty) desc, n.position asc")
     List<DestinationDemand> findOpenForStationAndSku(@Param("stationId") UUID stationId,
                                                      @Param("skuId") UUID skuId);
+
+    /** Bulk-delete every destination demand on the given stations' nodes (demo-mode reset). */
+    @Modifying
+    @Query("delete from DestinationDemand d where d.stationNodeId in "
+            + "(select n.id from StationNode n where n.stationId in :stationIds)")
+    int deleteBulkByStationIds(@Param("stationIds") java.util.Collection<UUID> stationIds);
 }

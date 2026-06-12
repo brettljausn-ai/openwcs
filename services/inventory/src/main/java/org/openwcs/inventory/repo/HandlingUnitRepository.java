@@ -5,6 +5,9 @@ import java.util.Optional;
 import java.util.UUID;
 import org.openwcs.inventory.domain.HandlingUnit;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface HandlingUnitRepository extends JpaRepository<HandlingUnit, UUID> {
 
@@ -24,4 +27,9 @@ public interface HandlingUnitRepository extends JpaRepository<HandlingUnit, UUID
     List<UUID> findDistinctLocationIdByLocationIdIn(
             @org.springframework.data.repository.query.Param("locationIds")
             java.util.Collection<UUID> locationIds);
+
+    /** Bulk-delete all rows for a warehouse in one DELETE statement (demo-mode reset). */
+    @Modifying
+    @Query("delete from HandlingUnit e where e.warehouseId = :warehouseId")
+    int deleteBulkByWarehouseId(@Param("warehouseId") UUID warehouseId);
 }

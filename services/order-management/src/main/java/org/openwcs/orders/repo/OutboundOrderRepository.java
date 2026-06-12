@@ -10,6 +10,9 @@ import org.openwcs.orders.domain.OutboundOrder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -47,4 +50,13 @@ public interface OutboundOrderRepository extends JpaRepository<OutboundOrder, UU
     List<OutboundOrder> dueForRelease(
             @Param("warehouseId") UUID warehouseId,
             @Param("cutoff") Instant cutoff);
+
+    /**
+     * Bulk-delete every order of a warehouse in one DELETE statement (demo-mode reset).
+     * Lines, line transactions and their outbox rows cascade at the DB level
+     * (ON DELETE CASCADE), so no child loading or ordering is needed.
+     */
+    @Modifying
+    @Query("delete from OutboundOrder o where o.warehouseId = :warehouseId")
+    int deleteBulkByWarehouseId(@Param("warehouseId") UUID warehouseId);
 }

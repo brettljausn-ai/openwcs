@@ -7,6 +7,9 @@ import java.util.Optional;
 import java.util.UUID;
 import org.openwcs.inventory.domain.Stock;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -100,4 +103,9 @@ public interface StockRepository extends JpaRepository<Stock, UUID> {
             @Param("warehouseId") UUID warehouseId,
             @Param("skuId") UUID skuId,
             @Param("locationId") UUID locationId);
+
+    /** Bulk-delete all rows for a warehouse in one DELETE statement (demo-mode reset). */
+    @Modifying
+    @Query("delete from Stock e where e.warehouseId = :warehouseId")
+    int deleteBulkByWarehouseId(@Param("warehouseId") UUID warehouseId);
 }

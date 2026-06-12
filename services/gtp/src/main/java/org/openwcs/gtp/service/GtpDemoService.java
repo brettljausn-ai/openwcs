@@ -3,17 +3,10 @@ package org.openwcs.gtp.service;
 import java.util.List;
 import java.util.UUID;
 import org.openwcs.gtp.api.DemoClearResult;
-import org.openwcs.gtp.domain.DestinationDemand;
 import org.openwcs.gtp.domain.GtpStation;
-import org.openwcs.gtp.domain.PutInstruction;
-import org.openwcs.gtp.domain.StationNode;
-import org.openwcs.gtp.domain.TaskLine;
-import org.openwcs.gtp.domain.WorkCycle;
-import org.openwcs.gtp.domain.WorkplaceSession;
 import org.openwcs.gtp.repo.DestinationDemandRepository;
 import org.openwcs.gtp.repo.GtpStationRepository;
 import org.openwcs.gtp.repo.PutInstructionRepository;
-import org.openwcs.gtp.repo.StationNodeRepository;
 import org.openwcs.gtp.repo.StationQueueEntryRepository;
 import org.openwcs.gtp.repo.TaskLineRepository;
 import org.openwcs.gtp.repo.WorkCycleRepository;
@@ -34,7 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class GtpDemoService {
 
     private final GtpStationRepository stations;
-    private final StationNodeRepository nodes;
     private final WorkCycleRepository workCycles;
     private final PutInstructionRepository putInstructions;
     private final TaskLineRepository taskLines;
@@ -42,12 +34,11 @@ public class GtpDemoService {
     private final DestinationDemandRepository demands;
     private final StationQueueEntryRepository queue;
 
-    public GtpDemoService(GtpStationRepository stations, StationNodeRepository nodes,
+    public GtpDemoService(GtpStationRepository stations,
                           WorkCycleRepository workCycles, PutInstructionRepository putInstructions,
                           TaskLineRepository taskLines, WorkplaceSessionRepository sessions,
                           DestinationDemandRepository demands, StationQueueEntryRepository queue) {
         this.stations = stations;
-        this.nodes = nodes;
         this.workCycles = workCycles;
         this.putInstructions = putInstructions;
         this.taskLines = taskLines;
@@ -58,9 +49,10 @@ public class GtpDemoService {
 
     /**
      * Delete all operational rows hanging off the warehouse's stations, keeping the station/node
-     * configuration. PutInstruction and TaskLine reference WorkCycle by a plain {@code workCycleId}
-     * column (no JPA cascade), so they are deleted explicitly first, in FK-safe order:
-     * put instructions / task lines → work cycles → workplace sessions → destination demand.
+     * configuration. One bulk DELETE per table — work cycles and put instructions accumulate
+     * fast, so nothing is loaded into memory. FK-safe order: put_instruction references both
+     * work_cycle and destination_demand (no cascade on the demand FK), so put instructions go
+     * first, then task lines and work cycles, then sessions, and destination demand last.
      */
     @Transactional
     public DemoClearResult clear(UUID warehouseId) {
@@ -68,40 +60,18 @@ public class GtpDemoService {
                 .map(GtpStation::getId)
                 .toList();
 
-        queue.deleteByWarehouseId(warehouseId);
+        queue.deleteBulkByWarehouseId(warehouseId);
 
         if (stationIds.isEmpty()) {
             return new DemoClearResult(0, 0, 0, 0, 0);
         }
 
-        List<WorkCycle> cycles = workCycles.findByStationIdIn(stationIds);
-        List<UUID> cycleIds = cycles.stream().map(WorkCycle::getId).toList();
+        int puts = putInstructions.deleteBulkByStationIds(stationIds);
+        int lines = taskLines.deleteBulkByStationIds(stationIds);
+        int cycles = workCycles.deleteBulkByStationIds(stationIds);
+        int openSessions = sessions.deleteBulkByStationIds(stationIds);
+        int demandRows = demands.deleteBulkByStationIds(stationIds);
 
-        List<PutInstruction> puts = cycleIds.isEmpty()
-                ? List.of() : putInstructions.findByWorkCycleIdIn(cycleIds);
-        putInstructions.deleteAll(puts);
-
-        List<TaskLine> lines = cycleIds.isEmpty()
-                ? List.of() : taskLines.findByWorkCycleIdIn(cycleIds);
-        taskLines.deleteAll(lines);
-
-        workCycles.deleteAll(cycles);
-
-        List<WorkplaceSession> openSessions = sessions.findByStationIdIn(stationIds);
-        sessions.deleteAll(openSessions);
-
-        List<UUID> nodeIds = nodes.findByStationIdIn(stationIds).stream()
-                .map(StationNode::getId)
-                .toList();
-        List<DestinationDemand> demandRows = nodeIds.isEmpty()
-                ? List.of() : demands.findByStationNodeIdIn(nodeIds);
-        demands.deleteAll(demandRows);
-
-        return new DemoClearResult(
-                cycles.size(),
-                puts.size(),
-                lines.size(),
-                openSessions.size(),
-                demandRows.size());
+        return new DemoClearResult(cycles, puts, lines, openSessions, demandRows);
     }
 }

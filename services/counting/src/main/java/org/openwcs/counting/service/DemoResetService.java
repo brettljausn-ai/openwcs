@@ -1,9 +1,7 @@
 package org.openwcs.counting.service;
 
-import java.util.List;
 import java.util.UUID;
 import org.openwcs.counting.api.DemoClearResult;
-import org.openwcs.counting.domain.CountTask;
 import org.openwcs.counting.repo.CountLineRepository;
 import org.openwcs.counting.repo.CountTaskRepository;
 import org.springframework.stereotype.Service;
@@ -28,9 +26,10 @@ public class DemoResetService {
 
     @Transactional
     public DemoClearResult clear(UUID warehouseId) {
-        int linesRemoved = lines.findByWarehouseId(warehouseId).size();
-        List<CountTask> warehouseTasks = tasks.findByWarehouseId(warehouseId);
-        tasks.deleteAll(warehouseTasks);
-        return new DemoClearResult(warehouseTasks.size(), linesRemoved);
+        // Count first, then one bulk DELETE; lines cascade at the DB level. Never loads
+        // the (potentially large) task/line sets into memory.
+        long linesRemoved = lines.countByWarehouseId(warehouseId);
+        int tasksRemoved = tasks.deleteBulkByWarehouseId(warehouseId);
+        return new DemoClearResult(tasksRemoved, (int) linesRemoved);
     }
 }

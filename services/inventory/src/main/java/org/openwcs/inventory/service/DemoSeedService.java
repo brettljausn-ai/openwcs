@@ -99,32 +99,20 @@ public class DemoSeedService {
     /**
      * Full operational reset for a warehouse (build.md §4.8): purge ALL transactional
      * inventory state — reservations, stock, handling units, serial units and batches —
-     * while leaving infrastructure and master-data references intact. Deleting in
-     * FK-safe order (reservations and stock reference handling units / batches, so they
-     * go first): Reservation → Stock → HandlingUnit → SerialUnit → Batch.
+     * while leaving infrastructure and master-data references intact. One bulk DELETE per
+     * table (a long emulator run can leave millions of rows; never load them into memory),
+     * in FK-safe order: {@code batch} is the only referenced table (by reservation, stock
+     * and serial_unit), so it goes last; handling units are referenced by plain uuid columns
+     * only (no FK), so any order works for them.
      */
     @Transactional
     public DemoClearResult clear(UUID warehouseId) {
-        List<Reservation> reservationRows = reservations.findByWarehouseId(warehouseId);
-        reservations.deleteAll(reservationRows);
+        int reservationRows = reservations.deleteBulkByWarehouseId(warehouseId);
+        int stockRows = stock.deleteBulkByWarehouseId(warehouseId);
+        int serials = serialUnits.deleteBulkByWarehouseId(warehouseId);
+        int hus = handlingUnits.deleteBulkByWarehouseId(warehouseId);
+        int batchRows = batches.deleteBulkByWarehouseId(warehouseId);
 
-        List<Stock> stockRows = stock.findByWarehouseId(warehouseId);
-        stock.deleteAll(stockRows);
-
-        List<HandlingUnit> hus = handlingUnits.findByWarehouseId(warehouseId);
-        handlingUnits.deleteAll(hus);
-
-        List<SerialUnit> serials = serialUnits.findByWarehouseId(warehouseId);
-        serialUnits.deleteAll(serials);
-
-        List<Batch> batchRows = batches.findByWarehouseId(warehouseId);
-        batches.deleteAll(batchRows);
-
-        return new DemoClearResult(
-                reservationRows.size(),
-                stockRows.size(),
-                hus.size(),
-                serials.size(),
-                batchRows.size());
+        return new DemoClearResult(reservationRows, stockRows, hus, serials, batchRows);
     }
 }

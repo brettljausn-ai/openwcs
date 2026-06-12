@@ -1,11 +1,7 @@
 package org.openwcs.flow.service;
 
-import java.util.List;
 import java.util.UUID;
 import org.openwcs.flow.api.DemoClearResult;
-import org.openwcs.flow.domain.DeviceTask;
-import org.openwcs.flow.domain.HuRoute;
-import org.openwcs.flow.domain.TopologyObservation;
 import org.openwcs.flow.repo.DeviceTaskRepository;
 import org.openwcs.flow.repo.HuRouteRepository;
 import org.openwcs.flow.repo.HuTransportTraceRepository;
@@ -41,24 +37,21 @@ public class FlowDemoService {
     }
 
     /**
-     * Delete all operational rows for a warehouse, keeping the topology configuration.
-     * The three entities are independent of one another, so order is immaterial.
+     * Delete all operational rows for a warehouse, keeping the topology configuration. One bulk
+     * DELETE per table — device tasks and traces can run to millions of rows after a long
+     * emulator session, so nothing is ever loaded into memory. The tables reference each other
+     * by plain uuid columns only (no FKs), so statement order is immaterial.
      */
     @Transactional
     public DemoClearResult clear(UUID warehouseId) {
-        List<DeviceTask> tasks = deviceTasks.findByWarehouseId(warehouseId);
-        deviceTasks.deleteAll(tasks);
-
-        List<HuRoute> routes = huRoutes.findByWarehouseId(warehouseId);
-        huRoutes.deleteAll(routes);
-
-        List<TopologyObservation> obs = observations.findByWarehouseId(warehouseId);
-        observations.deleteAll(obs);
+        int tasks = deviceTasks.deleteBulkByWarehouseId(warehouseId);
+        int routes = huRoutes.deleteBulkByWarehouseId(warehouseId);
+        int obs = observations.deleteBulkByWarehouseId(warehouseId);
 
         // ADR-0007 §3c-1 induction queue + HU transport trace are transactional flow state too.
-        induction.deleteAll(induction.findByWarehouseId(warehouseId));
-        traces.deleteAll(traces.findByWarehouseId(warehouseId));
+        induction.deleteBulkByWarehouseId(warehouseId);
+        traces.deleteBulkByWarehouseId(warehouseId);
 
-        return new DemoClearResult(tasks.size(), routes.size(), obs.size());
+        return new DemoClearResult(tasks, routes, obs);
     }
 }

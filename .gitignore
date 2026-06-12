@@ -24,3 +24,4 @@ ui/dist/
 
 # Agent worktrees (isolated subagent checkouts)
 .claude/worktrees/
+.gradle-docker/

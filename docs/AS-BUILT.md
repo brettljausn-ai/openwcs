@@ -111,7 +111,13 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
 - **System configuration** (`system_configuration` key/value table): global runtime flags.
   - **Demo mode** (`DEMO_MODE_ENABLED`, `/api/master-data/demo`): seeds/removes a sample catalog
     (`POST /demo/enable?warehouseId=`, `POST /demo/disable`, `GET /demo?warehouseId=`), ADMIN-gated,
-    may only seed onto a fresh, host-free system.
+    may only seed onto a fresh, host-free system. **Disable = full reset** orchestrated by the UI:
+    per-service clears (`/api/inventory|orders|counting|flow|gtp/demo/clear?warehouseId=` and the
+    global `/api/txlog/demo/clear` journal wipe) then the master-data disable, which removes the
+    WHOLE SKU catalog (UoMs/barcodes cascade), demo shippers and the demo HU type — all via bulk
+    DELETE statements (never loads rows), unsetting cubing-config `default_shipper_id` references
+    first (that FK used to 409 the disable). Failed clears are surfaced to the admin, not
+    swallowed. Warehouses, locations, blocks, topology and GTP/station config are kept.
   - **Hardware emulator** (`HARDWARE_EMULATOR_ENABLED`, **default OFF**): a global flag, same
     key/value table, read/flipped via `GET /api/master-data/emulator` → `{enabled}`,
     `POST /api/master-data/emulator/enable` and `/disable` (ADMIN-gated on `X-Auth-Roles`). Polled
