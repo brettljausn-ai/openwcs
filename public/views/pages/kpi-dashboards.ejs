@@ -1,55 +1,82 @@
 <section class="hero">
     <div class="wrap">
-      <p class="eyebrow" data-i18n="kpi.eyebrow1">Function · KPI dashboards <span class="pill pill-roadmap" data-i18n="kpi.pill1">Roadmap</span></p>
-      <h1 data-i18n="kpi.h1">Metrics you can <span class="lime">act on.</span></h1>
+      <p class="eyebrow" data-i18n="kpi.eyebrow1">Function · KPI dashboards <span class="pill pill-built" data-i18n="kpi.pill1">Built</span></p>
+      <h1 data-i18n="kpi.h1">The numbers, <span class="lime">live from the floor.</span></h1>
       <p class="lead" data-i18n="kpi.lead1">
-        Operational dashboards turn the event stream into decisions — what's flowing, what's stalling,
-        where the bottleneck is. This is a planned capability, not a shipped one.
+        A Reporting section in the product, built today: scan quality with predictive error trends,
+        3D traffic and movement heatmaps on the digital twin scene, ASRS density with forecasts,
+        stock availability, and inbound/outbound peaks. Five screens, collected live.
       </p>
-      <p class="status-line">⚑ Roadmap — planned, not yet implemented. There is no metrics store or dashboard layer in openWCS today.</p>
+      <p class="status-line">✓ Built: the Reporting section ships today in the openWCS UI (Material Flow, ASRS, Stock, Inbound, Outbound). Alerting, SLA metrics and the richer dashboards menu follow.</p>
     </div>
   </section>
 
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow" data-i18n="kpi.eyebrow2">The intended capability</p>
-        <h2 data-i18n="kpi.h2">From event stream to operational view.</h2>
+        <p class="eyebrow" data-i18n="kpi.eyebrow2">Built today</p>
+        <h2 data-i18n="kpi.h2">Five screens, fed by live counters.</h2>
         <p data-i18n="kpi.p1">
-          openWCS already emits a rich event stream from orders, moves and adjustments. KPI dashboards are
-          the planned layer that aggregates those events into live, actionable metrics.
+          The services collect the numbers as they happen: per-scan counters and daily density snapshots,
+          with history accumulating from the day you deploy. The Reporting section turns them into five
+          screens: Material Flow, ASRS, Stock, Inbound and Outbound.
         </p>
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="kpi.tag1">Throughput</div><span class="pill pill-roadmap" data-i18n="kpi.pill2">Roadmap</span></div>
-          <h3 data-i18n="kpi.h5">Lines &amp; units over time</h3>
-          <p data-i18n="kpi.p2">Planned: picks, put-aways and moves per hour, trended against the day's plan, so the floor can see whether it's keeping pace.</p>
+          <div class="card-head"><div class="tag" data-i18n="kpi.tag1">Scan quality</div><span class="pill pill-built" data-i18n="kpi.pill2">Built</span></div>
+          <h3 data-i18n="kpi.h5">Scans, no-reads, unknowns</h3>
+          <p data-i18n="kpi.p2">Scans, no-reads and unknowns per scan point per day, plus a "scanners needing attention" table that flags rising error-rate trends, so a dying reader gets fixed before it stops the line.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="kpi.tag2">Dwell</div><span class="pill pill-roadmap" data-i18n="kpi.pill3">Roadmap</span></div>
-          <h3 data-i18n="kpi.h6">Where units wait</h3>
-          <p data-i18n="kpi.p3">Planned: dwell time per stage — induct, buffer, station — to surface where handling units pile up before it becomes a jam.</p>
+          <div class="card-head"><div class="tag" data-i18n="kpi.tag2">Traffic heatmap</div><span class="pill pill-built" data-i18n="kpi.pill3">Built</span></div>
+          <h3 data-i18n="kpi.h6">Where the conveyors run hot</h3>
+          <p data-i18n="kpi.p3">A 3D conveyor traffic heatmap rendered on the same scene as the digital twin, plus transit-time p50/p95 per day, so the busy segments and the slow days stand out at a glance.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="kpi.tag3">Utilisation</div><span class="pill pill-roadmap" data-i18n="kpi.pill4">Roadmap</span></div>
-          <h3 data-i18n="kpi.h7">Equipment &amp; aisle load</h3>
-          <p data-i18n="kpi.p4">Planned: utilisation of aisles, cranes/shuttles and conveyor loops, so you can spot the hot-spot and the idle resource at a glance.</p>
+          <div class="card-head"><div class="tag" data-i18n="kpi.tag3">ASRS density</div><span class="pill pill-built" data-i18n="kpi.pill4">Built</span></div>
+          <h3 data-i18n="kpi.h7">Density, history &amp; forecast</h3>
+          <p data-i18n="kpi.p4">Storage density per block in figures and percent, with 90 days of history from daily snapshots and a 14-day weekday-seasonal forecast drawn as a dashed continuation of the curve.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="kpi.tag4">SLA</div><span class="pill pill-roadmap" data-i18n="kpi.pill5">Roadmap</span></div>
-          <h3 data-i18n="kpi.h8">On-time against targets</h3>
-          <p data-i18n="kpi.p5">Planned: order and wave SLA attainment — what shipped on time vs at risk — so cut-offs are managed proactively, not after the fact.</p>
+          <div class="card-head"><div class="tag" data-i18n="kpi.tag4">ASRS movements</div><span class="pill pill-built" data-i18n="kpi.pill5">Built</span></div>
+          <h3 data-i18n="kpi.h8">Hot cells, busy devices</h3>
+          <p data-i18n="kpi.p5">A 3D rack-cell movement heatmap shows which cells churn and which sleep, and storage movements are broken down per device, so load imbalance is visible, not guessed.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="kpi.tag5">Metrics store</div><span class="pill pill-roadmap" data-i18n="kpi.pill6">Roadmap</span></div>
-          <h3 data-i18n="kpi.h9">Aggregate the events</h3>
-          <p data-i18n="kpi.p6">Planned: a metrics store that rolls the event stream into time-series the dashboards read — the foundation that does not exist yet.</p>
+          <div class="card-head"><div class="tag" data-i18n="kpi.tag5">Stock</div><span class="pill pill-built" data-i18n="kpi.pill6">Built</span></div>
+          <h3 data-i18n="kpi.h9">Available, allocated, unavailable</h3>
+          <p data-i18n="kpi.p6">Per-SKU quantities split into available, allocated and unavailable, so what can actually be promised is never a guess.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="kpi.tag6">Dashboards</div><span class="pill pill-roadmap" data-i18n="kpi.pill7">Roadmap</span></div>
-          <h3 data-i18n="kpi.h10">Live &amp; configurable</h3>
-          <p data-i18n="kpi.p7">Planned: configurable dashboards for floor and management views, refreshed live from the metrics store. Designed for, not yet built.</p>
+          <div class="card-head"><div class="tag" data-i18n="kpi.tag6">Inbound &amp; outbound</div><span class="pill pill-built" data-i18n="kpi.pill7">Built</span></div>
+          <h3 data-i18n="kpi.h10">Flow per day, peaks per hour</h3>
+          <p data-i18n="kpi.p7">Expected vs started vs active orders, per-day values over 90 days, and a 24-hour day map that shows exactly when the peaks hit.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="kpi.eyebrow5">On the roadmap</p>
+        <h2 data-i18n="kpi.h11">What joins the reports next.</h2>
+        <p data-i18n="kpi.p9">
+          The reporting layer grows where it pays off: from numbers you read to alerts that find you,
+          with richer dashboards on top.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="kpi.tag7">Alerting &amp; SLA</div><span class="pill pill-roadmap" data-i18n="kpi.pill8">Roadmap</span></div>
+          <h3 data-i18n="kpi.h12">From reading to paging</h3>
+          <p data-i18n="kpi.p10">Planned: alerting and andon views on top of the collected counters, plus order and wave SLA metrics. Today the numbers are there to read; they do not page you yet.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="kpi.tag8">Dashboards menu</div><span class="pill pill-roadmap" data-i18n="kpi.pill9">Roadmap</span></div>
+          <h3 data-i18n="kpi.h13">State heroes &amp; ABC movers</h3>
+          <p data-i18n="kpi.p11">Planned: landing-page state heroes and a richer Dashboards menu (inbound/outbound deep dives, replenishment urgency, ABC movers), spec'd in the dashboard scope document.</p>
         </div>
       </div>
     </div>
@@ -59,13 +86,15 @@
     <div class="wrap">
       <div class="section-head">
         <p class="eyebrow" data-i18n="kpi.eyebrow3">At a glance</p>
-        <h2 data-i18n="kpi.h3">Events exist → dashboards on the roadmap.</h2>
+        <h2 data-i18n="kpi.h3">Live counters in, five screens out.</h2>
       </div>
       <div class="arch">
-<pre>  <b>event stream</b> (orders · moves · StockAdjusted)        (built)
-        │
+<pre>  <b>live collection</b>  (per-scan counters · daily density snapshots)        (built)
+        │  history accumulates from deployment day
         ▼
-  ┄┄┄ roadmap ┄┄┄  metrics store → throughput · dwell · utilisation · SLA → dashboards</pre>
+  <b>Reporting section</b>  ── Material Flow · ASRS · Stock · Inbound · Outbound   (built)
+        │
+  ┄┄┄ roadmap ┄┄┄  alerting / andon · SLA metrics · dashboards menu (state heroes · ABC movers)</pre>
       </div>
     </div>
   </section>
@@ -73,12 +102,12 @@
   <section>
     <div class="wrap">
       <div class="cta-band">
-        <p class="eyebrow" data-i18n="kpi.eyebrow4">Open &amp; honest</p>
-        <h2 data-i18n="kpi.h4">Follow dashboards as they land.</h2>
-        <p data-i18n="kpi.p8">The event stream the dashboards will read is live today; the metrics and dashboard layer is tracked in the open.</p>
+        <p class="eyebrow" data-i18n="kpi.eyebrow4">See it yourself</p>
+        <h2 data-i18n="kpi.h4">Read your warehouse, right now.</h2>
+        <p data-i18n="kpi.p8">The Reporting section ships in the open-source UI today. Open the live demo and walk the five screens, from scan quality to the 3D heatmaps.</p>
         <div class="hero-cta" style="justify-content:center">
-          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
-          <a class="btn btn-ghost" href="functions.html" data-i18n="kpi.btn1">Back to functions</a>
+          <a class="btn btn-primary" href="https://app.openwcs.ai" target="_blank" rel="noopener" data-i18n="kpi.btn2">Try the live demo</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
         </div>
       </div>
     </div>

@@ -48,6 +48,7 @@
 - [done] Hardware emulator mode :: Every device adapter (conveyors, ASRS, AMR, AutoStore) simulates its machines and telemetry behind a single admin toggle — run the full automation flow with zero physical hardware for evaluation, onboarding, or CI.
 - [done] Live 3D digital twin :: The saved layout rendered live in the browser: equipment coloured idle / running / faulted from real device tasks, totes replaying the actual scan trail, and storage fill shown at cell level in the ASRS rack.
 - [done] Cycle counting :: Count tasks with blind and variance modes and ABC-cadence scheduling, at-station blind counting via the GTP console, and a standalone count-capture screen with variances, recounts and reconciliation.
+- [done] Operational reporting :: A Reporting section with five screens: scan quality per scan point with predictive error trends, a 3D conveyor traffic heatmap, ASRS storage density and movements with 90-day history and 14-day forecasts, per-SKU stock availability split, and inbound/outbound flow with hour-of-day peak maps.
 
 ## In progress
 > Active development
@@ -57,7 +58,7 @@
 ## Next up
 > Designed, build queued
 
-- [planned] KPI dashboards :: Throughput, dwell, utilisation and SLA dashboards over a metrics store — operational visibility for floor and management.
+- [planned] Dashboards & alerting :: Landing-page state heroes and a Dashboards menu (inbound/outbound deep dives, replenishment urgency, ABC movers) per the dashboard spec, plus alerting/andon and SLA metrics.
 
 ## Exploring
 > On the horizon
