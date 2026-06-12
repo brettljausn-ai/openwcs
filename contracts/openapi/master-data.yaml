@@ -665,6 +665,39 @@ paths:
               schema: { $ref: '#/components/schemas/Location' }
         "409": { $ref: '#/components/responses/Conflict' }
         "422": { $ref: '#/components/responses/ValidationError' }
+  /locations/operational:
+    get:
+      tags: [Locations]
+      summary: Resolve the operational location for equipment / a workplace / UNKNOWN (lazily created)
+      description: >
+        HUs are always booked to a real location: each conveyor and each workplace automatically
+        has a location carrying its name, and an HU whose position is not known books to the
+        warehouse's UNKNOWN location (the inventory service bars that stock from allocation).
+        This resolves that location, creating it on first use. Idempotent: concurrent first calls
+        return the same row (unique warehouse_id + code). Mapping: EQUIPMENT = CONVEYOR_SEGMENT /
+        TRANSPORT, WORKPLACE = STATION / STAGING, UNKNOWN = FREE_SPACE / QUARANTINE (code UNKNOWN,
+        name omitted). All created ACTIVE and unblocked.
+      operationId: getOperationalLocation
+      parameters:
+        - name: warehouseId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: kind
+          in: query
+          required: true
+          schema: { type: string, enum: [EQUIPMENT, WORKPLACE, UNKNOWN] }
+        - name: name
+          in: query
+          description: The equipment / workplace name; becomes the location code. Omitted for UNKNOWN.
+          schema: { type: string }
+      responses:
+        "200":
+          description: The operational location (pre-existing or just created)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Location' }
+        "400": { $ref: '#/components/responses/BadRequest' }
   /locations/{locationId}:
     parameters:
       - name: locationId
@@ -1084,6 +1117,11 @@ components:
       schema: { type: string, format: uri }
 
   responses:
+    BadRequest:
+      description: Malformed request (e.g. an unsupported operational-location kind or a missing name)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
     NotFound:
       description: Resource not found
       content:

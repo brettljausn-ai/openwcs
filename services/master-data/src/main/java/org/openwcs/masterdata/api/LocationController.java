@@ -8,6 +8,7 @@ import org.openwcs.masterdata.domain.Location;
 import org.openwcs.masterdata.repo.LocationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -78,6 +79,76 @@ public class LocationController {
                     first.getCode(), saved.get(saved.size() - 1).getCode());
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+    }
+
+    /**
+     * The warehouse's operational location for a piece of equipment (conveyor, lift, ...), a
+     * workplace, or the UNKNOWN catch-all, created lazily on first use. HUs are always booked to
+     * a real location (product rule): each conveyor and workplace automatically has a location
+     * carrying its name, and an HU whose position is not known books to UNKNOWN (the inventory
+     * service bars that location's stock from allocation). Idempotent: concurrent first calls
+     * resolve to the same row via the (warehouse_id, code) unique constraint.
+     */
+    @GetMapping("/operational")
+    public Location operational(
+            @RequestParam UUID warehouseId,
+            @RequestParam String kind,
+            @RequestParam(required = false) String name) {
+        String code;
+        String locationType;
+        String purpose;
+        switch (kind) {
+            case "EQUIPMENT" -> {
+                code = requireName(kind, name);
+                locationType = "CONVEYOR_SEGMENT";
+                purpose = "TRANSPORT";
+            }
+            case "WORKPLACE" -> {
+                code = requireName(kind, name);
+                locationType = "STATION";
+                purpose = "STAGING";
+            }
+            case "UNKNOWN" -> {
+                code = "UNKNOWN";
+                locationType = "FREE_SPACE";
+                purpose = "QUARANTINE";
+            }
+            default -> throw new IllegalArgumentException(
+                    "Unsupported operational-location kind '" + kind + "' (expected EQUIPMENT, WORKPLACE or UNKNOWN).");
+        }
+        return locations.findByWarehouseIdAndCode(warehouseId, code)
+                .orElseGet(() -> createOperational(warehouseId, code, locationType, purpose, kind));
+    }
+
+    private Location createOperational(
+            UUID warehouseId, String code, String locationType, String purpose, String kind) {
+        Location location = new Location();
+        location.setWarehouseId(warehouseId);
+        location.setCode(code);
+        location.setLocationType(locationType);
+        location.setPurpose(purpose);
+        location.setStatus("ACTIVE");
+        try {
+            Location saved = locations.save(location);
+            log.info("operational location created: {} ({}) in warehouse {} as {}/{} because a {}"
+                            + " booking referenced it for the first time",
+                    code, saved.getId(), warehouseId, locationType, purpose, kind);
+            return saved;
+        } catch (DataIntegrityViolationException concurrentCreate) {
+            // A concurrent first use won the (warehouse_id, code) unique constraint: retry-fetch
+            // the winner's row so both callers resolve to the same location.
+            log.info("operational location create lost a concurrent race: {} in warehouse {} already exists,"
+                    + " returning the existing row", code, warehouseId);
+            return locations.findByWarehouseIdAndCode(warehouseId, code).orElseThrow(() -> concurrentCreate);
+        }
+    }
+
+    private static String requireName(String kind, String name) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException(
+                    "An operational location of kind " + kind + " needs a name (it becomes the location code).");
+        }
+        return name;
     }
 
     @GetMapping("/{id}")

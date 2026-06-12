@@ -3,6 +3,7 @@ package org.openwcs.inventory.api;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
+import org.openwcs.inventory.client.MasterDataClient;
 import org.openwcs.inventory.domain.HandlingUnit;
 import org.openwcs.inventory.domain.Stock;
 import org.openwcs.inventory.repo.HandlingUnitRepository;
@@ -30,10 +31,13 @@ public class HandlingUnitController {
 
     private final HandlingUnitRepository handlingUnits;
     private final StockRepository stock;
+    private final MasterDataClient masterData;
 
-    public HandlingUnitController(HandlingUnitRepository handlingUnits, StockRepository stock) {
+    public HandlingUnitController(
+            HandlingUnitRepository handlingUnits, StockRepository stock, MasterDataClient masterData) {
         this.handlingUnits = handlingUnits;
         this.stock = stock;
+        this.masterData = masterData;
     }
 
     /** All handling units registered in a warehouse. */
@@ -77,9 +81,12 @@ public class HandlingUnitController {
 
     /**
      * Book the HU's current location through the transport lifecycle (the controlled process the
-     * full PUT above defers to): a RETRIEVE out of a slot books {@code null} (in transit / at a
-     * workplace — the HU transport trace is the truth while away); the return-leg STORE books the
-     * slot back.
+     * full PUT above defers to). HUs are ALWAYS booked to a real location (product rule): a tote on
+     * a conveyor books to the conveyor's own location, a tote at a workplace to the workplace's.
+     * When the caller does not know the position ({@code locationId} = null) the HU books to the
+     * warehouse's UNKNOWN location instead, where its stock stays visible but is barred from
+     * allocation. If master-data cannot resolve UNKNOWN, the booking is rejected with 503 (callers
+     * treat the booking as best-effort).
      */
     @PutMapping("/{id}/location")
     @Transactional
@@ -87,19 +94,27 @@ public class HandlingUnitController {
         HandlingUnit existing = handlingUnits.findById(id)
                 .orElseThrow(() -> new HandlingUnitNotFoundException(id));
         UUID fromLocationId = existing.getLocationId();
-        existing.setLocationId(request.locationId());
+        UUID targetLocationId = request.locationId();
+        boolean unknownPosition = targetLocationId == null;
+        if (unknownPosition) {
+            // No nulls reach the stock rows (stock.location_id is NOT NULL): a position-less
+            // booking goes to the warehouse's UNKNOWN location. Throws 503 when master-data is down.
+            targetLocationId = masterData.unknownLocationId(existing.getWarehouseId());
+        }
+        existing.setLocationId(targetLocationId);
         // The stock RIDES IN the tote: its rows' location must follow the HU, or the stock overview
         // keeps pointing at the slot the tote left (observed live after retrieves and dig-out moves).
         int followed = 0;
         for (Stock s : stock.findByHuId(id)) {
-            s.setLocationId(request.locationId());
+            s.setLocationId(targetLocationId);
             stock.save(s);
             followed++;
         }
         HandlingUnit saved = handlingUnits.save(existing);
-        log.info("hu location booked: hu {} ({}) moved from location {} to {} because of a transport"
-                        + " lifecycle update (null = in transit / at a workplace); {} stock row(s) followed the hu",
-                saved.getCode(), id, fromLocationId, request.locationId(), followed);
+        log.info("hu location booked: hu {} ({}) moved from location {} to {}{} because of a transport"
+                        + " lifecycle update; {} stock row(s) followed the hu",
+                saved.getCode(), id, fromLocationId, targetLocationId,
+                unknownPosition ? " (UNKNOWN: the caller did not know the position)" : "", followed);
         return saved;
     }
 }
