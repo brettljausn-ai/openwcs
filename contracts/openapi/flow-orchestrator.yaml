@@ -15,6 +15,7 @@ servers:
 tags:
   - name: DeviceTasks
   - name: ConveyorRouting
+  - name: Reports
 
 paths:
   /conveyor/topology:
@@ -231,7 +232,131 @@ paths:
         "404":
           description: Not found
 
+  /reports/scan-quality:
+    get:
+      tags: [Reports]
+      summary: Scans / no-reads / unknowns per scan point per day
+      description: >
+        Daily scan-quality counters per conveyor scan point, accumulated by the routing scan path
+        from deployment day: every answered scan, scanner read errors (blank/"NOREAD" barcodes)
+        and readable barcodes with no active route plan. Powers the scanner-error report (the UI
+        forecasts failing scanners over the history). Requires DEVICE_VIEW.
+      operationId: reportScanQuality
+      parameters:
+        - $ref: '#/components/parameters/ReportWarehouseId'
+        - $ref: '#/components/parameters/ReportDays'
+      responses:
+        "200":
+          description: Per-node daily scan-quality rows (day ascending)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ScanQualityRow' }
+        "403":
+          description: Missing DEVICE_VIEW
+  /reports/traffic:
+    get:
+      tags: [Reports]
+      summary: Conveyor traffic per directed edge per day (heatmap)
+      description: >
+        Daily ROUTE-answer counters per directed conveyor edge (including divert-default routes),
+        accumulated by the routing scan path. Powers the traffic heatmap of the conveyor system.
+        Requires DEVICE_VIEW.
+      operationId: reportTraffic
+      parameters:
+        - $ref: '#/components/parameters/ReportWarehouseId'
+        - $ref: '#/components/parameters/ReportDays'
+      responses:
+        "200":
+          description: Per-edge daily traffic rows (day ascending)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TrafficRow' }
+        "403":
+          description: Missing DEVICE_VIEW
+  /reports/storage-movements:
+    get:
+      tags: [Reports]
+      summary: Storage movements per location per day (ASRS heatmap)
+      description: >
+        Completed STORE/RETRIEVE (and AutoStore BIN_*) device tasks aggregated per storage
+        location per day. locationId is null when the task carried no location (e.g. degraded
+        slotting). Powers the storage-movement heatmap. Requires DEVICE_VIEW.
+      operationId: reportStorageMovements
+      parameters:
+        - $ref: '#/components/parameters/ReportWarehouseId'
+        - $ref: '#/components/parameters/ReportDays'
+      responses:
+        "200":
+          description: Per-location daily movement rows (day ascending)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/StorageMovementRow' }
+        "403":
+          description: Missing DEVICE_VIEW
+  /reports/device-movements:
+    get:
+      tags: [Reports]
+      summary: Device-task throughput and failures per equipment per day
+      description: >
+        All device tasks aggregated per equipment per day, split into completed and failed.
+        equipment is the best available label: the placed equipment's code, else the raw
+        equipment id, else the family. Requires DEVICE_VIEW.
+      operationId: reportDeviceMovements
+      parameters:
+        - $ref: '#/components/parameters/ReportWarehouseId'
+        - $ref: '#/components/parameters/ReportDays'
+      responses:
+        "200":
+          description: Per-equipment daily throughput rows (day ascending)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DeviceMovementRow' }
+        "403":
+          description: Missing DEVICE_VIEW
+  /reports/transit-times:
+    get:
+      tags: [Reports]
+      summary: Induct-to-arrival transit-time distribution per day
+      description: >
+        For each induction entry, the time between its INDUCTED trace row (HU left storage onto
+        the conveyor) and its ARRIVED row (HU reached the induction point), aggregated per arrival
+        day as sample count + p50/p95 milliseconds. Requires DEVICE_VIEW.
+      operationId: reportTransitTimes
+      parameters:
+        - $ref: '#/components/parameters/ReportWarehouseId'
+        - $ref: '#/components/parameters/ReportDays'
+      responses:
+        "200":
+          description: Daily transit-time distribution rows (day ascending)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TransitTimeRow' }
+        "403":
+          description: Missing DEVICE_VIEW
+
 components:
+  parameters:
+    ReportWarehouseId:
+      name: warehouseId
+      in: query
+      required: true
+      schema: { type: string, format: uuid }
+    ReportDays:
+      name: days
+      in: query
+      required: false
+      description: History window in days, today inclusive (default 90, capped at 180).
+      schema: { type: integer, default: 90, maximum: 180, minimum: 1 }
   schemas:
     Topology:
       type: object
@@ -399,3 +524,45 @@ components:
           nullable: true
         actor: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
+    ScanQualityRow:
+      type: object
+      description: Daily scan-quality counters of one scan point.
+      properties:
+        node: { type: string, description: Scan point (conveyor node code). }
+        day: { type: string, format: date }
+        scans: { type: integer, format: int64, description: Scans answered at the node that day. }
+        noReads: { type: integer, format: int64, description: Scanner read errors (blank/"NOREAD"). }
+        unknowns: { type: integer, format: int64, description: Readable barcodes with no active route plan. }
+    TrafficRow:
+      type: object
+      description: Daily traffic over one directed conveyor edge (heatmap weight).
+      properties:
+        fromNode: { type: string }
+        toNode: { type: string }
+        day: { type: string, format: date }
+        count: { type: integer, format: int64, description: ROUTE answers over the edge that day. }
+    StorageMovementRow:
+      type: object
+      description: Completed storage movements at one location on one day.
+      properties:
+        locationId: { type: string, format: uuid, nullable: true, description: Null when the task carried no location id. }
+        day: { type: string, format: date }
+        stores: { type: integer, format: int64, description: Completed STORE/BIN_STORE tasks. }
+        retrieves: { type: integer, format: int64, description: Completed RETRIEVE/BIN_RETRIEVE tasks. }
+    DeviceMovementRow:
+      type: object
+      description: Device-task throughput of one equipment on one day.
+      properties:
+        equipment: { type: string, description: "Best available label: placed-equipment code, else equipment id, else family." }
+        family: { type: string, description: CONVEYOR | ASRS | AMR | AUTOSTORE. }
+        day: { type: string, format: date }
+        completed: { type: integer, format: int64 }
+        failed: { type: integer, format: int64 }
+    TransitTimeRow:
+      type: object
+      description: Induct-to-arrival transit-time distribution of one day.
+      properties:
+        day: { type: string, format: date }
+        count: { type: integer, format: int64, description: Induction entries that arrived that day. }
+        p50Ms: { type: integer, format: int64, description: Median transit time in milliseconds. }
+        p95Ms: { type: integer, format: int64, description: 95th-percentile transit time in milliseconds. }
