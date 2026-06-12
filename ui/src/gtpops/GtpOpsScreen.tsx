@@ -3,7 +3,7 @@ import InfoTip from '../ui/InfoTip'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import { useSidebar } from '../shell/SidebarContext'
 import { HandlingUnit, listHandlingUnits } from '../inventory/api'
-import { HandlingUnitType, Sku, listHandlingUnitTypes, listSkus } from '../masterdata/api'
+import { HandlingUnitType, Sku, SkuCard, getSkuCard, listHandlingUnitTypes, listSkus } from '../masterdata/api'
 import {
   OperatingMode,
   Workplace,
@@ -678,7 +678,7 @@ function OperatorConsole({
                 warehouseId={workplace.warehouseId}
                 error={null}
                 fill
-                accentBorder={modeAccent('STOCK_COUNT').border}
+                accent={modeAccent('STOCK_COUNT')}
               />
               <button
                 className="btn btn-primary btn-lg"
@@ -1275,34 +1275,220 @@ function seedAcceptingWork(workplace: Workplace): boolean {
   return workplace.acceptingWork ?? true
 }
 
+// --- SKU product card: one-call read for the tote presentation ------------------------------------
+// GET /api/master-data/skus/{id}/card?warehouseId= returns the SKU identity (code, description,
+// image) plus the base-UoM item dimensions/weight and the warehouse profile's metadata blob.
+// Cached per (sku, warehouse) for the session so repeat SKUs present instantly; the panel never
+// waits for this fetch: identity renders from the queue entry, the card details fill in on arrival.
+const skuCardCache = new Map<string, SkuCard>()
+const skuCardInFlight = new Map<string, Promise<SkuCard>>()
+
+function useSkuCard(skuId: string | null, warehouseId: string): SkuCard | null {
+  const key = skuId ? `${skuId}|${warehouseId}` : null
+  const [card, setCard] = useState<SkuCard | null>(() => (key ? skuCardCache.get(key) ?? null : null))
+  useEffect(() => {
+    if (!key || !skuId) {
+      setCard(null)
+      return
+    }
+    const hit = skuCardCache.get(key)
+    if (hit) {
+      setCard(hit)
+      return
+    }
+    setCard(null)
+    let cancelled = false
+    let p = skuCardInFlight.get(key)
+    if (!p) {
+      p = getSkuCard(skuId, warehouseId).finally(() => skuCardInFlight.delete(key))
+      skuCardInFlight.set(key, p)
+    }
+    p.then((c) => {
+      skuCardCache.set(key, c)
+      if (!cancelled) setCard(c)
+    }).catch(() => {
+      /* the card is decoration; the panel already shows the queue-entry identity */
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [key, skuId, warehouseId])
+  return card
+}
+
+// "90 x 280 x 95 mm", only when all three dimensions exist.
+function formatDims(u: NonNullable<SkuCard['baseUom']>): string | null {
+  const { lengthMm: l, widthMm: w, heightMm: h } = u
+  if (l == null || w == null || h == null) return null
+  return `${fmtNum(l)} x ${fmtNum(w)} x ${fmtNum(h)} mm`
+}
+
+// Grams below 1 kg, kilograms above ("850 g", "1.4 kg").
+function formatWeight(weightG: number): string {
+  if (weightG < 1000) return `${fmtNum(weightG)} g`
+  return `${fmtNum(Math.round(weightG / 100) / 10)} kg`
+}
+
+// Trim float noise from numbers that arrive as decimals (90.0 -> "90").
+function fmtNum(n: number): string {
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10)
+}
+
+function capitalise(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s
+}
+
+// Small line-icon of an open-top tote/bin, drawn in the mode accent colour. Sits left of the HU
+// code so the hero line reads as "this physical tote".
+function ToteGlyph({ color, size }: { color: string; size: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ flexShrink: 0 }}
+    >
+      {/* rim */}
+      <path d="M2.5 5.5h19v3h-19z" />
+      {/* tapered open-top body */}
+      <path d="M4 8.5l1.4 11.2a1.4 1.4 0 0 0 1.4 1.3h10.4a1.4 1.4 0 0 0 1.4-1.3L20 8.5" />
+      {/* stacking ribs */}
+      <path d="M9 12v5.5" />
+      <path d="M15 12v5.5" />
+    </svg>
+  )
+}
+
+// Subtle chips under the SKU name: item dimensions + weight (from the base UoM) and whatever
+// sku_profile metadata entries exist (brand, colour, style, season, size and so on): key-capitalised,
+// nothing hardcoded. Renders nothing while the card loads or when there is nothing to show.
+function SkuMetaChips({ card, large }: { card: SkuCard | null; large?: boolean }) {
+  const chips: { key: string; label: string | null; value: string }[] = []
+  if (card?.baseUom) {
+    const dims = formatDims(card.baseUom)
+    if (dims) chips.push({ key: 'dims', label: null, value: dims })
+    if (card.baseUom.weightG != null) {
+      chips.push({ key: 'weight', label: null, value: formatWeight(card.baseUom.weightG) })
+    }
+  }
+  for (const [k, v] of Object.entries(card?.metadata ?? {})) {
+    if (v == null || typeof v === 'object') continue
+    const value = String(v).trim()
+    if (!value) continue
+    chips.push({ key: `meta.${k}`, label: capitalise(k), value })
+  }
+  if (chips.length === 0) return null
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.45rem', marginTop: '.15rem' }}>
+      {chips.map((c) => (
+        <span
+          key={c.key}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'baseline',
+            gap: '.4rem',
+            padding: large ? '.4rem .75rem' : '.25rem .6rem',
+            borderRadius: 9,
+            border: '1px solid var(--glass-border)',
+            background: 'rgba(255,255,255,.03)',
+            fontSize: large ? '1rem' : '.85rem',
+          }}
+        >
+          {c.label && (
+            <span
+              style={{
+                color: 'var(--text-faint)',
+                fontSize: large ? '.8rem' : '.7rem',
+                textTransform: 'uppercase',
+                letterSpacing: '.06em',
+              }}
+            >
+              {c.label}
+            </span>
+          )}
+          <span>{c.value}</span>
+        </span>
+      ))}
+    </div>
+  )
+}
+
+// The shared tote identity block (picking active-tote panel + count panel): tote glyph + HU code
+// hero line (with the quantity where the mode may show it), the SKU code prominent, the SKU name on
+// its own line underneath, then the metadata chips. `large` is the full-viewport variant.
+function ToteIdentity({
+  huCode,
+  qty,
+  skuCode,
+  description,
+  card,
+  accent,
+  large,
+}: {
+  huCode: string | null
+  qty: number | null // null also for blind modes that must not show a system quantity
+  skuCode: string | null
+  description: string | null
+  card: SkuCard | null
+  accent: ModeAccent
+  large?: boolean
+}) {
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: large ? '.85rem' : '.6rem', flexWrap: 'wrap' }}>
+        <ToteGlyph color={accent.solid} size={large ? 46 : 28} />
+        <strong style={{ fontSize: large ? '2.9rem' : '1.5rem', lineHeight: 1.05 }}>{huCode ?? 'Tote'}</strong>
+        {qty != null && (
+          <span style={{ color: accent.solid, fontWeight: 700, fontSize: large ? '1.6rem' : '1.1rem' }}>
+            ×{qty}
+          </span>
+        )}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: large ? '.35rem' : '.25rem' }}>
+        <span style={{ fontSize: large ? '1.8rem' : '1.15rem', fontWeight: 600, lineHeight: 1.15 }}>
+          {skuCode ?? 'SKU'}
+        </span>
+        {description && (
+          <span style={{ color: 'var(--text-dim)', fontSize: large ? '1.2rem' : '.95rem', lineHeight: 1.35 }}>
+            {description}
+          </span>
+        )}
+      </div>
+      <SkuMetaChips card={card} large={large} />
+    </>
+  )
+}
+
 // --- Active tote at the station: the focal element of the queue-driven console --------------------
 // Shows the SKU that is "on the tote" so the operator reads what to do; they do not pick it. The HU
-// code, qty and SKU come from the head queue entry; the SKU code/description/image are resolved from
-// master data. When a cycle is running we prefer the cycle's HU/SKU/qty so the panel stays correct
-// after the head entry has been worked off the queue.
+// code, qty and SKU come from the head queue entry; description/image/dimensions/metadata come from
+// the SKU card (one master-data call, cached per SKU). When a cycle is running we prefer the cycle's
+// HU/SKU/qty so the panel stays correct after the head entry has been worked off the queue.
 function ActiveTotePanel({
   head,
   cycle,
   warehouseId,
   error,
   fill,
-  accentBorder,
+  accent = GREEN_ACCENT,
 }: {
   head: StationQueueEntry | null
   cycle: WorkCycle | null
   warehouseId: string
   error: string | null
   fill?: boolean
-  accentBorder?: string // mode accent for the panel border (defaults to the green picking accent)
+  accent?: ModeAccent // per-mode accent (counting orange etc.); defaults to the green picking accent
 }) {
-  const [skus, setSkus] = useState<Sku[]>([])
   const [hus, setHus] = useState<HandlingUnit[]>([])
 
   useEffect(() => {
     let cancelled = false
-    listSkus()
-      .then((l) => !cancelled && setSkus(l))
-      .catch(() => !cancelled && setSkus([]))
     listHandlingUnits(warehouseId)
       .then((l) => !cancelled && setHus(l))
       .catch(() => !cancelled && setHus([]))
@@ -1316,14 +1502,15 @@ function ActiveTotePanel({
   const huId = cycle?.stockHuId ?? head?.huId ?? null
   const qty = cycle?.presentedQty ?? head?.qty ?? null
 
-  const sku = useMemo(() => (skuId ? skus.find((s) => s.id === skuId) ?? null : null), [skus, skuId])
+  const card = useSkuCard(skuId, warehouseId)
   const huCode = useMemo(() => {
     if (head?.huId === huId && head?.huCode) return head.huCode
     const match = hus.find((h) => h.huId === huId)
     return match?.code ?? null
   }, [hus, huId, head])
 
-  const skuCode = sku?.code ?? head?.skuCode ?? null
+  const skuCode = card?.code ?? head?.skuCode ?? null
+  const imageUrl = card?.imageUrl ?? null
 
   return (
     <div
@@ -1332,23 +1519,23 @@ function ActiveTotePanel({
         padding: fill ? '2.5rem' : '1.5rem',
         marginBottom: '1.25rem',
         display: 'flex',
-        gap: fill ? '2.5rem' : '1.75rem',
+        gap: fill ? '3rem' : '1.75rem',
         flexWrap: 'wrap',
         alignItems: 'center',
         justifyContent: fill ? 'center' : 'flex-start',
-        borderColor: accentBorder ?? GREEN_ACCENT.border,
+        borderColor: accent.border,
         ...(fill ? { flex: 1, minHeight: '60vh' } : {}),
       }}
     >
-      {sku?.imageUrl && (
+      {imageUrl && (
         <img
-          src={sku.imageUrl}
+          src={imageUrl}
           alt={skuCode ?? 'SKU'}
           style={{
-            width: fill ? 240 : 132,
-            height: fill ? 240 : 132,
+            width: fill ? 'min(38vw, 420px)' : 148,
+            height: fill ? 'min(38vw, 420px)' : 148,
             objectFit: 'cover',
-            borderRadius: 12,
+            borderRadius: fill ? 18 : 12,
             border: '1px solid var(--glass-border)',
           }}
           onError={(e) => {
@@ -1356,22 +1543,28 @@ function ActiveTotePanel({
           }}
         />
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '.45rem', minWidth: 220, flex: 1 }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: fill ? '.9rem' : '.55rem',
+          minWidth: 260,
+          flex: 1,
+          maxWidth: fill ? 640 : undefined,
+        }}
+      >
         <span className="eyebrow">Active tote at station</span>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem', flexWrap: 'wrap' }}>
-          <strong style={{ fontSize: '1.4rem' }}>{huCode ?? 'Tote'}</strong>
-          {qty != null && (
-            <span style={{ color: 'var(--herbal-lime)', fontWeight: 700, fontSize: '1.1rem' }}>×{qty}</span>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '.5rem', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>{skuCode ?? 'SKU'}</span>
-          {sku?.description && (
-            <span style={{ color: 'var(--text-dim)', fontSize: '.9rem' }}>{sku.description}</span>
-          )}
-        </div>
+        <ToteIdentity
+          huCode={huCode}
+          qty={qty}
+          skuCode={skuCode}
+          description={card?.description ?? null}
+          card={card}
+          accent={accent}
+          large={!!fill}
+        />
         {qty != null && (
-          <div style={{ color: 'var(--text-dim)', fontSize: '.85rem' }}>
+          <div style={{ color: 'var(--text-dim)', fontSize: fill ? '1.05rem' : '.85rem' }}>
             {qty} {qty === 1 ? 'unit' : 'units'} on the tote
           </div>
         )}
@@ -1412,10 +1605,11 @@ function demoImageFor(skuCode: string | null): string {
   return DEMO_IMAGES[hashString(skuCode) % DEMO_IMAGES.length]
 }
 
-// The focal full-screen element of STOCK_COUNT mode. Shows the tote barcode, the SKU (code + name)
-// and an image, then takes a blind counted quantity. It never displays any quantity from the system
-// (no expected, no "units on the tote"), and on a RECOUNT outcome it clears the input and keeps the
-// same tote so the operator counts again without seeing their previous entry.
+// The focal full-screen element of STOCK_COUNT mode. Shows the tote (glyph + barcode), the SKU code,
+// its name and the dimensions/metadata chips, plus an image, then takes a blind counted quantity. It
+// never displays any quantity from the system (no expected, no "units on the tote"), and on a RECOUNT
+// outcome it clears the input and keeps the same tote so the operator counts again without seeing
+// their previous entry.
 function CountPanel({
   head,
   warehouseId,
@@ -1426,14 +1620,10 @@ function CountPanel({
   onCounted: () => void
 }) {
   const { enabled: demoEnabled } = useDemoMode()
-  const [skus, setSkus] = useState<Sku[]>([])
   const [hus, setHus] = useState<HandlingUnit[]>([])
 
   useEffect(() => {
     let cancelled = false
-    listSkus()
-      .then((l) => !cancelled && setSkus(l))
-      .catch(() => !cancelled && setSkus([]))
     listHandlingUnits(warehouseId)
       .then((l) => !cancelled && setHus(l))
       .catch(() => !cancelled && setHus([]))
@@ -1442,14 +1632,14 @@ function CountPanel({
     }
   }, [warehouseId])
 
-  const sku = useMemo(() => skus.find((s) => s.id === head.skuId) ?? null, [skus, head.skuId])
+  const card = useSkuCard(head.skuId, warehouseId)
   const huCode = useMemo(() => {
     if (head.huCode) return head.huCode
     return hus.find((h) => h.huId === head.huId)?.code ?? null
   }, [hus, head])
 
-  const skuCode = sku?.code ?? head.skuCode ?? null
-  const imageUrl = sku?.imageUrl ?? (demoEnabled ? demoImageFor(skuCode) : null)
+  const skuCode = card?.code ?? head.skuCode ?? null
+  const imageUrl = card?.imageUrl ?? (demoEnabled ? demoImageFor(skuCode) : null)
 
   const [qtyText, setQtyText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -1515,17 +1705,17 @@ function CountPanel({
           }}
         />
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', minWidth: 320, flex: 1, maxWidth: 620 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '.9rem', minWidth: 320, flex: 1, maxWidth: 640 }}>
         <span className="eyebrow">Count this tote</span>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem', flexWrap: 'wrap' }}>
-          <strong style={{ fontSize: '3rem', lineHeight: 1.05 }}>{huCode ?? 'Tote'}</strong>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '1.9rem', fontWeight: 600 }}>{skuCode ?? 'SKU'}</span>
-          {sku?.description && (
-            <span style={{ color: 'var(--text-dim)', fontSize: '1.2rem' }}>{sku.description}</span>
-          )}
-        </div>
+        <ToteIdentity
+          huCode={huCode}
+          qty={null} // blind count: never show a system quantity
+          skuCode={skuCode}
+          description={card?.description ?? null}
+          card={card}
+          accent={modeAccent('STOCK_COUNT')}
+          large
+        />
 
         <div style={{ color: 'var(--text-dim)', fontSize: '1.1rem', marginTop: '.25rem' }}>
           Count every unit in this tote and enter the total.

@@ -81,6 +81,65 @@ class MasterDataApiTest {
     }
 
     @Test
+    void skuCardCombinesIdentityBaseUomAndProfileMetadata() throws Exception {
+        String warehouse = mockMvc.perform(post("/api/master-data/warehouses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(Map.of("code", "WH-CARD", "name", "Card DC"))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String warehouseId = om.readTree(warehouse).get("id").asText();
+
+        String sku = mockMvc.perform(post("/api/master-data/skus")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(Map.of(
+                                "code", "SKU-CARD", "description", "Card tee",
+                                "imageUrl", "https://img.example/card.jpg"))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String skuId = om.readTree(sku).get("id").asText();
+
+        mockMvc.perform(post("/api/master-data/skus/{id}/uoms", skuId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(Map.of(
+                                "code", "EA", "baseUnit", true,
+                                "lengthMm", 90, "widthMm", 280, "heightMm", 95, "weightG", 1400))))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(put("/api/master-data/skus/{id}/profiles", skuId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(Map.of(
+                                "warehouseId", warehouseId,
+                                "metadata", Map.of("brand", "Acme", "color", "black")))))
+                .andExpect(status().isOk());
+
+        // With warehouseId: identity + base-UoM dimensions + profile metadata in one read.
+        mockMvc.perform(get("/api/master-data/skus/{id}/card", skuId).param("warehouseId", warehouseId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SKU-CARD"))
+                .andExpect(jsonPath("$.description").value("Card tee"))
+                .andExpect(jsonPath("$.imageUrl").value("https://img.example/card.jpg"))
+                .andExpect(jsonPath("$.baseUom.code").value("EA"))
+                .andExpect(jsonPath("$.baseUom.lengthMm").value(90))
+                .andExpect(jsonPath("$.baseUom.widthMm").value(280))
+                .andExpect(jsonPath("$.baseUom.heightMm").value(95))
+                .andExpect(jsonPath("$.baseUom.weightG").value(1400))
+                .andExpect(jsonPath("$.metadata.brand").value("Acme"))
+                .andExpect(jsonPath("$.metadata.color").value("black"));
+
+        // Without warehouseId the metadata is empty (an unknown warehouse behaves the same).
+        mockMvc.perform(get("/api/master-data/skus/{id}/card", skuId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.metadata").isEmpty());
+        mockMvc.perform(get("/api/master-data/skus/{id}/card", skuId)
+                        .param("warehouseId", UUID.randomUUID().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.metadata").isEmpty());
+
+        mockMvc.perform(get("/api/master-data/skus/{id}/card", UUID.randomUUID()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void missingSkuReturns404() throws Exception {
         mockMvc.perform(get("/api/master-data/skus/{id}", UUID.randomUUID()))
                 .andExpect(status().isNotFound());

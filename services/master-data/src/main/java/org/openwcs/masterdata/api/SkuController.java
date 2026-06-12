@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.openwcs.masterdata.domain.Barcode;
@@ -157,6 +158,27 @@ public class SkuController {
                                           HttpServletRequest request) {
         HostManagedGuard.rejectInteractiveWrite(request, "SKU");
         return skuSync.sync(incoming);
+    }
+
+    /**
+     * One-call product card for operator screens (GTP tote panel): SKU identity + base-UoM
+     * dimensions + the warehouse profile's metadata. Read-only convenience over existing data;
+     * same open catalog-read RBAC as the other GETs here (MASTER_DATA_VIEW via {@link RbacFilter}).
+     */
+    @GetMapping("/{skuId}/card")
+    public SkuCardView card(@PathVariable UUID skuId, @RequestParam(required = false) UUID warehouseId) {
+        Sku sku = requireSku(skuId);
+        SkuCardView.BaseUom baseUom = uoms.findBySkuIdAndBaseUnitTrue(skuId)
+                .map(u -> new SkuCardView.BaseUom(
+                        u.getCode(), u.getLengthMm(), u.getWidthMm(), u.getHeightMm(), u.getWeightG()))
+                .orElse(null);
+        Map<String, Object> metadata = warehouseId == null
+                ? Map.of()
+                : profiles.findBySkuIdAndWarehouseId(skuId, warehouseId)
+                        .map(SkuProfile::getMetadata)
+                        .orElseGet(Map::of);
+        return new SkuCardView(sku.getId(), sku.getCode(), sku.getDescription(), sku.getImageUrl(),
+                baseUom, metadata);
     }
 
     // --------------------------------------------------------- SkuProfile (per warehouse)

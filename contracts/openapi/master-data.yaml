@@ -345,6 +345,30 @@ paths:
         "404": { $ref: '#/components/responses/NotFound' }
 
   # ---------------------------------------------------------- SKU sub-resources
+  /skus/{skuId}/card:
+    parameters:
+      - $ref: '#/components/parameters/SkuId'
+    get:
+      tags: [SKUs]
+      summary: One-call product card (identity + base-UoM dimensions + profile metadata)
+      description: >
+        Lightweight read for operator screens (e.g. the GTP tote panel): the SKU's code,
+        description and image plus its base unit-of-measure dimensions/weight and, when a
+        warehouse is given, the sku_profile metadata for that warehouse. Read-only convenience
+        over existing data; same catalog-read RBAC as the other SKU GETs.
+      operationId: getSkuCard
+      parameters:
+        - name: warehouseId
+          in: query
+          schema: { type: string, format: uuid }
+          description: Warehouse whose profile metadata to include (omitted = empty metadata).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SkuCard' }
+        "404": { $ref: '#/components/responses/NotFound' }
   /skus/{skuId}/profiles:
     parameters:
       - $ref: '#/components/parameters/SkuId'
@@ -1228,6 +1252,31 @@ components:
             batchTracked: { type: boolean, default: false }
             serialTracked: { type: boolean, default: false }
             dateTracked: { type: boolean, default: false }
+    SkuCard:
+      type: object
+      description: >
+        One-call product card for operator screens: SKU identity plus base-UoM dimensions and
+        per-warehouse profile metadata.
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        code: { type: string, example: TS-001-BLK-M }
+        description: { type: string, nullable: true, example: "Black t-shirt, size M" }
+        imageUrl: { type: string, nullable: true }
+        baseUom:
+          type: object
+          nullable: true
+          description: The base ("EA") unit of measure carrying the single-item dimensions.
+          properties:
+            code: { type: string, example: EA }
+            lengthMm: { type: number, format: double, nullable: true }
+            widthMm: { type: number, format: double, nullable: true }
+            heightMm: { type: number, format: double, nullable: true }
+            weightG: { type: number, format: double, nullable: true }
+        metadata:
+          type: object
+          additionalProperties: true
+          description: The warehouse profile's metadata blob; empty without warehouseId / profile.
+          example: { brand: Acme, season: SS26, color: black, size: M }
     SkuPage:
       allOf:
         - $ref: '#/components/schemas/Page'
