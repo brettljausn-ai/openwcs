@@ -148,7 +148,12 @@ paths:
     get:
       tags: [Confirmations]
       summary: Pull confirmations since a cursor
-      description: Returns transaction-log events after the cursor (receipts, picks, shipments, stock changes) and the nextCursor to use next time.
+      description: >
+        Returns transaction-log events after the cursor (receipts, picks, shipments, stock
+        changes) and the nextCursor to use next time. An order dispatch yields an
+        OrderShipped confirmation whose payload reports the ordered vs actually shipped qty
+        per line (shortShipped=true and shippedQty below orderedQty when the order was short
+        allocated and shipped short).
       operationId: getConfirmations
       parameters:
         - name: cursor
@@ -221,13 +226,17 @@ components:
       type: object
       properties:
         cursor: { type: integer, format: int64, description: This event's global position. }
-        type: { type: string, example: Picked }
-        reference: { type: string, description: Aggregate id (order/HU). }
+        type: { type: string, example: Picked, description: "e.g. GoodsReceived, Picked, StockAdjusted, OrderShipped." }
+        reference: { type: string, description: Aggregate id (order/HU); the order reference for OrderShipped. }
         occurredAt: { type: string, format: date-time }
         actor: { type: string, nullable: true }
         payload:
           type: object
           additionalProperties: true
+          description: >
+            Event-specific body. OrderShipped carries warehouseId, orderRef, shortShipped and
+            lines[] each with lineNo, skuId, orderedQty, shippedQty and shortQty, so a short
+            ship is visible per line.
     ConfirmationPage:
       type: object
       properties:

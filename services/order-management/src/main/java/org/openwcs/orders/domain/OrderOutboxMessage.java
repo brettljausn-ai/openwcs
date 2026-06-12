@@ -14,9 +14,10 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * Local outbox row written in the same transaction as an {@link OrderLineTransaction}
+ * Local outbox row written in the same transaction as the state change it announces
  * (build.md §5.5). The relay appends the event to the transaction log and stamps
- * {@code publishedAt}; {@code lineTxnId} links back so the relay can record the event id.
+ * {@code publishedAt}. For line-transaction events {@code lineTxnId} links back so the
+ * relay can record the event id; order-level events (e.g. OrderShipped) carry none.
  */
 @Entity
 @Table(name = "order_outbox")
@@ -27,7 +28,8 @@ public class OrderOutboxMessage {
     @Column(name = "id", updatable = false, nullable = false)
     private Long id;
 
-    @Column(name = "line_txn_id", nullable = false, updatable = false)
+    /** Source line transaction; null for order-level events (e.g. OrderShipped). */
+    @Column(name = "line_txn_id", updatable = false)
     private UUID lineTxnId;
 
     @Column(name = "stream_id", nullable = false, updatable = false)

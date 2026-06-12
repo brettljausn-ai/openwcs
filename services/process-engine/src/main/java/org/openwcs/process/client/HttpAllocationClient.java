@@ -22,7 +22,7 @@ public class HttpAllocationClient implements AllocationClient {
     }
 
     @Override
-    public Allocation allocate(String orderRef, UUID warehouseId, List<Line> lines) {
+    public Allocation allocate(String orderRef, UUID warehouseId, List<Line> lines, boolean allowShort) {
         List<Map<String, Object>> lineBodies = new ArrayList<>();
         for (Line line : lines) {
             Map<String, Object> lineBody = new HashMap<>();
@@ -35,6 +35,9 @@ public class HttpAllocationClient implements AllocationClient {
         body.put("orderRef", orderRef);
         body.put("warehouseId", warehouseId);
         body.put("lines", lineBodies);
+        if (allowShort) {
+            body.put("allowShort", true);
+        }
 
         AllocationResponse response = http.post().uri("/api/allocation/orders").body(body)
                 .retrieve().body(AllocationResponse.class);

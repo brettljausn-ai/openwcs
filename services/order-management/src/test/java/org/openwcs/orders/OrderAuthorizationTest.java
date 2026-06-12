@@ -75,4 +75,29 @@ class OrderAuthorizationTest {
                         .content(orderBody()))
                 .andExpect(status().isCreated());
     }
+
+    @Test
+    void operatorCannotShortReleaseAnOrder() throws Exception {
+        // ORDER_RELEASE is a supervisor-level permission; OPERATOR lacks it.
+        mockMvc.perform(post("/api/orders/{id}/release-short", UUID.randomUUID())
+                        .header("X-Auth-Roles", "OPERATOR"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void supervisorShortReleaseIsAcceptedButRejectsAnOrderThatIsNotShort() throws Exception {
+        // Passes the permission gate, then 409s because the order is CREATED (not short).
+        String created = mockMvc.perform(post("/api/orders")
+                        .header("X-Auth-Roles", "SUPERVISOR")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(orderBody()))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String id = om.readTree(created).get("id").asText();
+
+        mockMvc.perform(post("/api/orders/{id}/release-short", id)
+                        .header("X-Auth-Roles", "SUPERVISOR")
+                        .header("X-Auth-User", "supervisor-1"))
+                .andExpect(status().isConflict());
+    }
 }

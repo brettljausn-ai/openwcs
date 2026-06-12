@@ -72,7 +72,7 @@ class AllocationServiceTest {
 
         AllocateOrderRequest request = new AllocateOrderRequest(
                 "ORD-CANCEL", warehouse, null,
-                List.of(new AllocateOrderRequest.Line(1, sku, new BigDecimal("5"))), null, null);
+                List.of(new AllocateOrderRequest.Line(1, sku, new BigDecimal("5"))), null, null, null);
 
         AllocationView allocated = service.allocate(request);
         assertThat(allocated.status()).isEqualTo("FULFILLABLE");
@@ -107,7 +107,7 @@ class AllocationServiceTest {
 
         AllocateOrderRequest request = new AllocateOrderRequest(
                 "ORD-BIG", warehouse, null,
-                List.of(new AllocateOrderRequest.Line(1, sku, BigDecimal.ONE)), null, null);
+                List.of(new AllocateOrderRequest.Line(1, sku, BigDecimal.ONE)), null, null, null);
 
         AllocationView view = service.allocate(request);
 
@@ -145,7 +145,7 @@ class AllocationServiceTest {
                 "EXPRESS", "CENTRAL_LONDON", "SHIP-4X6");
         AllocateOrderRequest request = new AllocateOrderRequest(
                 "ORD-LBL", warehouse, null,
-                List.of(new AllocateOrderRequest.Line(1, sku, new BigDecimal("2"))), null, dispatch);
+                List.of(new AllocateOrderRequest.Line(1, sku, new BigDecimal("2"))), null, dispatch, null);
 
         AllocationView view = service.allocate(request);
 
@@ -165,5 +165,84 @@ class AllocationServiceTest {
         // A barcode was requested from the host once per shipper.
         verify(hostLabel, org.mockito.Mockito.times(2))
                 .requestBarcode(any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void allowShortAllocatesAvailableKeepsReservationsAndCubesOnlyAllocated() {
+        UUID warehouse = UUID.randomUUID();
+        UUID skuLow = UUID.randomUUID();   // 3 of 5 available
+        UUID skuOut = UUID.randomUUID();   // nothing available — fully short
+        UUID location = UUID.randomUUID();
+        UUID reservation = UUID.randomUUID();
+
+        when(masterData.fulfillmentConfig(any())).thenReturn(
+                new MasterDataClient.FulfillmentConfig(List.of("EACH"), "APP", null, false, 1, 12, null));
+        when(masterData.pickLocationIds(any())).thenReturn(List.of(location));
+        when(masterData.skuUoms(any())).thenReturn(List.of(
+                new MasterDataClient.UomDef(UUID.randomUUID(), "EACH", null, null, null, null, null, null, true)));
+        when(masterData.shippers(any())).thenReturn(List.of(new MasterDataClient.ShipperDef(
+                UUID.randomUUID(), "TOTE", null, null, null, BigDecimal.ZERO, BigDecimal.ONE, null, "ACTIVE")));
+        when(inventory.availableAtLocation(any(), org.mockito.ArgumentMatchers.eq(skuLow), any()))
+                .thenReturn(new BigDecimal("3"));
+        when(inventory.availableAtLocation(any(), org.mockito.ArgumentMatchers.eq(skuOut), any()))
+                .thenReturn(BigDecimal.ZERO);
+        when(inventory.reserve(any(), any(), any(), any(), any())).thenReturn(reservation);
+
+        AllocateOrderRequest request = new AllocateOrderRequest(
+                "ORD-SHORT", warehouse, null,
+                List.of(new AllocateOrderRequest.Line(1, skuLow, new BigDecimal("5")),
+                        new AllocateOrderRequest.Line(2, skuOut, new BigDecimal("2"))),
+                null, null, true);
+
+        AllocationView view = service.allocate(request);
+
+        assertThat(view.status()).isEqualTo("FULFILLABLE_SHORT");
+        assertThat(view.statusDetail()).contains("line 1 short 2 of 5").contains("line 2 short 2 of 2");
+        // The available qty is allocated and its reservation is HELD (not compensated away).
+        var line1 = view.lines().get(0);
+        assertThat(line1.allocatedQty()).isEqualByComparingTo("3");
+        assertThat(line1.status()).isEqualTo("SHORT");
+        assertThat(line1.picks().get(0).reservationId()).isEqualTo(reservation);
+        // The zero-stock line allocates nothing and is fully short.
+        var line2 = view.lines().get(1);
+        assertThat(line2.allocatedQty()).isEqualByComparingTo("0");
+        assertThat(line2.status()).isEqualTo("SHORT");
+        assertThat(line2.picks()).isEmpty();
+        verify(inventory, org.mockito.Mockito.never()).release(any());
+        // Cubing covers only the allocated quantities; the fully-short line is in no carton.
+        assertThat(view.shippers()).hasSize(1);
+        assertThat(view.shippers().get(0).contents()).singleElement().satisfies(c -> {
+            assertThat(c.lineNo()).isEqualTo(1);
+            assertThat(c.qty()).isEqualByComparingTo("3");
+        });
+    }
+
+    @Test
+    void strictModeStillReleasesEverythingWhenShort() {
+        UUID warehouse = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID location = UUID.randomUUID();
+        UUID reservation = UUID.randomUUID();
+
+        when(masterData.fulfillmentConfig(any())).thenReturn(
+                new MasterDataClient.FulfillmentConfig(List.of("EACH"), "APP", null, false, 1, 12, null));
+        when(masterData.pickLocationIds(any())).thenReturn(List.of(location));
+        when(masterData.skuUoms(any())).thenReturn(List.of(
+                new MasterDataClient.UomDef(UUID.randomUUID(), "EACH", null, null, null, null, null, null, true)));
+        when(masterData.shippers(any())).thenReturn(List.of());
+        when(inventory.availableAtLocation(any(), any(), any())).thenReturn(new BigDecimal("3"));
+        when(inventory.reserve(any(), any(), any(), any(), any())).thenReturn(reservation);
+
+        AllocateOrderRequest request = new AllocateOrderRequest(
+                "ORD-STRICT", warehouse, null,
+                List.of(new AllocateOrderRequest.Line(1, sku, new BigDecimal("5"))), null, null, null);
+
+        AllocationView view = service.allocate(request);
+
+        // Without the explicit allow-short decision, a short order holds nothing (unchanged).
+        assertThat(view.status()).isEqualTo("NOT_FULFILLABLE");
+        assertThat(view.shippers()).isEmpty();
+        assertThat(view.lines().get(0).picks().get(0).reservationId()).isNull();
+        verify(inventory).release(reservation);
     }
 }

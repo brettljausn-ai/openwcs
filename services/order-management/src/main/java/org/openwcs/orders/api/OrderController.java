@@ -103,6 +103,21 @@ public class OrderController {
         return service.release(id);
     }
 
+    /**
+     * Short allocate and release a NOT_FULFILLABLE order: the supervisor decision to pick the
+     * available quantity and ship the order short. Requires ORDER_RELEASE (SUPERVISOR/ADMIN
+     * in the shipped role catalog); the deciding user is taken from the gateway-forwarded
+     * {@code X-Auth-User} and recorded for audit.
+     */
+    @PostMapping("/{id}/release-short")
+    public OrderView releaseShort(
+            @RequestHeader(name = ROLES, required = false) String roles,
+            @RequestHeader(name = "X-Auth-User", required = false) String authUser,
+            @PathVariable UUID id) {
+        guard.require(roles, Permission.ORDER_RELEASE);
+        return service.releaseShort(id, (authUser != null && !authUser.isBlank()) ? authUser : "system");
+    }
+
     @PostMapping("/{id}/cancel")
     public OrderView cancel(@RequestHeader(name = ROLES, required = false) String roles, @PathVariable UUID id) {
         guard.require(roles, Permission.ORDER_CANCEL);
@@ -110,9 +125,12 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/ship")
-    public OrderView ship(@RequestHeader(name = ROLES, required = false) String roles, @PathVariable UUID id) {
+    public OrderView ship(
+            @RequestHeader(name = ROLES, required = false) String roles,
+            @RequestHeader(name = "X-Auth-User", required = false) String authUser,
+            @PathVariable UUID id) {
         guard.require(roles, Permission.ORDER_SHIP);
-        return service.ship(id);
+        return service.ship(id, authUser);
     }
 
     /**

@@ -20,4 +20,9 @@ public class HttpOrderClient implements OrderClient {
     public void release(UUID orderId) {
         http.post().uri("/api/orders/{id}/release", orderId).retrieve().toBodilessEntity();
     }
+
+    @Override
+    public void releaseShort(UUID orderId) {
+        http.post().uri("/api/orders/{id}/release-short", orderId).retrieve().toBodilessEntity();
+    }
 }

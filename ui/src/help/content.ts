@@ -82,7 +82,7 @@ export const HELP: Record<string, ScreenHelp> = {
       },
       {
         "heading": "Key actions",
-        "body": "Open an order to reveal the action buttons that match its current stage: Release prepares a newly received order for fulfilment, Allocate & cube reserves stock and packs the items into cartons, and Dispatch ships the order once it is fully allocated. Cancel is available on any order that has not yet shipped. Only one action applies at a time — the buttons shown always reflect what the order is ready for next."
+        "body": "Open an order to reveal the action buttons that match its current stage: Release prepares a newly received order for fulfilment, Allocate & cube reserves stock and packs the items into cartons, and Dispatch ships the order once it is fully allocated. On a Not fulfillable order, supervisors and admins can choose Short allocate and release: a confirmation lists every short line (SKU, ordered, allocatable, shortfall), then the available quantity is reserved and picked and the order is short shipped. Cancel is available on any order that has not yet shipped. Only one action applies at a time — the buttons shown always reflect what the order is ready for next."
       },
       {
         "heading": "Fields, filters and columns",
@@ -99,6 +99,8 @@ export const HELP: Record<string, ScreenHelp> = {
       "You cannot create or edit outbound orders; they are owned by the host system and only fulfilled on this screen.",
       "Follow the natural order: Release, then Allocate & cube, then Dispatch — the screen only shows the button for the next valid step.",
       "A Not fulfillable or Partially allocated status usually means short stock; re-run Allocate & cube once inventory is replenished.",
+      "On the floor: a customer ordered 50 cases but only 30 are in pick stock and the truck leaves at 16:00. Open the Not fulfillable order, choose Short allocate and release, check the shortfall list, and confirm: the 30 available cases go to picking and the host is told the order shipped short.",
+      "If a line shows zero Allocatable in the short-release confirmation, then that line ships nothing at all; cancel out and wait for stock instead if the customer needs every line.",
       "Use Priority to spot which orders the system works first (lower numbers go first) and watch the Dispatch by deadline for time-critical orders.",
       "After acting, the order and its allocation refresh automatically, but use Refresh on the list to catch changes made elsewhere."
     ]
