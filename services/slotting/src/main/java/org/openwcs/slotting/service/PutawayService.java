@@ -309,7 +309,7 @@ public class PutawayService {
     }
 
     private static double distanceToExit(StorageLocation l) {
-        return l.distanceToExit() == null ? 0.0 : l.distanceToExit().doubleValue();
+        return BlockOccupancy.effectiveDistanceToExit(l);
     }
 
     private static int laneDepth(StorageLocation l) {

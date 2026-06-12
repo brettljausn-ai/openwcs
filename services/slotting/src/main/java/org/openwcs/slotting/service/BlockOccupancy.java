@@ -65,7 +65,7 @@ public final class BlockOccupancy {
                     l.id(),
                     aisle,
                     laneDepth(l),
-                    l.distanceToExit() == null ? 0.0 : l.distanceToExit().doubleValue(),
+                    effectiveDistanceToExit(l),
                     occupiedByLocation.getOrDefault(l.id(), 0),
                     occupantSkusByLocation.getOrDefault(l.id(), Set.of()),
                     skuByAisle.getOrDefault(aisle, 0L),
@@ -89,5 +89,31 @@ public final class BlockOccupancy {
 
     static int laneDepth(StorageLocation l) {
         return l.laneDepth() == null || l.laneDepth() < 1 ? 1 : l.laneDepth();
+    }
+
+    /**
+     * The distance the velocity-to-exit objective ranks by. An explicit {@code distance_to_exit}
+     * always wins; when it is not maintained (the common case for generated racks) a
+     * rank-equivalent distance is derived from the cell coordinate, assuming the aisle's
+     * in/outfeed sits at position 1, ground level, lane face: (posX-1) + (posY-1) + (posZ-1).
+     * Unitless — only the ordering matters to the scorer. Without this fallback every candidate
+     * collapses to distance 0 and placement degrades to list order instead of "fast movers near
+     * the port".
+     */
+    static double effectiveDistanceToExit(StorageLocation l) {
+        if (l.distanceToExit() != null) {
+            return l.distanceToExit().doubleValue();
+        }
+        double d = 0.0;
+        if (l.posX() != null) {
+            d += l.posX() - 1;
+        }
+        if (l.posY() != null) {
+            d += l.posY() - 1;
+        }
+        if (l.posZ() != null) {
+            d += l.posZ() - 1;
+        }
+        return d;
     }
 }
