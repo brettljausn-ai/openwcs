@@ -58,6 +58,9 @@ public interface InductionQueueEntryRepository extends JpaRepository<InductionQu
     List<InductionQueueEntry> findSliceByStatus(@Param("workplaceId") UUID workplaceId,
                                                 @Param("status") String status);
 
+    /** Return legs waiting for slotting to answer (awaiting-slot retry sweep). */
+    List<InductionQueueEntry> findByAwaitingSlotTrue();
+
     /** All entries for a warehouse (used by the demo full-reset clear). */
     List<InductionQueueEntry> findByWarehouseId(UUID warehouseId);
 

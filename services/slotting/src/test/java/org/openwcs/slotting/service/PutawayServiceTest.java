@@ -168,6 +168,44 @@ class PutawayServiceTest {
     }
 
     @Test
+    void profileLessSkuFallsBackToTheOnlyAutomatedBlock() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID(); // no storage profile saved for this SKU
+        UUID automatedBlock = UUID.randomUUID();
+        UUID manualBlock = UUID.randomUUID();
+        UUID slot = UUID.randomUUID();
+
+        // The warehouse has exactly ONE automated block (the manual one doesn't count).
+        when(masterData.blocks(eq(wh))).thenReturn(List.of(
+                new MasterDataClient.Block(automatedBlock, "SHUTTLE_ASRS", "BLOCK", true, null),
+                new MasterDataClient.Block(manualBlock, "MANUAL_RACK", "BLOCK", false, null)));
+        when(masterData.storageLocations(eq(wh), eq(automatedBlock)))
+                .thenReturn(List.of(loc(slot, "A1", 3, 1.0)));
+
+        PutawayDecision decision = service.assign(
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, null, null, false, null));
+
+        assertThat(decision.blockId()).isEqualTo(automatedBlock);
+        assertThat(decision.locationId()).isEqualTo(slot);
+    }
+
+    @Test
+    void profileLessSkuWithSeveralAutomatedBlocksStillRejects() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID(); // no storage profile saved for this SKU
+
+        // Two automated candidates: ambiguous without a profile -> the existing 400 stays.
+        when(masterData.blocks(eq(wh))).thenReturn(List.of(
+                new MasterDataClient.Block(UUID.randomUUID(), "SHUTTLE_ASRS", "BLOCK", true, null),
+                new MasterDataClient.Block(UUID.randomUUID(), "AUTOSTORE", "BLOCK", true, null)));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.assign(
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, null, null, false, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("no storage profile / block");
+    }
+
+    @Test
     void rejectsHuTypeNotAllowedInTheBlock() {
         UUID wh = UUID.randomUUID();
         UUID sku = UUID.randomUUID();

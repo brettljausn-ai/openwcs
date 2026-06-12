@@ -42,6 +42,15 @@ public class HttpMasterDataClient implements MasterDataClient {
     }
 
     @Override
+    public List<Block> blocks(UUID warehouseId) {
+        Block[] all = http.get()
+                .uri("/api/master-data/storage-blocks?warehouseId={w}", warehouseId)
+                .retrieve()
+                .body(Block[].class);
+        return all == null ? List.of() : List.of(all);
+    }
+
+    @Override
     public CellLocation location(UUID locationId) {
         try {
             return http.get()

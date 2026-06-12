@@ -32,8 +32,13 @@ public class FlowProperties {
     /** Base URL of the inventory service (booking HU locations through the transport lifecycle). */
     private String inventoryBaseUrl = "http://localhost:8082";
 
-    /** Base URL of the slotting service (relocation plans for multi-deep channel dig-outs, ADR-0009). */
+    /** Base URL of the slotting service (relocation plans for multi-deep channel dig-outs, ADR-0009;
+     *  put-away decisions for the return-to-storage leg: only slotting slots a tote). */
     private String slottingBaseUrl = "http://localhost:8093";
+
+    /** Base URL of the master-data service (emulator flag; operational locations for conveyors /
+     *  workplaces so HU bookings always name the tote's current physical place). */
+    private String masterDataBaseUrl = "http://localhost:8081";
 
     public Map<String, String> getAdapters() {
         return adapters;
@@ -81,5 +86,13 @@ public class FlowProperties {
 
     public void setSlottingBaseUrl(String slottingBaseUrl) {
         this.slottingBaseUrl = slottingBaseUrl;
+    }
+
+    public String getMasterDataBaseUrl() {
+        return masterDataBaseUrl;
+    }
+
+    public void setMasterDataBaseUrl(String masterDataBaseUrl) {
+        this.masterDataBaseUrl = masterDataBaseUrl;
     }
 }

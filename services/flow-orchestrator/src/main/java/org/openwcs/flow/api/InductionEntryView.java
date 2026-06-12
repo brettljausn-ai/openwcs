@@ -30,7 +30,9 @@ public record InductionEntryView(
         UUID returnStoreTaskId,
         UUID countTaskId,
         UUID countLineId,
-        UUID locationId) {
+        UUID locationId,
+        UUID storageLocationId,
+        boolean awaitingSlot) {
 
     public static InductionEntryView from(InductionQueueEntry e) {
         return new InductionEntryView(
@@ -39,6 +41,7 @@ public record InductionEntryView(
                 e.getStatus(), e.getArrivalSeq(), e.getRequestedAt(), e.getInTransitAt(),
                 e.getQueuedAt(), e.getDoneAt(), e.getRetrieveTaskId(), e.getRelocateTaskId(),
                 e.getConveyTaskId(), e.getReturnConveyTaskId(), e.getReturnStoreTaskId(),
-                e.getCountTaskId(), e.getCountLineId(), e.getLocationId());
+                e.getCountTaskId(), e.getCountLineId(), e.getLocationId(),
+                e.getStorageLocationId(), e.isAwaitingSlot());
     }
 }

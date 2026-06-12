@@ -174,6 +174,11 @@ public class PutawayService {
         UUID blockId = req.blockId() != null ? req.blockId()
                 : profile != null ? profile.getBlockId() : null;
         if (blockId == null) {
+            // No profile and no explicit block: a warehouse with exactly ONE automated storage
+            // block is still answerable — every profile-less SKU can only live there.
+            blockId = onlyAutomatedBlock(req.warehouseId(), dominantSku);
+        }
+        if (blockId == null) {
             throw new IllegalArgumentException("no storage profile / block for sku " + dominantSku);
         }
 
@@ -256,6 +261,40 @@ public class PutawayService {
             set.add(req.skuId());
         }
         return set;
+    }
+
+    /** Storage types that mean automated storage (the only-block fallback applies to these). */
+    private static final java.util.Set<String> AUTOMATED_STORAGE_TYPES =
+            java.util.Set.of("SHUTTLE_ASRS", "CRANE_ASRS", "AUTOSTORE", "AMR_GTP");
+
+    /**
+     * The warehouse's single automated storage block (storage type SHUTTLE_ASRS / CRANE_ASRS /
+     * AUTOSTORE / AMR_GTP), or null when there are zero or several candidates — several candidates
+     * still need a storage profile to choose between them (the caller keeps the existing 400).
+     */
+    private UUID onlyAutomatedBlock(UUID warehouseId, UUID skuId) {
+        List<MasterDataClient.Block> automated;
+        try {
+            automated = masterData.blocks(warehouseId).stream()
+                    .filter(b -> b.storageType() != null
+                            && AUTOMATED_STORAGE_TYPES.contains(b.storageType()))
+                    .toList();
+        } catch (RuntimeException e) {
+            log.warn("storage-block lookup for warehouse {} failed; cannot fall back to the only "
+                    + "automated block for sku {}: {}", warehouseId, skuId, e.toString());
+            return null;
+        }
+        if (automated.size() == 1) {
+            MasterDataClient.Block only = automated.get(0);
+            log.info("no storage profile for sku {}: using the only automated block {} ({})",
+                    skuId, only.id(), only.storageType());
+            return only.id();
+        }
+        if (automated.size() > 1) {
+            log.warn("no storage profile for sku {} and {} automated blocks in warehouse {}: "
+                    + "ambiguous, a storage profile is required", skuId, automated.size(), warehouseId);
+        }
+        return null;
     }
 
     private StorageProfile resolveProfile(UUID warehouseId, UUID skuId, UUID blockId) {

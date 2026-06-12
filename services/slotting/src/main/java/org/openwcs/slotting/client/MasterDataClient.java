@@ -14,6 +14,9 @@ public interface MasterDataClient {
     /** A storage block's slotting metadata, incl. its allowed-HU-types allow-list (null if unknown). */
     Block block(UUID blockId);
 
+    /** All storage blocks of a warehouse (profile-less put-away resolves the only automated block). */
+    List<Block> blocks(UUID warehouseId);
+
     /** A single location with its exact cell coordinate (null if unknown). */
     CellLocation location(UUID locationId);
 
