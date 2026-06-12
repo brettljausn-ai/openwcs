@@ -694,5 +694,21 @@ export const HELP: Record<string, ScreenHelp> = {
       "Use data fields (not hard-coded text) so each label fills in the right order/shipper data.",
       "Which template prints for a dispatch is chosen by your shipping configuration."
     ]
+  },
+  "admin-database": {
+    "summary": "The Database console lets administrators look directly into the shared PostgreSQL database: browse every service schema and its tables, and run read-only SELECT queries. It is a diagnostic tool — nothing on this screen can change data.",
+    "sections": [
+      { "heading": "Getting started", "body": "The left panel lists every schema in the database (master_data, inventory, orders, flow, and so on) with its tables. Expand a schema and click a table to load a default query (select * from schema.table limit 100) and run it immediately. The selected table shows its columns and data types right under its name; hovering a table shows the same list as a tooltip." },
+      { "heading": "Running queries", "body": "Write any single SELECT (or WITH … SELECT) statement in the editor and press Run or Cmd/Ctrl+Enter. The result grid supports filtering, column sorting and paging. Above the grid you see the row count, a 'truncated' badge when the row cap cut the result short, and the execution time. Your last query is remembered, so the console reopens where you left off." },
+      { "heading": "Safety model", "body": "Only one SELECT statement at a time is accepted: INSERT, UPDATE, DELETE, DDL, EXPLAIN and multi-statement input are rejected before they reach the database. As a second line of defence every query runs inside a READ ONLY transaction that is always rolled back, so even a write hidden in a clever query fails at the database. Queries are cut off after 10 seconds, and results are capped (200 rows by default, 1000 at most) to keep the console safe on huge tables." },
+      { "heading": "Errors", "body": "If a query is invalid, the banner above the results shows the PostgreSQL error message so you can correct the statement. A rejected statement (anything that is not a single SELECT) explains exactly why it was refused." }
+    ],
+    "tips": [
+      "Click a table in the tree for an instant 'first 100 rows' look at it.",
+      "Add a LIMIT to large queries anyway — the row cap truncates silently at 200 rows unless you raise it.",
+      "Aggregate across schemas freely: all services share one database, so joins like inventory.stock to master_data.sku work.",
+      "If a column is named like a SQL keyword, double-quote it (select \"do\" from …).",
+      "This screen is for diagnosis, not administration: to change data use the proper screens or APIs, which enforce business rules and auditing."
+    ]
   }
 }

@@ -60,6 +60,7 @@ export const SCREENS: ScreenDef[] = [
   { key: 'access-control', label: 'Access control', path: '/access-control', section: 'Administration', icon: '⚿', defaultRoles: ['ADMIN'], description: 'Map screens to roles and users.' },
   { key: 'warehouse-access', label: 'Warehouse access', path: '/warehouse-access', section: 'Administration', icon: '⌂', defaultRoles: ['ADMIN'], description: 'Map users to the warehouses they may work in and set each user\'s default.' },
   { key: 'system-info', label: 'System info', path: '/system-info', section: 'Administration', icon: 'ⓘ', defaultRoles: ['ADMIN'], description: 'Version, health and logs for every service and adapter.' },
+  { key: 'admin-database', label: 'Database', path: '/admin/database', section: 'Administration', icon: '⛁', defaultRoles: ['ADMIN'], description: 'Browse schemas and tables and run read-only SELECT queries against the shared database.' },
 ]
 
 export const SECTION_ORDER: Section[] = ['Master data', 'Operations', 'Engineering', 'Configuration', 'Administration']

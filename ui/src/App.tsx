@@ -31,6 +31,7 @@ import AccessControlScreen from './access/AccessControlScreen'
 import WarehouseAccessScreen from './warehouseaccess/WarehouseAccessScreen'
 import SystemInfoScreen from './systeminfo/SystemInfoScreen'
 import LogsPage from './systeminfo/LogsPage'
+import DatabaseScreen from './admindb/DatabaseScreen'
 
 const COMPONENTS: Record<string, JSX.Element> = {
   dashboard: <Dashboard />,
@@ -59,6 +60,7 @@ const COMPONENTS: Record<string, JSX.Element> = {
   'access-control': <AccessControlScreen />,
   'warehouse-access': <WarehouseAccessScreen />,
   'system-info': <SystemInfoScreen />,
+  'admin-database': <DatabaseScreen />,
 }
 
 function RequireAuth({ children }: { children: JSX.Element }) {
