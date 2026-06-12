@@ -35,6 +35,14 @@ const EQUIPMENT_COLOURS: Record<EquipmentActivity['state'], string> = {
   faulted: 'var(--danger)',
 }
 
+// Conveyor live-state skin colours: must match the 3D component's SKIN_TARGETS palette
+// (duplicated by design: this screen must not import the lazy three.js chunk).
+const CONVEYOR_COLOURS = {
+  ok: '#3fae6e', // functional: gentle green tint over the belt
+  jam: '#f4b860', // jam / heavy traffic: stalled tote, dense totes or a HELD divert
+  fault: '#ff6b5e', // stopped / error: an active device task reported FAILED
+}
+
 function formatTime(iso?: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -164,9 +172,14 @@ export default function HardwareTwinScreen() {
         )}
 
         <div style={{ display: 'flex', gap: '.9rem', flexWrap: 'wrap', marginLeft: 'auto', alignItems: 'center' }}>
-          <LegendSwatch colour={EQUIPMENT_COLOURS.idle} label="Idle" />
-          <LegendSwatch colour={EQUIPMENT_COLOURS.running} label="Running" />
-          <LegendSwatch colour={EQUIPMENT_COLOURS.faulted} label="Faulted" />
+          {/* Conveyor belts wear their state as a skin (no orb on conveyors). */}
+          <LegendSwatch colour={CONVEYOR_COLOURS.ok} label="Functional" />
+          <LegendSwatch colour={CONVEYOR_COLOURS.jam} label="Jam / heavy traffic" />
+          <LegendSwatch colour={CONVEYOR_COLOURS.fault} label="Stopped / error" />
+          <span className="muted" style={{ opacity: 0.4 }}>|</span>
+          {/* Non-conveyor equipment (ASRS, stations) still shows the floating activity orb. */}
+          <LegendSwatch colour={EQUIPMENT_COLOURS.running} label="Running (ASRS / stations)" round />
+          <LegendSwatch colour={EQUIPMENT_COLOURS.faulted} label="Faulted (ASRS / stations)" round />
           <span className="muted" style={{ opacity: 0.4 }}>|</span>
           <LegendSwatch colour={TOTE_COLOURS['in-transit']} label="In transit" round />
           <LegendSwatch colour={TOTE_COLOURS.recirculating} label="Recirculating" round />

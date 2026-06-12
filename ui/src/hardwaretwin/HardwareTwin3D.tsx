@@ -10,7 +10,7 @@
 // The base look (two-tone conveyor bodies, racked ASRS, sorter/workstation boxes, SCAN/QRY/DIV
 // markers, labels) is therefore identical to the editor — not a second, cruder renderer.
 
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, type MutableRefObject } from 'react'
 import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber'
 import { Grid, Html, OrbitControls, RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
@@ -21,6 +21,7 @@ import {
   STUB_HEIGHT_M,
   category as topoCategory,
   colorFor as topoColorFor,
+  effectiveSections,
   isConveyor as topoIsConveyor,
 } from '../topology/AutomationTopology3D'
 import type { Equipment } from '../masterdata/api'
@@ -36,6 +37,7 @@ import {
 } from './twin'
 import {
   RENDER_DELAY_MS,
+  buildBeltLocator,
   buildPathResolver,
   newSmoothState,
   sampleTimeline,
@@ -44,6 +46,7 @@ import {
   type ToteTimeline,
   type XZ,
 } from './motion'
+import { JAM_HOLD_MS, deriveConveyorJamIds } from './conveyorState'
 
 const BG = '#081e16'
 const LIME = '#8DC63F'
@@ -51,6 +54,9 @@ const AMBER = '#f4b860'
 const RED = '#ff6b5e'
 const BLUE = '#4FC3F7'
 const GREY = '#7d8a82'
+// Functional-conveyor skin green: calm and desaturated so a healthy floor stays readable.
+// HardwareTwinScreen's legend duplicates the hex (the screen must NOT import this lazy chunk).
+const CONVEYOR_GREEN = '#3fae6e'
 
 const TOTE_SIZE = 0.35
 const BELT_LIFT = 0.18
@@ -207,6 +213,37 @@ function SceneContent({
     return h > 0 ? h : undefined
   }, [items, lib])
 
+  // --- Live conveyor state (green / orange / red skins) -----------------------------------------
+  // Conveyor placements (the editor's own classification) and a belt locator over their polylines:
+  // a tote's "current conveyor" is the belt its latest scan position projects onto (motion.ts).
+  const conveyorGeoms = useMemo(
+    () =>
+      items
+        .filter((eq) => topoIsConveyor(eq, lib))
+        .map((eq) => geomById.get(eq.id))
+        .filter((g): g is PlacementGeom => !!g),
+    [items, lib, geomById],
+  )
+  const locateBelt = useMemo(() => buildBeltLocator(conveyorGeoms), [conveyorGeoms])
+
+  // Jam hysteresis: each raw jam reading extends the belt's orange window by JAM_HOLD_MS, so a
+  // single slow hop / borderline density poll cannot strobe the skin. The Map is read per-frame
+  // by each skin (cheap), re-armed once per snapshot (poll) here.
+  const jamUntilRef = useRef<Map<string, number>>(new Map())
+  useEffect(() => {
+    const nowMs = Date.now()
+    const jams = deriveConveyorJamIds({
+      totes: snapshot.totes,
+      timelines,
+      conveyorGeoms,
+      locate: locateBelt,
+      nowMs,
+    })
+    const jamUntil = jamUntilRef.current
+    for (const id of jams) jamUntil.set(id, nowMs + JAM_HOLD_MS)
+    for (const [id, until] of jamUntil) if (until <= nowMs && !jams.has(id)) jamUntil.delete(id)
+  }, [snapshot, timelines, conveyorGeoms, locateBelt])
+
   return (
     <group>
       {/* Base scene — the editor's exact meshes, read-only (selected=false → no gizmo/handles). */}
@@ -251,18 +288,26 @@ function SceneContent({
           )
         })}
 
-      {/* Live overlays: activity pips + selection ring. */}
+      {/* Live overlays. Conveyors wear their state as a belt skin (green functional / orange jam /
+          red fault); the floating orb stays only for non-conveyor equipment (ASRS, stations,
+          sorters without a skinnable belt body). Selection rings render for everything. */}
       {items.map((eq) => {
         const geom = geomById.get(eq.id)
         if (!geom) return null
         const state = snapshot.activityByPlacedId[eq.id]?.state ?? 'idle'
+        const conveyor = topoIsConveyor(eq, lib)
         return (
-          <Overlay
-            key={`ov-${eq.id}`}
-            geom={geom}
-            state={state}
-            selected={eq.id === selectedPlacedId}
-          />
+          <group key={`ov-${eq.id}`}>
+            {conveyor && (
+              <ConveyorStateSkin eq={eq} faulted={state === 'faulted'} jamUntilRef={jamUntilRef} />
+            )}
+            <Overlay
+              geom={geom}
+              state={state}
+              showPip={!conveyor}
+              selected={eq.id === selectedPlacedId}
+            />
+          </group>
         )
       })}
 
@@ -285,10 +330,13 @@ function Overlay({
   geom,
   state,
   selected,
+  showPip = true,
 }: {
   geom: PlacementGeom
   state: 'idle' | 'running' | 'faulted'
   selected: boolean
+  /** Conveyors pass false: their state shows as a belt skin, not a floating orb. */
+  showPip?: boolean
 }): JSX.Element | null {
   const pipRef = useRef<THREE.Mesh>(null)
   const matRef = useRef<THREE.MeshStandardMaterial>(null)
@@ -309,11 +357,11 @@ function Overlay({
     }
   })
 
-  if (state === 'idle' && !selected) return null
+  if ((state === 'idle' || !showPip) && !selected) return null
 
   return (
     <group>
-      {state !== 'idle' && (
+      {state !== 'idle' && showPip && (
         <mesh ref={pipRef} position={[anchor[0], top, anchor[2]]}>
           <sphereGeometry args={[0.22, 16, 16]} />
           <meshStandardMaterial
@@ -332,6 +380,110 @@ function Overlay({
         </mesh>
       )}
     </group>
+  )
+}
+
+// ----------------------------------------------------------------------------------------------------
+// Conveyor state skin: the belt wears its live state (green functional / orange jam / red fault)
+// ----------------------------------------------------------------------------------------------------
+// Same technique as the reporting traffic heatmap (ReportScene3D's ConveyorHeatSkin): a thin
+// emissive overlay riding just above the belt surface: one skin per directed section for path
+// conveyors (effectiveSections, the editor's own segment geometry), a single body skin for
+// box-mode conveyors. State changes EASE (a brief colour lerp in useFrame) instead of snapping;
+// the jam signal itself is hysteresis-held via jamUntilRef (see conveyorState.ts JAM_HOLD_MS).
+
+const DEG = Math.PI / 180
+
+/** Visual targets per state: green is a subtle tint so a healthy floor stays readable; orange and
+ *  red are deliberately louder. Colours match the orb palette (AMBER/RED) and the screen legend. */
+const SKIN_TARGETS: Record<'ok' | 'jam' | 'fault', { color: THREE.Color; emissive: number; opacity: number }> = {
+  ok: { color: new THREE.Color(CONVEYOR_GREEN), emissive: 0.18, opacity: 0.35 },
+  jam: { color: new THREE.Color(AMBER), emissive: 0.65, opacity: 0.85 },
+  fault: { color: new THREE.Color(RED), emissive: 0.8, opacity: 0.9 },
+}
+
+/** Colour-lerp time constant (seconds): a state change settles in well under a second. */
+const SKIN_LERP_TAU_S = 0.35
+
+/** Pointer rays pass through the skin so clicking a belt still selects the conveyor body. */
+const noRaycast = () => null
+
+function ConveyorStateSkin({
+  eq,
+  faulted,
+  jamUntilRef,
+}: {
+  eq: AutomationEquipment
+  faulted: boolean
+  jamUntilRef: MutableRefObject<Map<string, number>>
+}): JSX.Element | null {
+  // ONE shared material instance across all section meshes (a JSX element would clone per mesh),
+  // so the per-frame lerp animates every section of the belt in lockstep.
+  const mat = useMemo(() => {
+    const m = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(CONVEYOR_GREEN),
+      emissive: new THREE.Color(CONVEYOR_GREEN),
+      emissiveIntensity: SKIN_TARGETS.ok.emissive,
+      transparent: true,
+      opacity: SKIN_TARGETS.ok.opacity,
+      toneMapped: false,
+    })
+    return m
+  }, [])
+  useEffect(() => () => mat.dispose(), [mat])
+
+  useFrame((_state, delta) => {
+    // Priority: red (fault) over orange (jam, hysteresis-held) over green.
+    const jammed = Date.now() < (jamUntilRef.current.get(eq.id) ?? 0)
+    const tgt = SKIN_TARGETS[faulted ? 'fault' : jammed ? 'jam' : 'ok']
+    const k = 1 - Math.exp(-Math.max(0, delta) / SKIN_LERP_TAU_S)
+    mat.color.lerp(tgt.color, k)
+    mat.emissive.lerp(tgt.color, k)
+    mat.emissiveIntensity += (tgt.emissive - mat.emissiveIntensity) * k
+    mat.opacity += (tgt.opacity - mat.opacity) * k
+  })
+
+  const skinH = 0.07
+  const path = (eq.path ?? []) as number[][]
+
+  // Per-section skins along the drawn path (the editor's exact segment geometry).
+  const segs = useMemo(() => {
+    if (path.length < 2) return []
+    return effectiveSections(eq)
+      .map(([i, j]) => {
+        const a = path[i]
+        const b = path[j]
+        if (!a || !b) return null
+        const dx = b[0] - a[0]
+        const dz = b[1] - a[1]
+        const len = Math.hypot(dx, dz)
+        if (len < 1e-4) return null
+        return { mx: (a[0] + b[0]) / 2, mz: (a[1] + b[1]) / 2, len, yaw: Math.atan2(dz, dx) }
+      })
+      .filter((s): s is NonNullable<typeof s> => s !== null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eq])
+
+  if (path.length >= 2) {
+    const y = eq.posYM + (eq.heightM || 0.5) + skinH / 2 + 0.01
+    const w = Math.max(0.2, (eq.widthM || 0.5) * 0.9)
+    return (
+      <group>
+        {segs.map((s, k) => (
+          <mesh key={k} position={[s.mx, y, s.mz]} rotation={[0, -s.yaw, 0]} material={mat} raycast={noRaycast}>
+            <boxGeometry args={[s.len, skinH, w]} />
+          </mesh>
+        ))}
+      </group>
+    )
+  }
+
+  // Box-mode conveyor: a single skin over the body, same transform as the editor's box group.
+  const y = eq.posYM + (eq.heightM || 0.5) + skinH / 2 + 0.01
+  return (
+    <mesh position={[eq.posXM, y, eq.posZM]} rotation={[0, eq.rotationDeg * DEG, 0]} material={mat} raycast={noRaycast}>
+      <boxGeometry args={[Math.max(0.2, eq.lengthM || 1), skinH, Math.max(0.2, (eq.widthM || 0.5) * 0.9)]} />
+    </mesh>
   )
 }
 

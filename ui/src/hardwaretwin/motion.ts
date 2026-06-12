@@ -114,16 +114,34 @@ export function pointAtLen(path: PathSample, s: number): XZ {
 
 /** The slice of PlacementGeom (twin.ts) the resolver needs — structural, to keep this module pure. */
 export interface ConveyorGeomLike {
+  /** Placement id: lets the belt locator name the conveyor a position follows. */
+  id?: string
   worldPath?: XZ[]
   cumLen?: number[]
   closed?: boolean
 }
 
 interface PreparedBelt {
+  id?: string
   pts: XZ[] // closed loops get the seam point appended so the closing segment is walkable
   cum: number[]
   total: number
   closed: boolean
+}
+
+/** Walkable belts from placed-conveyor polylines (shared by the path resolver and belt locator). */
+function prepareBelts(geoms: ConveyorGeomLike[]): PreparedBelt[] {
+  const belts: PreparedBelt[] = []
+  for (const g of geoms) {
+    const wp = g.worldPath
+    if (!wp || wp.length < 2) continue
+    const pts = g.closed ? [...wp, wp[0]] : [...wp]
+    const cum = [0]
+    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + dist(pts[i - 1], pts[i]))
+    const total = cum[cum.length - 1]
+    if (total > 0) belts.push({ id: g.id, pts, cum, total, closed: !!g.closed })
+  }
+  return belts
 }
 
 function projectOnto(belt: PreparedBelt, p: XZ): { s: number; d: number } {
@@ -172,16 +190,7 @@ function subPath(belt: PreparedBelt, sa: number, sb: number, a: XZ, b: XZ): Path
  *  onto the same belt (within ON_BELT_TOL_M) the path follows that belt's geometry; otherwise the
  *  straight chord. Results are cached per endpoint pair (node positions are a fixed, small set). */
 export function buildPathResolver(geoms: ConveyorGeomLike[]): PathBetween {
-  const belts: PreparedBelt[] = []
-  for (const g of geoms) {
-    const wp = g.worldPath
-    if (!wp || wp.length < 2) continue
-    const pts = g.closed ? [...wp, wp[0]] : [...wp]
-    const cum = [0]
-    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + dist(pts[i - 1], pts[i]))
-    const total = cum[cum.length - 1]
-    if (total > 0) belts.push({ pts, cum, total, closed: !!g.closed })
-  }
+  const belts = prepareBelts(geoms)
   const cache = new Map<string, PathSample>()
   return (a, b) => {
     const key = `${a[0]},${a[1]}|${b[0]},${b[1]}`
@@ -197,6 +206,28 @@ export function buildPathResolver(geoms: ConveyorGeomLike[]): PathBetween {
     const path = best ? subPath(best.belt, best.sa, best.sb, a, b) : chordPath(a, b)
     cache.set(key, path)
     return path
+  }
+}
+
+/** Which conveyor a position follows. */
+export type LocateBelt = (p: XZ) => string | null
+
+/** Build a locator that names the conveyor (placement id) a world position rides on: the nearest
+ *  belt the point projects onto within ON_BELT_TOL_M, the SAME projection the path resolver uses
+ *  to decide "both endpoints are on this belt", so attribution and motion always agree. */
+export function buildBeltLocator(geoms: ConveyorGeomLike[]): LocateBelt {
+  const belts = prepareBelts(geoms).filter((b) => !!b.id)
+  return (p) => {
+    let bestId: string | null = null
+    let bestD = ON_BELT_TOL_M
+    for (const belt of belts) {
+      const { d } = projectOnto(belt, p)
+      if (d <= bestD) {
+        bestD = d
+        bestId = belt.id ?? null
+      }
+    }
+    return bestId
   }
 }
 
