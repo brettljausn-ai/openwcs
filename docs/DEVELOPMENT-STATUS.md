@@ -51,6 +51,10 @@ shipper/fulfillment-config paths, other services. Avro/Schema-Registry ⬜.
 validation). **Gradle wrapper committed.** **k8s starter manifests ✅** (`deploy/k8s/`; horizontal
 scaling — see [`SCALING.md`](./SCALING.md)); Helm ⬜.
 
+**Observability:** decision-point logging convention (INFO with codes next to ids and the
+"because ..." trigger, WARN for skipped/degraded paths with the consequence, DEBUG in loops)
+applied ✅ inventory, master-data, txlog; ⬜ remaining services.
+
 ---
 
 ## 2. Roadmap progress (build.md §15)

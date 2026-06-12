@@ -7,6 +7,8 @@ import org.openwcs.inventory.domain.HandlingUnit;
 import org.openwcs.inventory.domain.Stock;
 import org.openwcs.inventory.repo.HandlingUnitRepository;
 import org.openwcs.inventory.repo.StockRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 import org.openwcs.inventory.service.HandlingUnitNotFoundException;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/inventory/handling-units")
 public class HandlingUnitController {
+
+    private static final Logger log = LoggerFactory.getLogger(HandlingUnitController.class);
 
     private final HandlingUnitRepository handlingUnits;
     private final StockRepository stock;
@@ -82,13 +86,20 @@ public class HandlingUnitController {
     public HandlingUnit updateLocation(@PathVariable UUID id, @RequestBody LocationUpdateRequest request) {
         HandlingUnit existing = handlingUnits.findById(id)
                 .orElseThrow(() -> new HandlingUnitNotFoundException(id));
+        UUID fromLocationId = existing.getLocationId();
         existing.setLocationId(request.locationId());
         // The stock RIDES IN the tote: its rows' location must follow the HU, or the stock overview
         // keeps pointing at the slot the tote left (observed live after retrieves and dig-out moves).
+        int followed = 0;
         for (Stock s : stock.findByHuId(id)) {
             s.setLocationId(request.locationId());
             stock.save(s);
+            followed++;
         }
-        return handlingUnits.save(existing);
+        HandlingUnit saved = handlingUnits.save(existing);
+        log.info("hu location booked: hu {} ({}) moved from location {} to {} because of a transport"
+                        + " lifecycle update (null = in transit / at a workplace); {} stock row(s) followed the hu",
+                saved.getCode(), id, fromLocationId, request.locationId(), followed);
+        return saved;
     }
 }

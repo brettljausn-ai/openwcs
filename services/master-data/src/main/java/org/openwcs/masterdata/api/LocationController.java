@@ -6,6 +6,8 @@ import java.util.UUID;
 import org.openwcs.common.security.AccessControl;
 import org.openwcs.masterdata.domain.Location;
 import org.openwcs.masterdata.repo.LocationRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -26,6 +28,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/master-data/locations")
 public class LocationController {
+
+    private static final Logger log = LoggerFactory.getLogger(LocationController.class);
 
     private final LocationRepository locations;
 
@@ -65,7 +69,15 @@ public class LocationController {
             requireWarehouse(warehouses, l.getWarehouseId());
             l.setId(null);
         }
-        return ResponseEntity.status(HttpStatus.CREATED).body(locations.saveAll(body));
+        List<Location> saved = locations.saveAll(body);
+        if (!saved.isEmpty()) {
+            Location first = saved.get(0);
+            log.info("bulk location create: {} locations created in warehouse {} for block {}"
+                            + " (codes {} .. {}) because the storage-block builder generated them",
+                    saved.size(), first.getWarehouseId(), first.getBlockId(),
+                    first.getCode(), saved.get(saved.size() - 1).getCode());
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @GetMapping("/{id}")
