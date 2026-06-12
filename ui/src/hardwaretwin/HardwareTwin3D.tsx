@@ -10,7 +10,7 @@
 // The base look (two-tone conveyor bodies, racked ASRS, sorter/workstation boxes, SCAN/QRY/DIV
 // markers, labels) is therefore identical to the editor — not a second, cruder renderer.
 
-import { useEffect, useMemo, useRef, type MutableRefObject } from 'react'
+import { type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber'
 import { Grid, Html, OrbitControls, RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
@@ -57,6 +57,12 @@ const GREY = '#7d8a82'
 // Functional-conveyor skin green: calm and desaturated so a healthy floor stays readable.
 // HardwareTwinScreen's legend duplicates the hex (the screen must NOT import this lazy chunk).
 const CONVEYOR_GREEN = '#3fae6e'
+/** The conveyor BODY wears its state colour directly (no overlay): green ok / orange jam / red fault. */
+const BELT_BODY_COLORS: Record<'ok' | 'jam' | 'fault', string> = {
+  ok: CONVEYOR_GREEN,
+  jam: AMBER,
+  fault: RED,
+}
 
 const TOTE_SIZE = 0.35
 const BELT_LIFT = 0.18
@@ -72,6 +78,7 @@ export interface HardwareTwin3DProps {
   /** Per-tote interpolation buffers (motion.ts) — when provided, tote motion replays the buffered
    *  scan timeline RENDER_DELAY_MS behind real time, interpolated along the conveyor geometry. */
   timelines?: Map<string, ToteTimeline>
+  clockOffsetMsRef?: MutableRefObject<number | null>
   /** HUs at rest in storage, rendered at their cell position inside the ASRS rack (ADR-0009 §5). */
   storedTotes?: StoredTote[]
   activeLevelId?: string | null
@@ -88,6 +95,7 @@ export default function HardwareTwin3D({
   lib,
   snapshot,
   timelines,
+  clockOffsetMsRef,
   storedTotes = [],
   activeLevelId = null,
   selectedPlacedId = null,
@@ -134,6 +142,7 @@ export default function HardwareTwin3D({
         lib={lib}
         snapshot={snapshot}
         timelines={timelines}
+        clockOffsetMsRef={clockOffsetMsRef}
         activeLevelId={activeLevelId}
         selectedPlacedId={selectedPlacedId}
         selectedHuId={selectedHuId}
@@ -165,6 +174,7 @@ interface SceneContentProps {
   lib: Map<string, Equipment>
   snapshot: TwinSnapshot
   timelines?: Map<string, ToteTimeline>
+  clockOffsetMsRef?: MutableRefObject<number | null>
   activeLevelId: string | null
   selectedPlacedId: string | null
   selectedHuId: string | null
@@ -178,6 +188,7 @@ function SceneContent({
   lib,
   snapshot,
   timelines,
+  clockOffsetMsRef,
   activeLevelId,
   selectedPlacedId,
   selectedHuId,
@@ -230,6 +241,29 @@ function SceneContent({
   // single slow hop / borderline density poll cannot strobe the skin. The Map is read per-frame
   // by each skin (cheap), re-armed once per snapshot (poll) here.
   const jamUntilRef = useRef<Map<string, number>>(new Map())
+  // Belt body state per conveyor ('ok' | 'jam' | 'fault'): drives the conveyor's OWN body colour
+  // (the body is tinted green/orange/red directly; no translucent overlay). Recomputed on every
+  // snapshot and on a 1 s tick so the jam hysteresis expiry shows without a poll.
+  const [beltStates, setBeltStates] = useState<Map<string, 'ok' | 'jam' | 'fault'>>(new Map())
+  const recomputeBeltStates = useCallback(() => {
+    const nowMs = Date.now()
+    const next = new Map<string, 'ok' | 'jam' | 'fault'>()
+    for (const eq of topology.equipment) {
+      if (!topoIsConveyor(eq, lib)) continue
+      const faulted = snapshot.activityByPlacedId[eq.id]?.state === 'faulted'
+      const jammed = nowMs < (jamUntilRef.current.get(eq.id) ?? 0)
+      next.set(eq.id, faulted ? 'fault' : jammed ? 'jam' : 'ok')
+    }
+    setBeltStates((prev: Map<string, 'ok' | 'jam' | 'fault'>) => {
+      if (prev.size === next.size && [...next].every(([k, v]) => prev.get(k) === v)) return prev
+      return next
+    })
+  }, [topology, lib, snapshot])
+  useEffect(() => {
+    recomputeBeltStates()
+    const t = window.setInterval(recomputeBeltStates, 1000)
+    return () => window.clearInterval(t)
+  }, [recomputeBeltStates])
   useEffect(() => {
     const nowMs = Date.now()
     const jams = deriveConveyorJamIds({
@@ -242,7 +276,8 @@ function SceneContent({
     const jamUntil = jamUntilRef.current
     for (const id of jams) jamUntil.set(id, nowMs + JAM_HOLD_MS)
     for (const [id, until] of jamUntil) if (until <= nowMs && !jams.has(id)) jamUntil.delete(id)
-  }, [snapshot, timelines, conveyorGeoms, locateBelt])
+    recomputeBeltStates()
+  }, [snapshot, timelines, conveyorGeoms, locateBelt, recomputeBeltStates])
 
   return (
     <group>
@@ -253,7 +288,11 @@ function SceneContent({
           eq={eq}
           conveyor={topoIsConveyor(eq, lib)}
           cat={topoCategory(eq, lib)}
-          color={topoColorFor(eq, lib)}
+          color={
+            topoIsConveyor(eq, lib)
+              ? BELT_BODY_COLORS[beltStates.get(eq.id) ?? 'ok']
+              : topoColorFor(eq, lib)
+          }
           selected={false}
           connectMode={false}
           connectSource={false}
@@ -298,9 +337,6 @@ function SceneContent({
         const conveyor = topoIsConveyor(eq, lib)
         return (
           <group key={`ov-${eq.id}`}>
-            {conveyor && (
-              <ConveyorStateSkin eq={eq} faulted={state === 'faulted'} jamUntilRef={jamUntilRef} />
-            )}
             <Overlay
               geom={geom}
               state={state}
@@ -314,6 +350,7 @@ function SceneContent({
       <Totes
         totes={snapshot.totes}
         timelines={timelines}
+        clockOffsetMsRef={clockOffsetMsRef}
         geomById={geomById}
         selectedHuId={selectedHuId}
         onSelectTote={onSelectTote}
@@ -384,109 +421,6 @@ function Overlay({
 }
 
 // ----------------------------------------------------------------------------------------------------
-// Conveyor state skin: the belt wears its live state (green functional / orange jam / red fault)
-// ----------------------------------------------------------------------------------------------------
-// Same technique as the reporting traffic heatmap (ReportScene3D's ConveyorHeatSkin): a thin
-// emissive overlay riding just above the belt surface: one skin per directed section for path
-// conveyors (effectiveSections, the editor's own segment geometry), a single body skin for
-// box-mode conveyors. State changes EASE (a brief colour lerp in useFrame) instead of snapping;
-// the jam signal itself is hysteresis-held via jamUntilRef (see conveyorState.ts JAM_HOLD_MS).
-
-const DEG = Math.PI / 180
-
-/** Visual targets per state: green is a subtle tint so a healthy floor stays readable; orange and
- *  red are deliberately louder. Colours match the orb palette (AMBER/RED) and the screen legend. */
-const SKIN_TARGETS: Record<'ok' | 'jam' | 'fault', { color: THREE.Color; emissive: number; opacity: number }> = {
-  ok: { color: new THREE.Color(CONVEYOR_GREEN), emissive: 0.18, opacity: 0.35 },
-  jam: { color: new THREE.Color(AMBER), emissive: 0.65, opacity: 0.85 },
-  fault: { color: new THREE.Color(RED), emissive: 0.8, opacity: 0.9 },
-}
-
-/** Colour-lerp time constant (seconds): a state change settles in well under a second. */
-const SKIN_LERP_TAU_S = 0.35
-
-/** Pointer rays pass through the skin so clicking a belt still selects the conveyor body. */
-const noRaycast = () => null
-
-function ConveyorStateSkin({
-  eq,
-  faulted,
-  jamUntilRef,
-}: {
-  eq: AutomationEquipment
-  faulted: boolean
-  jamUntilRef: MutableRefObject<Map<string, number>>
-}): JSX.Element | null {
-  // ONE shared material instance across all section meshes (a JSX element would clone per mesh),
-  // so the per-frame lerp animates every section of the belt in lockstep.
-  const mat = useMemo(() => {
-    const m = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(CONVEYOR_GREEN),
-      emissive: new THREE.Color(CONVEYOR_GREEN),
-      emissiveIntensity: SKIN_TARGETS.ok.emissive,
-      transparent: true,
-      opacity: SKIN_TARGETS.ok.opacity,
-      toneMapped: false,
-    })
-    return m
-  }, [])
-  useEffect(() => () => mat.dispose(), [mat])
-
-  useFrame((_state, delta) => {
-    // Priority: red (fault) over orange (jam, hysteresis-held) over green.
-    const jammed = Date.now() < (jamUntilRef.current.get(eq.id) ?? 0)
-    const tgt = SKIN_TARGETS[faulted ? 'fault' : jammed ? 'jam' : 'ok']
-    const k = 1 - Math.exp(-Math.max(0, delta) / SKIN_LERP_TAU_S)
-    mat.color.lerp(tgt.color, k)
-    mat.emissive.lerp(tgt.color, k)
-    mat.emissiveIntensity += (tgt.emissive - mat.emissiveIntensity) * k
-    mat.opacity += (tgt.opacity - mat.opacity) * k
-  })
-
-  const skinH = 0.07
-  const path = (eq.path ?? []) as number[][]
-
-  // Per-section skins along the drawn path (the editor's exact segment geometry).
-  const segs = useMemo(() => {
-    if (path.length < 2) return []
-    return effectiveSections(eq)
-      .map(([i, j]) => {
-        const a = path[i]
-        const b = path[j]
-        if (!a || !b) return null
-        const dx = b[0] - a[0]
-        const dz = b[1] - a[1]
-        const len = Math.hypot(dx, dz)
-        if (len < 1e-4) return null
-        return { mx: (a[0] + b[0]) / 2, mz: (a[1] + b[1]) / 2, len, yaw: Math.atan2(dz, dx) }
-      })
-      .filter((s): s is NonNullable<typeof s> => s !== null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eq])
-
-  if (path.length >= 2) {
-    const y = eq.posYM + (eq.heightM || 0.5) + skinH / 2 + 0.01
-    const w = Math.max(0.2, (eq.widthM || 0.5) * 0.9)
-    return (
-      <group>
-        {segs.map((s, k) => (
-          <mesh key={k} position={[s.mx, y, s.mz]} rotation={[0, -s.yaw, 0]} material={mat} raycast={noRaycast}>
-            <boxGeometry args={[s.len, skinH, w]} />
-          </mesh>
-        ))}
-      </group>
-    )
-  }
-
-  // Box-mode conveyor: a single skin over the body, same transform as the editor's box group.
-  const y = eq.posYM + (eq.heightM || 0.5) + skinH / 2 + 0.01
-  return (
-    <mesh position={[eq.posXM, y, eq.posZM]} rotation={[0, eq.rotationDeg * DEG, 0]} material={mat} raycast={noRaycast}>
-      <boxGeometry args={[Math.max(0.2, eq.lengthM || 1), skinH, Math.max(0.2, (eq.widthM || 0.5) * 0.9)]} />
-    </mesh>
-  )
-}
-
 // ----------------------------------------------------------------------------------------------------
 // Totes — one child owns all per-tote animation refs (no hooks-in-a-loop)
 // ----------------------------------------------------------------------------------------------------
@@ -507,6 +441,7 @@ function toteColor(state: ToteView['state']): string {
 interface TotesProps {
   totes: ToteView[]
   timelines?: Map<string, ToteTimeline>
+  clockOffsetMsRef?: MutableRefObject<number | null>
   geomById: Map<string, PlacementGeom>
   selectedHuId: string | null
   onSelectTote?: (huId: string | null) => void
@@ -519,7 +454,9 @@ interface TotesProps {
 // discontinuities (rack store/retrieve, induction) still teleport. The animation itself is pure
 // rAF/delta-time (useFrame) and fully independent of poll timing. Totes without a timeline fall
 // back to the single latest scan, then to their (strict) anchor.
-function Totes({ totes, timelines, geomById, selectedHuId, onSelectTote }: TotesProps): JSX.Element {
+function Totes({ totes, timelines, clockOffsetMsRef, geomById, selectedHuId, onSelectTote }: TotesProps): JSX.Element {
+  // The delayed render clock (data-anchored, monotonic): survives across frames.
+  const renderClockRef = useRef<number | null>(null)
   const groupRefs = useRef<Map<string, THREE.Group>>(new Map())
   const smoothers = useRef<Map<string, SmoothState>>(new Map())
 
@@ -554,8 +491,16 @@ function Totes({ totes, timelines, geomById, selectedHuId, onSelectTote }: Totes
         groups.delete(id)
       }
     }
-    // Render BEHIND real time so the next scan is (almost) always already buffered — see motion.ts.
-    const renderT = Date.now() - RENDER_DELAY_MS
+    // Render BEHIND DATA time so the next scan is (almost) always already buffered. Anchoring to
+    // the data's own timestamps (server clock) instead of the wall clock makes the delay immune to
+    // server-vs-client skew (observed live: a skewed demo-box clock pushed the sample point outside
+    // the buffered window, so totes dead-reckoned to phantom positions and bounced back each poll).
+    // Monotonic: never steps backwards; catches up at most 2x real time when the offset grows.
+    const offset = clockOffsetMsRef?.current ?? 0
+    const raw = Date.now() + offset - RENDER_DELAY_MS
+    const prevT = renderClockRef.current
+    const renderT = prevT == null ? raw : Math.max(prevT, Math.min(raw, prevT + delta * 2000))
+    renderClockRef.current = renderT
     for (const { tote, anchor } of resolved) {
       const g = groups.get(tote.huId)
       if (!g) continue
