@@ -14,6 +14,10 @@ dependencies {
     // Consumes the streamed transaction log (topic txlog.stream) to project stock (build.md §9).
     implementation 'org.springframework.kafka:spring-kafka'
 
+    // ShedLock: cluster-wide lock so the daily storage-density sweep runs on a single replica.
+    implementation 'net.javacrumbs.shedlock:shedlock-spring:5.16.0'
+    implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:5.16.0'
+
     // Migrations for the inventory service-local `inventory` schema (build.md §4.2, §5.3).
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'

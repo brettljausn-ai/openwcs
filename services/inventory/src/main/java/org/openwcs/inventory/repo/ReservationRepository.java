@@ -47,4 +47,13 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
     @Modifying
     @Query("delete from Reservation e where e.warehouseId = :warehouseId")
     int deleteBulkByWarehouseId(@Param("warehouseId") UUID warehouseId);
+
+    /** Per-SKU quantity currently HELD (the "allocated" split of the stock-by-SKU report). */
+    @Query("""
+        select new org.openwcs.inventory.service.SkuQtyRow(r.skuId, sum(r.qty)) from Reservation r
+        where r.warehouseId = :warehouseId
+          and r.status = 'HELD'
+        group by r.skuId
+        """)
+    List<org.openwcs.inventory.service.SkuQtyRow> sumHeldPerSku(@Param("warehouseId") UUID warehouseId);
 }
