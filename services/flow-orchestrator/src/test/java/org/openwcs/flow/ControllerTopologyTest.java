@@ -52,10 +52,10 @@ class ControllerTopologyTest {
         UUID wh = UUID.randomUUID();
         topology.replace(wh, new Topology(
                 List.of(
-                        new NodeDto("INDUCT", "Induct", null, 0d, 0d, null, "PLC1", "addr-1"),
-                        new NodeDto("DIVERT", "Divert", null, 10d, 0d, null, "PLC1", "addr-2"),
+                        new NodeDto("INDUCT", "Induct", null, 0d, 0d, null, "PLC1", "addr-1", null),
+                        new NodeDto("DIVERT", "Divert", null, 10d, 0d, null, "PLC1", "addr-2", null),
                         // A node keeping its legacy per-node hardware address (backward compat).
-                        new NodeDto("SHIP", "Ship", "opc.tcp://legacy:4840", 20d, 0d, null, null, null)),
+                        new NodeDto("SHIP", "Ship", "opc.tcp://legacy:4840", 20d, 0d, null, null, null, null)),
                 List.of(),
                 List.of(),
                 List.of(new ControllerDto("PLC1", "Main PLC", "10.0.0.5", 9200))));

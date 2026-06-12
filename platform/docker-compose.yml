@@ -133,6 +133,8 @@ services:
       SPRING_DATASOURCE_PASSWORD: openwcs
       # Consumes the streamed transaction log to project stock (build.md §9).
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      # Resolves the per-warehouse UNKNOWN operational location for position-less HU bookings.
+      OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
 
   process-engine:
     restart: unless-stopped

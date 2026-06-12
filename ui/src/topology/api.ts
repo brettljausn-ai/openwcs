@@ -9,6 +9,9 @@ export interface NodeDto {
   loopCode?: string | null
   controllerCode?: string | null
   nodeAddress?: string | null
+  // For a divert node: the neighbour an unrouted HU takes by default (projected from the divert's
+  // STRAIGHT/BRANCH choice), or null (an unrouted tote stops at the divert).
+  defaultExitCode?: string | null
 }
 
 // A conveyor controller (PLC): one TCP/IP endpoint hosting many nodes.

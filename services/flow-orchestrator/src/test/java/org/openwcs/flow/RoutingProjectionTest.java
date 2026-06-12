@@ -78,7 +78,7 @@ class RoutingProjectionTest {
 
         // A function point on the conveyor at offset 5 m (lands on path index 1, the divert) named D1.
         FunctionPointDto fp = new FunctionPointDto(fpId, convId, "DIVERT", "Divert 1",
-                bd(5), "LEFT", "D1", "ACTIVE");
+                bd(5), "LEFT", "D1", null, "ACTIVE");
 
         // Connection: conveyor exit -> sink entry.
         ConnectionDto conn = new ConnectionDto(UUID.randomUUID(), convId, sinkId, null, null,
@@ -121,6 +121,42 @@ class RoutingProjectionTest {
     }
 
     @Test
+    void divertDefaultDirectionProjectsToTheChosenNeighbourNode() {
+        // BRANCH → the branch stub's node; STRAIGHT → the main-line node; no default → null.
+        assertThat(projectDivertDefault("BRANCH")).isEqualTo("CONV1#3");
+        assertThat(projectDivertDefault("STRAIGHT")).isEqualTo("CONV1#2");
+        assertThat(projectDivertDefault(null)).isNull();
+    }
+
+    /**
+     * Projects the same 4-waypoint conveyor as above (straight run 0->1->2, divert branch 1->3)
+     * whose divert FP "D1" carries the given default direction, and returns the projected divert
+     * node's default exit code.
+     */
+    private String projectDivertDefault(String defaultExit) {
+        UUID wh = UUID.randomUUID();
+        UUID convId = UUID.randomUUID();
+        PlacedEquipmentDto conveyor = new PlacedEquipmentDto(convId, null, null, "CONV1",
+                bd(5), bd(0), bd(0), bd(0), bd(0), bd(10), bd(1), bd(1),
+                List.of(List.of(0d, 0d), List.of(5d, 0d), List.of(10d, 0d), List.of(5d, 5d)),
+                false,
+                List.of(List.of(0, 1), List.of(1, 2), List.of(1, 3)),
+                "ACTIVE", "conveyor", null);
+        FunctionPointDto fp = new FunctionPointDto(UUID.randomUUID(), convId, "DIVERT_LEFT", "Divert 1",
+                bd(5), "LEFT", "D1", defaultExit, "ACTIVE");
+
+        automation.save(wh, new AutomationTopologyDto(
+                List.of(), List.of(conveyor), List.of(), List.of(fp)));
+        ProjectionResult result = projection.project(wh);
+        assertThat(result.warnings()).isEmpty();
+
+        NodeDto divert = topology.get(wh).nodes().stream()
+                .filter(n -> n.code().equals("D1"))
+                .findFirst().orElseThrow();
+        return divert.defaultExitCode();
+    }
+
+    @Test
     void midSectionFunctionPointSplitsTheSectionAndInsertsANode() {
         UUID wh = UUID.randomUUID();
         UUID convId = UUID.randomUUID();
@@ -135,7 +171,7 @@ class RoutingProjectionTest {
 
         // A SCAN function point mid-section at offset 4 m (not on either endpoint), named SCAN1.
         FunctionPointDto scan = new FunctionPointDto(UUID.randomUUID(), convId, "SCAN", "Scan 1",
-                bd(4), "TOP", "SCAN1", "ACTIVE");
+                bd(4), "TOP", "SCAN1", null, "ACTIVE");
 
         automation.save(wh, new AutomationTopologyDto(
                 List.of(), List.of(conveyor), List.of(), List.of(scan)));

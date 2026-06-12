@@ -69,7 +69,7 @@ public class AutomationTopologyService {
         List<FunctionPointDto> pointDtos = new ArrayList<>();
         for (EquipmentFunctionPoint fp : functionPoints.findByWarehouseId(warehouseId)) {
             pointDtos.add(new FunctionPointDto(fp.getId(), fp.getPlacedId(), fp.getFunctionType(), fp.getName(),
-                    fp.getOffsetM(), fp.getSide(), fp.getNodeCode(), fp.getStatus()));
+                    fp.getOffsetM(), fp.getSide(), fp.getNodeCode(), fp.getDefaultExit(), fp.getStatus()));
         }
         return new AutomationTopologyDto(levelDtos, equipmentDtos, connectionDtos, pointDtos);
     }
@@ -140,6 +140,7 @@ public class AutomationTopologyService {
                 point.setOffsetM(fp.offsetM());
                 point.setSide(fp.side());
                 point.setNodeCode(fp.nodeCode());
+                point.setDefaultExit(fp.defaultExit());
                 point.setStatus(fp.status() == null ? "ACTIVE" : fp.status());
                 UUID newId = functionPoints.save(point).getId();
                 if (fp.id() != null) {

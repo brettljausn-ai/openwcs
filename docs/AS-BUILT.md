@@ -22,7 +22,7 @@ What is **actually implemented** today (not the target architecture). Design int
 |---|---|---|---|
 | gateway | 8080 | ✅ | Spring Cloud Gateway; routes `/api/<service>/**`; JWT validation (toggleable) + forwards `X-Auth-User`/`X-Auth-Roles`. |
 | master-data | 8081 | ✅ | Catalog + outbound config (below). |
-| inventory | 8082 | ✅ | Durable stock projection + availability/reservations (SKU- and location-scoped). **HU location registry** (`PUT /api/inventory/handling-units/{id}/location`): records a handling unit's current storage location; bookings made by flow-orchestrator at each transport milestone (REQUESTED, IN_TRANSIT, ARRIVED, STORED, RELOCATED) so the registry stays live; consumed by ADR-0009 dig-out occupancy checks. |
+| inventory | 8082 | ✅ | Durable stock projection + availability/reservations (SKU- and location-scoped). **HU location registry** (`PUT /api/inventory/handling-units/{id}/location`): records a handling unit's current storage location; bookings made by flow-orchestrator at each transport milestone (REQUESTED, IN_TRANSIT, ARRIVED, STORED, RELOCATED) so the registry stays live; consumed by ADR-0009 dig-out occupancy checks. **Null bookings go to the warehouse's UNKNOWN operational location** (HU + riding stock rows; resolved from master-data, 503 if unreachable); stock at UNKNOWN is visible in the overview but excluded from availability/ATP and can never be reserved. |
 | order-management | 8084 | ✅ | Orders (all types) + lifecycle + release management + line transactions; delegates allocation. |
 | allocation | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing, batch picking. |
 | slotting | 8093 | ✅ | Put-away assignment for automated rack/GTP blocks (weighted scorer: velocity-to-exit · same-SKU lane consolidation · aisle redundancy · fill balance; the exit distance uses `location.distance_to_exit` when set, else a fallback derived from the cell coordinate — (posX−1)+(posY−1)+(posZ−1), port assumed at position 1, ground level — so generated racks without maintained distances still place fast movers near the port), manual pick-face slotting + min/max replenishment (opportunistic top-off), and off-peak re-slotting. ADR 0003. **Profile-less put-away fallback**: a SKU with no storage profile resolves to the warehouse's ONLY automated storage block (`SHUTTLE_ASRS`/`CRANE_ASRS`/`AUTOSTORE`/`AMR_GTP`, via `GET /api/master-data/storage-blocks?warehouseId=`); several automated blocks remain a 400 (a profile must disambiguate) — keeps flow's slotting-only return leg answerable for demo SKUs. **Relocation plan** (`POST /api/slotting/relocation-plan {warehouseId, locationId}`): for ADR-0009 multi-deep shuttle channels, returns an ordered `[{huId, fromLocationId, toLocationId}]` dig-out sequence for blockers in front of the target; same-`cellY` hard constraint (no lift move), same-aisle preferred; empty when the channel is clear. |
@@ -85,6 +85,13 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
 - **Catalog**: warehouses, SKUs (+ per-warehouse `SkuProfile` overlays, UoMs, barcodes,
   dangerous-goods), attribute-schemas, barcode-types, handling-unit-types, locations,
   equipment; SKU search/paging; bulk SKU import; soft-archive on delete.
+- **Operational locations** (`GET /locations/operational?warehouseId=&kind=EQUIPMENT|WORKPLACE|UNKNOWN&name=`):
+  every conveyor and workplace automatically has a location carrying its name, and each warehouse
+  has an `UNKNOWN` catch-all, so HUs are always booked to a real location. Resolved lazily
+  (created on first use; idempotent under concurrency via the `(warehouse_id, code)` unique
+  constraint with a retry-fetch on conflict). Mapping: EQUIPMENT → `CONVEYOR_SEGMENT`/`TRANSPORT`
+  (code = equipment name), WORKPLACE → `STATION`/`STAGING` (code = workplace name), UNKNOWN →
+  `FREE_SPACE`/`QUARANTINE` (code `UNKNOWN`, no name). All created ACTIVE and unblocked.
 - **Host SKU sync** (`POST /skus/sync`, host-sync only): a list of SKUs each carrying their
   **UoM hierarchy and barcodes inline**, referenced by code (UoM `parentCode`, barcode `uomCode`,
   barcode type by name). This is an **upsert, not a full-catalog replace** — SKUs absent from the
@@ -162,6 +169,17 @@ by consuming `txlog.stream` (idempotent via `processed_event`, cursor in
 **per-location occupancy** (`POST /locations/occupied` → which of a set of locations physically
 hold any stock row or handling unit; consumed by slotting put-away to skip occupied slots).
 Reservations check ATP under a pessimistic lock so concurrent allocations can't over-commit.
+
+**HU location bookings never write null**: `PUT /handling-units/{id}/location` with
+`locationId: null` (the caller does not know the position) books the HU *and the stock rows
+riding in it* to the warehouse's **UNKNOWN** operational location, resolved through a small
+`MasterDataClient` against master-data's `GET /locations/operational` (base URL
+`openwcs.inventory.master-data-base-url`, default `http://localhost:8081`; resolved id cached
+per warehouse in-memory). `stock.location_id` stays NOT NULL, so the old null-booking 500 is
+gone. If master-data is unreachable the booking is rejected with **503** (callers treat it as
+best-effort). **Allocation guard**: stock at UNKNOWN contributes ZERO to availability/ATP and
+can never be reserved (excluded in `InventoryService` availability + reservation paths, logged
+at DEBUG), but stays fully visible in the stock overview so admins can see and resolve it.
 
 ## 5. txlog (system of record)
 
@@ -403,9 +421,16 @@ list of target node codes (`POST /conveyor/routes`). On a scan (`POST /conveyor/
 {node, barcode}`), the WCS finds the HU's current target, computes the **next hop** toward it by
 shortest path (`RoutingEngine`, Dijkstra — recomputed per scan, so topology changes reroute
 automatically), and replies `{action: ROUTE, exitCode, toNode}`; as each target is reached the
-plan advances, ending in `COMPLETE`. Unknown node / unreachable target → `EXCEPTION`; unknown
-barcode → `NO_ROUTE`. The whole graph is loaded/saved via `GET`/`PUT /conveyor/topology` for the
-admin editor. **Loop capacity**: a node can belong to a named loop with a max HU count; when a
+plan advances, ending in `COMPLETE`. Unknown node → `EXCEPTION`. **Divert defaults** (V14):
+routing is asked fresh at every divert, so it adapts to the physical situation: when an HU has
+**no route plan** (or its plan has **no path** from the scanned node), it follows the node's
+`default_exit_code` (the divert's topology-configured default direction) when present; with no
+default it continues along a **single** out-edge (a plain conveyor segment never strands a tote)
+or `HOLD`s at a multi-exit divert (the tote stops and is re-evaluated on the next scan; a plan
+assigned mid-journey takes over immediately). A planned HU whose path exists is never affected:
+the plan always wins over the default. Unrouted barcode at a dead end → `NO_ROUTE`; a planned HU
+with no path and no fallback → `EXCEPTION`. The whole graph is loaded/saved via
+`GET`/`PUT /conveyor/topology` for the admin editor. **Loop capacity**: a node can belong to a named loop with a max HU count; when a
 scan would route an HU into a loop that is at capacity, the WCS either `HOLD`s it (wait upstream,
 re-evaluated next scan) or diverts it to the loop's `OVERFLOW` target — configurable per loop.
 Occupancy is the count of active routes whose last-scanned node is in that loop. The
@@ -605,7 +630,10 @@ authoring source the conveyor routing graph (§7b) is now generated from.
   a conveyor `path` polyline + directed `sections`, `closed` flag, `category`, and a soft
   `station_id` linking a placed **GTP workstation** to its `gtp_station`), `equipment_function_point`
   (named points on a conveyor — scan/divert/induct/discharge/infeed — at an arc-length `offsetM`,
-  with a `side` and an optional PLC `nodeCode`), and `equipment_connection`. Load/save the whole graph
+  with a `side`, an optional PLC `nodeCode` and, for diverts, an optional **default direction**
+  `default_exit` (STRAIGHT = continue the main line / BRANCH = take the divert's branch / null =
+  an unrouted tote stops at the divert; set via the function-point dialog in the editor)), and
+  `equipment_connection`. Load/save the whole graph
   via `GET`/`PUT /api/flow/automation/topology?warehouseId=` (`AutomationTopologyDtos`).
 - **Editor** (`ui/src/topology/`): a 3D view (`AutomationTopology3D`) and a top-down **2D plan**
   (`PlanEditor2D`) share one model — an edit in either shows in the other. Place equipment from the
@@ -628,7 +656,10 @@ authoring source the conveyor routing graph (§7b) is now generated from.
   turns the placement model into the routable conveyor graph of §7b, **fully replacing** the
   warehouse's nodes/edges/loops. Path waypoints become nodes, directed sections become edges, function
   points alias a layout node (when on-point) or split a section (mid-run) into named PLC node codes,
-  and a closed/cyclic conveyor becomes a capacity loop. **Connections are auto-inferred from
+  and a closed/cyclic conveyor becomes a capacity loop. A divert FP's **default direction** is
+  resolved geometrically (its straight out-edge is the one best aligned with the travel direction
+  at its offset, the branch the least aligned) and stored as the projected node's
+  `default_exit_code`, which per-scan routing falls back to for unrouted totes. **Connections are auto-inferred from
   geometry**: a node of one equipment within ~1.5 m of a node of another is linked (both directions)
   — so an ASRS infeed stub meeting a conveyor, or a divert stub landing on another conveyor, merges
   automatically with no hand-drawn connection. Hand-drawn connections are still honoured if present,

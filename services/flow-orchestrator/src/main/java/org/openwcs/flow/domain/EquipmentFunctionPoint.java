@@ -50,6 +50,11 @@ public class EquipmentFunctionPoint extends Auditable {
     @Column(name = "node_code")
     private String nodeCode;
 
+    /** For a divert: the default direction when a tote has no route demanding otherwise —
+     *  STRAIGHT (continue the main line) / BRANCH (take the divert's branch), or null (stop). */
+    @Column(name = "default_exit")
+    private String defaultExit;
+
     @Column(name = "status", nullable = false)
     private String status = "ACTIVE";
 
@@ -115,6 +120,14 @@ public class EquipmentFunctionPoint extends Auditable {
 
     public void setNodeCode(String nodeCode) {
         this.nodeCode = nodeCode;
+    }
+
+    public String getDefaultExit() {
+        return defaultExit;
+    }
+
+    public void setDefaultExit(String defaultExit) {
+        this.defaultExit = defaultExit;
     }
 
     public String getStatus() {

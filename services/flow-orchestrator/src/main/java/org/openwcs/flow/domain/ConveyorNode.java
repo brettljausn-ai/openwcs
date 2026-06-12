@@ -53,6 +53,11 @@ public class ConveyorNode extends Auditable {
     @Column(name = "loop_code")
     private String loopCode;
 
+    /** For a divert node: the code of the neighbour a tote takes by default when it has no route
+     *  demanding otherwise (resolved from the divert's STRAIGHT/BRANCH choice), or null (stop). */
+    @Column(name = "default_exit_code")
+    private String defaultExitCode;
+
     public UUID getId() {
         return id;
     }
@@ -63,6 +68,14 @@ public class ConveyorNode extends Auditable {
 
     public void setLoopCode(String loopCode) {
         this.loopCode = loopCode;
+    }
+
+    public String getDefaultExitCode() {
+        return defaultExitCode;
+    }
+
+    public void setDefaultExitCode(String defaultExitCode) {
+        this.defaultExitCode = defaultExitCode;
     }
 
     public void setId(UUID id) {
