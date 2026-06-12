@@ -1095,7 +1095,7 @@ function DemoMode({ warehouseId }: { warehouseId: string }) {
                 : 'Locked: create storage locations for this warehouse first — demo mode places handling units and stock into existing locations.'
               : enabled
                 ? 'Switch off for a full reset: deletes the whole SKU catalog and ALL operational data for this warehouse — stock, reservations, handling units, inbound/outbound orders, transports, counts, GTP work and the transaction journal. Warehouses, locations, topology, GTP/station config and equipment are kept.'
-                : 'Switch on to create 100 demo SKUs (movie-merch named, with EAN-13 barcodes), shippers, a storage HU type, and handling units with stock placed into this warehouse’s locations.'}
+                : 'Switch on to create 100 demo SKUs (movie-merch named, with EAN-13 barcodes), shippers, a storage HU type, handling units with stock, and 50 empty handling units — all placed into this warehouse’s locations.'}
           </span>
         </div>
       </div>
@@ -1105,7 +1105,9 @@ function DemoMode({ warehouseId }: { warehouseId: string }) {
           {enabled ? 'Seeded' : 'Removed'}: {result.skus} SKUs · {result.unitsOfMeasure} units of measure ·{' '}
           {result.barcodes} barcodes · {result.shippers} shippers · {result.handlingUnitTypes} HU type
           {result.handlingUnits != null
-            ? ` · ${result.handlingUnits} handling units · ${result.stockRows ?? 0} stock rows`
+            ? ` · ${result.handlingUnits} handling units${
+                result.emptyHandlingUnits ? ` (${result.emptyHandlingUnits} empty)` : ''
+              } · ${result.stockRows ?? 0} stock rows`
             : ''}
           .
         </div>

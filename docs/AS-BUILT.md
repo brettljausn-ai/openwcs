@@ -111,7 +111,10 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
 - **System configuration** (`system_configuration` key/value table): global runtime flags.
   - **Demo mode** (`DEMO_MODE_ENABLED`, `/api/master-data/demo`): seeds/removes a sample catalog
     (`POST /demo/enable?warehouseId=`, `POST /demo/disable`, `GET /demo?warehouseId=`), ADMIN-gated,
-    may only seed onto a fresh, host-free system. **Disable = full reset** orchestrated by the UI:
+    may only seed onto a fresh, host-free system. On enable the UI also calls
+    `POST /api/inventory/demo/seed`, which registers stocked DEMO handling units **plus 50 empty
+    HUs** (no stock) so the empty-HU flows (ASRS empty-HU management, GTP order totes) have totes
+    to work with. **Disable = full reset** orchestrated by the UI:
     per-service clears (`/api/inventory|orders|counting|flow|gtp/demo/clear?warehouseId=` and the
     global `/api/txlog/demo/clear` journal wipe) then the master-data disable, which removes the
     WHOLE SKU catalog (UoMs/barcodes cascade), demo shippers and the demo HU type — all via bulk

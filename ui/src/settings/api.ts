@@ -210,6 +210,7 @@ export interface DemoResult {
   shippers: number
   handlingUnitTypes: number
   handlingUnits?: number
+  emptyHandlingUnits?: number
   stockRows?: number
 }
 
@@ -254,9 +255,10 @@ export async function enableDemo(warehouseId: string): Promise<DemoResult> {
   const skuIds = await idsFrom('/api/master-data/skus?ownerClient=DEMO&size=500')
   const inv = (await demoPost('/api/inventory/demo/seed', { warehouseId, huTypeId, locationIds, skuIds })) as {
     handlingUnits: number
+    emptyHandlingUnits: number
     stockRows: number
   }
-  return { ...cat, handlingUnits: inv.handlingUnits, stockRows: inv.stockRows }
+  return { ...cat, handlingUnits: inv.handlingUnits, emptyHandlingUnits: inv.emptyHandlingUnits, stockRows: inv.stockRows }
 }
 
 /**

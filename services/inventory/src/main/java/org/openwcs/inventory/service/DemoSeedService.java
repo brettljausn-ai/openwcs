@@ -22,15 +22,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Demo mode for the inventory service (build.md §4.8). Registers a handful of demo handling
- * units against existing master-data locations and a demo HU type, and fills them with sample
- * AVAILABLE stock of the seeded SKUs, so the handling-unit registry and stock overview screens
- * are populated. Reproducible (fixed RNG seed) and reversible (clear by warehouse).
+ * units against existing master-data locations and a demo HU type, fills them with sample
+ * AVAILABLE stock of the seeded SKUs, and adds 50 EMPTY handling units (no stock) so the
+ * empty-HU flows — ASRS empty-HU management, GTP order totes — have totes to work with.
+ * Reproducible (fixed RNG seed) and reversible (clear by warehouse).
  */
 @Service
 public class DemoSeedService {
 
     /** Demo HU codes share this prefix so {@link #clear(UUID)} can recognise and remove them. */
     private static final String DEMO_HU_PREFIX = "DEMO-HU-";
+    /** Empty handling units seeded alongside the stocked ones (empty-HU management, GTP order totes). */
+    private static final int EMPTY_HU_COUNT = 50;
     private static final long SEED = 20260604L;
 
     private final HandlingUnitRepository handlingUnits;
@@ -57,7 +60,7 @@ public class DemoSeedService {
         List<UUID> locationIds = req.locationIds();
         List<UUID> skuIds = req.skuIds();
         if (locationIds == null || locationIds.isEmpty() || skuIds == null || skuIds.isEmpty()) {
-            return new DemoSeedResult(0, 0);
+            return new DemoSeedResult(0, 0, 0);
         }
 
         Random rnd = new Random(SEED);
@@ -93,7 +96,23 @@ public class DemoSeedService {
                 stockCreated++;
             }
         }
-        return new DemoSeedResult(huCreated, stockCreated);
+
+        // Empty handling units (no stock rows): feed the empty-HU flows — ASRS empty-HU
+        // management, GTP order totes / put walls — so a demo system has totes to hand out.
+        // Codes continue the DEMO-HU numbering; locations round-robin like the stocked ones.
+        int emptyCreated = 0;
+        for (int e = 0; e < EMPTY_HU_COUNT; e++) {
+            HandlingUnit hu = new HandlingUnit();
+            hu.setCode(String.format("%s%03d", DEMO_HU_PREFIX, count + e));
+            hu.setWarehouseId(req.warehouseId());
+            hu.setHuTypeId(req.huTypeId());
+            hu.setLocationId(locationIds.get((count + e) % locationIds.size()));
+            hu.setStatus("ACTIVE");
+            handlingUnits.save(hu);
+            emptyCreated++;
+        }
+
+        return new DemoSeedResult(huCreated + emptyCreated, emptyCreated, stockCreated);
     }
 
     /**
