@@ -49,6 +49,7 @@ public class OrderTransactionRelay {
     public void publishPending() {
         List<OrderOutboxMessage> batch =
                 outbox.findByPublishedAtIsNullOrderByIdAsc(PageRequest.of(0, batchSize));
+        int published = 0;
         for (OrderOutboxMessage message : batch) {
             try {
                 java.util.UUID eventId = txlog.append(
@@ -57,12 +58,18 @@ public class OrderTransactionRelay {
                 transactions.findById(message.getLineTxnId())
                         .ifPresent(txn -> txn.setEventId(eventId));
                 message.markPublished(Instant.now());
+                published++;
             } catch (RuntimeException e) {
                 message.recordAttempt();
-                log.warn("Order outbox relay halted at message {} (attempt {}): {}",
-                        message.getId(), message.getAttempts(), e.toString());
+                log.warn("order outbox relay halted at message {} ({} for stream {}, attempt {});"
+                                + " {} of {} published this pass, rest deferred to preserve ordering: {}",
+                        message.getId(), message.getEventType(), message.getStreamId(),
+                        message.getAttempts(), published, batch.size(), e.toString());
                 break;
             }
+        }
+        if (published > 0) {
+            log.debug("order outbox relay appended {} line-transaction events to the transaction log", published);
         }
     }
 }

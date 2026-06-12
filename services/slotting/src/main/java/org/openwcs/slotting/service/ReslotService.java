@@ -15,6 +15,8 @@ import org.openwcs.slotting.repo.BlockPolicyRepository;
 import org.openwcs.slotting.repo.PutawayAssignmentRepository;
 import org.openwcs.slotting.repo.ReslotRecommendationRepository;
 import org.openwcs.slotting.repo.StorageProfileRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class ReslotService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReslotService.class);
 
     private static final List<String> ACTIVE = List.of("PLANNED", "DISPATCHED");
     private static final String RECOMMENDED = "RECOMMENDED";
@@ -132,7 +136,12 @@ public class ReslotService {
             rec.setScoreGain(BigDecimal.valueOf(round(gain)));
             rec.setStatus(RECOMMENDED);
             out.add(recommendations.save(rec));
+            log.info("reslot recommended: hu {} sku {} move from location {} to {} in block {}"
+                            + " (velocity-fit score gain {} exceeds shift threshold {})",
+                    a.getHuId(), sku, current, best.locationId(), blockId, round(gain), minGain);
             if (out.size() >= MAX_PER_RUN) {
+                log.warn("reslot for block {} capped at {} recommendations this run;"
+                        + " remaining HUs are re-evaluated on the next off-peak pass", blockId, MAX_PER_RUN);
                 break;
             }
         }

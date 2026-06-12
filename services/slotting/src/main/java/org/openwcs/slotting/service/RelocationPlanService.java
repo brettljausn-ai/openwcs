@@ -82,18 +82,23 @@ public class RelocationPlanService {
                 .toList();
 
         List<RelocationStep> steps = new ArrayList<>();
+        List<String> moves = new ArrayList<>();
         Set<UUID> assigned = new HashSet<>();
         for (CellLocation blocker : blockers) {
             CellLocation target = bestTarget(blocker, pool, assigned);
             if (target == null) {
-                log.warn("No same-level relocation target for blocker at {} (cellY {}) clearing channel of {}",
-                        blocker.code(), blocker.posY(), source.code());
+                log.warn("relocation plan for {} unplannable: no free same-level (cellY {}) target for blocker"
+                                + " at {}; the retrieve stays blocked until space frees up",
+                        source.code(), blocker.posY(), blocker.code());
                 return RelocationPlan.unplannable();
             }
             assigned.add(target.id());
             HandlingUnitView hu = huByLocation.get(blocker.id());
             steps.add(new RelocationStep(hu.huId(), hu.code(), blocker.id(), target.id()));
+            moves.add("hu " + hu.code() + " " + blocker.code() + " -> " + target.code());
         }
+        log.info("relocation plan for {}: {} blockers must dig out of its channel first [{}]",
+                source.code(), steps.size(), String.join("; ", moves));
         return new RelocationPlan(List.copyOf(steps), false);
     }
 

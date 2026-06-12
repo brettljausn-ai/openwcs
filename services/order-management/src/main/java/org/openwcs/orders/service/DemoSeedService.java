@@ -13,6 +13,8 @@ import org.openwcs.orders.api.CreateOrderRequest;
 import org.openwcs.orders.api.DemoSeedResult;
 import org.openwcs.orders.client.MasterDataClient;
 import org.openwcs.orders.domain.OrderType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -23,6 +25,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class DemoSeedService {
+
+    private static final Logger log = LoggerFactory.getLogger(DemoSeedService.class);
 
     private final OrderService orders;
     private final MasterDataClient masterData;
@@ -55,6 +59,8 @@ public class DemoSeedService {
             orders.create(buildOrder(warehouseId, orderType, demoSkus));
             created++;
         }
+        log.info("demo seed for warehouse {}: created {} {} orders from a catalog of {} demo SKUs",
+                warehouseId, created, orderType, demoSkus.size());
         return new DemoSeedResult(created);
     }
 
