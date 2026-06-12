@@ -13,6 +13,8 @@ import org.flowable.engine.runtime.ProcessInstance;
 import org.openwcs.process.api.ProcessDtos.InstanceView;
 import org.openwcs.process.api.ProcessDtos.ProcessDefinitionView;
 import org.openwcs.process.api.ProcessDtos.StartInstanceRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,6 +33,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/process")
 public class ProcessController {
+
+    private static final Logger log = LoggerFactory.getLogger(ProcessController.class);
 
     private final RepositoryService repository;
     private final RuntimeService runtime;
@@ -56,8 +60,13 @@ public class ProcessController {
                 .name(name)
                 .addString(name + ".bpmn20.xml", bpmnXml)
                 .deploy();
-        return repository.createProcessDefinitionQuery().deploymentId(deployment.getId()).list()
-                .stream().map(ProcessController::toView).toList();
+        List<ProcessDefinition> definitions =
+                repository.createProcessDefinitionQuery().deploymentId(deployment.getId()).list();
+        for (ProcessDefinition d : definitions) {
+            log.info("process definition deployed: key {} version {} (deployment '{}'): service tasks in it can now originate WCS work",
+                    d.getKey(), d.getVersion(), name);
+        }
+        return definitions.stream().map(ProcessController::toView).toList();
     }
 
     @PostMapping("/instances")
@@ -65,6 +74,9 @@ public class ProcessController {
         Map<String, Object> vars = request.variables() == null ? Map.of() : request.variables();
         ProcessInstance instance = runtime.startProcessInstanceByKey(
                 request.processKey(), request.businessKey(), vars);
+        log.info("process instance {} started: definition {} for business key {} ({} variables{})",
+                instance.getId(), instance.getProcessDefinitionKey(), instance.getBusinessKey(),
+                vars.size(), instance.isEnded() ? ", ran to completion synchronously" : "");
         return new InstanceView(instance.getId(), instance.getProcessDefinitionKey(),
                 instance.getBusinessKey(), instance.isEnded());
     }

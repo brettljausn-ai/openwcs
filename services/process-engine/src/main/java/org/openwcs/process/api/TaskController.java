@@ -3,8 +3,11 @@ package org.openwcs.process.api;
 import java.util.List;
 import java.util.Map;
 import org.flowable.engine.TaskService;
+import org.flowable.task.api.Task;
 import org.flowable.task.api.TaskQuery;
 import org.openwcs.process.api.ProcessDtos.TaskView;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,6 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/process/tasks")
 public class TaskController {
+
+    private static final Logger log = LoggerFactory.getLogger(TaskController.class);
 
     private final TaskService tasks;
 
@@ -41,6 +46,11 @@ public class TaskController {
 
     @PostMapping("/{id}/complete")
     public void complete(@PathVariable String id, @RequestBody(required = false) Map<String, Object> variables) {
+        Task task = tasks.createTaskQuery().taskId(id).singleResult();
         tasks.complete(id, variables == null ? Map.of() : variables);
+        if (task != null) {
+            log.info("user task '{}' ({}) completed for process instance {}: the process advances past this wait state",
+                    task.getName(), id, task.getProcessInstanceId());
+        }
     }
 }

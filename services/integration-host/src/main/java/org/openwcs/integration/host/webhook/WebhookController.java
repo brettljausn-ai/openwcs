@@ -3,6 +3,8 @@ package org.openwcs.integration.host.webhook;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,6 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/host/webhooks")
 public class WebhookController {
 
+    private static final Logger log = LoggerFactory.getLogger(WebhookController.class);
+
     private final WebhookSubscriptionRepository subscriptions;
 
     public WebhookController(WebhookSubscriptionRepository subscriptions) {
@@ -28,7 +32,10 @@ public class WebhookController {
         WebhookSubscription sub = new WebhookSubscription();
         sub.setCallbackUrl(request.callbackUrl());
         sub.setActive(true);
-        return SubscriptionView.from(subscriptions.save(sub));
+        WebhookSubscription saved = subscriptions.save(sub);
+        log.info("webhook subscription {} registered for {}: confirmations will be pushed from cursor {}",
+                saved.getId(), saved.getCallbackUrl(), saved.getCursor());
+        return SubscriptionView.from(saved);
     }
 
     @GetMapping
@@ -41,6 +48,8 @@ public class WebhookController {
         subscriptions.findById(id).ifPresent(sub -> {
             sub.setActive(false);
             subscriptions.save(sub);
+            log.info("webhook subscription {} for {} deactivated: confirmations stop pushing, cursor kept at {}",
+                    sub.getId(), sub.getCallbackUrl(), sub.getCursor());
         });
         return ResponseEntity.noContent().build();
     }

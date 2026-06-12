@@ -3,6 +3,8 @@ package org.openwcs.iam.api;
 import java.util.Map;
 import org.openwcs.common.security.AccessControl;
 import org.openwcs.iam.service.WarehouseAccessService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,6 +24,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/iam/warehouse-access")
 public class WarehouseAccessController {
+
+    private static final Logger log = LoggerFactory.getLogger(WarehouseAccessController.class);
 
     private final WarehouseAccessService service;
 
@@ -59,13 +63,20 @@ public class WarehouseAccessController {
     public WarehouseAccessView setForUser(
             @PathVariable String username,
             @RequestBody Requests.SetWarehouseAccess request,
-            @RequestHeader(value = "X-Auth-Roles", required = false) String roles) {
+            @RequestHeader(value = "X-Auth-Roles", required = false) String roles,
+            @RequestHeader(value = "X-Auth-User", required = false) String actor) {
         requireAdmin(roles);
-        return service.replaceForUser(username, request);
+        WarehouseAccessView result = service.replaceForUser(username, request);
+        log.info("warehouse access for user {} replaced by {}: {} warehouses {} (default {}); gateway scope enforcement follows this within its cache TTL",
+                username, actor == null ? "unauthenticated caller" : actor,
+                result.warehouses().size(), result.warehouses(), result.defaultWarehouse());
+        return result;
     }
 
     private static void requireAdmin(String rolesHeader) {
         if (!AccessControl.parseRoles(rolesHeader).contains("ADMIN")) {
+            log.info("warehouse-access admin endpoint denied: caller roles {} lack ADMIN, returning 403",
+                    AccessControl.parseRoles(rolesHeader));
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Warehouse access is administered by ADMIN only.");
         }
     }

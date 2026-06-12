@@ -8,6 +8,8 @@ import java.util.UUID;
 import org.flowable.engine.delegate.DelegateExecution;
 import org.flowable.engine.delegate.JavaDelegate;
 import org.openwcs.process.client.AllocationClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -22,6 +24,8 @@ import org.springframework.stereotype.Component;
 @Component("allocateOrder")
 public class AllocateOrderDelegate implements JavaDelegate {
 
+    private static final Logger log = LoggerFactory.getLogger(AllocateOrderDelegate.class);
+
     private final AllocationClient allocation;
 
     public AllocateOrderDelegate(AllocationClient allocation) {
@@ -34,8 +38,18 @@ public class AllocateOrderDelegate implements JavaDelegate {
         UUID warehouseId = asUuid(execution.getVariable("warehouseId"));
         List<AllocationClient.Line> lines = readLines(execution.getVariable("lines"));
 
-        AllocationClient.Allocation result = allocation.allocate(orderRef, warehouseId, lines);
+        AllocationClient.Allocation result;
+        try {
+            result = allocation.allocate(orderRef, warehouseId, lines);
+        } catch (RuntimeException e) {
+            log.error("allocateOrder failed for order {} ({} lines, process instance {}): {}",
+                    orderRef, lines.size(), execution.getProcessInstanceId(), e.toString());
+            throw e;
+        }
 
+        log.info("order {} allocated by process {} (instance {}): status {}, {} shippers cubed from {} lines",
+                orderRef, execution.getProcessInstanceBusinessKey(), execution.getProcessInstanceId(),
+                result.status(), result.shipperCount(), lines.size());
         execution.setVariable("allocationStatus", result.status());
         execution.setVariable("shipperCount", result.shipperCount());
     }
