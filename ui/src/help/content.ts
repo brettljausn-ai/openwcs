@@ -22,6 +22,48 @@ export interface ScreenHelp {
 }
 
 export const HELP: Record<string, ScreenHelp> = {
+  "hardware-twin": {
+    "summary": "The Hardware visualisation screen is the live 3D digital twin of your automation: every conveyor, ASRS and workplace from the topology, coloured by what it is doing right now, with totes moving along the scans the floor actually reported. Use it to see where things are and why they move.",
+    "sections": [
+      {
+        "heading": "What you do here",
+        "body": "Watch the floor: equipment pulses amber while it works and turns red on a fault, so you spot trouble at a glance.\nFollow a tote: totes glide between the points their scans reported; nothing on this screen is invented.\nInvestigate: click any machine to see its recent device tasks, or click a tote to see its full transport trace.\nDeclutter: use the level selector for multi-floor sites and the Labels toggle to hide names.\nThis screen is read-only: watching never changes anything on the floor."
+      },
+      {
+        "heading": "On the floor",
+        "body": "You send tote DEMO-HU-014 from the ASRS to station PP1: it appears at the ASRS outfeed stub, rides BIN_CONVEYOR-1 scan by scan, and queues at PP1; the stats bar counts it as in transit, then queued.\nA sorter keeps recirculating a tote: the tote loops with a small recirculation animation and the stats bar's recirculation counter climbs; click the tote to see each divert decision in its trace.\nStored totes show inside the ASRS rack at their exact cells, so you can watch aisles fill as put-away runs."
+      },
+      {
+        "heading": "If something goes wrong",
+        "body": "A tote sits still on the conveyor: it may be waiting at a divert with no default direction, or waiting for slotting to assign a storage slot; click it and check the last trace entry.\nEquipment shows red: it reported a failed device task; click it to read the task and reason, then check the Transport screen for the same correlation.\nNothing moves at all: check that the hardware emulator is ON (Settings, Hardware emulator) on a demo system, and that the topology has been saved and projected.\nA tote you expect is missing: it only appears while it has device tasks; totes resting in storage show inside the rack, not on the belts."
+      }
+    ],
+    "tips": [
+      "The twin polls every few seconds; toggle auto-refresh off if you want to freeze the picture while you investigate.",
+      "Tote motion between scan points is approximated; positions are exact at every scanned point."
+    ]
+  },
+  "system-info": {
+    "summary": "System info is the admin health board: version, build, health and logs for every service and adapter in one table. Use it to confirm a deploy landed and to chase faults without leaving the browser.",
+    "sections": [
+      {
+        "heading": "What you do here",
+        "body": "Check health: unhealthy units sort to the top with a red pill; the table auto-refreshes every 10 seconds.\nConfirm a deploy: compare each service's version and build time after the demo box redeploys.\nRead logs: click Logs on any row for the latest lines, filter them, or open the full-page view with a day picker (14 days are kept)."
+      },
+      {
+        "heading": "On the floor",
+        "body": "A store-back did not happen: open the slotting service's logs and look for a WARN line such as \"request rejected (400): no storage profile / block for sku ...\"; the reason is spelled out in the line.\nAfter a merge to main, the demo box redeploys within a couple of minutes: watch the build time column tick over to confirm the new version is live.\nA screen shows a reconnecting banner: check the gateway row first; if it is healthy, check the service that owns the failing screen."
+      },
+      {
+        "heading": "If something goes wrong",
+        "body": "A service shows unhealthy: read its last log lines first; most failures name their cause in the final WARN or ERROR.\nLogs are empty for a day: the service may have restarted and written under the next day's file; check the day picker.\nEverything is red: the gateway itself is likely down; the services may be fine behind it."
+      }
+    ],
+    "tips": [
+      "Log files rotate daily with 14-day retention; export anything you need to keep longer.",
+      "The log viewer's filter counts matching lines, which is a quick way to count occurrences of an error."
+    ]
+  },
   "dashboard": {
     "summary": "Your home screen. It shows a tile for every area your role lets you use; pick one to start work.",
     "sections": [
