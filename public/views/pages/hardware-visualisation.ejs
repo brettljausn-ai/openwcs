@@ -1,12 +1,13 @@
 <section class="hero">
     <div class="wrap">
-      <p class="eyebrow" data-i18n="hw.eyebrow1">Function · Hardware visualisation <span class="pill pill-roadmap" data-i18n="hw.pill3">Roadmap</span></p>
+      <p class="eyebrow" data-i18n="hw.eyebrow1">Function · Hardware visualisation <span class="pill pill-built" data-i18n="hw.pill3">Built</span></p>
       <h1 data-i18n="hw.h1">See the floor, <span class="lime">live.</span></h1>
       <p class="lead" data-i18n="hw.lead1">
-        A real-time picture of equipment status across the warehouse. Today openWCS visualises the
-        conveyor topology; the live status view of every device is planned, not yet built.
+        A live 3D digital twin of the warehouse, in the browser: the layout you drew, rendered with
+        real-time equipment state, totes moving along the scan trail the floor actually reported, and
+        storage fill down to the rack cell. Built today, in the open-source UI.
       </p>
-      <p class="status-line">⚑ Roadmap — live equipment status visualisation is planned, not yet implemented. The conveyor topology editor below exists today.</p>
+      <p class="status-line">✓ Built — the live 3D digital twin ships today in the openWCS UI. AMR fleet and AutoStore grid live views follow their device adapters.</p>
     </div>
   </section>
 
@@ -14,17 +15,61 @@
     <div class="wrap">
       <div class="section-head">
         <p class="eyebrow" data-i18n="hw.eyebrow2">Built today</p>
-        <h2 data-i18n="hw.h2">The conveyor topology editor.</h2>
+        <h2 data-i18n="hw.h2">A live digital twin, not a status page.</h2>
         <p data-i18n="hw.p1">
-          The one visualisation that ships today: the editor where admins draw and inspect the conveyor
-          graph — the same graph the routing layer runs against.
+          Most control systems give you a table of fault codes. openWCS renders the whole estate as a
+          3D model and animates it with what the hardware is really doing, right now.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hw.tag3">Equipment state</div><span class="pill pill-built" data-i18n="hw.pill4">Built</span></div>
+          <h3 data-i18n="hw.h8">Idle, running, faulted</h3>
+          <p data-i18n="hw.p5">Every placed conveyor, ASRS, sorter and station is coloured by its live state: idle, running with an amber pulse, faulted in red. Click any machine to see the device tasks behind its state.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hw.tag4">Moving totes</div><span class="pill pill-built" data-i18n="hw.pill5">Built</span></div>
+          <h3 data-i18n="hw.h9">The real scan trail, replayed</h3>
+          <p data-i18n="hw.p6">Handling units glide through the model along the scans and device tasks the floor actually reported; nothing is invented. Click a tote for its full transport trace, recirculation loops included.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hw.tag5">Storage fill</div><span class="pill pill-built" data-i18n="hw.pill6">Built</span></div>
+          <h3 data-i18n="hw.h10">Inside the rack</h3>
+          <p data-i18n="hw.p7">Stored totes appear in the ASRS rack at their exact cell positions, so you can watch aisles fill and drain as put-away and retrieval run. A level selector handles multi-floor layouts.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hw.tag6">Live stats</div><span class="pill pill-built" data-i18n="hw.pill7">Built</span></div>
+          <h3 data-i18n="hw.h11">The floor at a glance</h3>
+          <p data-i18n="hw.p9">A live stats bar tracks in-transit and queued units, throughput per minute, recirculations and faults, with auto-refresh and a labels toggle to declutter the view.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hw.tag7">One scene</div><span class="pill pill-built" data-i18n="hw.pill8">Built</span></div>
+          <h3 data-i18n="hw.h12">What you drew is what you watch</h3>
+          <p data-i18n="hw.p10">The twin reuses the topology editor's 3D scene read-only: the same geometry, levels and equipment you laid out become the live picture. No second model to maintain.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hw.tag8">Zero extra infrastructure</div><span class="pill pill-built" data-i18n="hw.pill9">Built</span></div>
+          <h3 data-i18n="hw.h13">No SCADA package required</h3>
+          <p data-i18n="hw.p11">Everything is derived in the browser from the device-task feed the adapters already produce, plus the saved layout. No extra server, no message bridge, no per-seat visualisation license.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="hw.eyebrow6">The foundations</p>
+        <h2 data-i18n="hw.h6a">Drawn once, used everywhere.</h2>
+        <p data-i18n="hw.p12">
+          The twin sits on the same layout and emulation stack the rest of openWCS runs on.
         </p>
       </div>
       <div class="grid grid-3">
         <a class="card" href="conveyors.html">
           <div class="card-head"><div class="tag" data-i18n="hw.tag1">Topology editor</div><span class="pill pill-built" data-i18n="hw.pill1">Built</span></div>
-          <h3 data-i18n="hw.h6">Draw the conveyor graph</h3>
-          <p data-i18n="hw.p2">Admins lay out nodes and edges in a visual editor (React Flow) and set each node's hardware address — the live, editable picture of the conveyor network.</p>
+          <h3 data-i18n="hw.h6">Draw the layout in 2D/3D</h3>
+          <p data-i18n="hw.p2">Admins lay out conveyors, ASRS, sorters and stations across levels in a visual 2D/3D editor; the routing graph is generated from the physical placement.</p>
         </a>
         <a class="card" href="conveyors.html">
           <div class="card-head"><div class="tag" data-i18n="hw.tag2">Learned overlay</div><span class="pill pill-built" data-i18n="hw.pill2">Built</span></div>
@@ -34,7 +79,7 @@
         <a class="card" href="automation.html">
           <div class="card-head"><div class="tag" data-i18n="hw.tagEmu">Hardware emulator</div><span class="pill pill-built" data-i18n="hw.pillEmu">Built</span></div>
           <h3 data-i18n="hw.hEmu">No physical hardware needed</h3>
-          <p data-i18n="hw.pEmu">An admin toggle puts every device adapter (conveyors, ASRS, AMR, AutoStore) into emulator mode: it simulates the machines and emits synthetic telemetry, so you can run the whole automation flow with zero hardware. Ideal for evaluation, onboarding, and CI.</p>
+          <p data-i18n="hw.pEmu">An admin toggle puts every device adapter (conveyors, ASRS, AMR, AutoStore) into emulator mode: it simulates the machines and emits synthetic telemetry. Flip it on and the twin shows a full warehouse running with zero hardware.</p>
         </a>
       </div>
     </div>
@@ -44,27 +89,22 @@
     <div class="wrap">
       <div class="section-head">
         <p class="eyebrow" data-i18n="hw.eyebrow3">On the roadmap</p>
-        <h2 data-i18n="hw.h3">Live status across every device class.</h2>
+        <h2 data-i18n="hw.h3">What joins the twin next.</h2>
         <p data-i18n="hw.p4">
-          Extending visualisation from the conveyor graph to the whole automated estate — with live state
-          on each device. Planned, not yet implemented.
+          The twin grows with the device adapters: each new family that comes online appears in the
+          same live picture.
         </p>
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="hw.tag3">Equipment status</div><span class="pill pill-roadmap" data-i18n="hw.pill4">Roadmap</span></div>
-          <h3 data-i18n="hw.h8">Running / fault / idle</h3>
-          <p data-i18n="hw.p5">Planned: live status across equipment — running, faulted, idle, in maintenance — overlaid on the topology so the floor sees state at a glance.</p>
+          <div class="card-head"><div class="tag" data-i18n="hw.tag9">AMR &amp; AutoStore</div><span class="pill pill-roadmap" data-i18n="hw.pill10">Roadmap</span></div>
+          <h3 data-i18n="hw.h14">Fleets &amp; grids</h3>
+          <p data-i18n="hw.p13">Planned: AMR fleet positions and AutoStore grid/port status join the twin once their real device adapters land; today both families run in the emulator.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="hw.tag4">ASRS</div><span class="pill pill-roadmap" data-i18n="hw.pill5">Roadmap</span></div>
-          <h3 data-i18n="hw.h9">Aisles, cranes &amp; shuttles</h3>
-          <p data-i18n="hw.p6">Planned: a live view of ASRS aisles, crane/shuttle position and fill, so storage state is visible alongside the conveyors that feed it.</p>
-        </div>
-        <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="hw.tag5">AMR &amp; AutoStore</div><span class="pill pill-roadmap" data-i18n="hw.pill6">Roadmap</span></div>
-          <h3 data-i18n="hw.h10">Fleets &amp; grids</h3>
-          <p data-i18n="hw.p7">Planned: AMR fleet positions and AutoStore grid/port status, bringing mobile robots and cube storage into the same live picture.</p>
+          <div class="card-head"><div class="tag" data-i18n="hw.tag10">Continuous position</div><span class="pill pill-roadmap" data-i18n="hw.pill11">Roadmap</span></div>
+          <h3 data-i18n="hw.h15">Metre-exact motion</h3>
+          <p data-i18n="hw.p14">Today totes move between the points the hardware reported; planned is metre-exact continuous tracking, including live crane and shuttle position inside the aisle.</p>
         </div>
       </div>
     </div>
@@ -74,13 +114,15 @@
     <div class="wrap">
       <div class="section-head">
         <p class="eyebrow" data-i18n="hw.eyebrow4">At a glance</p>
-        <h2 data-i18n="hw.h4">Topology today → live status on the roadmap.</h2>
+        <h2 data-i18n="hw.h4">Layout in, living picture out.</h2>
       </div>
       <div class="arch">
-<pre>  <b>conveyor topology editor</b>  (draw · learned overlay)        (built)
-        │
+<pre>  <b>2D/3D topology editor</b>  (draw · learned overlay)                  (built)
+        │  saved layout + live device tasks
         ▼
-  ┄┄┄ roadmap ┄┄┄  live status: equipment · ASRS aisles · AMR fleet · AutoStore grid</pre>
+  <b>live 3D digital twin</b>  ── equipment state · moving totes · rack fill   (built)
+        │
+  ┄┄┄ roadmap ┄┄┄  AMR fleet positions · AutoStore grid · metre-exact motion</pre>
       </div>
     </div>
   </section>
@@ -88,11 +130,11 @@
   <section>
     <div class="wrap">
       <div class="cta-band">
-        <p class="eyebrow" data-i18n="hw.eyebrow5">Open &amp; honest</p>
-        <h2 data-i18n="hw.h5">Follow visualisation as it grows.</h2>
-        <p data-i18n="hw.p8">The conveyor topology editor is live today; the live status views are tracked in the open.</p>
+        <p class="eyebrow" data-i18n="hw.eyebrow5">See it yourself</p>
+        <h2 data-i18n="hw.h5">Watch a warehouse run, right now.</h2>
+        <p data-i18n="hw.p8">The twin ships in the open-source UI today. Open the live demo, switch on the emulated floor, and watch it move.</p>
         <div class="hero-cta" style="justify-content:center">
-          <a class="btn btn-primary" href="conveyors.html">Conveyor deep dive</a>
+          <a class="btn btn-primary" href="https://app.openwcs.ai" target="_blank" rel="noopener" data-i18n="hw.btn2">Try the live demo</a>
           <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs" data-i18n="hw.btn1">View on GitHub</a>
         </div>
       </div>

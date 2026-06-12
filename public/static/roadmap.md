@@ -36,7 +36,7 @@
 > Built and runnable today
 
 - [done] Conveyor routing :: Vendor-neutral topology graph with per-scan next-hop pathfinding, loop limits, PLC controllers, and topology learned from live scan traffic.
-- [done] ASRS storage logic :: Block-level put-away, re-slotting, in-aisle depth and dual-cycle behaviour, plus empty-HU management for shuttle / crane / AutoStore / AMR-GTP.
+- [done] ASRS storage logic :: Block-level put-away, re-slotting, in-aisle depth and dual-cycle behaviour, WCS-owned multi-deep channel dig-out (relocation chain before a blocked retrieve), plus empty-HU management for shuttle / crane / AutoStore / AMR-GTP.
 - [done] Goods-to-person stations :: Present one stock HU and put-to-light fills many order destinations most-needed-first; ORDER_LOCATION and PUT_WALL share one engine.
 - [done] Slotting & replenishment :: Weighted, configurable put-away scoring with self-taught ABC velocity, plus min/max refills, off-peak top-off and direct-to-pick cross-docking.
 - [done] Allocation, cubing & batch :: Pick-location allocation with UoM breakdown, largest-first multi-size cubing into shippers, per-shipper dispatch labels, and batch picking.
@@ -46,21 +46,21 @@
 - [done] Security — JWT · RBAC · Keycloak :: Gateway JWT validation and per-endpoint role-based access from a shared catalog, with Keycloak — all toggleable from simple to locked-down.
 - [done] Horizontal scaling :: Every service is stateless and replica-safe — relays and schedulers run across replicas, with Kubernetes manifests for scaling out behind any load balancer.
 - [done] Hardware emulator mode :: Every device adapter (conveyors, ASRS, AMR, AutoStore) simulates its machines and telemetry behind a single admin toggle — run the full automation flow with zero physical hardware for evaluation, onboarding, or CI.
+- [done] Live 3D digital twin :: The saved layout rendered live in the browser: equipment coloured idle / running / faulted from real device tasks, totes replaying the actual scan trail, and storage fill shown at cell level in the ASRS rack.
+- [done] Cycle counting :: Count tasks with blind and variance modes and ABC-cadence scheduling, at-station blind counting via the GTP console, and a standalone count-capture screen with variances, recounts and reconciliation.
 
 ## In progress
 > Active development
 
 - [active] Pick execution :: Operator and goods-to-person pick confirmation, pick-by-light / voice / RF, and the GTP-station pick workflow on top of today's allocation and planning.
-- [active] Cycle counting :: Count tasks, blind and variance counts, and reconciliation are built; at-station blind counting runs via the GTP console. A standalone general count-capture screen is the remaining item.
 
 ## Next up
 > Designed, build queued
 
 - [planned] KPI dashboards :: Throughput, dwell, utilisation and SLA dashboards over a metrics store — operational visibility for floor and management.
-- [planned] Hardware visualisation :: Live equipment, ASRS, AMR and AutoStore status on a floor view, extending today's conveyor topology editor.
 
 ## Exploring
 > On the horizon
 
-- [exploring] AMR fleet integration :: Device adapters and orchestration for autonomous mobile robot fleets over the uniform device contract.
-- [exploring] AutoStore integration :: A native AutoStore adapter so grid storage joins conveyors and ASRS behind the same vendor-neutral contract.
+- [exploring] AMR fleet integration :: Device adapters and orchestration for autonomous mobile robot fleets over the uniform device contract, with live fleet positions joining the digital twin.
+- [exploring] AutoStore integration :: A native AutoStore adapter so grid storage joins conveyors and ASRS behind the same vendor-neutral contract, with grid and port status joining the digital twin.
