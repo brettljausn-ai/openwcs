@@ -36,7 +36,7 @@
 > Built and runnable today
 
 - [done] Conveyor routing :: Vendor-neutral topology graph with per-scan next-hop pathfinding, loop limits, PLC controllers, and topology learned from live scan traffic.
-- [done] ASRS storage logic :: Block-level put-away, re-slotting, in-aisle depth and dual-cycle behaviour, plus empty-HU management for shuttle / crane / AutoStore / AMR-GTP.
+- [done] ASRS storage logic :: Block-level put-away, re-slotting, in-aisle depth and dual-cycle behaviour, WCS-owned multi-deep channel dig-out (relocation chain before a blocked retrieve), plus empty-HU management for shuttle / crane / AutoStore / AMR-GTP.
 - [done] Goods-to-person stations :: Present one stock HU and put-to-light fills many order destinations most-needed-first; ORDER_LOCATION and PUT_WALL share one engine.
 - [done] Slotting & replenishment :: Weighted, configurable put-away scoring with self-taught ABC velocity, plus min/max refills, off-peak top-off and direct-to-pick cross-docking.
 - [done] Allocation, cubing & batch :: Pick-location allocation with UoM breakdown, largest-first multi-size cubing into shippers, per-shipper dispatch labels, and batch picking.
