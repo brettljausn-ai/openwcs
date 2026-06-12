@@ -82,16 +82,17 @@ public class TransactionLogService {
 
     /**
      * Wipe the journal: every event and any unpublished outbox rows (demo-mode reset, §4.8).
-     * Two bulk DELETE statements — never loads the (potentially huge) journal into memory.
-     * Position/sequence values are never reused (Postgres sequences keep counting), so feed
-     * cursors held by consumers stay safe: they simply see no rows until new events arrive.
+     * One TRUNCATE over both tables — never loads the (potentially huge) journal into memory,
+     * and deliberately bypasses the append-only row trigger on events (ordinary DELETE is
+     * rejected by design; TRUNCATE is the explicit admin reset seam). Position values are never
+     * reused (Postgres sequences keep counting), so feed cursors held by consumers stay safe:
+     * they simply see no rows until new events arrive.
      */
     @Transactional
     public ClearCounts clearAll() {
         long eventCount = events.count();
         long outboxCount = outbox.count();
-        outbox.deleteAllInBatch();
-        events.deleteAllInBatch();
+        events.truncateJournal();
         return new ClearCounts(eventCount, outboxCount);
     }
 
