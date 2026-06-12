@@ -253,7 +253,11 @@ public class RoutingProjectionService {
 
         // Connections: when the connection is anchored at specific path points (the editor's explicit
         // node-to-node links), stitch exactly those nodes; otherwise fall back to the legacy
-        // exit-of-FROM -> entry-of-TO resolution.
+        // exit-of-FROM -> entry-of-TO resolution. A connection LINKS two systems, it does not define
+        // a direction of travel: conveyors already carry their direction in their section edges, so
+        // the touchpoint is stitched in BOTH directions (exactly like auto-inferred adjacency) and
+        // actual flow is governed by each conveyor's own edges. A one-way stub (an ASRS infeed whose
+        // section points inward) stays one-way because the stub's internal edge does.
         if (model.connections() != null) {
             for (ConnectionDto c : model.connections()) {
                 String exit = c.fromPathIndex() != null
@@ -269,6 +273,9 @@ public class RoutingProjectionService {
                 }
                 if (edgePairs.add(exit + ">" + entry)) {
                     stagedEdges.add(new StagedEdge(exit, entry, 1, entry));
+                }
+                if (edgePairs.add(entry + ">" + exit)) {
+                    stagedEdges.add(new StagedEdge(entry, exit, 1, exit));
                 }
             }
         }
