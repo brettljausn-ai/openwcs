@@ -71,6 +71,47 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/EmulatorStatus' }
         "403": { description: Not an ADMIN }
+  # ---------------------------------------------------------------- Stock rules
+  /stock-rules:
+    get:
+      tags: [Equipment]
+      summary: Stock integrity rule states
+      description: >
+        Global integrity toggles read by the flows that fill handling units. Single SKU per
+        compartment (default ON): one HU compartment holds exactly one SKU, so an HU never
+        carries more distinct SKUs than its type has compartments. GTP decanting enforces it
+        while ON.
+      operationId: getStockRules
+      responses:
+        "200":
+          description: Stock rule states
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockRules' }
+  /stock-rules/single-sku-per-compartment/enable:
+    post:
+      tags: [Equipment]
+      summary: Turn the single-SKU-per-compartment rule ON (admin-only)
+      operationId: enableSingleSkuPerCompartment
+      responses:
+        "200":
+          description: Stock rule states
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockRules' }
+        "403": { description: Not an ADMIN }
+  /stock-rules/single-sku-per-compartment/disable:
+    post:
+      tags: [Equipment]
+      summary: Turn the single-SKU-per-compartment rule OFF (admin-only)
+      operationId: disableSingleSkuPerCompartment
+      responses:
+        "200":
+          description: Stock rule states
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockRules' }
+        "403": { description: Not an ADMIN }
   # ---------------------------------------------------------------- Warehouses
   /warehouses:
     get:
@@ -1072,6 +1113,14 @@ components:
       type: object
       properties:
         enabled: { type: boolean, description: True when the system runs against simulated hardware. }
+    StockRules:
+      type: object
+      description: Global stock integrity rule states.
+      properties:
+        singleSkuPerCompartment:
+          type: boolean
+          description: One HU compartment holds exactly one SKU (default true).
+      required: [singleSkuPerCompartment]
     # --------------------------------------------------------------- Enumerations
     LifecycleStatus:
       type: string

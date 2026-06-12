@@ -8,6 +8,8 @@ import org.openwcs.gtp.api.NotFoundException;
 import org.openwcs.gtp.api.PresentStockRequest;
 import org.openwcs.gtp.api.StartCycleRequest;
 import org.openwcs.gtp.api.SubmitOutcomeRequest;
+import org.openwcs.gtp.client.InventoryClient;
+import org.openwcs.gtp.client.MasterDataClient;
 import org.openwcs.gtp.domain.DestinationDemand;
 import org.openwcs.gtp.domain.GtpStation;
 import org.openwcs.gtp.domain.OperatingMode;
@@ -43,19 +45,25 @@ public class WorkCycleService {
     private final WorkCycleRepository cycles;
     private final PutInstructionRepository puts;
     private final TaskLineRepository taskLines;
+    private final MasterDataClient masterData;
+    private final InventoryClient inventory;
 
     public WorkCycleService(GtpStationRepository stations,
                             StationNodeRepository nodes,
                             DestinationDemandRepository demands,
                             WorkCycleRepository cycles,
                             PutInstructionRepository puts,
-                            TaskLineRepository taskLines) {
+                            TaskLineRepository taskLines,
+                            MasterDataClient masterData,
+                            InventoryClient inventory) {
         this.stations = stations;
         this.nodes = nodes;
         this.demands = demands;
         this.cycles = cycles;
         this.puts = puts;
         this.taskLines = taskLines;
+        this.masterData = masterData;
+        this.inventory = inventory;
     }
 
     /**
@@ -155,6 +163,7 @@ public class WorkCycleService {
                 if (request.targetHuId() == null) {
                     throw new IllegalArgumentException("DECANTING requires a target HU");
                 }
+                enforceSingleSkuPerCompartment(request.targetHuId(), specs);
                 for (StartCycleRequest.LineSpec spec : specs) {
                     if (spec.skuId() == null || spec.qty() == null || spec.qty().signum() <= 0) {
                         throw new IllegalArgumentException(
@@ -297,6 +306,52 @@ public class WorkCycleService {
     /** A counted variance (StockAdjusted intent seam). */
     public record CountAdjustment(UUID huId, UUID skuId, BigDecimal expectedQty,
                                   BigDecimal countedQty, BigDecimal variance) {
+    }
+
+    /**
+     * Single-SKU-per-compartment stock rule (master-data {@code /stock-rules}, default ON): one
+     * compartment holds exactly one SKU, and an HU never carries more distinct SKUs than its type
+     * has compartments. Enforced here at decant time — the flow that fills totes. Two checks:
+     * (1) within the request, no compartment may receive two different SKUs; (2) the number of
+     * distinct SKUs must not exceed the target HU type's compartment count (skipped when the HU
+     * type cannot be resolved — the per-compartment check still applies). Admins can switch the
+     * rule off for operations that deliberately mix SKUs.
+     */
+    private void enforceSingleSkuPerCompartment(UUID targetHuId, List<StartCycleRequest.LineSpec> specs) {
+        if (!masterData.singleSkuPerCompartmentRule()) {
+            return;
+        }
+        java.util.Map<String, java.util.Set<UUID>> skusByCompartment = new java.util.LinkedHashMap<>();
+        java.util.Set<UUID> distinctSkus = new java.util.LinkedHashSet<>();
+        for (StartCycleRequest.LineSpec spec : specs) {
+            if (spec.skuId() == null) {
+                continue;
+            }
+            distinctSkus.add(spec.skuId());
+            if (spec.compartment() != null) { // unaddressed moves are covered by the capacity check below
+                skusByCompartment.computeIfAbsent(spec.compartment(), k -> new java.util.LinkedHashSet<>())
+                        .add(spec.skuId());
+            }
+        }
+        for (var entry : skusByCompartment.entrySet()) {
+            if (entry.getValue().size() > 1) {
+                throw new IllegalArgumentException(
+                        "Stock rule: one compartment holds one SKU — compartment " + entry.getKey()
+                                + " would receive " + entry.getValue().size()
+                                + " different SKUs. Split the moves across compartments or disable the rule in Settings.");
+            }
+        }
+        if (distinctSkus.size() > 1) {
+            Integer compartments = inventory.huTypeOf(targetHuId)
+                    .flatMap(masterData::compartmentsOfHuType)
+                    .orElse(null);
+            if (compartments != null && distinctSkus.size() > compartments) {
+                throw new IllegalArgumentException(
+                        "Stock rule: the target handling unit has " + compartments
+                                + " compartment(s) and one compartment holds one SKU — cannot decant "
+                                + distinctSkus.size() + " different SKUs into it. Use more totes or disable the rule in Settings.");
+            }
+        }
     }
 
     private TaskLine newLine(WorkCycle cycle, String lineType) {

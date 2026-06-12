@@ -396,6 +396,19 @@ export interface EmulatorStatus {
   enabled: boolean
 }
 
+// ---- stock rules (global integrity toggles, master-data system configuration) ----
+export interface StockRules {
+  singleSkuPerCompartment: boolean
+}
+
+export async function getStockRules(): Promise<StockRules> {
+  return ok(await fetch('/api/master-data/stock-rules'))
+}
+
+export async function setSingleSkuPerCompartment(on: boolean): Promise<StockRules> {
+  return (await demoPost(`/api/master-data/stock-rules/single-sku-per-compartment/${on ? 'enable' : 'disable'}`)) as StockRules
+}
+
 export async function getEmulatorStatus(): Promise<EmulatorStatus> {
   return ok(await fetch('/api/master-data/emulator'))
 }

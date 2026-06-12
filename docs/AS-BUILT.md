@@ -121,6 +121,13 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
     DELETE statements (never loads rows), unsetting cubing-config `default_shipper_id` references
     first (that FK used to 409 the disable). Failed clears are surfaced to the admin, not
     swallowed. Warehouses, locations, blocks, topology and GTP/station config are kept.
+  - **Stock rules** (`SINGLE_SKU_PER_COMPARTMENT_ENABLED`, **default ON**, `/api/master-data/stock-rules`
+    get + `/single-sku-per-compartment/enable|disable` ADMIN-gated): one HU compartment holds exactly
+    one SKU, so an HU never carries more distinct SKUs than its type has compartments. GTP decanting
+    reads the flag and rejects cycles that would violate it (two SKUs into one compartment, or more
+    distinct SKUs than the target HU type's compartment count — HU type via inventory `/handling-units/{id}`
+    + master-data `/handling-unit-types/{id}`); admins can switch it off to allow mixing. Settings →
+    Stock rules.
   - **Hardware emulator** (`HARDWARE_EMULATOR_ENABLED`, **default OFF**): a global flag, same
     key/value table, read/flipped via `GET /api/master-data/emulator` → `{enabled}`,
     `POST /api/master-data/emulator/enable` and `/disable` (ADMIN-gated on `X-Auth-Roles`). Polled

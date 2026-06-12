@@ -92,6 +92,11 @@ public class ReferenceDataController {
         return handlingUnitTypes.findAll();
     }
 
+    @GetMapping("/handling-unit-types/{id}")
+    public HandlingUnitType getHandlingUnitType(@PathVariable UUID id) {
+        return handlingUnitTypes.findById(id).orElseThrow(() -> new NotFoundException("HandlingUnitType", id));
+    }
+
     @PostMapping("/handling-unit-types")
     public ResponseEntity<HandlingUnitType> createHandlingUnitType(@RequestBody HandlingUnitType body) {
         body.setId(null);
