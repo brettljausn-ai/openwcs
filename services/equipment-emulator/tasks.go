@@ -55,6 +55,40 @@ func supportedFamilies() []string {
 	return out
 }
 
+// huRef renders the handling unit a task moves as a human-readable log fragment: the HU code when
+// the payload carries one ("hu DEMO-HU-003"), the huId as fallback, "no hu reference" otherwise.
+// Device-task payloads from flow carry huCode/huId; log lines must never show a bare UUID when a
+// code is available.
+func huRef(payload map[string]interface{}) string {
+	if code := payloadString(payload, "huCode"); code != "" {
+		return "hu " + code
+	}
+	if id := payloadString(payload, "huId"); id != "" {
+		return "hu(id-only) " + id
+	}
+	return "no hu reference"
+}
+
+// routeRef renders the task's route from the payload fields flow sets (entryNode/destinationNode
+// for conveyor legs, fromLocationId/toLocationId for relocations), or "" when the payload carries
+// no route.
+func routeRef(payload map[string]interface{}) string {
+	if from, to := payloadString(payload, "entryNode"), payloadString(payload, "destinationNode"); from != "" || to != "" {
+		return " route " + orUnknown(from) + " -> " + orUnknown(to)
+	}
+	if from, to := payloadString(payload, "fromLocationId"), payloadString(payload, "toLocationId"); from != "" || to != "" {
+		return " relocate " + orUnknown(from) + " -> " + orUnknown(to)
+	}
+	return ""
+}
+
+func orUnknown(s string) string {
+	if s == "" {
+		return "?"
+	}
+	return s
+}
+
 // handleTask simulates executing a device task for any family: it validates the family and command
 // and echoes a COMPLETED result (or FAILED for an unknown family / command). There is no emulator
 // flag gate here — flow only routes to the emulator while the flag is ON, so it always simulates.
@@ -65,6 +99,7 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 	}
 	var req deviceTaskRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("%s: WARNING device task POST rejected: body is not valid JSON (%v); caller gets HTTP 400 and no task runs", serviceName, err)
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -73,7 +108,8 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 	family := strings.ToUpper(strings.TrimSpace(req.Family))
 	commands, known := commandsByFamily[family]
 	if !known {
-		log.Printf("%s: task %s rejected unknown family %q", serviceName, req.TaskID, req.Family)
+		log.Printf("%s: WARNING task %s (%s, equipment %s) rejected: unknown family %q, emulator only simulates %v; task FAILED, nothing moved",
+			serviceName, req.TaskID, huRef(req.Payload), orUnknown(req.EquipmentID), req.Family, supportedFamilies())
 		_ = json.NewEncoder(w).Encode(deviceTaskResult{
 			Status: "FAILED",
 			Detail: "unknown equipment family: " + req.Family,
@@ -81,7 +117,8 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !commands[req.Command] {
-		log.Printf("%s: task %s rejected unsupported command %q for family %s", serviceName, req.TaskID, req.Command, family)
+		log.Printf("%s: WARNING task %s (%s, equipment %s) rejected: command %q is not in %s's command set; task FAILED, nothing moved",
+			serviceName, req.TaskID, huRef(req.Payload), orUnknown(req.EquipmentID), req.Command, family)
 		_ = json.NewEncoder(w).Encode(deviceTaskResult{
 			Status: "FAILED",
 			Detail: "unsupported command for " + family + ": " + req.Command,
@@ -99,11 +136,15 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 		// Phase 3d-2): scan at every node, obey flow's routing answers, travel edges at speedMps.
 		// Without an entryNode the atomic simulation below stays byte-for-byte unchanged.
 		if isLiveWalk(family, req) {
+			log.Printf("%s: task %s accepted: %s %s for %s%s, equipment %s; running as live conveyor walk, result via callback",
+				serviceName, req.TaskID, family, req.Command, huRef(req.Payload), routeRef(req.Payload), orUnknown(req.EquipmentID))
 			go func() {
 				postCallback(req.CallbackURL, req.TaskID, runLiveWalk(family, req))
 			}()
 			return
 		}
+		log.Printf("%s: task %s accepted: %s %s for %s%s, equipment %s; simulating async, result via callback",
+			serviceName, req.TaskID, family, req.Command, huRef(req.Payload), routeRef(req.Payload), orUnknown(req.EquipmentID))
 		go func() {
 			postCallback(req.CallbackURL, req.TaskID, runTask(family, req))
 		}()
@@ -111,6 +152,8 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Synchronous fallback (no callbackUrl, e.g. tests): run inline and return the terminal result.
+	log.Printf("%s: task %s accepted: %s %s for %s%s, equipment %s; no callbackUrl so simulating synchronously",
+		serviceName, req.TaskID, family, req.Command, huRef(req.Payload), routeRef(req.Payload), orUnknown(req.EquipmentID))
 	_ = json.NewEncoder(w).Encode(runTask(family, req))
 }
 
@@ -127,6 +170,12 @@ func runTask(family string, req deviceTaskRequest) deviceTaskResult {
 		extra, dec := conveyJourney()
 		d += extra
 		decisions = dec
+		// All but the final DIVERTED decision are recirculations: make that decision visible per
+		// tote, with the policy that caused it and the cost it adds.
+		if recircs := len(dec) - 1; recircs > 0 {
+			log.Printf("%s: task %s CONVEY for %s: recirculated %d time(s) at sorter, missed divert (destination busy, recircEvery=%d policy); adds %s loop time before divert to %s",
+				serviceName, req.TaskID, huRef(req.Payload), recircs, recircEvery.Load(), extra, orUnknown(payloadString(req.Payload, "destinationNode")))
+		}
 	}
 
 	time.Sleep(d)
@@ -135,7 +184,8 @@ func runTask(family string, req deviceTaskRequest) deviceTaskResult {
 	// or POST /config): 1 in every N tasks fails.
 	if shouldFault() {
 		sim.recordFailed(family, req.Command)
-		log.Printf("%s: task %s family=%s command=%s SIMULATED FAULT after %s", serviceName, req.TaskID, family, req.Command, d)
+		log.Printf("%s: WARNING task %s (%s %s for %s%s, equipment %s) SIMULATED FAULT after %s: deterministic fault injection hit (faultEvery=%d); task FAILED, flow must retry or resolve",
+			serviceName, req.TaskID, family, req.Command, huRef(req.Payload), routeRef(req.Payload), orUnknown(req.EquipmentID), d, faultEvery.Load())
 		return deviceTaskResult{
 			Status: "FAILED",
 			Detail: strings.ToLower(family) + " simulated equipment fault on " + req.Command,
@@ -151,7 +201,8 @@ func runTask(family string, req deviceTaskRequest) deviceTaskResult {
 	}
 
 	sim.recordCompleted(family, req.Command)
-	log.Printf("%s: executed task %s family=%s command=%s equipment=%s in %s", serviceName, req.TaskID, family, req.Command, req.EquipmentID, d)
+	log.Printf("%s: task %s COMPLETED: %s %s for %s%s, equipment %s, simulated in %s",
+		serviceName, req.TaskID, family, req.Command, huRef(req.Payload), routeRef(req.Payload), orUnknown(req.EquipmentID), d)
 	payload := map[string]interface{}{
 		"command":    req.Command,
 		"family":     family,

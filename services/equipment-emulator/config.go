@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -40,6 +41,8 @@ func initConfigFromEnv() {
 	if f, ok := envFloat("OPENWCS_EMULATOR_SPEED_MPS"); ok && f > 0 {
 		setSpeedMps(f)
 	}
+	log.Printf("%s: config seeded from env: latencyOverrideMs=%d (-1 = per-command defaults), faultEvery=%d (0 = no fault injection), recircEvery=%d (0 = no forced recirculation), speedMps=%.2f",
+		serviceName, latencyOverrideMs.Load(), faultEvery.Load(), recircEvery.Load(), speedMps())
 }
 
 func envInt(key string) (int64, bool) {
@@ -88,20 +91,36 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 			SpeedMps          *float64 `json:"speedMps"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			log.Printf("%s: WARNING config update rejected: body is not valid JSON (%v); live config unchanged", serviceName, err)
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
+		// Each accepted change is logged old -> new so the daily log explains why task behaviour
+		// (latency, faults, recirculation, walk speed) shifted mid-demo.
 		if in.LatencyOverrideMs != nil && *in.LatencyOverrideMs >= -1 {
-			latencyOverrideMs.Store(*in.LatencyOverrideMs)
+			if old := latencyOverrideMs.Swap(*in.LatencyOverrideMs); old != *in.LatencyOverrideMs {
+				log.Printf("%s: config change via /config: latencyOverrideMs %d -> %d (-1 = per-command defaults; >=0 forces every command and edge to that many ms)",
+					serviceName, old, *in.LatencyOverrideMs)
+			}
 		}
 		if in.FaultEvery != nil && *in.FaultEvery >= 0 {
-			faultEvery.Store(*in.FaultEvery)
+			if old := faultEvery.Swap(*in.FaultEvery); old != *in.FaultEvery {
+				log.Printf("%s: config change via /config: faultEvery %d -> %d (0 = no fault injection; N fails 1 in every N tasks)",
+					serviceName, old, *in.FaultEvery)
+			}
 		}
 		if in.RecircEvery != nil && *in.RecircEvery >= 0 {
-			recircEvery.Store(*in.RecircEvery)
+			if old := recircEvery.Swap(*in.RecircEvery); old != *in.RecircEvery {
+				log.Printf("%s: config change via /config: recircEvery %d -> %d (0 = no forced recirculation; N recirculates every Nth CONVEY once)",
+					serviceName, old, *in.RecircEvery)
+			}
 		}
 		if in.SpeedMps != nil && *in.SpeedMps > 0 {
-			setSpeedMps(*in.SpeedMps)
+			if old := speedMps(); old != *in.SpeedMps {
+				setSpeedMps(*in.SpeedMps)
+				log.Printf("%s: config change via /config: speedMps %.2f -> %.2f (live conveyor walk edge-travel speed)",
+					serviceName, old, *in.SpeedMps)
+			}
 		}
 		writeConfig(w)
 	default:
