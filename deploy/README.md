@@ -13,7 +13,7 @@ server and keeping it automatically up to date with `main`.
 | [`scripts/deploy.sh`](../scripts/deploy.sh) | Idempotent redeploy: fast-forward `main`, and *if it advanced* rebuild jars + recompose. Self-locking. |
 | [`scripts/issue-cert.sh`](../scripts/issue-cert.sh) | Obtain/renew a Let's Encrypt cert for the UI domain (HTTP-01 webroot) and hot-reload nginx. Cron-safe. |
 | `deploy/openwcs-deploy.service` / `.timer` | systemd timer that runs `deploy.sh` every 2 min (poll-based auto-deploy). |
-| [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) | GitHub Actions deploy job for a self-hosted runner, gated on green CI (push-based auto-deploy). |
+| [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) | GitHub Actions deploy job for a self-hosted runner (manual dispatch; the green-CI auto-trigger is commented out until a runner is registered). |
 
 ---
 
@@ -86,13 +86,17 @@ inbound ports or SSH keys are needed, and a broken build never reaches the demo.
    sudo ./svc.sh start
    ```
 
-2. **Done** — `.github/workflows/deploy.yml` is already in the repo. On the next
-   successful CI run on `main` it triggers `scripts/deploy.sh` on the server. You
-   can also run it manually from the **Actions → Deploy demo → Run workflow**
-   button.
+2. **Re-enable the automatic trigger** — `.github/workflows/deploy.yml` ships with
+   only `workflow_dispatch` enabled (manual **Actions → Deploy demo → Run workflow**);
+   the `workflow_run` trigger that fires after green CI on `main` is commented out
+   in the file. Uncomment it once the runner is registered.
 
-> Until a runner is registered the `deploy` job just queues (harmless). Use
-> Option A **or** B, not both.
+3. **Disable the timer** on the box (`sudo systemctl disable --now openwcs-deploy.timer`)
+   so only one mechanism deploys.
+
+> The automatic trigger is off by default on purpose: with no runner registered a
+> triggered `deploy` job queues forever and every newer merge supersedes it, leaving
+> a confusing queued/cancelled trail in Actions. Use Option A **or** B, not both.
 
 ---
 
