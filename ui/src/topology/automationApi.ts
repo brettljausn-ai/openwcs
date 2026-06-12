@@ -48,13 +48,18 @@ export interface AutomationEquipment {
 
 // A directed link between two placed-equipment items. from/toPlacedId reference
 // AutomationEquipment.id; the optional point ids reference function points on either end.
-// The whole record round-trips on load/save (server remaps client temp-ids).
+// fromPathIndex/toPathIndex optionally anchor the link at a specific PATH POINT (node) on either
+// equipment, the editor's explicit node-to-node links (e.g. an ASRS outfeed stub end onto a
+// conveyor infeed node); the routing projection then stitches exactly those nodes. The whole
+// record round-trips on load/save (server remaps client temp-ids).
 export interface AutomationConnection {
   id: string
   fromPlacedId: string
   toPlacedId: string
   fromPointId?: string | null
   toPointId?: string | null
+  fromPathIndex?: number | null
+  toPathIndex?: number | null
   label?: string | null
   status?: string
 }

@@ -654,7 +654,9 @@ authoring source the conveyor routing graph (§7b) is now generated from.
   with a `side`, an optional PLC `nodeCode` and, for diverts, an optional **default direction**
   `default_exit` (STRAIGHT = continue the main line / BRANCH = take the divert's branch / null =
   an unrouted tote stops at the divert; set via the function-point dialog in the editor)), and
-  `equipment_connection`. Load/save the whole graph
+  `equipment_connection` (now also **node-anchored**, V18: optional `from_path_index`/`to_path_index`
+  reference the exact path point on either equipment, the editor's explicit node-to-node links).
+  Load/save the whole graph
   via `GET`/`PUT /api/flow/automation/topology?warehouseId=` (`AutomationTopologyDtos`).
 - **Editor** (`ui/src/topology/`): a 3D view (`AutomationTopology3D`) and a top-down **2D plan**
   (`PlanEditor2D`) share one model — an edit in either shows in the other. Place equipment from the
@@ -666,7 +668,17 @@ authoring source the conveyor routing graph (§7b) is now generated from.
   **waypoint delete**. The 2D grid defaults to **1 m**. Place a GTP workplace as a connectable
   **"workstation"** box and link it to specific conveyor function points with a **role** (STOCK / ORDER /
   DECANT) in the Properties panel ("Conveyor interactions"); the interaction's function point can be
-  **selected by clicking it in the 3D scene**. A **routing graph table** tab shows the generated graph
+  **selected by clicking it in the 3D scene**. **Node-link visibility** (`nodeLinks.ts`, a pure
+  client mirror of the projection's adjacency rules): where two pieces of equipment meet (an ASRS
+  outfeed stub on a conveyor infeed), both the 3D scene and the 2D plan show a live indicator at the
+  closest node pair, green ring = the projection will link them (auto by proximity within 1.5 m, or
+  an explicit connection, labelled so), amber dashed = within 3 m but too far to link ("not linked",
+  with the gap in metres); indicators follow drags. A selected equipment's Properties panel gains a
+  **Connections section**: per endpoint node it shows the linked counterpart (code, distance, and HOW:
+  auto vs explicit), or "not linked" with the nearest candidate, and offers an explicit **node-to-node
+  link** from a candidate list of other equipment's nodes sorted **closest first**; Unlink removes the
+  explicit connection and says honestly when proximity still auto-links the pair. A **routing graph
+  table** tab shows the generated graph
   (nodes, edges, costs) as a read-mostly inspector. **Route test mode** (`RouteTest.tsx`): toggle "Test
   route" in the toolbar, then click a start and a target point in the 3D scene (resolved to the nearest
   projected routing node); runs Dijkstra over the directed routing graph — the same algorithm and graph
@@ -683,8 +695,13 @@ authoring source the conveyor routing graph (§7b) is now generated from.
   `default_exit_code`, which per-scan routing falls back to for unrouted totes. **Connections are auto-inferred from
   geometry**: a node of one equipment within ~1.5 m of a node of another is linked (both directions)
   — so an ASRS infeed stub meeting a conveyor, or a divert stub landing on another conveyor, merges
-  automatically with no hand-drawn connection. Hand-drawn connections are still honoured if present,
-  but the editor no longer offers a "Connect" tool; GTP workstation role-interactions stay explicit.
+  automatically with no hand-drawn connection. **Explicit connections are honoured at node level**:
+  a connection carrying `fromPathIndex`/`toPathIndex` stitches exactly those two nodes (any
+  distance); without indices the legacy exit-of-FROM → entry-of-TO resolution applies. A single
+  edge-dedup set spans section edges, explicit connections and auto-inference, so an explicit link
+  that duplicates an auto-inferred edge projects exactly one edge. The editor offers explicit links
+  from the per-node Connections section (no scene-wide "Connect" tool); GTP workstation
+  role-interactions stay explicit.
   The projection returns a `ProjectionResult` (node/edge counts + non-fatal warnings). As a side-effect of
   projection, **every GTP workstation's STOCK/ORDER conveyor interactions** (connections tagged with a role
   in the topology editor's Properties panel) are projected into the corresponding `gtp_station`'s nodes via

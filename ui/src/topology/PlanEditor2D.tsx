@@ -28,6 +28,7 @@ import {
   snapToFootprintPerimeter,
   STUB_WIDTH_M,
 } from './AutomationTopology3D'
+import { computeMeetingPoints, equipmentNodes } from './nodeLinks'
 
 const DEG = Math.PI / 180
 
@@ -416,6 +417,14 @@ export default function PlanEditor2D({
   const asrsItems = useMemo(
     () => items.filter((it) => category(it, libById) === 'asrs'),
     [items, libById],
+  )
+
+  // Link state where equipment meets (same data as the 3D scene's indicators): per equipment pair
+  // the closest node pair, green when the routing projection will link them, amber when near but
+  // out of range. Recomputes live as items move, so the rings follow drags.
+  const meetingPoints = useMemo(
+    () => computeMeetingPoints(items.map((e) => equipmentNodes(e, category(e, libById))), connections),
+    [items, libById, connections],
   )
   const nearestConveyorSnap = useCallback(
     (wx: number, wz: number, maxDist: number = SNAP_RANGE_M): SnapTarget | null => {
@@ -1129,6 +1138,49 @@ export default function PlanEditor2D({
             onDrawAtPoint={onDrawAt}
           />
         ))}
+
+        {/* Node-link indicators at meeting points (the 2D twin of the 3D rings): green = the
+            routing projection will link the two nodes (auto by proximity / explicit connection);
+            amber + dashed = near but out of range ("not linked", with the gap in metres). */}
+        <g pointerEvents="none">
+          {meetingPoints.map((m, i) => {
+            const [ax, ay] = toPx(m.a.x, m.a.z)
+            const [bx, by] = toPx(m.b.x, m.b.z)
+            const linked = m.state !== 'near'
+            const color = linked ? '#8DC63F' : '#f4b860'
+            const mx = (ax + bx) / 2
+            const my = (ay + by) / 2
+            return (
+              <g key={`link-${i}`}>
+                {m.distM > 0.05 && (
+                  <line
+                    x1={ax}
+                    y1={ay}
+                    x2={bx}
+                    y2={by}
+                    stroke={color}
+                    strokeWidth={1.5}
+                    strokeOpacity={0.85}
+                    strokeDasharray={linked ? undefined : '5 4'}
+                  />
+                )}
+                <circle cx={mx} cy={my} r={6} fill="none" stroke={color} strokeWidth={2} strokeOpacity={0.9} />
+                <text
+                  x={mx + 9}
+                  y={my - 6}
+                  fill={color}
+                  style={{ font: '10px var(--font-mono, monospace)' }}
+                >
+                  {linked
+                    ? m.state === 'explicit'
+                      ? 'linked · explicit'
+                      : 'linked'
+                    : `not linked · ${m.distM.toFixed(1)} m`}
+                </text>
+              </g>
+            )
+          })}
+        </g>
 
         {/* Snap preview: a ring on the conveyor centreline where the dragged point would land. */}
         {(() => {

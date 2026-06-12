@@ -39,6 +39,14 @@ public class EquipmentConnection extends Auditable {
     @Column(name = "to_point_id")
     private UUID toPointId;
 
+    /** Optional source PATH POINT (node) index on the from-equipment's path. */
+    @Column(name = "from_path_index")
+    private Integer fromPathIndex;
+
+    /** Optional target PATH POINT (node) index on the to-equipment's path. */
+    @Column(name = "to_path_index")
+    private Integer toPathIndex;
+
     @Column(name = "label")
     private String label;
 
@@ -91,6 +99,22 @@ public class EquipmentConnection extends Auditable {
 
     public void setToPointId(UUID toPointId) {
         this.toPointId = toPointId;
+    }
+
+    public Integer getFromPathIndex() {
+        return fromPathIndex;
+    }
+
+    public void setFromPathIndex(Integer fromPathIndex) {
+        this.fromPathIndex = fromPathIndex;
+    }
+
+    public Integer getToPathIndex() {
+        return toPathIndex;
+    }
+
+    public void setToPathIndex(Integer toPathIndex) {
+        this.toPathIndex = toPathIndex;
     }
 
     public String getLabel() {

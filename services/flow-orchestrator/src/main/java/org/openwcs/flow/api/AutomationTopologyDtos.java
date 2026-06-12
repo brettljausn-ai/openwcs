@@ -38,9 +38,15 @@ public final class AutomationTopologyDtos {
                                      String status, String category, UUID stationId) {
     }
 
-    /** A directed connection between two placed pieces of equipment, optionally anchored at function points. */
+    /**
+     * A directed connection between two placed pieces of equipment, optionally anchored at function
+     * points and/or at specific PATH POINTS (nodes): {@code fromPathIndex}/{@code toPathIndex} are
+     * indices into either equipment's {@code path} (the editor's explicit node-to-node links, e.g.
+     * an ASRS outfeed stub end onto a conveyor infeed node). When set, the routing projection
+     * stitches exactly those nodes; otherwise it falls back to exit-of-from -> entry-of-to.
+     */
     public record ConnectionDto(UUID id, UUID fromPlacedId, UUID toPlacedId, UUID fromPointId, UUID toPointId,
-                                String label, String status) {
+                                Integer fromPathIndex, Integer toPathIndex, String label, String status) {
     }
 
     /**
