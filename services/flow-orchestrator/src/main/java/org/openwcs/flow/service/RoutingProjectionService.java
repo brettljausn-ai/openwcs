@@ -244,17 +244,32 @@ public class RoutingProjectionService {
             }
         }
 
-        // Connections: exit node of FROM equipment -> entry node of TO equipment.
+        // From here on every staged edge registers in this dedup set, so an explicit connection can
+        // never duplicate a section edge, and auto-inference can never duplicate an explicit link.
+        Set<String> edgePairs = new HashSet<>();
+        for (StagedEdge se : stagedEdges) {
+            edgePairs.add(se.fromCode + ">" + se.toCode);
+        }
+
+        // Connections: when the connection is anchored at specific path points (the editor's explicit
+        // node-to-node links), stitch exactly those nodes; otherwise fall back to the legacy
+        // exit-of-FROM -> entry-of-TO resolution.
         if (model.connections() != null) {
             for (ConnectionDto c : model.connections()) {
-                String exit = exitCode(c.fromPlacedId(), pointsByEquip, codeByEquipPoint);
-                String entry = entryCode(c.toPlacedId(), pointsByEquip, codeByEquipPoint);
+                String exit = c.fromPathIndex() != null
+                        ? codeByEquipPoint.get(key(c.fromPlacedId(), c.fromPathIndex()))
+                        : exitCode(c.fromPlacedId(), pointsByEquip, codeByEquipPoint);
+                String entry = c.toPathIndex() != null
+                        ? codeByEquipPoint.get(key(c.toPlacedId(), c.toPathIndex()))
+                        : entryCode(c.toPlacedId(), pointsByEquip, codeByEquipPoint);
                 if (exit == null || entry == null) {
                     warnings.add("Connection " + connLabel(c) + " skipped: could not resolve "
                             + (exit == null ? "FROM exit node" : "TO entry node") + ".");
                     continue;
                 }
-                stagedEdges.add(new StagedEdge(exit, entry, 1, entry));
+                if (edgePairs.add(exit + ">" + entry)) {
+                    stagedEdges.add(new StagedEdge(exit, entry, 1, entry));
+                }
             }
         }
 
@@ -262,11 +277,7 @@ public class RoutingProjectionService {
         // of ANOTHER, link them (both directions — flow direction is governed by each conveyor's own
         // sections) so material can cross the touchpoint without a hand-drawn connection (e.g. an
         // ASRS infeed stub meeting a conveyor). Only the closest node pair per equipment pair is
-        // linked, and existing edges are never duplicated.
-        Set<String> edgePairs = new HashSet<>();
-        for (StagedEdge se : stagedEdges) {
-            edgePairs.add(se.fromCode + ">" + se.toCode);
-        }
+        // linked, and existing edges (sections or explicit connections) are never duplicated.
         List<UUID> eqIds = new ArrayList<>(pointsByEquip.keySet());
         for (int ai = 0; ai < eqIds.size(); ai++) {
             for (int bi = ai + 1; bi < eqIds.size(); bi++) {

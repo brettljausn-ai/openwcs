@@ -25,6 +25,14 @@ import {
 import PlanEditor2D from './PlanEditor2D'
 import { loadTopology, type Topology } from './api'
 import { findRoute, routeVerdict, RouteTestOverlay, type RouteResult } from './RouteTest'
+import {
+  ADJACENCY_M,
+  computeMeetingPoints,
+  equipmentNodes,
+  linkCandidates,
+  nodeLinkStatuses,
+  type MeetingPoint,
+} from './nodeLinks'
 
 const DEG = Math.PI / 180
 
@@ -2029,6 +2037,15 @@ export default function AutomationTopology3D({
                 onDelete={deleteFunctionPoint}
               />
 
+              <NodeLinksPanel
+                eq={selected}
+                equipment={equipment}
+                lib={libById}
+                connections={connections}
+                onAdd={addConnection}
+                onDelete={deleteConnection}
+              />
+
               {selectedIsAsrs && warehouseId && (
                 <StorageAreasPanel
                   warehouseId={warehouseId}
@@ -2426,6 +2443,150 @@ function ConveyorPathTools({
   )
 }
 
+// The "Connections" block of the selected equipment's properties: for each of its endpoint nodes
+// (conveyor ends, ASRS stub ends), whether, and HOW, it is linked where it meets other equipment:
+// auto-inferred by proximity (the routing projection links nodes of DIFFERENT equipment within
+// 1.5 m, closest pair per equipment pair) or an explicit node-level connection from the model.
+// From here the user draws an explicit link (candidates of other equipment sorted CLOSEST FIRST)
+// or unlinks one. Mirrors the projection via the pure nodeLinks module, so what this panel shows
+// is exactly what "Generate routing" will stitch.
+function NodeLinksPanel({
+  eq,
+  equipment,
+  lib,
+  connections,
+  onAdd,
+  onDelete,
+}: {
+  eq: AutomationEquipment
+  // ALL placed equipment (any level): the projection ignores levels, adjacency is world XZ.
+  equipment: AutomationEquipment[]
+  lib: Map<string, Equipment>
+  connections: AutomationConnection[]
+  onAdd: (conn: AutomationConnection) => void
+  onDelete: (id: string) => void
+}) {
+  // Honest feedback after link/unlink (e.g. "explicit link removed; still auto-linked by proximity").
+  const [note, setNote] = useState<string | null>(null)
+
+  const nodesByEquip = useMemo(
+    () => equipment.map((e) => equipmentNodes(e, category(e, lib))),
+    [equipment, lib],
+  )
+  const rows = useMemo(
+    () => nodeLinkStatuses(eq.id, nodesByEquip, connections),
+    [eq.id, nodesByEquip, connections],
+  )
+  // Clear the feedback note when the selection moves to another equipment.
+  useEffect(() => {
+    setNote(null)
+  }, [eq.id])
+
+  return (
+    <div className="atopo-links">
+      <div className="atopo-links-head">
+        Connections{' '}
+        <InfoTip
+          text="Whether each end node of this equipment is linked where it meets another (an ASRS outfeed onto a conveyor infeed). Nodes of different equipment within 1.5 m link automatically when the routing is generated; an explicit link forces one at any distance. Explicit links are directed: from this node to the picked one."
+          example="OUT stub end → BIN_CONVEYOR-1#0 · 0.3 m · auto"
+        />
+      </div>
+      {rows.length === 0 ? (
+        <p className="atopo-muted atopo-fps-empty">No routable nodes on this equipment.</p>
+      ) : (
+        <ul className="atopo-links-list">
+          {rows.map((row) => {
+            const candidates = linkCandidates(row.node, nodesByEquip)
+            return (
+              <li key={row.node.index} className="atopo-links-row">
+                <div className="atopo-links-node">{row.node.code}</div>
+
+                {row.explicit.map((x) => (
+                  <div key={x.connectionId} className="atopo-links-state is-linked">
+                    <span>
+                      {x.outgoing ? '→' : '←'} {x.other.code} · {x.distM.toFixed(1)} m · explicit
+                      {x.distM <= ADJACENCY_M ? ' (also in auto-link range)' : ''}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-danger btn-sm"
+                      onClick={() => {
+                        onDelete(x.connectionId)
+                        setNote(
+                          x.distM <= ADJACENCY_M
+                            ? `Explicit link removed, ${row.node.code} and ${x.other.code} are still auto-linked by proximity (${x.distM.toFixed(1)} m).`
+                            : `Explicit link removed, ${row.node.code} is no longer linked to ${x.other.code}.`,
+                        )
+                      }}
+                    >
+                      Unlink
+                    </button>
+                  </div>
+                ))}
+
+                {row.auto && (
+                  <div className="atopo-links-state is-linked">
+                    <span>
+                      ↔ {row.auto.other.code} · {row.auto.distM.toFixed(1)} m · auto (proximity)
+                    </span>
+                  </div>
+                )}
+
+                {!row.auto &&
+                  row.explicit.length === 0 &&
+                  (row.nearest ? (
+                    <div className="atopo-links-state is-unlinked">
+                      <span>
+                        not linked · nearest {row.nearest.other.code} at{' '}
+                        {row.nearest.distM.toFixed(1)} m
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="atopo-links-state">
+                      <span className="atopo-muted">no other equipment nodes</span>
+                    </div>
+                  ))}
+
+                <Select
+                  ariaLabel={`Link ${row.node.code} to`}
+                  value=""
+                  placeholder={candidates.length ? 'Link to… (closest first)' : 'No other nodes to link'}
+                  disabled={candidates.length === 0}
+                  onChange={(v) => {
+                    const cand = candidates.find(
+                      (c) => `${c.other.equipId}@${c.other.index}` === v,
+                    )
+                    if (!cand) return
+                    onAdd({
+                      id: crypto.randomUUID(),
+                      fromPlacedId: eq.id,
+                      toPlacedId: cand.other.equipId,
+                      fromPointId: null,
+                      toPointId: null,
+                      fromPathIndex: row.node.index,
+                      toPathIndex: cand.other.index,
+                      label: null,
+                      status: 'ACTIVE',
+                    })
+                    setNote(
+                      `Explicit link added: ${row.node.code} → ${cand.other.code} (${cand.distM.toFixed(1)} m). Save, then Generate routing.`,
+                    )
+                  }}
+                  options={candidates.slice(0, 25).map((c) => ({
+                    value: `${c.other.equipId}@${c.other.index}`,
+                    label: `${c.other.code} · ${c.distM.toFixed(1)} m`,
+                  }))}
+                />
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {note && <div className="atopo-links-note">{note}</div>}
+    </div>
+  )
+}
+
 // Collapsible list of equipment-to-equipment connections with per-row delete + highlight-select.
 function ConnectionsPanel({
   connections,
@@ -2455,7 +2616,8 @@ function ConnectionsPanel({
       {open &&
         (connections.length === 0 ? (
           <p className="atopo-muted atopo-conns-empty">
-            None yet — use Connect to link two pieces of equipment.
+            None yet, touching conveyors link automatically; select a piece of equipment to draw
+            explicit node links in its Connections section.
           </p>
         ) : (
           <ul className="atopo-conns-list">
@@ -2463,6 +2625,9 @@ function ConnectionsPanel({
               const from = equipmentById.get(c.fromPlacedId)
               const to = equipmentById.get(c.toPlacedId)
               const dangling = !from || !to
+              // Node-level links show the exact path point they anchor at (CODE#index).
+              const fromLabel = `${from?.code ?? '?'}${c.fromPathIndex != null ? `#${c.fromPathIndex}` : ''}`
+              const toLabel = `${to?.code ?? '?'}${c.toPathIndex != null ? `#${c.toPathIndex}` : ''}`
               return (
                 <li
                   key={c.id}
@@ -2474,7 +2639,7 @@ function ConnectionsPanel({
                     onClick={() => onSelect(c.id)}
                     title={dangling ? 'One endpoint is missing from this layout' : 'Highlight this link'}
                   >
-                    {from?.code ?? '?'} → {to?.code ?? '?'}
+                    {fromLabel} → {toLabel}
                     {dangling ? <span className="atopo-muted"> · dangling</span> : null}
                   </button>
                   <button
@@ -3029,6 +3194,15 @@ function SceneContent({
     return h > 0 ? h : undefined
   }, [allItems, lib])
 
+  // Link state where equipment meets, recomputed live while dragging: per equipment pair the
+  // closest node pair, green when the routing projection will link them (auto by proximity, or an
+  // explicit node-level connection), amber when near but out of range. Mirrors the projection's
+  // rules via the pure nodeLinks module.
+  const meetingPoints = useMemo(
+    () => computeMeetingPoints(items.map((e) => equipmentNodes(e, category(e, lib))), connections),
+    [items, lib, connections],
+  )
+
   return (
     <group>
       {/* The (invisible) ground plane. In draw mode it appends a waypoint to the selected
@@ -3135,6 +3309,90 @@ function SceneContent({
           />
         )
       })}
+
+      {/* Node-link indicators where equipment meets: linked (green) vs near-but-out-of-range
+          (amber, "not linked"). Both endpoints must be on the active level to draw. */}
+      {meetingPoints.map((m, i) => {
+        const eqA = byId.get(m.a.equipId)
+        const eqB = byId.get(m.b.equipId)
+        if (!eqA || !eqB) return null
+        if (!items.some((it) => it.id === eqA.id) || !items.some((it) => it.id === eqB.id)) {
+          return null
+        }
+        const y =
+          Math.max(
+            linkSurfaceY(eqA, lib, stubHeightM),
+            linkSurfaceY(eqB, lib, stubHeightM),
+          ) + 0.08
+        return <NodeLinkMarker key={`meet-${i}`} meet={m} y={y} />
+      })}
+    </group>
+  )
+}
+
+// The Y of an equipment's conveying surface, for link indicators: a conveyor's own top; a stub
+// host's (ASRS etc. with a path) stub top; otherwise the body top.
+function linkSurfaceY(
+  eq: AutomationEquipment,
+  lib: Map<string, Equipment>,
+  stubHeightM?: number,
+): number {
+  const h = isConveyor(eq, lib)
+    ? eq.heightM
+    : hasPath(eq)
+      ? stubHeightM ?? STUB_HEIGHT_M
+      : eq.heightM
+  return h + eq.posYM
+}
+
+// A link-state indicator at a meeting point between two pieces of equipment: a small flat ring at
+// the midpoint of the closest node pair plus a line between the two nodes (dashed while unlinked).
+// Green = the routing projection WILL link these nodes (auto-inferred by proximity, or an explicit
+// connection, labelled so); amber = near but out of range ("not linked", with the gap in metres).
+// Positions recompute from live equipment state each render, so the indicator follows drags.
+function NodeLinkMarker({ meet, y }: { meet: MeetingPoint; y: number }) {
+  const linked = meet.state !== 'near'
+  const color = linked ? '#8DC63F' : '#f4b860'
+  const mx = (meet.a.x + meet.b.x) / 2
+  const mz = (meet.a.z + meet.b.z) / 2
+  const label =
+    meet.state === 'near'
+      ? `not linked · ${meet.distM.toFixed(1)} m`
+      : meet.state === 'explicit'
+        ? 'linked · explicit'
+        : 'linked'
+  return (
+    <group>
+      {meet.distM > 0.05 && (
+        <Line
+          points={[
+            [meet.a.x, y, meet.a.z],
+            [meet.b.x, y, meet.b.z],
+          ]}
+          color={color}
+          lineWidth={2}
+          dashed={!linked}
+          dashSize={0.18}
+          gapSize={0.12}
+          transparent
+          opacity={0.85}
+        />
+      )}
+      <mesh position={[mx, y, mz]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.13, 0.22, 24]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.9}
+          side={THREE.DoubleSide}
+          depthTest={false}
+        />
+      </mesh>
+      <Html position={[mx, y + 0.45, mz]} center distanceFactor={16} occlude={false}>
+        <div className="atopo-fpmarker" style={{ borderColor: color, color }}>
+          {label}
+        </div>
+      </Html>
     </group>
   )
 }
@@ -4174,6 +4432,33 @@ function Styles() {
       }
       .atopo-fps-type { font-family: var(--font-mono); font-size: .72rem; font-weight: 600; }
       .atopo-fps-form { display: flex; flex-direction: column; gap: .5rem; margin-top: .2rem; }
+      /* Node-links ("Connections") block in the properties panel. */
+      .atopo-links {
+        display: flex; flex-direction: column; gap: .5rem; margin-top: .4rem;
+        padding: .6rem .7rem; border-radius: 10px;
+        border: 1px solid var(--glass-border); background: rgba(141, 198, 63, .05);
+      }
+      .atopo-links-head {
+        font-family: var(--font-mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .1em;
+        color: var(--herbal-lime);
+      }
+      .atopo-links-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .45rem; }
+      .atopo-links-row {
+        display: flex; flex-direction: column; gap: .35rem;
+        padding: .4rem .5rem; border-radius: 8px; border: 1px solid var(--glass-border);
+      }
+      .atopo-links-node { font-family: var(--font-mono); font-size: .78rem; font-weight: 600; }
+      .atopo-links-state {
+        display: flex; align-items: center; justify-content: space-between; gap: .4rem;
+        font-size: .74rem; line-height: 1.35;
+      }
+      .atopo-links-state.is-linked { color: var(--herbal-lime); }
+      .atopo-links-state.is-unlinked { color: #f4b860; }
+      .atopo-links-note {
+        font-size: .72rem; line-height: 1.35; color: var(--text-dim);
+        padding: .4rem .5rem; border-radius: 8px;
+        border: 1px dashed rgba(141, 198, 63, .4); background: rgba(141, 198, 63, .06);
+      }
       .atopo-modal-backdrop {
         position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
         background: rgba(4, 14, 10, .55); backdrop-filter: blur(2px); padding: 1rem;

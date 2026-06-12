@@ -64,7 +64,8 @@ public class AutomationTopologyService {
         List<ConnectionDto> connectionDtos = new ArrayList<>();
         for (EquipmentConnection c : connections.findByWarehouseId(warehouseId)) {
             connectionDtos.add(new ConnectionDto(c.getId(), c.getFromPlacedId(), c.getToPlacedId(),
-                    c.getFromPointId(), c.getToPointId(), c.getLabel(), c.getStatus()));
+                    c.getFromPointId(), c.getToPointId(), c.getFromPathIndex(), c.getToPathIndex(),
+                    c.getLabel(), c.getStatus()));
         }
         List<FunctionPointDto> pointDtos = new ArrayList<>();
         for (EquipmentFunctionPoint fp : functionPoints.findByWarehouseId(warehouseId)) {
@@ -157,6 +158,8 @@ public class AutomationTopologyService {
                 conn.setToPlacedId(mapId(placedIdMap, c.toPlacedId()));
                 conn.setFromPointId(mapId(pointIdMap, c.fromPointId()));
                 conn.setToPointId(mapId(pointIdMap, c.toPointId()));
+                conn.setFromPathIndex(c.fromPathIndex());
+                conn.setToPathIndex(c.toPathIndex());
                 conn.setLabel(c.label());
                 conn.setStatus(c.status() == null ? "ACTIVE" : c.status());
                 connections.save(conn);

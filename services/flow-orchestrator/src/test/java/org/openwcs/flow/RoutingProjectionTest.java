@@ -82,7 +82,7 @@ class RoutingProjectionTest {
 
         // Connection: conveyor exit -> sink entry.
         ConnectionDto conn = new ConnectionDto(UUID.randomUUID(), convId, sinkId, null, null,
-                "to-sink", "ACTIVE");
+                null, null, "to-sink", "ACTIVE");
 
         automation.save(wh, new AutomationTopologyDto(
                 List.of(), List.of(conveyor, sink), List.of(conn), List.of(fp)));
@@ -226,6 +226,75 @@ class RoutingProjectionTest {
         // Every node of the closed conveyor carries the loop code.
         assertThat(graph.nodes()).hasSize(4);
         assertThat(graph.nodes()).allSatisfy(n -> assertThat(n.loopCode()).isEqualTo(loopCode));
+    }
+
+    @Test
+    void pointLevelExplicitConnectionStitchesExactlyTheChosenNodes() {
+        UUID wh = UUID.randomUUID();
+        UUID aId = UUID.randomUUID();
+        UUID bId = UUID.randomUUID();
+
+        // Two straight path conveyors with a 2 m gap between A's end (10,0) and B's start (12,0) -
+        // beyond the 1.5 m auto-inference range, so only the explicit link can bridge them.
+        PlacedEquipmentDto a = pathConveyor(aId, "CONVA", 0, 10);
+        PlacedEquipmentDto b = pathConveyor(bId, "CONVB", 12, 22);
+
+        // Explicit node-level connection: A path point 1 (its end) -> B path point 0 (its start).
+        ConnectionDto conn = new ConnectionDto(UUID.randomUUID(), aId, bId, null, null,
+                1, 0, null, "ACTIVE");
+
+        automation.save(wh, new AutomationTopologyDto(List.of(), List.of(a, b), List.of(conn), List.of()));
+        ProjectionResult result = projection.project(wh);
+
+        assertThat(result.warnings()).isEmpty();
+        // 2 nodes per conveyor; 1 section edge each + the explicit link = 3 edges.
+        assertThat(result.nodes()).isEqualTo(4);
+        assertThat(result.edges()).isEqualTo(3);
+
+        Topology graph = topology.get(wh);
+        List<EdgeDto> bridge = graph.edges().stream()
+                .filter(e -> e.fromCode().equals("CONVA#1") && e.toCode().equals("CONVB#0"))
+                .toList();
+        assertThat(bridge).hasSize(1);
+        assertThat(bridge.get(0).cost()).isEqualTo(1);
+    }
+
+    @Test
+    void explicitConnectionOverlappingAutoInferenceProjectsNoDuplicateEdge() {
+        UUID wh = UUID.randomUUID();
+        UUID aId = UUID.randomUUID();
+        UUID bId = UUID.randomUUID();
+
+        // A's end (10,0) and B's start (11,0) are 1 m apart, WITHIN the 1.5 m auto-inference range,
+        // so the touchpoint would be linked even without the explicit connection.
+        PlacedEquipmentDto a = pathConveyor(aId, "CONVA", 0, 10);
+        PlacedEquipmentDto b = pathConveyor(bId, "CONVB", 11, 21);
+        ConnectionDto conn = new ConnectionDto(UUID.randomUUID(), aId, bId, null, null,
+                1, 0, null, "ACTIVE");
+
+        automation.save(wh, new AutomationTopologyDto(List.of(), List.of(a, b), List.of(conn), List.of()));
+        ProjectionResult result = projection.project(wh);
+
+        // 2 section edges + the explicit A#1->B#0 + the auto-inferred REVERSE B#0->A#1 only, the
+        // forward auto edge is deduplicated against the explicit connection.
+        assertThat(result.edges()).isEqualTo(4);
+        Topology graph = topology.get(wh);
+        long forward = graph.edges().stream()
+                .filter(e -> e.fromCode().equals("CONVA#1") && e.toCode().equals("CONVB#0")).count();
+        long reverse = graph.edges().stream()
+                .filter(e -> e.fromCode().equals("CONVB#0") && e.toCode().equals("CONVA#1")).count();
+        assertThat(forward).isEqualTo(1);
+        assertThat(reverse).isEqualTo(1);
+    }
+
+    /** A straight 2-point path conveyor along z=0 from x=x0 to x=x1, one section [0,1]. */
+    private static PlacedEquipmentDto pathConveyor(UUID id, String code, double x0, double x1) {
+        return new PlacedEquipmentDto(id, null, null, code,
+                bd((x0 + x1) / 2), bd(0), bd(0), bd(0), bd(0), bd(Math.abs(x1 - x0)), bd(1), bd(1),
+                List.of(List.of(x0, 0d), List.of(x1, 0d)),
+                false,
+                List.of(List.of(0, 1)),
+                "ACTIVE", "conveyor", null);
     }
 
     private static BigDecimal bd(double v) {
