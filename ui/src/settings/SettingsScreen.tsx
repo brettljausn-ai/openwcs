@@ -11,6 +11,7 @@ import {
   DemoResult,
   DemoStatus,
   EmulatorStatus,
+  StockRules,
   FulfillmentConfig,
   HealthStatus,
   Shipper,
@@ -29,6 +30,8 @@ import {
   getBlockPolicy,
   getDemoStatus,
   getEmulatorStatus,
+  getStockRules,
+  setSingleSkuPerCompartment,
   getFulfillmentConfig,
   getGatewayHealth,
   listAdapters,
@@ -41,12 +44,13 @@ import {
   updateShipper,
 } from './api'
 
-type Tab = 'slotting' | 'cubing' | 'counting' | 'integration' | 'system' | 'demo' | 'emulator'
+type Tab = 'slotting' | 'cubing' | 'counting' | 'stockrules' | 'integration' | 'system' | 'demo' | 'emulator'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'slotting', label: 'Slotting policy' },
   { key: 'cubing', label: 'Cubing' },
   { key: 'counting', label: 'Counting' },
+  { key: 'stockrules', label: 'Stock rules' },
   { key: 'integration', label: 'Integrations' },
   { key: 'system', label: 'System status' },
   { key: 'demo', label: 'Demo mode' },
@@ -120,6 +124,7 @@ export default function SettingsScreen() {
           {tab === 'slotting' && <SlottingPolicy warehouseId={warehouseId} />}
           {tab === 'cubing' && <CubingSettings warehouseId={warehouseId} />}
           {tab === 'counting' && <CountingSettings warehouseId={warehouseId} />}
+          {tab === 'stockrules' && <StockRulesSettings />}
           {tab === 'integration' && <Integrations />}
           {tab === 'system' && <SystemStatus />}
           {tab === 'demo' && <DemoMode warehouseId={warehouseId} />}
@@ -1112,6 +1117,68 @@ function DemoMode({ warehouseId }: { warehouseId: string }) {
           .
         </div>
       )}
+    </section>
+  )
+}
+
+// Stock rules (ADMIN). Global integrity toggles read by the flows that fill handling units.
+function StockRulesSettings() {
+  const [rules, setRules] = useState<StockRules | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function refresh() {
+    getStockRules()
+      .then(setRules)
+      .catch((e) => setError(String(e)))
+  }
+  useEffect(refresh, [])
+
+  async function toggle(next: boolean) {
+    setBusy(true)
+    setError(null)
+    try {
+      setRules(await setSingleSkuPerCompartment(next))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const on = rules?.singleSkuPerCompartment ?? true
+
+  return (
+    <section className={`glass ${styles.section}`}>
+      <div className={styles.sectionHead}>
+        <div>
+          <h2>Stock rules</h2>
+          <p>
+            Integrity rules the system enforces when handling units are filled. Global, not per
+            warehouse; changes apply immediately.
+          </p>
+        </div>
+      </div>
+
+      {error && <div className="alert-danger" style={{ marginBottom: '1rem' }}>{error}</div>}
+
+      <div className={styles.toggleRow} style={{ marginBottom: '1rem' }}>
+        <Toggle checked={on} onChange={(v) => !busy && toggle(v)} />
+        <div>
+          <div>
+            {busy ? 'Working…' : on ? 'One SKU per compartment is ON' : 'One SKU per compartment is OFF'}{' '}
+            <InfoTip
+              text="One handling-unit compartment holds exactly one SKU, so a tote never carries more different SKUs than its type has compartments (a 1-compartment tote holds one SKU). Enforced when totes are filled, e.g. at GTP decanting."
+              example="On (a 1-compartment tote holds a single SKU)"
+            />
+          </div>
+          <span className={styles.fieldHint}>
+            {on
+              ? 'Decanting rejects moves that would put two SKUs into one compartment, or more SKUs into a tote than its type has compartments.'
+              : 'Mixing allowed: compartments may receive multiple SKUs. Switch ON to enforce one SKU per compartment.'}
+          </span>
+        </div>
+      </div>
     </section>
   )
 }

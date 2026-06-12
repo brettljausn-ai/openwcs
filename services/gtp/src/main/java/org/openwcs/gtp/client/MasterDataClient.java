@@ -14,6 +14,15 @@ public interface MasterDataClient {
     Optional<String> storageTypeOfLocation(UUID warehouseId, UUID locationId);
 
     /**
+     * Whether the single-SKU-per-compartment stock rule is ON. Fails safe to {@code true}
+     * (the rule's default) when master-data is unreachable — integrity first.
+     */
+    boolean singleSkuPerCompartmentRule();
+
+    /** The compartment count of a handling-unit type, if resolvable. */
+    Optional<Integer> compartmentsOfHuType(UUID huTypeId);
+
+    /**
      * Map a storage-block type to the device-adapter family that services it (the flow-orchestrator
      * adapter key: {@code ASRS | AUTOSTORE | AMR | CONVEYOR}). Returns {@code null} for non-automated
      * storage ({@code MANUAL_PICK}, {@code RESERVE_RACK}). Shuttle and crane ASRS share one adapter.

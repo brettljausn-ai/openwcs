@@ -42,8 +42,44 @@ public class HttpMasterDataClient implements MasterDataClient {
         }
     }
 
+    @Override
+    public boolean singleSkuPerCompartmentRule() {
+        try {
+            StockRules rules = http.get()
+                    .uri("/api/master-data/stock-rules")
+                    .retrieve()
+                    .body(StockRules.class);
+            return rules == null || rules.singleSkuPerCompartment();
+        } catch (RuntimeException e) {
+            log.debug("could not read stock rules, assuming the default (rule ON): {}", e.toString());
+            return true; // the rule defaults to ON; fail towards integrity
+        }
+    }
+
+    @Override
+    public Optional<Integer> compartmentsOfHuType(UUID huTypeId) {
+        try {
+            HuType huType = http.get()
+                    .uri("/api/master-data/handling-unit-types/{id}", huTypeId)
+                    .retrieve()
+                    .body(HuType.class);
+            return Optional.ofNullable(huType).map(HuType::compartments);
+        } catch (RuntimeException e) {
+            log.debug("could not resolve HU type {}: {}", huTypeId, e.toString());
+            return Optional.empty();
+        }
+    }
+
     /** Subset of a master-data location (only the storage-block link is needed here). */
     private record Location(UUID blockId) {
+    }
+
+    /** Subset of the master-data stock rules. */
+    private record StockRules(boolean singleSkuPerCompartment) {
+    }
+
+    /** Subset of a master-data handling-unit type. */
+    private record HuType(Integer compartments) {
     }
 
     /** Subset of a master-data storage block. */
