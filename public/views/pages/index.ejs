@@ -131,6 +131,11 @@
           <p data-i18n="c9p">Open source. Self-host on your own infrastructure, fork it, and integrate whoever you like. Leaving is never a rip-and-replace.</p>
         </div>
         <div class="card">
+          <div class="tag" data-i18n="c11t">Data access</div>
+          <h3 data-i18n="c11h">Your database, one query away</h3>
+          <p data-i18n="c11p">A built-in admin console browses every schema and table and runs SELECT-only SQL against the live system, guarded by a read-only transaction, timeouts and row caps. Standard WCSs never let you near your own data.</p>
+        </div>
+        <div class="card">
           <div class="tag" data-i18n="c10t">Slotting</div>
           <h3 data-i18n="c10h">Slotting &amp; replenishment</h3>
           <p data-i18n="c10p">Configurable put-away for ASRS/AutoStore/AMR blocks — velocity-to-exit, multi-deep same-SKU lanes, aisle redundancy and fill balancing — plus fixed pick-face min/max with opportunistic replenishment and direct-to-pick.</p>
@@ -209,7 +214,7 @@
             <tr><td class="feat" data-i18n="r3f">Equipment vendors</td><td class="dim" data-i18n="r3d">Tied to the integrator’s preferred hardware</td><td class="us" data-i18n="r3u">Vendor-neutral adapters over a uniform device contract</td></tr>
             <tr><td class="feat" data-i18n="r4f">Conveyor routing logic</td><td class="dim" data-i18n="r4d">Opaque PLC / black-box rules</td><td class="us" data-i18n="r4u">Visual, shortest-path, editable — and learnable from traffic</td></tr>
             <tr><td class="feat" data-i18n="r5f">WMS / ERP integration</td><td class="dim" data-i18n="r5d">Bespoke interface, re-built per integrator</td><td class="us" data-i18n="r5u">One canonical Host API; SAP/Manhattan adapters translate in</td></tr>
-            <tr><td class="feat" data-i18n="r6f">Your operational data</td><td class="dim" data-i18n="r6d">Trapped inside the vendor’s system</td><td class="us" data-i18n="r6u">Event-sourced log + Postgres you host and query</td></tr>
+            <tr><td class="feat" data-i18n="r6f">Your operational data</td><td class="dim" data-i18n="r6d">Trapped inside the vendor’s system</td><td class="us" data-i18n="r6u">Event-sourced log + Postgres you host, with a built-in read-only SQL console to browse and query it live</td></tr>
             <tr><td class="feat" data-i18n="r7f">Switching / exit</td><td class="dim" data-i18n="r7d">Rip-and-replace project</td><td class="us" data-i18n="r7u">No license lock-in — fork, self-host, extend</td></tr>
             <tr><td class="feat" data-i18n="r8f">Cost model</td><td class="dim" data-i18n="r8d">License + support + per-change fees</td><td class="us" data-i18n="r8u">Free core; pay only for hardware, ops and the partners you choose</td></tr>
             <tr><td class="feat" data-i18n="r9f">Slotting &amp; replenishment</td><td class="dim" data-i18n="r9d">Vendor's fixed rules, opaque and hard to tune</td><td class="us" data-i18n="r9u">Configurable put-away scoring + min/max replenishment you can read and change</td></tr>
