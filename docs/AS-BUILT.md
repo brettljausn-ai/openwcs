@@ -386,9 +386,16 @@ list of target node codes (`POST /conveyor/routes`). On a scan (`POST /conveyor/
 {node, barcode}`), the WCS finds the HU's current target, computes the **next hop** toward it by
 shortest path (`RoutingEngine`, Dijkstra — recomputed per scan, so topology changes reroute
 automatically), and replies `{action: ROUTE, exitCode, toNode}`; as each target is reached the
-plan advances, ending in `COMPLETE`. Unknown node / unreachable target → `EXCEPTION`; unknown
-barcode → `NO_ROUTE`. The whole graph is loaded/saved via `GET`/`PUT /conveyor/topology` for the
-admin editor. **Loop capacity**: a node can belong to a named loop with a max HU count; when a
+plan advances, ending in `COMPLETE`. Unknown node → `EXCEPTION`. **Divert defaults** (V14):
+routing is asked fresh at every divert, so it adapts to the physical situation: when an HU has
+**no route plan** (or its plan has **no path** from the scanned node), it follows the node's
+`default_exit_code` (the divert's topology-configured default direction) when present; with no
+default it continues along a **single** out-edge (a plain conveyor segment never strands a tote)
+or `HOLD`s at a multi-exit divert (the tote stops and is re-evaluated on the next scan; a plan
+assigned mid-journey takes over immediately). A planned HU whose path exists is never affected:
+the plan always wins over the default. Unrouted barcode at a dead end → `NO_ROUTE`; a planned HU
+with no path and no fallback → `EXCEPTION`. The whole graph is loaded/saved via
+`GET`/`PUT /conveyor/topology` for the admin editor. **Loop capacity**: a node can belong to a named loop with a max HU count; when a
 scan would route an HU into a loop that is at capacity, the WCS either `HOLD`s it (wait upstream,
 re-evaluated next scan) or diverts it to the loop's `OVERFLOW` target — configurable per loop.
 Occupancy is the count of active routes whose last-scanned node is in that loop. The
@@ -588,7 +595,10 @@ authoring source the conveyor routing graph (§7b) is now generated from.
   a conveyor `path` polyline + directed `sections`, `closed` flag, `category`, and a soft
   `station_id` linking a placed **GTP workstation** to its `gtp_station`), `equipment_function_point`
   (named points on a conveyor — scan/divert/induct/discharge/infeed — at an arc-length `offsetM`,
-  with a `side` and an optional PLC `nodeCode`), and `equipment_connection`. Load/save the whole graph
+  with a `side`, an optional PLC `nodeCode` and, for diverts, an optional **default direction**
+  `default_exit` (STRAIGHT = continue the main line / BRANCH = take the divert's branch / null =
+  an unrouted tote stops at the divert; set via the function-point dialog in the editor)), and
+  `equipment_connection`. Load/save the whole graph
   via `GET`/`PUT /api/flow/automation/topology?warehouseId=` (`AutomationTopologyDtos`).
 - **Editor** (`ui/src/topology/`): a 3D view (`AutomationTopology3D`) and a top-down **2D plan**
   (`PlanEditor2D`) share one model — an edit in either shows in the other. Place equipment from the
@@ -611,7 +621,10 @@ authoring source the conveyor routing graph (§7b) is now generated from.
   turns the placement model into the routable conveyor graph of §7b, **fully replacing** the
   warehouse's nodes/edges/loops. Path waypoints become nodes, directed sections become edges, function
   points alias a layout node (when on-point) or split a section (mid-run) into named PLC node codes,
-  and a closed/cyclic conveyor becomes a capacity loop. **Connections are auto-inferred from
+  and a closed/cyclic conveyor becomes a capacity loop. A divert FP's **default direction** is
+  resolved geometrically (its straight out-edge is the one best aligned with the travel direction
+  at its offset, the branch the least aligned) and stored as the projected node's
+  `default_exit_code`, which per-scan routing falls back to for unrouted totes. **Connections are auto-inferred from
   geometry**: a node of one equipment within ~1.5 m of a node of another is linked (both directions)
   — so an ASRS infeed stub meeting a conveyor, or a divert stub landing on another conveyor, merges
   automatically with no hand-drawn connection. Hand-drawn connections are still honoured if present,

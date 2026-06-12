@@ -53,7 +53,8 @@ public class TopologyService {
         for (ConveyorNode n : nodes.findByWarehouseId(warehouseId)) {
             codeById.put(n.getId(), n.getCode());
             nodeDtos.add(new NodeDto(n.getCode(), n.getName(), n.getHardwareAddress(),
-                    n.getPosX(), n.getPosY(), n.getLoopCode(), n.getControllerCode(), n.getNodeAddress()));
+                    n.getPosX(), n.getPosY(), n.getLoopCode(), n.getControllerCode(), n.getNodeAddress(),
+                    n.getDefaultExitCode()));
         }
         List<EdgeDto> edgeDtos = new ArrayList<>();
         for (ConveyorEdge e : edges.findByWarehouseId(warehouseId)) {
@@ -104,6 +105,7 @@ public class TopologyService {
             node.setPosX(n.posX());
             node.setPosY(n.posY());
             node.setLoopCode(n.loopCode());
+            node.setDefaultExitCode(n.defaultExitCode());
             idByCode.put(n.code(), nodes.save(node).getId());
         }
         if (topology.edges() != null) {

@@ -19,10 +19,12 @@ public final class RoutingDtos {
     /**
      * The WCS routing decision for a scan.
      * <ul>
-     *   <li>ROUTE — take {@code exitCode} toward {@code toNode} (next hop to the current target).</li>
+     *   <li>ROUTE — take {@code exitCode} toward {@code toNode} (next hop to the current target,
+     *       or — when no plan/path steers the HU — the divert default / the only exit).</li>
      *   <li>COMPLETE — the HU has reached its final target; route plan done.</li>
-     *   <li>HOLD — wait (e.g. a loop is at capacity); re-evaluated on the next scan.</li>
-     *   <li>NO_ROUTE — no active route plan for this barcode.</li>
+     *   <li>HOLD — wait (a loop is at capacity, or an unrouted HU sits at a divert without a
+     *       default direction); re-evaluated on the next scan.</li>
+     *   <li>NO_ROUTE — no active route plan for this barcode and nowhere to go from this node.</li>
      *   <li>EXCEPTION — unknown node, unreachable target, etc. (see {@code detail}).</li>
      * </ul>
      */
@@ -48,6 +50,11 @@ public final class RoutingDtos {
         /** A loop the HU would enter is at capacity; wait upstream and re-evaluate next scan. */
         public static RoutingDecision hold(String currentTarget, String detail) {
             return new RoutingDecision("HOLD", null, null, null, currentTarget, detail);
+        }
+
+        /** No plan (or no path) is steering the HU: take a divert default / the only exit instead. */
+        public static RoutingDecision routeByDefault(String exitCode, String toNode, String detail) {
+            return new RoutingDecision("ROUTE", exitCode, toNode, null, null, detail);
         }
 
         /** Loop full: diverted to the loop's overflow target instead of entering. */
@@ -77,8 +84,11 @@ public final class RoutingDtos {
     public record ControllerDto(String code, String name, String ipAddress, Integer port) {
     }
 
+    /** {@code defaultExitCode}: for a divert node, the neighbour an unrouted HU takes by default
+     *  (resolved by the projection from the divert's STRAIGHT/BRANCH choice), or null (stop). */
     public record NodeDto(String code, String name, String hardwareAddress, Double posX, Double posY,
-                          String loopCode, String controllerCode, String nodeAddress) {
+                          String loopCode, String controllerCode, String nodeAddress,
+                          String defaultExitCode) {
     }
 
     public record EdgeDto(String fromCode, String toCode, String exitCode, Integer cost) {

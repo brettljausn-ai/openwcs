@@ -256,6 +256,7 @@ components:
         posX: { type: number, nullable: true, description: Layout X for the schematic editor. }
         posY: { type: number, nullable: true }
         loopCode: { type: string, nullable: true, description: "The loop this node belongs to, if any." }
+        defaultExitCode: { type: string, nullable: true, description: "For a divert node: the neighbour an unrouted HU takes by default (projected from the divert's STRAIGHT/BRANCH choice); null = stop at the divert." }
     LoopDto:
       type: object
       required: [code, maxHus]

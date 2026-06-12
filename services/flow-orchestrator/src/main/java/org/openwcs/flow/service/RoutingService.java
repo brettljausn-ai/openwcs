@@ -102,6 +102,13 @@ public class RoutingService {
                 .findFirstByWarehouseIdAndBarcodeAndStatus(scan.warehouseId(), scan.barcode(), "ACTIVE")
                 .orElse(null);
         if (route == null) {
+            // No plan steering this HU: follow the divert default / the only exit, or stop at a
+            // decision point. Every scan asks fresh, so a plan assigned mid-journey takes over at
+            // the very next scan.
+            RoutingDecision unplanned = decideWithoutPath(scan, here, "no route plan");
+            if (unplanned != null) {
+                return unplanned;
+            }
             // Strays scan all the time; per-scan detail stays DEBUG, anomalies that change state are louder.
             log.debug("scan of barcode {} at node {}: no active route plan, answering NO_ROUTE",
                     scan.barcode(), scan.node());
@@ -136,6 +143,15 @@ public class RoutingService {
         List<ConveyorEdge> warehouseEdges = edges.findByWarehouseId(scan.warehouseId());
         Optional<ConveyorEdge> hopOpt = RoutingEngine.nextHop(warehouseEdges, here.getId(), target.getId());
         if (hopOpt.isEmpty()) {
+            // The plan cannot be satisfied from HERE (physical situation: blocked/one-way layout).
+            // Adapt instead of failing: follow the divert default / the only exit (the plan stays
+            // ACTIVE and is re-evaluated at the next scan), or stop at a decision point.
+            RoutingDecision adapted = decideWithoutPath(scan, here,
+                    "no path to target " + currentTarget);
+            if (adapted != null) {
+                routes.save(route);
+                return adapted;
+            }
             return fail(route, "No path from " + scan.node() + " to target " + currentTarget);
         }
         ConveyorEdge hop = hopOpt.get();
@@ -181,6 +197,60 @@ public class RoutingService {
     }
 
     /**
+     * What a handling unit does at {@code here} when no route plan can steer it (no plan at all, or
+     * the plan has no path from this node). Routing is per-scan and must adapt to the physical
+     * situation, so:
+     * <ul>
+     *   <li>the node carries a divert default (set in the topology screen) → ROUTE to it;</li>
+     *   <li>exactly one out-edge (a plain conveyor segment) → ROUTE along it, a conveyor never
+     *       strands a tote mid-belt;</li>
+     *   <li>several out-edges but no default (a real decision point) → HOLD, the tote stops at the
+     *       divert and is re-evaluated on the next scan (a plan assigned meanwhile takes over);</li>
+     *   <li>no out-edges → null, the caller keeps its existing dead-end answer.</li>
+     * </ul>
+     */
+    private RoutingDecision decideWithoutPath(ScanRequest scan, ConveyorNode here, String reason) {
+        List<ConveyorEdge> out = new ArrayList<>();
+        for (ConveyorEdge e : edges.findByWarehouseId(scan.warehouseId())) {
+            if (here.getId().equals(e.getFromNodeId())) {
+                out.add(e);
+            }
+        }
+        if (out.isEmpty()) {
+            return null;
+        }
+        if (here.getDefaultExitCode() != null) {
+            for (ConveyorEdge e : out) {
+                String toCode = codeOf(scan.warehouseId(), e.getToNodeId());
+                if (here.getDefaultExitCode().equals(toCode)) {
+                    log.info("hu {} at divert {}: {}, following divert default to {} via exit {}",
+                            scan.barcode(), scan.node(), reason, toCode, e.getExitCode());
+                    return RoutingDecision.routeByDefault(e.getExitCode(), toCode,
+                            capitalise(reason) + ": following divert default to " + toCode);
+                }
+            }
+            log.warn("hu {} at divert {}: default exit {} has no matching out-edge (stale projection?)",
+                    scan.barcode(), scan.node(), here.getDefaultExitCode());
+        }
+        if (out.size() == 1) {
+            ConveyorEdge only = out.get(0);
+            String toCode = codeOf(scan.warehouseId(), only.getToNodeId());
+            log.debug("hu {} at node {}: {}, continuing along the only exit to {}",
+                    scan.barcode(), scan.node(), reason, toCode);
+            return RoutingDecision.routeByDefault(only.getExitCode(), toCode,
+                    capitalise(reason) + ": continuing along the only exit to " + toCode);
+        }
+        log.info("hu {} stops at divert {}: {} and no default direction is configured ({} exits)",
+                scan.barcode(), scan.node(), reason, out.size());
+        return RoutingDecision.hold(null,
+                capitalise(reason) + " and no default at divert " + scan.node() + ": tote stops");
+    }
+
+    private static String capitalise(String s) {
+        return s == null || s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
+    /**
      * Append a {@code SCANNED} trace row when the barcode belongs to a live transport (the most
      * recent induction entry for the HU code). Fully isolated: a trace failure must NEVER break the
      * routing answer (mirrors how {@link RoutingProjectionService} isolates its station-node side
@@ -202,7 +272,7 @@ public class RoutingService {
     private static String describe(RoutingDecision d) {
         return switch (d.action()) {
             case "ROUTE" -> "routed to " + d.toNode() + " via " + d.exitCode();
-            case "HOLD" -> "held: loop full";
+            case "HOLD" -> d.detail() == null || d.detail().isBlank() ? "held" : "held: " + d.detail();
             case "COMPLETE" -> "destination reached";
             case "NO_ROUTE" -> "no route";
             default -> "exception: " + d.detail();

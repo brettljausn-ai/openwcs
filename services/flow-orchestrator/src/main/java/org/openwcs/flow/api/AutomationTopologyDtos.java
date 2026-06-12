@@ -43,8 +43,14 @@ public final class AutomationTopologyDtos {
                                 String label, String status) {
     }
 
-    /** A function point on a placed piece of equipment (scan, divert, induct, …) at an offset along it. */
+    /**
+     * A function point on a placed piece of equipment (scan, divert, induct, …) at an offset along it.
+     * For a divert, {@code defaultExit} is the optional default direction a tote takes when it has no
+     * route demanding otherwise: STRAIGHT (continue the main line) or BRANCH (take the divert's
+     * branch); null means no default (an unrouted tote stops at the divert).
+     */
     public record FunctionPointDto(UUID id, UUID placedId, String functionType, String name,
-                                   BigDecimal offsetM, String side, String nodeCode, String status) {
+                                   BigDecimal offsetM, String side, String nodeCode, String defaultExit,
+                                   String status) {
     }
 }

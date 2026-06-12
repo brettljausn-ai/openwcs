@@ -80,6 +80,8 @@ public class RoutingProjectionService {
         final Double posY;
         /** The loop this node belongs to (its code), or null. Set when its conveyor is a loop. */
         String loopCode;
+        /** For a divert node: the neighbour code an unrouted HU takes by default, or null (stop). */
+        String defaultExitCode;
 
         StagedNode(String code, Double posX, Double posY) {
             this.code = code;
@@ -381,6 +383,10 @@ public class RoutingProjectionService {
         if (fps == null || fps.isEmpty()) {
             return;
         }
+        // Divert function points carrying a default direction: resolved to a concrete neighbour node
+        // AFTER all of this equipment's FPs are applied (later FPs may split/alias the very edges the
+        // divert's straight run goes through, so the out-edge picture is only final at the end).
+        List<PendingDefault> pendingDefaults = new ArrayList<>();
         int fpIndex = 0;
         for (FunctionPointDto fp : fps) {
             int index = fpIndex++;
@@ -392,14 +398,16 @@ public class RoutingProjectionService {
             // If the FP is essentially ON an existing path point of this equipment, alias it (v1).
             Integer onIdx = pathPointAt(e, path, codeByEquipPoint, pos);
             if (onIdx != null) {
-                if (fp.nodeCode() == null || fp.nodeCode().isBlank()) {
-                    continue;
-                }
                 String oldCode = codeByEquipPoint.get(key(e.id(), onIdx));
                 if (oldCode == null) {
                     continue;
                 }
-                aliasNode(oldCode, fp.nodeCode().trim(), stagedByCode, codeByEquipPoint, equipEdges, warnings);
+                String code = oldCode;
+                if (fp.nodeCode() != null && !fp.nodeCode().isBlank()) {
+                    code = aliasNode(oldCode, fp.nodeCode().trim(), stagedByCode, codeByEquipPoint,
+                            equipEdges, warnings);
+                }
+                stageDivertDefault(fp, code, offset, pendingDefaults, warnings);
                 continue;
             }
             // Mid-section: find the edge whose segment contains the FP position and split it.
@@ -419,7 +427,122 @@ public class RoutingProjectionService {
             stagedByCode.put(fpCode, new StagedNode(fpCode, pos[0], pos[1]));
             insertedFpCodes.add(fpCode);
             splitEdge(host, fpCode, pos, equipEdges);
+            stageDivertDefault(fp, fpCode, offset, pendingDefaults, warnings);
         }
+        for (PendingDefault pending : pendingDefaults) {
+            resolveDivertDefault(pending.fp(), pending.nodeCode(), pending.offset(),
+                    path, equipEdges, stagedByCode, warnings);
+        }
+    }
+
+    /** A divert FP whose default direction awaits resolution against the equipment's final edges. */
+    private record PendingDefault(FunctionPointDto fp, String nodeCode, double offset) {
+    }
+
+    /** Queue a divert FP's STRAIGHT/BRANCH default for resolution once the equipment's edges are
+     *  final. Non-divert FPs and FPs without a (valid) default are ignored. */
+    private static void stageDivertDefault(FunctionPointDto fp, String nodeCode, double offset,
+                                           List<PendingDefault> pendingDefaults, List<String> warnings) {
+        if (fp.defaultExit() == null || fp.defaultExit().isBlank()) {
+            return;
+        }
+        String type = fp.functionType() == null ? "" : fp.functionType().toUpperCase();
+        if (!type.contains("DIVERT")) {
+            return;
+        }
+        String choice = fp.defaultExit().trim().toUpperCase();
+        if (!"STRAIGHT".equals(choice) && !"BRANCH".equals(choice)) {
+            warnings.add("Divert " + fpLabel(fp) + " has unknown default direction '" + fp.defaultExit()
+                    + "' (expected STRAIGHT or BRANCH); no default projected.");
+            return;
+        }
+        pendingDefaults.add(new PendingDefault(fp, nodeCode, offset));
+    }
+
+    /**
+     * Resolve a divert's STRAIGHT/BRANCH default direction to the concrete neighbour node an unrouted
+     * tote should take, and store it on the divert's staged node. Among the divert node's out-edges
+     * within its own equipment, "straight" is the one best aligned with the travel direction along
+     * the conveyor path at the divert's offset, "branch" the one least aligned (the perpendicular
+     * divert stub the editor drops). A divert with a single out-edge only has a straight run.
+     */
+    private static void resolveDivertDefault(FunctionPointDto fp, String nodeCode, double offset,
+                                             List<List<Double>> path, List<StagedEdge> equipEdges,
+                                             Map<String, StagedNode> stagedByCode, List<String> warnings) {
+        String choice = fp.defaultExit().trim().toUpperCase();
+        StagedNode node = stagedByCode.get(nodeCode);
+        if (node == null) {
+            warnings.add("Divert " + fpLabel(fp) + ": node '" + nodeCode
+                    + "' was renamed/removed before its default direction could be resolved; skipped.");
+            return;
+        }
+        List<StagedEdge> out = new ArrayList<>();
+        for (StagedEdge se : equipEdges) {
+            if (se.fromCode.equals(nodeCode) && se.hasGeometry) {
+                out.add(se);
+            }
+        }
+        if (out.isEmpty()) {
+            warnings.add("Divert " + fpLabel(fp) + " (node " + nodeCode
+                    + ") has no out-edges; default direction " + choice + " not projected.");
+            return;
+        }
+        StagedEdge straight = out.get(0);
+        StagedEdge branch = null;
+        if (out.size() > 1) {
+            double[] dir = dirAlong(path, offset);
+            double bestAlign = -Double.MAX_VALUE;
+            double worstAlign = Double.MAX_VALUE;
+            for (StagedEdge se : out) {
+                double len = Math.hypot(se.toX - se.fromX, se.toZ - se.fromZ);
+                if (len <= 0) {
+                    continue;
+                }
+                double align = dir == null ? 0
+                        : (dir[0] * (se.toX - se.fromX) + dir[1] * (se.toZ - se.fromZ)) / len;
+                if (align > bestAlign) {
+                    bestAlign = align;
+                    straight = se;
+                }
+                if (align < worstAlign) {
+                    worstAlign = align;
+                    branch = se;
+                }
+            }
+            if (branch == straight) {
+                branch = null;
+            }
+        }
+        if ("BRANCH".equals(choice) && branch == null) {
+            warnings.add("Divert " + fpLabel(fp) + " (node " + nodeCode
+                    + ") has default direction BRANCH but no branch edge; no default projected.");
+            return;
+        }
+        node.defaultExitCode = "BRANCH".equals(choice) ? branch.toCode : straight.toCode;
+    }
+
+    /** The unit travel direction of the path segment containing arc-length {@code offsetM} (at an
+     *  exact waypoint this is the INCOMING segment, the tote's direction as it arrives), or null. */
+    private static double[] dirAlong(List<List<Double>> path, double offsetM) {
+        if (path == null || path.size() < 2) {
+            return null;
+        }
+        double remaining = Math.max(0, offsetM);
+        double[] dir = null;
+        for (int i = 0; i + 1 < path.size(); i++) {
+            List<Double> a = path.get(i);
+            List<Double> b = path.get(i + 1);
+            double seg = distance(a, b);
+            if (seg <= 0) {
+                continue;
+            }
+            dir = new double[] {(b.get(0) - a.get(0)) / seg, (b.get(1) - a.get(1)) / seg};
+            if (remaining <= seg) {
+                return dir;
+            }
+            remaining -= seg;
+        }
+        return dir;
     }
 
     // ---- persistence (full replace, mirroring TopologyService.replace) -------------------------
@@ -450,6 +573,7 @@ public class RoutingProjectionService {
             node.setPosX(sn.posX);
             node.setPosY(sn.posY);
             node.setLoopCode(sn.loopCode);
+            node.setDefaultExitCode(sn.defaultExitCode);
             idByCode.put(sn.code, nodes.save(node).getId());
         }
 
@@ -485,20 +609,21 @@ public class RoutingProjectionService {
     }
 
     /** Alias (rename) the layout node a function point sits on to the FP's nodeCode (v1 behaviour),
-     *  fixing up the index map and any of this equipment's edges referencing the old code. */
-    private void aliasNode(String oldCode, String desired, Map<String, StagedNode> stagedByCode,
-                           Map<String, String> codeByEquipPoint, List<StagedEdge> equipEdges,
-                           List<String> warnings) {
+     *  fixing up the index map and any of this equipment's edges referencing the old code.
+     *  Returns the node's final code. */
+    private String aliasNode(String oldCode, String desired, Map<String, StagedNode> stagedByCode,
+                             Map<String, String> codeByEquipPoint, List<StagedEdge> equipEdges,
+                             List<String> warnings) {
         String newCode = oldCode.equals(desired) ? desired : uniqueCode(desired, stagedByCode);
         if (!newCode.equals(desired)) {
             warnings.add("Function-point nodeCode '" + desired + "' collided; aliased as '" + newCode + "'.");
         }
         if (newCode.equals(oldCode)) {
-            return;
+            return oldCode;
         }
         StagedNode node = stagedByCode.remove(oldCode);
         if (node == null) {
-            return;
+            return oldCode;
         }
         node.code = newCode;
         stagedByCode.put(newCode, node);
@@ -518,6 +643,7 @@ public class RoutingProjectionService {
                 se.exitCode = newCode;
             }
         }
+        return newCode;
     }
 
     /** Split a host edge {@code i -> j} at an inserted FP node, replacing it in place with
