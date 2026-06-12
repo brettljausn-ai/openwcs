@@ -22,7 +22,9 @@ import org.openwcs.flow.repo.ConveyorEdgeRepository;
 import org.openwcs.flow.repo.ConveyorLoopRepository;
 import org.openwcs.flow.repo.ConveyorNodeRepository;
 import org.openwcs.flow.repo.HuRouteRepository;
-import org.openwcs.flow.repo.InductionQueueEntryRepository;
+import org.openwcs.flow.service.RoutingGraphCache.CachedEdge;
+import org.openwcs.flow.service.RoutingGraphCache.CachedNode;
+import org.openwcs.flow.service.RoutingGraphCache.GraphSnapshot;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -33,7 +35,19 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * Conveyor routing: assign a handling unit a route plan (ordered target nodes) and, on each
  * scan, decide where it goes next — advancing through the plan and computing the next hop toward
- * the current target via {@link RoutingEngine}. (Loop capacity is layered on in a follow-up.)
+ * the current target.
+ *
+ * <p><b>Hard-real-time fast path</b> (300 scans/s, ~10 ms answer budget): the graph (nodes,
+ * adjacency, loop config) comes from the per-warehouse in-memory {@link RoutingGraphCache}
+ * snapshot with precomputed next-hop tables — no per-scan edge fetch, no per-scan Dijkstra. The
+ * synchronous work per scan is the route-plan lookup (one indexed DB read), the route-position
+ * save when a plan exists (one UPDATE), and — only when a hop would ENTER a loop — the loop lock
+ * + occupancy count. Counters and trace rows ride the async {@link ScanSideEffects} queue.
+ *
+ * <p>The route-plan lookup deliberately stays a DB read: flow scales as stateless replicas, and a
+ * per-instance route cache would answer from a plan another replica already advanced or replaced.
+ * One point read on the {@code (warehouse_id, barcode, status)} index is the price of
+ * replica-consistent answers.
  */
 @Service
 public class RoutingService {
@@ -47,24 +61,22 @@ public class RoutingService {
     private final ConveyorEdgeRepository edges;
     private final ConveyorLoopRepository loops;
     private final HuRouteRepository routes;
-    private final InductionQueueEntryRepository inductionEntries;
-    private final HuTraceService trace;
-    private final ReportingService reporting;
+    private final RoutingGraphCache graphCache;
+    private final ScanSideEffects sideEffects;
     private final DecisionLatencyTracker latency;
     private final TransactionTemplate decideTx;
 
     public RoutingService(ConveyorNodeRepository nodes, ConveyorEdgeRepository edges,
                           ConveyorLoopRepository loops, HuRouteRepository routes,
-                          InductionQueueEntryRepository inductionEntries, HuTraceService trace,
-                          ReportingService reporting, DecisionLatencyTracker latency,
+                          RoutingGraphCache graphCache, ScanSideEffects sideEffects,
+                          DecisionLatencyTracker latency,
                           PlatformTransactionManager transactionManager) {
         this.nodes = nodes;
         this.edges = edges;
         this.loops = loops;
         this.routes = routes;
-        this.inductionEntries = inductionEntries;
-        this.trace = trace;
-        this.reporting = reporting;
+        this.graphCache = graphCache;
+        this.sideEffects = sideEffects;
         this.latency = latency;
         this.decideTx = new TransactionTemplate(transactionManager);
     }
@@ -95,7 +107,8 @@ public class RoutingService {
      * Decide where a scanned handling unit goes next. ADR-0008 §3: every scan that belongs to a
      * live transport (an induction entry exists for the barcode) is appended to the HU transport
      * trace as a {@code SCANNED} row carrying the answer — the trace becomes a true, live
-     * material-flow timeline. Unknown barcodes (no entry) are answered but never traced.
+     * material-flow timeline. Unknown barcodes (no entry) are answered but never traced. Trace
+     * rows and reporting counters are persisted ASYNCHRONOUSLY by {@link ScanSideEffects}.
      *
      * <p>Hard-real-time path: conveyor adapters expect the answer within ~10 ms per scan. The whole
      * decision is timed end to end with {@link System#nanoTime()} (the routing transaction runs via
@@ -108,9 +121,9 @@ public class RoutingService {
         ScanFlags flags = new ScanFlags();
         RoutingDecision decision = decideTx.execute(status -> evaluate(scan, flags));
         long afterRouting = System.nanoTime();
-        recordScan(scan, decision);
-        long afterTrace = System.nanoTime();
-        count(scan, flags, decision);
+        boolean noRead = isReadError(scan.barcode());
+        sideEffects.enqueue(scan.warehouseId(), scan.node(), noRead ? null : scan.barcode(), noRead,
+                flags.unknownBarcode, decision);
         long end = System.nanoTime();
 
         long total = end - start;
@@ -118,9 +131,9 @@ public class RoutingService {
         if (total > DECISION_BUDGET_NANOS) {
             log.warn("slow routing decision for barcode {} at node {}: {} took {} ms (budget 10 ms; "
                             + "adapters may fall back to the divert default) — breakdown: routing+commit "
-                            + "{} ms, scan trace {} ms, reporting counters {} ms",
+                            + "{} ms, side-effect enqueue {} ms",
                     scan.barcode(), scan.node(), decision.action(), ms(total),
-                    ms(afterRouting - start), ms(afterTrace - afterRouting), ms(end - afterTrace));
+                    ms(afterRouting - start), ms(end - afterRouting));
         }
         return decision;
     }
@@ -130,25 +143,6 @@ public class RoutingService {
         return Math.round(nanos / 10_000.0) / 100.0;
     }
 
-    /**
-     * Reporting counters: every scan bumps the node's daily scan-quality row (with its read-error
-     * / unknown-plan flags), and every ROUTE answer (planned hop or divert default) bumps the
-     * edge's daily traffic row. {@link ReportingService#countDecision} runs them as atomic upserts
-     * in its own transaction, so this catch fully isolates the scan path: a counter failure is
-     * WARNed (today's reporting rows undercount) and the scan is still answered.
-     */
-    private void count(ScanRequest scan, ScanFlags flags, RoutingDecision decision) {
-        try {
-            String routedTo = "ROUTE".equals(decision.action()) ? decision.toNode() : null;
-            reporting.countDecision(scan.warehouseId(), scan.node(), isReadError(scan.barcode()),
-                    flags.unknownBarcode, routedTo);
-        } catch (Throwable t) {
-            log.warn("reporting counters failed for the scan at node {} (ignored, the scan is still "
-                    + "answered; today's scan_stat/edge_traffic rows undercount): {}",
-                    scan.node(), t.toString());
-        }
-    }
-
     /** Per-scan facts {@code evaluate} learns that the decision alone doesn't carry (counters). */
     private static final class ScanFlags {
         /** The barcode read fine but no active route plan exists for it. */
@@ -156,7 +150,8 @@ public class RoutingService {
     }
 
     private RoutingDecision evaluate(ScanRequest scan, ScanFlags flags) {
-        ConveyorNode here = nodes.findByWarehouseIdAndCode(scan.warehouseId(), scan.node()).orElse(null);
+        GraphSnapshot graph = graphCache.get(scan.warehouseId());
+        CachedNode here = graph.node(scan.node());
         if (here == null) {
             log.warn("scan of barcode {} at unknown node {}: answering EXCEPTION (node not in the routing graph)",
                     scan.barcode(), scan.node());
@@ -167,7 +162,7 @@ public class RoutingService {
             // should go. Same answer as an unrouted HU: divert default, the only exit, or stop.
             log.info("read error at node {} (barcode '{}'): following the divert default if any",
                     scan.node(), scan.barcode() == null ? "" : scan.barcode());
-            RoutingDecision noRead = decideWithoutPath(scan, here, "barcode read error");
+            RoutingDecision noRead = decideWithoutPath(graph, scan, here, "barcode read error");
             if (noRead != null) {
                 return noRead;
             }
@@ -175,6 +170,9 @@ public class RoutingService {
                     scan.node());
             return RoutingDecision.noRoute();
         }
+        // Deliberately a DB read, NOT cached: route plans are per-tote dynamic state shared across
+        // the horizontally-scaled replicas (any replica may assign/advance a plan); one point read
+        // on the (warehouse_id, barcode, status) index keeps every replica's answer consistent.
         HuRoute route = routes
                 .findFirstByWarehouseIdAndBarcodeAndStatus(scan.warehouseId(), scan.barcode(), "ACTIVE")
                 .orElse(null);
@@ -183,7 +181,7 @@ public class RoutingService {
             // default / the only exit, or stop at a decision point. Every scan asks fresh, so a
             // plan assigned mid-journey takes over at the very next scan.
             flags.unknownBarcode = true;
-            RoutingDecision unplanned = decideWithoutPath(scan, here, "no route plan");
+            RoutingDecision unplanned = decideWithoutPath(graph, scan, here, "no route plan");
             if (unplanned != null) {
                 return unplanned;
             }
@@ -193,7 +191,7 @@ public class RoutingService {
             return RoutingDecision.noRoute();
         }
         // The HU is at `here` now; record its loop for occupancy counting.
-        route.setCurrentLoop(here.getLoopCode());
+        route.setCurrentLoop(here.loopCode());
         List<String> targets = route.getTargets();
 
         String reached = null;
@@ -214,17 +212,16 @@ public class RoutingService {
         }
 
         String currentTarget = targets.get(route.getCurrentIndex());
-        ConveyorNode target = nodes.findByWarehouseIdAndCode(scan.warehouseId(), currentTarget).orElse(null);
+        CachedNode target = graph.node(currentTarget);
         if (target == null) {
             return fail(route, "Unknown target node in route plan: " + currentTarget);
         }
-        List<ConveyorEdge> warehouseEdges = edges.findByWarehouseId(scan.warehouseId());
-        Optional<ConveyorEdge> hopOpt = RoutingEngine.nextHop(warehouseEdges, here.getId(), target.getId());
-        if (hopOpt.isEmpty()) {
+        CachedEdge hop = graph.nextHop(here.id(), target.id());
+        if (hop == null) {
             // The plan cannot be satisfied from HERE (physical situation: blocked/one-way layout).
             // Adapt instead of failing: follow the divert default / the only exit (the plan stays
             // ACTIVE and is re-evaluated at the next scan), or stop at a decision point.
-            RoutingDecision adapted = decideWithoutPath(scan, here,
+            RoutingDecision adapted = decideWithoutPath(graph, scan, here,
                     "no path to target " + currentTarget);
             if (adapted != null) {
                 routes.save(route);
@@ -232,13 +229,15 @@ public class RoutingService {
             }
             return fail(route, "No path from " + scan.node() + " to target " + currentTarget);
         }
-        ConveyorEdge hop = hopOpt.get();
-        ConveyorNode toNode = nodes.findById(hop.getToNodeId()).orElse(null);
-        String toLoop = toNode == null ? null : toNode.getLoopCode();
+        String toLoop = hop.toLoopCode();
 
         // Loop capacity: if this hop would enter a loop the HU isn't already in, and that loop is
-        // at its limit, HOLD upstream or divert to the loop's overflow target.
-        if (toLoop != null && !toLoop.equals(here.getLoopCode())) {
+        // at its limit, HOLD upstream or divert to the loop's overflow target. The loop's EXISTENCE
+        // comes from the snapshot (no DB touch on a non-loop hop, the overwhelmingly common case);
+        // the lock + occupancy COUNT must stay in the DB — occupancy is dynamic state shared across
+        // replicas, and the row lock is what serialises concurrent entries (cross-replica) so
+        // maxHus can't be exceeded by a check-then-act race.
+        if (toLoop != null && !toLoop.equals(here.loopCode()) && graph.loop(toLoop) != null) {
             // Take a write lock on the loop row so the occupancy count below and the decision to
             // enter are atomic — concurrent scans entering the same loop (across replicas) serialize
             // here, so capacity can't be exceeded by a check-then-act race.
@@ -248,7 +247,7 @@ public class RoutingService {
                             >= loop.getMaxHus()) {
                 routes.save(route);
                 if ("OVERFLOW".equals(loop.getWhenFull()) && loop.getOverflowTargetCode() != null) {
-                    RoutingDecision overflow = overflowToward(scan.warehouseId(), warehouseEdges, here,
+                    RoutingDecision overflow = overflowToward(graph, here,
                             loop.getOverflowTargetCode(), currentTarget);
                     if (overflow != null) {
                         log.warn("loop {} at capacity ({} HUs): diverting hu {} at node {} to overflow {} "
@@ -266,12 +265,17 @@ public class RoutingService {
             }
         }
 
+        // The route-position save stays SYNCHRONOUS on purpose (one UPDATE by primary key in the
+        // already-open decision transaction). Making it async would break correctness, not just
+        // freshness: (a) loop capacity counts ACTIVE routes by current_loop under the loop row
+        // lock above — a lagging position write would let a tote slip into a full loop before its
+        // occupancy is visible; (b) currentIndex/status progression IS the next scan's input for
+        // multi-target plans (and the COMPLETE transition), on whichever replica answers it.
         routes.save(route);
-        String toCode = toNode == null ? null : toNode.getCode();
         log.info("next hop for hu {} at node {}: edge to {} via exit {} (shortest path to target {}, "
-                + "edge cost {})", scan.barcode(), scan.node(), toCode, hop.getExitCode(), currentTarget,
-                hop.getCost());
-        return RoutingDecision.route(hop.getExitCode(), toCode, currentTarget, reached);
+                + "edge cost {})", scan.barcode(), scan.node(), hop.toCode(), hop.exitCode(), currentTarget,
+                hop.cost());
+        return RoutingDecision.route(hop.exitCode(), hop.toCode(), currentTarget, reached);
     }
 
     /**
@@ -287,36 +291,30 @@ public class RoutingService {
      *   <li>no out-edges → null, the caller keeps its existing dead-end answer.</li>
      * </ul>
      */
-    private RoutingDecision decideWithoutPath(ScanRequest scan, ConveyorNode here, String reason) {
-        List<ConveyorEdge> out = new ArrayList<>();
-        for (ConveyorEdge e : edges.findByWarehouseId(scan.warehouseId())) {
-            if (here.getId().equals(e.getFromNodeId())) {
-                out.add(e);
-            }
-        }
+    private RoutingDecision decideWithoutPath(GraphSnapshot graph, ScanRequest scan, CachedNode here,
+                                              String reason) {
+        List<CachedEdge> out = graph.outEdges(here.id());
         if (out.isEmpty()) {
             return null;
         }
-        if (here.getDefaultExitCode() != null) {
-            for (ConveyorEdge e : out) {
-                String toCode = codeOf(scan.warehouseId(), e.getToNodeId());
-                if (here.getDefaultExitCode().equals(toCode)) {
+        if (here.defaultExitCode() != null) {
+            for (CachedEdge e : out) {
+                if (here.defaultExitCode().equals(e.toCode())) {
                     log.info("hu {} at divert {}: {}, following divert default to {} via exit {}",
-                            scan.barcode(), scan.node(), reason, toCode, e.getExitCode());
-                    return RoutingDecision.routeByDefault(e.getExitCode(), toCode,
-                            capitalise(reason) + ": following divert default to " + toCode);
+                            scan.barcode(), scan.node(), reason, e.toCode(), e.exitCode());
+                    return RoutingDecision.routeByDefault(e.exitCode(), e.toCode(),
+                            capitalise(reason) + ": following divert default to " + e.toCode());
                 }
             }
             log.warn("hu {} at divert {}: default exit {} has no matching out-edge (stale projection?)",
-                    scan.barcode(), scan.node(), here.getDefaultExitCode());
+                    scan.barcode(), scan.node(), here.defaultExitCode());
         }
         if (out.size() == 1) {
-            ConveyorEdge only = out.get(0);
-            String toCode = codeOf(scan.warehouseId(), only.getToNodeId());
+            CachedEdge only = out.get(0);
             log.debug("hu {} at node {}: {}, continuing along the only exit to {}",
-                    scan.barcode(), scan.node(), reason, toCode);
-            return RoutingDecision.routeByDefault(only.getExitCode(), toCode,
-                    capitalise(reason) + ": continuing along the only exit to " + toCode);
+                    scan.barcode(), scan.node(), reason, only.toCode());
+            return RoutingDecision.routeByDefault(only.exitCode(), only.toCode(),
+                    capitalise(reason) + ": continuing along the only exit to " + only.toCode());
         }
         log.info("hu {} stops at divert {}: {} and no default direction is configured ({} exits)",
                 scan.barcode(), scan.node(), reason, out.size());
@@ -328,55 +326,22 @@ public class RoutingService {
         return s == null || s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
-    /**
-     * Append a {@code SCANNED} trace row when the barcode belongs to a live transport (the most
-     * recent induction entry for the HU code). Fully isolated: a trace failure must NEVER break the
-     * routing answer (mirrors how {@link RoutingProjectionService} isolates its station-node side
-     * effect), and an unknown barcode (no entry) writes nothing — strays scan all the time.
-     */
     /** Blank or "NOREAD" means the scanner failed to read a barcode. */
     private static boolean isReadError(String barcode) {
         return barcode == null || barcode.isBlank() || "NOREAD".equalsIgnoreCase(barcode.trim());
     }
 
-    private void recordScan(ScanRequest scan, RoutingDecision decision) {
-        if (isReadError(scan.barcode())) {
-            return; // nothing to trace: no HU identity
-        }
-        try {
-            inductionEntries
-                    .findFirstByWarehouseIdAndHuCodeOrderByRequestedAtDesc(scan.warehouseId(), scan.barcode())
-                    .ifPresent(entry -> trace.record(scan.warehouseId(), entry.getHuId(), entry.getHuCode(),
-                            scan.node(), "SCANNED", describe(decision), null, decision.toNode(),
-                            entry.getWorkplaceId(), null, entry.getId()));
-        } catch (Throwable t) {
-            log.warn("scan trace failed (ignored) for {} at {}: {}", scan.barcode(), scan.node(), t.toString());
-        }
-    }
-
-    /** A short human string of the routing answer for the trace's {@code decision} column. */
-    private static String describe(RoutingDecision d) {
-        return switch (d.action()) {
-            case "ROUTE" -> "routed to " + d.toNode() + " via " + d.exitCode();
-            case "HOLD" -> d.detail() == null || d.detail().isBlank() ? "held" : "held: " + d.detail();
-            case "COMPLETE" -> "destination reached";
-            case "NO_ROUTE" -> "no route";
-            default -> "exception: " + d.detail();
-        };
-    }
-
-    private RoutingDecision overflowToward(UUID warehouseId, List<ConveyorEdge> warehouseEdges,
-                                           ConveyorNode here, String overflowCode, String currentTarget) {
-        ConveyorNode overflow = nodes.findByWarehouseIdAndCode(warehouseId, overflowCode).orElse(null);
+    private RoutingDecision overflowToward(GraphSnapshot graph, CachedNode here, String overflowCode,
+                                           String currentTarget) {
+        CachedNode overflow = graph.node(overflowCode);
         if (overflow == null) {
             return null;
         }
-        Optional<ConveyorEdge> hop = RoutingEngine.nextHop(warehouseEdges, here.getId(), overflow.getId());
-        if (hop.isEmpty()) {
+        CachedEdge hop = graph.nextHop(here.id(), overflow.id());
+        if (hop == null) {
             return null;
         }
-        String toCode = codeOf(warehouseId, hop.get().getToNodeId());
-        return RoutingDecision.overflow(hop.get().getExitCode(), toCode, currentTarget,
+        return RoutingDecision.overflow(hop.exitCode(), hop.toCode(), currentTarget,
                 "Loop full → diverting to overflow " + overflowCode);
     }
 
@@ -387,10 +352,6 @@ public class RoutingService {
         route.setDetail(detail);
         routes.save(route);
         return RoutingDecision.exception(detail);
-    }
-
-    private String codeOf(UUID warehouseId, UUID nodeId) {
-        return nodes.findById(nodeId).map(ConveyorNode::getCode).orElse(null);
     }
 
     private static RouteView view(HuRoute r) {

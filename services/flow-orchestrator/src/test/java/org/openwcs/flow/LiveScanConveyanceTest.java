@@ -33,6 +33,7 @@ import org.openwcs.flow.service.DeviceTaskService;
 import org.openwcs.flow.service.HuTraceService;
 import org.openwcs.flow.service.InductionQueueService;
 import org.openwcs.flow.service.RoutingService;
+import org.openwcs.flow.service.ScanSideEffects;
 import org.openwcs.flow.service.TopologyService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -102,6 +103,14 @@ class LiveScanConveyanceTest {
 
     @Autowired
     HuTransportTraceRepository traceRows;
+
+    @Autowired
+    ScanSideEffects sideEffects;
+
+    /** SCANNED trace rows persist asynchronously now; drain the queue before asserting on them. */
+    private void drainSideEffects() throws InterruptedException {
+        sideEffects.awaitIdle(java.time.Duration.ofSeconds(10));
+    }
 
     private void asyncAdapter() {
         when(deviceClient.execute(any())).thenReturn(
@@ -222,7 +231,7 @@ class LiveScanConveyanceTest {
     }
 
     @Test
-    void decideWritesScannedTraceForLiveTransportAndNoneForStrays() {
+    void decideWritesScannedTraceForLiveTransportAndNoneForStrays() throws InterruptedException {
         asyncAdapter();
         cap(5, 5);
         UUID warehouse = UUID.randomUUID();
@@ -237,6 +246,7 @@ class LiveScanConveyanceTest {
         RoutingDecision d = routing.decide(new ScanRequest(warehouse, "ASRS_OUT", "TOTE-4"));
         assertThat(d.action()).isEqualTo("ROUTE");
         assertThat(d.toNode()).isEqualTo("MID");
+        drainSideEffects();
 
         List<HuTraceView> timeline = traces.timeline(huId, warehouse);
         HuTraceView scanned = timeline.stream().filter(t -> "SCANNED".equals(t.event()))
@@ -248,6 +258,7 @@ class LiveScanConveyanceTest {
         // Reaching the destination traces the COMPLETE answer too.
         routing.decide(new ScanRequest(warehouse, "MID", "TOTE-4"));
         routing.decide(new ScanRequest(warehouse, "STATION_IN", "TOTE-4"));
+        drainSideEffects();
         assertThat(traces.timeline(huId, warehouse).stream()
                 .filter(t -> "SCANNED".equals(t.event()))
                 .map(HuTraceView::decision)).contains("destination reached");
@@ -258,6 +269,7 @@ class LiveScanConveyanceTest {
         RoutingDecision stray = routing.decide(new ScanRequest(warehouse, "ASRS_OUT", "GHOST"));
         assertThat(stray.action()).isEqualTo("ROUTE");
         assertThat(stray.toNode()).isEqualTo("MID");
+        drainSideEffects(); // deterministic: the stray's side effects HAVE run, and wrote no trace
         assertThat(traceRows.findByWarehouseId(warehouse)).hasSize((int) before);
     }
 

@@ -22,6 +22,7 @@ import org.openwcs.flow.repo.HuTransportTraceRepository;
 import org.openwcs.flow.service.DecisionLatencyTracker;
 import org.openwcs.flow.service.ReportingService;
 import org.openwcs.flow.service.RoutingService;
+import org.openwcs.flow.service.ScanSideEffects;
 import org.openwcs.flow.service.TopologyService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -65,6 +66,19 @@ class ReportingTest {
     DecisionLatencyTracker decisionLatency;
 
     @Autowired
+    ScanSideEffects sideEffects;
+
+    /** Counters persist asynchronously now; wait for the queue to drain before asserting. */
+    private void drainSideEffects() {
+        try {
+            sideEffects.awaitIdle(java.time.Duration.ofSeconds(10));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+    }
+
+    @Autowired
     HuTransportTraceRepository traces;
 
     @Autowired
@@ -102,6 +116,7 @@ class ReportingTest {
         routing.decide(new ScanRequest(wh, "DIVERT", "NOREAD")); // read error
         routing.decide(new ScanRequest(wh, "DIVERT", ""));       // read error (blank)
         routing.decide(new ScanRequest(wh, "DIVERT", "GHOST"));  // unknown barcode (no plan)
+        drainSideEffects();
 
         List<ScanQualityRow> rows = reporting.scanQuality(wh, 7);
         assertThat(rows).hasSize(2); // one row per node and day: same-day upserts accumulate
@@ -122,6 +137,7 @@ class ReportingTest {
         UUID wh = UUID.randomUUID();
         divertTopology(wh);
         routing.decide(new ScanRequest(wh, "INDUCT", "STRAY")); // today's row (INDUCT has one exit)
+        drainSideEffects();
 
         jdbc.update("INSERT INTO flow.scan_stat (warehouse_id, node_code, day, scans, no_reads, unknowns)"
                 + " VALUES (?, 'OLD-NODE', CURRENT_DATE - 30, 9, 1, 1)", wh);
@@ -145,6 +161,7 @@ class ReportingTest {
         routing.decide(new ScanRequest(wh, "PACK", "HU1"));      // COMPLETE: no hop counted
         routing.decide(new ScanRequest(wh, "DIVERT", "GHOST"));  // ROUTE DIVERT -> SHIP (default)
         routing.decide(new ScanRequest(wh, "DIVERT", "NOREAD")); // ROUTE DIVERT -> SHIP (default)
+        drainSideEffects();
 
         List<TrafficRow> rows = reporting.traffic(wh, 7);
         assertThat(rows).hasSize(3); // same-day upserts accumulate: one row per edge and day

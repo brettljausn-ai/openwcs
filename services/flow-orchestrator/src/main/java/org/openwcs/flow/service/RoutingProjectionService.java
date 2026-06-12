@@ -55,17 +55,20 @@ public class RoutingProjectionService {
     private final ConveyorEdgeRepository edges;
     private final ConveyorLoopRepository loops;
     private final ConveyorControllerRepository controllers;
+    private final RoutingGraphCache graphCache;
     private final org.openwcs.flow.client.GtpClient gtp;
 
     public RoutingProjectionService(AutomationTopologyService automation, ConveyorNodeRepository nodes,
                                     ConveyorEdgeRepository edges, ConveyorLoopRepository loops,
                                     ConveyorControllerRepository controllers,
+                                    RoutingGraphCache graphCache,
                                     org.openwcs.flow.client.GtpClient gtp) {
         this.automation = automation;
         this.nodes = nodes;
         this.edges = edges;
         this.loops = loops;
         this.controllers = controllers;
+        this.graphCache = graphCache;
         this.gtp = gtp;
     }
 
@@ -595,6 +598,9 @@ public class RoutingProjectionService {
             edges.save(edge);
             edgeCount++;
         }
+        // The routing fast path serves from a per-warehouse graph snapshot; drop it once this
+        // projection commits so the very next scan routes over the newly projected graph.
+        graphCache.evictAfterCommit(warehouseId);
         return new ProjectionResult(idByCode.size(), edgeCount, warnings);
     }
 

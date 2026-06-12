@@ -37,13 +37,15 @@ public class TopologyService {
     private final ConveyorEdgeRepository edges;
     private final ConveyorLoopRepository loops;
     private final ConveyorControllerRepository controllers;
+    private final RoutingGraphCache graphCache;
 
     public TopologyService(ConveyorNodeRepository nodes, ConveyorEdgeRepository edges, ConveyorLoopRepository loops,
-                           ConveyorControllerRepository controllers) {
+                           ConveyorControllerRepository controllers, RoutingGraphCache graphCache) {
         this.nodes = nodes;
         this.edges = edges;
         this.loops = loops;
         this.controllers = controllers;
+        this.graphCache = graphCache;
     }
 
     @Transactional(readOnly = true)
@@ -141,6 +143,9 @@ public class TopologyService {
                 topology.edges() == null ? 0 : topology.edges().size(),
                 topology.loops() == null ? 0 : topology.loops().size(),
                 topology.controllers() == null ? 0 : topology.controllers().size());
+        // The routing fast path serves from a per-warehouse graph snapshot; drop it once this
+        // replace commits so the very next scan routes over the edited graph.
+        graphCache.evictAfterCommit(warehouseId);
         return get(warehouseId);
     }
 }
