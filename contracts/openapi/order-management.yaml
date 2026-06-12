@@ -16,6 +16,7 @@ tags:
   - name: Orders
   - name: Release
   - name: Transactions
+  - name: Reports
 
 paths:
   /api/orders:
@@ -149,6 +150,35 @@ paths:
           content:
             application/json: { schema: { $ref: '#/components/schemas/Order' } }
         "409": { $ref: '#/components/responses/Problem' }
+
+  /api/orders/reports/flow:
+    get:
+      tags: [Reports]
+      summary: Order-flow report for one direction (Reporting screen)
+      description: >
+        Headline figures plus histograms for INBOUND or OUTBOUND orders. Lifecycle mapping
+        (the tables keep no explicit start/complete timestamps, so the mapping is documented):
+        `expected` = received but no work yet (INBOUND: no stock posted; OUTBOUND: status
+        CREATED). `active` = in progress (INBOUND: some line not fully received, not cancelled,
+        includes the expected ones; OUTBOUND: RELEASED / PARTIALLY_ALLOCATED / ALLOCATED /
+        NOT_FULFILLABLE / CUBING_FAILED). `started` = the active subset with at least one posted
+        line transaction. `perDay` buckets received (created), started (first posted transaction)
+        and completed (INBOUND: last receipt once every line is fully posted; OUTBOUND: SHIPPED
+        by last update, an approximation as no dispatch timestamp exists) per UTC day, zero-filled
+        over the whole window. `hourOfDay` buckets the window's received orders by creation hour
+        (0..23, UTC), zero-filled.
+      operationId: orderFlowReport
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: direction, in: query, required: true, schema: { type: string, enum: [INBOUND, OUTBOUND] } }
+        - { name: days, in: query, required: false, schema: { type: integer, default: 90 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderFlowReport' }
+        "400": { $ref: '#/components/responses/Problem' }
 
   /api/orders/demo/seed:
     post:
@@ -292,6 +322,30 @@ components:
         size: { type: integer }
         totalElements: { type: integer, format: int64 }
         totalPages: { type: integer }
+    OrderFlowReport:
+      type: object
+      properties:
+        expected: { type: integer, format: int64, description: "Received, no work yet (see endpoint description)." }
+        active: { type: integer, format: int64, description: Currently in progress per the lifecycle mapping. }
+        started: { type: integer, format: int64, description: Active orders with at least one posted transaction. }
+        perDay:
+          type: array
+          description: One bucket per UTC day of the window (zero-filled), oldest first.
+          items:
+            type: object
+            properties:
+              day: { type: string, format: date }
+              received: { type: integer, format: int64 }
+              started: { type: integer, format: int64 }
+              completed: { type: integer, format: int64 }
+        hourOfDay:
+          type: array
+          description: The window's received orders bucketed by creation hour (UTC), zero-filled.
+          items:
+            type: object
+            properties:
+              hour: { type: integer, minimum: 0, maximum: 23 }
+              count: { type: integer, format: int64 }
     Problem:
       type: object
       properties:

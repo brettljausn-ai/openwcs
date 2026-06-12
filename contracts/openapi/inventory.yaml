@@ -14,6 +14,7 @@ servers:
 tags:
   - name: Stock
   - name: Reservations
+  - name: Reports
 
 paths:
   /stock:
@@ -71,6 +72,50 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OccupiedLocationsResult' }
+
+  /reports/stock-by-sku:
+    get:
+      tags: [Reports]
+      summary: Stock per SKU split into available / allocated / unavailable
+      description: >
+        Reporting aggregate (single quantities per SKU): `allocated` is the quantity currently
+        HELD by reservations, `available` is AVAILABLE-status stock minus the allocated quantity
+        (floored at 0), and `unavailable` is non-AVAILABLE-status stock plus anything parked at
+        the warehouse's UNKNOWN location (position not known, never usable). With master-data
+        unreachable the UNKNOWN reclassification is skipped (best effort, like availability).
+      operationId: stockBySkuReport
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/StockBySkuRow' }
+
+  /reports/storage-density:
+    get:
+      tags: [Reports]
+      summary: Storage-density history per storage block
+      description: >
+        One row per storage block per day over the window: total cells = the block's locations
+        (master-data), occupied cells = how many of them hold any stock row or handling unit.
+        Snapshots are written by a daily ShedLock-guarded sweep; when today has no snapshot yet
+        it is taken on demand, so the report answers immediately after deploy.
+      operationId: storageDensityReport
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: days, in: query, required: false, schema: { type: integer, default: 90 } }
+      responses:
+        "200":
+          description: OK, oldest day first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/StorageDensityRow' }
 
   /reservations:
     post:
@@ -230,6 +275,23 @@ components:
         status: { $ref: '#/components/schemas/ReservationStatus' }
         expiresAt: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }
+    StockBySkuRow:
+      type: object
+      properties:
+        skuId: { type: string, format: uuid }
+        available: { type: number, description: AVAILABLE stock minus active holds (floored at 0). }
+        allocated: { type: number, description: Quantity currently HELD by reservations. }
+        unavailable:
+          type: number
+          description: Non-AVAILABLE-status stock plus anything at the UNKNOWN location.
+    StorageDensityRow:
+      type: object
+      properties:
+        blockId: { type: string, format: uuid }
+        day: { type: string, format: date }
+        occupiedCells: { type: integer, description: Cells holding any stock row or handling unit. }
+        totalCells: { type: integer, description: The block's locations (cells) in master-data. }
+        pct: { type: number, format: double, description: occupiedCells / totalCells in percent. }
     Problem:
       type: object
       description: RFC 9457 problem detail.

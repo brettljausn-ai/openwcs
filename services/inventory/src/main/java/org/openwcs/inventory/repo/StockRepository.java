@@ -115,4 +115,49 @@ public interface StockRepository extends JpaRepository<Stock, UUID> {
     @Modifying
     @Query("delete from Stock e where e.warehouseId = :warehouseId")
     int deleteBulkByWarehouseId(@Param("warehouseId") UUID warehouseId);
+
+    // ------------------------------------------------------------------ Reporting aggregates
+
+    /** Per-SKU AVAILABLE on-hand (stock-by-SKU report, no UNKNOWN location resolved). */
+    @Query("""
+        select new org.openwcs.inventory.service.SkuQtyRow(s.skuId, sum(s.qty)) from Stock s
+        where s.warehouseId = :warehouseId
+          and s.status = 'AVAILABLE'
+        group by s.skuId
+        """)
+    List<org.openwcs.inventory.service.SkuQtyRow> sumAvailablePerSku(
+            @Param("warehouseId") UUID warehouseId);
+
+    /** Per-SKU AVAILABLE on-hand excluding the UNKNOWN location (its stock is never usable). */
+    @Query("""
+        select new org.openwcs.inventory.service.SkuQtyRow(s.skuId, sum(s.qty)) from Stock s
+        where s.warehouseId = :warehouseId
+          and s.status = 'AVAILABLE'
+          and s.locationId <> :unknownLocationId
+        group by s.skuId
+        """)
+    List<org.openwcs.inventory.service.SkuQtyRow> sumAvailablePerSkuExcludingLocation(
+            @Param("warehouseId") UUID warehouseId,
+            @Param("unknownLocationId") UUID unknownLocationId);
+
+    /** Per-SKU non-AVAILABLE on-hand (stock-by-SKU report, no UNKNOWN location resolved). */
+    @Query("""
+        select new org.openwcs.inventory.service.SkuQtyRow(s.skuId, sum(s.qty)) from Stock s
+        where s.warehouseId = :warehouseId
+          and s.status <> 'AVAILABLE'
+        group by s.skuId
+        """)
+    List<org.openwcs.inventory.service.SkuQtyRow> sumUnavailablePerSku(
+            @Param("warehouseId") UUID warehouseId);
+
+    /** Per-SKU unavailable on-hand: non-AVAILABLE status OR parked at the UNKNOWN location. */
+    @Query("""
+        select new org.openwcs.inventory.service.SkuQtyRow(s.skuId, sum(s.qty)) from Stock s
+        where s.warehouseId = :warehouseId
+          and (s.status <> 'AVAILABLE' or s.locationId = :unknownLocationId)
+        group by s.skuId
+        """)
+    List<org.openwcs.inventory.service.SkuQtyRow> sumUnavailablePerSkuIncludingLocation(
+            @Param("warehouseId") UUID warehouseId,
+            @Param("unknownLocationId") UUID unknownLocationId);
 }
