@@ -2504,8 +2504,8 @@ function NodeLinksPanel({
       <div className="atopo-links-head">
         Connections{' '}
         <InfoTip
-          text="Whether each end node of this equipment is linked where it meets another (an ASRS outfeed onto a conveyor infeed). Nodes of different equipment within 1.5 m link automatically when the routing is generated; an explicit link forces one at any distance. Explicit links are directed: from this node to the picked one."
-          example="OUT stub end → BIN_CONVEYOR-1#0 · 0.3 m · auto"
+          text="Whether each end node of this equipment is linked where it meets another (an ASRS outfeed onto a conveyor infeed). Nodes of different equipment within 1.5 m link automatically when the routing is generated; an explicit link forces one at any distance. A link joins the two systems; it does not set a direction of travel: each conveyor\u2019s own section arrows govern which way totes actually move across the touchpoint."
+          example="OUT stub end ↔ BIN_CONVEYOR-1#0 · 0.3 m · auto"
         />
       </div>
       {focused && (
@@ -2529,7 +2529,7 @@ function NodeLinksPanel({
                 {row.explicit.map((x) => (
                   <div key={x.connectionId} className="atopo-links-state is-linked">
                     <span>
-                      {x.outgoing ? '→' : '←'} {x.other.code} · {x.distM.toFixed(1)} m · explicit
+                      ↔ {x.other.code} · {x.distM.toFixed(1)} m · explicit
                       {x.distM <= ADJACENCY_M ? ' (also in auto-link range)' : ''}
                     </span>
                     <button
@@ -2664,7 +2664,7 @@ function ConnectionsPanel({
                     onClick={() => onSelect(c.id)}
                     title={dangling ? 'One endpoint is missing from this layout' : 'Highlight this link'}
                   >
-                    {fromLabel} → {toLabel}
+                    {fromLabel} ↔ {toLabel}
                     {dangling ? <span className="atopo-muted"> · dangling</span> : null}
                   </button>
                   <button

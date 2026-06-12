@@ -655,7 +655,9 @@ authoring source the conveyor routing graph (§7b) is now generated from.
   `default_exit` (STRAIGHT = continue the main line / BRANCH = take the divert's branch / null =
   an unrouted tote stops at the divert; set via the function-point dialog in the editor)), and
   `equipment_connection` (now also **node-anchored**, V18: optional `from_path_index`/`to_path_index`
-  reference the exact path point on either equipment, the editor's explicit node-to-node links).
+  reference the exact path point on either equipment, the editor's explicit node-to-node links;
+  a connection LINKS the two systems and projects the touchpoint in both directions, the direction
+  of travel always comes from each conveyor's own section edges).
   Load/save the whole graph
   via `GET`/`PUT /api/flow/automation/topology?warehouseId=` (`AutomationTopologyDtos`).
 - **Editor** (`ui/src/topology/`): a 3D view (`AutomationTopology3D`) and a top-down **2D plan**

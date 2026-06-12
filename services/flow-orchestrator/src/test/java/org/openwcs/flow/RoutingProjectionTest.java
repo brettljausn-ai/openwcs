@@ -95,12 +95,13 @@ class RoutingProjectionTest {
 
         // Conveyor: 4 nodes (indices 0,1,2,3). Sink box: 2 nodes. => 6 nodes.
         assertThat(result.nodes()).isEqualTo(6);
-        // Conveyor: 3 section edges. Sink box: 1 edge. Connection: 1 edge. => 5 edges.
-        assertThat(result.edges()).isEqualTo(5);
+        // Conveyor: 3 section edges. Sink box: 1 edge. Connection: stitched in BOTH directions
+        // (a connection links the systems; travel direction comes from the section edges) => 6.
+        assertThat(result.edges()).isEqualTo(6);
 
         Topology graph = topology.get(wh);
         assertThat(graph.nodes()).hasSize(6);
-        assertThat(graph.edges()).hasSize(5);
+        assertThat(graph.edges()).hasSize(6);
 
         // The divert node was aliased to the function-point nodeCode "D1".
         assertThat(graph.nodes().stream().anyMatch(n -> n.code().equals("D1"))).isTrue();
@@ -247,9 +248,11 @@ class RoutingProjectionTest {
         ProjectionResult result = projection.project(wh);
 
         assertThat(result.warnings()).isEmpty();
-        // 2 nodes per conveyor; 1 section edge each + the explicit link = 3 edges.
+        // 2 nodes per conveyor; 1 section edge each + the explicit link stitched in BOTH
+        // directions = 4 edges: a connection joins the systems, it does not set a direction of
+        // travel (each conveyor's own section edges govern actual flow).
         assertThat(result.nodes()).isEqualTo(4);
-        assertThat(result.edges()).isEqualTo(3);
+        assertThat(result.edges()).isEqualTo(4);
 
         Topology graph = topology.get(wh);
         List<EdgeDto> bridge = graph.edges().stream()
@@ -257,6 +260,10 @@ class RoutingProjectionTest {
                 .toList();
         assertThat(bridge).hasSize(1);
         assertThat(bridge.get(0).cost()).isEqualTo(1);
+        List<EdgeDto> back = graph.edges().stream()
+                .filter(e -> e.fromCode().equals("CONVB#0") && e.toCode().equals("CONVA#1"))
+                .toList();
+        assertThat(back).hasSize(1);
     }
 
     @Test
@@ -275,8 +282,8 @@ class RoutingProjectionTest {
         automation.save(wh, new AutomationTopologyDto(List.of(), List.of(a, b), List.of(conn), List.of()));
         ProjectionResult result = projection.project(wh);
 
-        // 2 section edges + the explicit A#1->B#0 + the auto-inferred REVERSE B#0->A#1 only, the
-        // forward auto edge is deduplicated against the explicit connection.
+        // 2 section edges + the explicit touchpoint stitched both ways; the auto-inferred pair
+        // fully deduplicates against it = 4 edges total, exactly one per direction.
         assertThat(result.edges()).isEqualTo(4);
         Topology graph = topology.get(wh);
         long forward = graph.edges().stream()
