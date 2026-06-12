@@ -57,6 +57,9 @@ class PutawayServiceTest {
     @MockBean
     InventoryClient inventory;
 
+    @Autowired
+    org.openwcs.slotting.repo.PutawayAssignmentRepository assignmentRepo;
+
     private static StorageLocation loc(UUID id, String aisle, int laneDepth, double dist) {
         return loc(id, aisle, laneDepth, dist, null);
     }
@@ -118,6 +121,71 @@ class PutawayServiceTest {
 
         assertThat(decision.mode()).isEqualTo("RESERVE");
         assertThat(decision.locationId()).isEqualTo(far);   // near is occupied → fall back to far
+    }
+
+    @Test
+    void secondPutawayOfTheSameSkuStaysFeasibleInASingleAisleBlock() {
+        // The live failure shape: ONE aisle, and the SKU already has an open assignment from an
+        // earlier tote. The aisle-share cap (share inevitably 100% in a one-aisle block) rejected
+        // every candidate, so each SKU's SECOND putaway answered 409 and totes circled forever.
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID block = UUID.randomUUID();
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+
+        StorageProfile profile = new StorageProfile();
+        profile.setWarehouseId(wh);
+        profile.setSkuId(sku);
+        profile.setBlockId(block);
+        profile.setVelocityClass("A");
+        profiles.save(profile);
+
+        when(masterData.storageLocations(eq(wh), eq(block)))
+                .thenReturn(List.of(loc(a, "A1", 1, 1.0), loc(b, "A1", 1, 2.0)));
+
+        PutawayDecision first = service.assign(
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, null, null, false, null));
+        PutawayDecision second = service.assign(
+                new PutawayRequest(wh, UUID.randomUUID(), sku, null, null, BigDecimal.ONE, null, null, false, null));
+
+        assertThat(first.locationId()).isNotNull();
+        assertThat(second.locationId()).isNotNull();
+        assertThat(second.locationId()).isNotEqualTo(first.locationId()); // lane depth 1: other cell
+    }
+
+    @Test
+    void freshAssignmentSupersedesTheHusOpenOneAndStoreConfirmationClosesIt() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID block = UUID.randomUUID();
+        UUID hu = UUID.randomUUID();
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+
+        StorageProfile profile = new StorageProfile();
+        profile.setWarehouseId(wh);
+        profile.setSkuId(sku);
+        profile.setBlockId(block);
+        profile.setVelocityClass("A");
+        profiles.save(profile);
+
+        when(masterData.storageLocations(eq(wh), eq(block)))
+                .thenReturn(List.of(loc(a, "A1", 3, 1.0), loc(b, "A1", 3, 2.0)));
+
+        // Round trip 1 decides a slot; the tote never stores (e.g. it is re-routed to a workplace)
+        // and the NEXT round trip asks again: the old PLANNED row must not linger as occupancy.
+        service.assign(new PutawayRequest(wh, hu, sku, null, null, BigDecimal.ONE, null, null, false, null));
+        service.assign(new PutawayRequest(wh, hu, sku, null, null, BigDecimal.ONE, null, null, false, null));
+
+        var open = assignmentRepo.findByWarehouseIdAndHuIdAndStatusIn(wh, hu, List.of("PLANNED", "DISPATCHED"));
+        assertThat(open).hasSize(1); // exactly one live plan per tote
+
+        // The ASRS STORE completes: flow confirms, the ledger row leaves the active set.
+        int closed = service.confirmStored(wh, hu);
+        assertThat(closed).isEqualTo(1);
+        assertThat(assignmentRepo.findByWarehouseIdAndHuIdAndStatusIn(wh, hu, List.of("PLANNED", "DISPATCHED")))
+                .isEmpty();
     }
 
     @Test

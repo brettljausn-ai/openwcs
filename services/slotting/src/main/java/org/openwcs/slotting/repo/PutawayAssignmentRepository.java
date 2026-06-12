@@ -14,4 +14,8 @@ public interface PutawayAssignmentRepository extends JpaRepository<PutawayAssign
     /** Active (not yet completed/cancelled) assignments in a block — the engine's occupancy ledger. */
     List<PutawayAssignment> findByWarehouseIdAndBlockIdAndStatusIn(
             UUID warehouseId, UUID blockId, Collection<String> statuses);
+
+    /** A handling unit's open assignments — superseded on re-assign, closed on store confirmation. */
+    List<PutawayAssignment> findByWarehouseIdAndHuIdAndStatusIn(
+            UUID warehouseId, UUID huId, Collection<String> statuses);
 }
