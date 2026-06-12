@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.openwcs.flow.api.ReportingDtos.DecisionLatencyStats;
 import org.openwcs.flow.api.ReportingDtos.DeviceMovementRow;
 import org.openwcs.flow.api.ReportingDtos.ScanQualityRow;
 import org.openwcs.flow.api.ReportingDtos.StorageMovementRow;
@@ -18,8 +19,10 @@ import org.openwcs.flow.api.RoutingDtos.ScanRequest;
 import org.openwcs.flow.api.RoutingDtos.Topology;
 import org.openwcs.flow.domain.HuTransportTrace;
 import org.openwcs.flow.repo.HuTransportTraceRepository;
+import org.openwcs.flow.service.DecisionLatencyTracker;
 import org.openwcs.flow.service.ReportingService;
 import org.openwcs.flow.service.RoutingService;
+import org.openwcs.flow.service.ScanSideEffects;
 import org.openwcs.flow.service.TopologyService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -60,6 +63,22 @@ class ReportingTest {
     ReportingService reporting;
 
     @Autowired
+    DecisionLatencyTracker decisionLatency;
+
+    @Autowired
+    ScanSideEffects sideEffects;
+
+    /** Counters persist asynchronously now; wait for the queue to drain before asserting. */
+    private void drainSideEffects() {
+        try {
+            sideEffects.awaitIdle(java.time.Duration.ofSeconds(10));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+    }
+
+    @Autowired
     HuTransportTraceRepository traces;
 
     @Autowired
@@ -97,6 +116,7 @@ class ReportingTest {
         routing.decide(new ScanRequest(wh, "DIVERT", "NOREAD")); // read error
         routing.decide(new ScanRequest(wh, "DIVERT", ""));       // read error (blank)
         routing.decide(new ScanRequest(wh, "DIVERT", "GHOST"));  // unknown barcode (no plan)
+        drainSideEffects();
 
         List<ScanQualityRow> rows = reporting.scanQuality(wh, 7);
         assertThat(rows).hasSize(2); // one row per node and day: same-day upserts accumulate
@@ -117,6 +137,7 @@ class ReportingTest {
         UUID wh = UUID.randomUUID();
         divertTopology(wh);
         routing.decide(new ScanRequest(wh, "INDUCT", "STRAY")); // today's row (INDUCT has one exit)
+        drainSideEffects();
 
         jdbc.update("INSERT INTO flow.scan_stat (warehouse_id, node_code, day, scans, no_reads, unknowns)"
                 + " VALUES (?, 'OLD-NODE', CURRENT_DATE - 30, 9, 1, 1)", wh);
@@ -140,6 +161,7 @@ class ReportingTest {
         routing.decide(new ScanRequest(wh, "PACK", "HU1"));      // COMPLETE: no hop counted
         routing.decide(new ScanRequest(wh, "DIVERT", "GHOST"));  // ROUTE DIVERT -> SHIP (default)
         routing.decide(new ScanRequest(wh, "DIVERT", "NOREAD")); // ROUTE DIVERT -> SHIP (default)
+        drainSideEffects();
 
         List<TrafficRow> rows = reporting.traffic(wh, 7);
         assertThat(rows).hasSize(3); // same-day upserts accumulate: one row per edge and day
@@ -152,6 +174,32 @@ class ReportingTest {
         return rows.stream()
                 .filter(r -> r.fromNode().equals(from) && r.toNode().equals(to))
                 .mapToLong(TrafficRow::count).sum();
+    }
+
+    // ------------------------------------------------------------------ decision latency metric
+
+    @Test
+    void decisionLatencyReportsRingBufferPercentilesAfterDecides() {
+        UUID wh = UUID.randomUUID();
+        divertTopology(wh);
+        routing.assignRoute(new RouteRequest(wh, "HU-LAT", List.of("PACK")));
+
+        // 200 warm decides at INDUCT (the plan keeps steering toward PACK, never reached here),
+        // so every call exercises the full planned-scan path.
+        for (int i = 0; i < 200; i++) {
+            routing.decide(new ScanRequest(wh, "INDUCT", "HU-LAT"));
+        }
+
+        DecisionLatencyStats stats = decisionLatency.stats();
+        // Land the measured numbers in the test output (before/after evidence for the fast path).
+        System.out.printf("decision latency over %d decides: p50=%.3f ms p95=%.3f ms p99=%.3f ms max=%.3f ms%n",
+                stats.count(), stats.p50Ms(), stats.p95Ms(), stats.p99Ms(), stats.maxMs());
+
+        assertThat(stats.count()).isGreaterThanOrEqualTo(200);
+        assertThat(stats.p50Ms()).isGreaterThan(0);
+        assertThat(stats.p50Ms()).isLessThanOrEqualTo(stats.p95Ms());
+        assertThat(stats.p95Ms()).isLessThanOrEqualTo(stats.p99Ms());
+        assertThat(stats.p99Ms()).isLessThanOrEqualTo(stats.maxMs());
     }
 
     // ----------------------------------------------------------- storage movements (device_task)

@@ -33,4 +33,13 @@ public final class ReportingDtos {
     /** Induct→arrival transit-time distribution for a day: sample count, p50 and p95 in ms. */
     public record TransitTimeRow(LocalDate day, long count, long p50Ms, long p95Ms) {
     }
+
+    /**
+     * Per-scan routing decision latency of THIS instance: percentiles over the last (up to) 4096
+     * decisions held in an in-memory ring buffer. Per-replica and reset on restart — a live
+     * health gauge for the hard-real-time scan path, not durable history.
+     */
+    public record DecisionLatencyStats(long count, double p50Ms, double p95Ms, double p99Ms,
+                                       double maxMs) {
+    }
 }
