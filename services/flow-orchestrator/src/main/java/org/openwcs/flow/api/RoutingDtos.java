@@ -13,7 +13,12 @@ public final class RoutingDtos {
     }
 
     /** A scan event from a conveyor adapter: a handling unit seen at a node. */
-    public record ScanRequest(@NotNull UUID warehouseId, @NotBlank String node, @NotBlank String barcode) {
+    /**
+     * A per-scan routing query. {@code barcode} may be blank or "NOREAD": a scanner read error.
+     * The decision then follows the divert default (or stops at a defaultless divert), exactly
+     * like an unknown HU or an HU without a route plan: routing cannot know where it should go.
+     */
+    public record ScanRequest(@NotNull UUID warehouseId, @NotBlank String node, String barcode) {
     }
 
     /**

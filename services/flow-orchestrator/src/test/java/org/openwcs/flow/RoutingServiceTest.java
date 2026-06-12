@@ -143,6 +143,31 @@ class RoutingServiceTest {
     }
 
     @Test
+    void readErrorFollowsTheDivertDefault() {
+        UUID wh = UUID.randomUUID();
+        divertTopology(wh, "SHIP");
+
+        // The scanner failed to read: blank and "NOREAD" barcodes follow the default like an
+        // unknown HU.
+        for (String noRead : new String[] {"", "  ", "NOREAD", null}) {
+            RoutingDecision d = routing.decide(new ScanRequest(wh, "DIVERT", noRead));
+            assertThat(d.action()).isEqualTo("ROUTE");
+            assertThat(d.toNode()).isEqualTo("SHIP");
+            assertThat(d.detail()).contains("divert default");
+        }
+    }
+
+    @Test
+    void readErrorStopsAtADivertWithoutADefault() {
+        UUID wh = UUID.randomUUID();
+        divertTopology(wh, null);
+
+        RoutingDecision d = routing.decide(new ScanRequest(wh, "DIVERT", "NOREAD"));
+        assertThat(d.action()).isEqualTo("HOLD");
+        assertThat(d.detail()).contains("no default at divert DIVERT");
+    }
+
+    @Test
     void unroutedHuStopsAtADivertWithoutADefault() {
         UUID wh = UUID.randomUUID();
         divertTopology(wh, null);

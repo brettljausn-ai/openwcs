@@ -98,13 +98,26 @@ public class RoutingService {
                     scan.barcode(), scan.node());
             return RoutingDecision.exception("Unknown node: " + scan.node());
         }
+        if (isReadError(scan.barcode())) {
+            // Scanner read error: the barcode is unknown, so routing cannot know where this tote
+            // should go. Same answer as an unrouted HU: divert default, the only exit, or stop.
+            log.info("read error at node {} (barcode '{}'): following the divert default if any",
+                    scan.node(), scan.barcode() == null ? "" : scan.barcode());
+            RoutingDecision noRead = decideWithoutPath(scan, here, "barcode read error");
+            if (noRead != null) {
+                return noRead;
+            }
+            log.warn("read error at node {} and no default/only exit: answering NO_ROUTE (tote stops)",
+                    scan.node());
+            return RoutingDecision.noRoute();
+        }
         HuRoute route = routes
                 .findFirstByWarehouseIdAndBarcodeAndStatus(scan.warehouseId(), scan.barcode(), "ACTIVE")
                 .orElse(null);
         if (route == null) {
-            // No plan steering this HU: follow the divert default / the only exit, or stop at a
-            // decision point. Every scan asks fresh, so a plan assigned mid-journey takes over at
-            // the very next scan.
+            // No plan steering this HU (unknown HU or no route plan assigned): follow the divert
+            // default / the only exit, or stop at a decision point. Every scan asks fresh, so a
+            // plan assigned mid-journey takes over at the very next scan.
             RoutingDecision unplanned = decideWithoutPath(scan, here, "no route plan");
             if (unplanned != null) {
                 return unplanned;
@@ -256,7 +269,15 @@ public class RoutingService {
      * routing answer (mirrors how {@link RoutingProjectionService} isolates its station-node side
      * effect), and an unknown barcode (no entry) writes nothing — strays scan all the time.
      */
+    /** Blank or "NOREAD" means the scanner failed to read a barcode. */
+    private static boolean isReadError(String barcode) {
+        return barcode == null || barcode.isBlank() || "NOREAD".equalsIgnoreCase(barcode.trim());
+    }
+
     private void recordScan(ScanRequest scan, RoutingDecision decision) {
+        if (isReadError(scan.barcode())) {
+            return; // nothing to trace: no HU identity
+        }
         try {
             inductionEntries
                     .findFirstByWarehouseIdAndHuCodeOrderByRequestedAtDesc(scan.warehouseId(), scan.barcode())
