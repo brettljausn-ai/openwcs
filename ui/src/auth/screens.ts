@@ -11,7 +11,7 @@
 
 export type Role = 'ADMIN' | 'SUPERVISOR' | 'OPERATOR' | 'VIEWER'
 
-export type Section = 'Master data' | 'Operations' | 'Engineering' | 'Configuration' | 'Administration'
+export type Section = 'Master data' | 'Operations' | 'Reporting' | 'Engineering' | 'Configuration' | 'Administration'
 
 export interface ScreenDef {
   key: string
@@ -36,6 +36,13 @@ export const SCREENS: ScreenDef[] = [
   { key: 'stock-transactions', label: 'Stock transactions', path: '/stock-transactions', section: 'Operations', icon: '≡', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Event-sourced stock movement / transaction log.' },
   { key: 'stock-overview', label: 'Stock overview', path: '/stock-overview', section: 'Operations', icon: '▥', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'What is currently in stock, by handling unit — quantities and availability.' },
   { key: 'handling-units', label: 'Handling units', path: '/handling-units', section: 'Operations', icon: '▢', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'Registry of physical handling units (cartons, pallets, totes) — code, type, location and status.' },
+
+  // Reporting: analytics over the accumulated operational history (read-only)
+  { key: 'reporting:material-flow', label: 'Material flow', path: '/reporting/material-flow', section: 'Reporting', icon: '∿', defaultRoles: ['ADMIN', 'SUPERVISOR', 'VIEWER'], description: 'Scan quality per scan point and day, scanners needing attention, and a conveyor traffic heatmap.' },
+  { key: 'reporting:asrs', label: 'ASRS', path: '/reporting/asrs', section: 'Reporting', icon: '▦', defaultRoles: ['ADMIN', 'SUPERVISOR', 'VIEWER'], description: 'Storage density history and forecast, a storage-movement heatmap, and movements per device.' },
+  { key: 'reporting:stock', label: 'Stock', path: '/reporting/stock', section: 'Reporting', icon: '▤', defaultRoles: ['ADMIN', 'SUPERVISOR', 'VIEWER'], description: 'Stock per SKU in single quantities, split between available, allocated and unavailable.' },
+  { key: 'reporting:inbound', label: 'Inbound', path: '/reporting/inbound', section: 'Reporting', icon: '⇣', defaultRoles: ['ADMIN', 'SUPERVISOR', 'VIEWER'], description: 'Expected and active inbound, daily volumes over the last 90 days and hour-of-day peaks.' },
+  { key: 'reporting:outbound', label: 'Outbound', path: '/reporting/outbound', section: 'Reporting', icon: '⇡', defaultRoles: ['ADMIN', 'SUPERVISOR', 'VIEWER'], description: 'Expected and active outbound, daily volumes over the last 90 days and hour-of-day peaks.' },
 
   // Engineering — design & modelling
   { key: 'topology', label: 'Automation topology', path: '/topology', section: 'Engineering', icon: '⊹', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Place, size and connect automation equipment (conveyors, ASRS, sorters) on warehouse levels.' },
@@ -63,7 +70,7 @@ export const SCREENS: ScreenDef[] = [
   { key: 'admin-database', label: 'Database', path: '/admin/database', section: 'Administration', icon: '⛁', defaultRoles: ['ADMIN'], description: 'Browse schemas and tables and run read-only SELECT queries against the shared database.' },
 ]
 
-export const SECTION_ORDER: Section[] = ['Master data', 'Operations', 'Engineering', 'Configuration', 'Administration']
+export const SECTION_ORDER: Section[] = ['Master data', 'Operations', 'Reporting', 'Engineering', 'Configuration', 'Administration']
 
 /** Per-screen access override returned by the Access Control backend. */
 export type AccessOverrides = Record<string, { roles?: string[]; users?: string[] }>
