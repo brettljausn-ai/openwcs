@@ -684,6 +684,17 @@ public class InductionQueueService {
 
         // The tote is physically in its slot: book the HU registry into the final location.
         bookLocation(entry, entry.getStorageLocationId());
+
+        // Tell slotting the store happened so the assignment leaves its active ledger — open
+        // assignments count as planned occupancy and would otherwise pile up per round trip.
+        // Best-effort like the booking: a slotting hiccup must not fail the completed store.
+        try {
+            slotting.confirmStored(entry.getWarehouseId(), entry.getHuId());
+        } catch (RuntimeException e) {
+            log.warn("slotting store-confirmation failed for hu {} ({}); assignment ledger stays "
+                            + "open but the transport round trip is closed: {}",
+                    entry.getHuCode(), entry.getHuId(), e.toString());
+        }
     }
 
     // ---- awaiting-slot retry sweep --------------------------------------------------------------

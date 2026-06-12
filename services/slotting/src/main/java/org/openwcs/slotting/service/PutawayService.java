@@ -72,6 +72,7 @@ public class PutawayService {
         if (req.warehouseId() == null) {
             throw new IllegalArgumentException("warehouseId is required");
         }
+        supersedeOpenAssignments(req);
         if (req.empty()) {
             return assignEmpty(req); // empty carrier: no SKU, stored far + moved at lower priority
         }
@@ -88,6 +89,45 @@ public class PutawayService {
             }
         }
         return assignToBlock(req);
+    }
+
+    /**
+     * A tote can only be travelling to ONE slot: a fresh decision supersedes any earlier open
+     * assignment for the same HU. Without this, every re-slot of a tote (each workplace round
+     * trip asks again) left its previous PLANNED row in the active ledger forever — phantom
+     * occupancy that made the aisle-share cap reject the SKU everywhere (observed live: every
+     * SKU's SECOND putaway answered 409 "no feasible storage location" in the single-aisle demo
+     * block, and totes circled the conveyor on the awaiting-slot sweep indefinitely).
+     */
+    private void supersedeOpenAssignments(PutawayRequest req) {
+        if (req.huId() == null) {
+            return;
+        }
+        for (PutawayAssignment prev : assignments.findByWarehouseIdAndHuIdAndStatusIn(
+                req.warehouseId(), req.huId(), ACTIVE)) {
+            prev.setStatus("SUPERSEDED");
+            assignments.save(prev);
+            log.info("put-away assignment {} (hu {} -> location {}) superseded by a fresh request",
+                    prev.getId(), prev.getHuId(), prev.getChosenLocationId());
+        }
+    }
+
+    /**
+     * The handling unit physically arrived in storage: close its open assignments. Called by
+     * flow-orchestrator when the ASRS STORE completes — the ledger row stops counting as
+     * planned-occupancy (the cell now shows up as PHYSICALLY occupied via the inventory check).
+     */
+    @Transactional
+    public int confirmStored(UUID warehouseId, UUID huId) {
+        int closed = 0;
+        for (PutawayAssignment a : assignments.findByWarehouseIdAndHuIdAndStatusIn(warehouseId, huId, ACTIVE)) {
+            a.setStatus("STORED");
+            assignments.save(a);
+            closed++;
+            log.info("put-away assignment {} confirmed STORED (hu {} at location {})",
+                    a.getId(), huId, a.getChosenLocationId());
+        }
+        return closed;
     }
 
     /**

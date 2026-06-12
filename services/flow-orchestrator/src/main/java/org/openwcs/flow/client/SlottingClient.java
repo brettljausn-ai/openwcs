@@ -76,6 +76,19 @@ public class SlottingClient {
         return decision == null ? Optional.empty() : Optional.ofNullable(decision.locationId());
     }
 
+    /**
+     * Confirms to slotting that the HU physically arrived in storage, closing its open put-away
+     * assignment (the active-ledger row that counts as planned occupancy). Idempotent.
+     */
+    public void confirmStored(UUID warehouseId, UUID huId) {
+        http.post()
+                .uri("/api/slotting/putaway/stored")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("warehouseId", warehouseId, "huId", huId))
+                .retrieve()
+                .toBodilessEntity();
+    }
+
     /** Subset of the put-away decision we need: the chosen location. */
     private record PutawayDecision(UUID locationId) {
     }

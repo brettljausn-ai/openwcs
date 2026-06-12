@@ -28,6 +28,23 @@ public class PutawayController {
         return putaway.assign(request);
     }
 
+    /**
+     * Store confirmation: the HU physically arrived in storage, so its open assignments leave the
+     * active ledger (flow-orchestrator calls this when the ASRS STORE completes). Idempotent.
+     */
+    @PostMapping("/stored")
+    public java.util.Map<String, Object> stored(
+            @RequestHeader(name = "X-Auth-Warehouses", required = false) String warehouses,
+            @RequestBody StoredConfirmation request) {
+        requireWarehouse(warehouses, request.warehouseId());
+        int closed = putaway.confirmStored(request.warehouseId(), request.huId());
+        return java.util.Map.of("closed", closed);
+    }
+
+    /** Body of the store confirmation: which HU arrived, in which warehouse. */
+    public record StoredConfirmation(java.util.UUID warehouseId, java.util.UUID huId) {
+    }
+
     /** 403 if the caller is warehouse-scoped and the body targets a warehouse outside their set. */
     private static void requireWarehouse(String warehouses, java.util.UUID warehouseId) {
         if (!AccessControl.warehouseAllowed(warehouses, warehouseId)) {

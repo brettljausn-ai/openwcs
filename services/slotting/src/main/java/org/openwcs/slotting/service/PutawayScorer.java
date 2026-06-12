@@ -73,10 +73,15 @@ public final class PutawayScorer {
      * Returns the feasible candidates ranked best-first. Empty if none are feasible.
      */
     public static List<Result> rank(Input in, List<Candidate> candidates, Policy policy) {
+        // The aisle-share cap only means something when an ALTERNATIVE aisle exists. In a
+        // single-aisle block 100% of a SKU inevitably lives in that aisle, so applying the cap
+        // rejected every candidate as soon as the SKU had one open assignment (observed live:
+        // each SKU's second putaway answered "no feasible storage location").
+        boolean multiAisle = candidates.stream().map(Candidate::aisle).distinct().count() > 1;
         // Velocity needs the distance range across the feasible set to normalise.
         List<Candidate> feasible = new ArrayList<>();
         for (Candidate c : candidates) {
-            if (isFeasible(in, c)) {
+            if (isFeasible(in, c, multiAisle)) {
                 feasible.add(c);
             }
         }
@@ -135,9 +140,12 @@ public final class PutawayScorer {
      * hard — it is a soft preference (see {@link #laneAffinity}) so aisle balance (or another
      * weighted objective) can outweigh it when the operator configures it that way.
      */
-    private static boolean isFeasible(Input in, Candidate c) {
+    private static boolean isFeasible(Input in, Candidate c, boolean multiAisle) {
         if (c.occupiedHu() >= c.laneDepth()) {
             return false; // lane full
+        }
+        if (!multiAisle) {
+            return true; // one aisle: no alternative exists, so an aisle-share cap is meaningless
         }
         // Prospective share of the SKU's stock that would sit in this aisle after placement.
         double prospective = (c.aisleSkuHu() + 1.0) / (in.skuTotalHu() + 1.0);
