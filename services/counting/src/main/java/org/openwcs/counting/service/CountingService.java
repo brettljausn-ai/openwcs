@@ -91,6 +91,10 @@ public class CountingService {
         // Routing runs out-of-band: the task is created with routing_status PENDING (the column
         // default) and the background CountRoutingScheduler picks it up within a minute. We do not
         // route inside this transaction because routing does HTTP (slow, and must not block creation).
+        log.info("count task {} created: scope {} {}, type {}, origin {}, {} line(s), tolerance {}{}",
+                saved.getId(), saved.getScopeType(), saved.getScopeRef(), saved.getCountType(),
+                saved.getOrigin(), cmd.cells().size(), saved.getTolerance(),
+                saved.getParentTaskId() != null ? ", recount of task " + saved.getParentTaskId() : "");
         return saved;
     }
 
@@ -102,6 +106,7 @@ public class CountingService {
             throw new IllegalStateException("task " + taskId + " is not OPEN (status=" + task.getStatus() + ")");
         }
         task.setAssignedTo(operator);
+        log.info("count task {} claimed by operator {}", taskId, operator);
         return task;
     }
 
@@ -132,6 +137,8 @@ public class CountingService {
         task.setCountedBy(operator);
         task.setCountedAt(Instant.now());
         task.setStatus("COUNTED");
+        log.info("count task {} counted by operator {}: {} line(s) recorded ({} count) -> COUNTED",
+                taskId, operator, entries.size(), task.getCountType());
         return task;
     }
 
@@ -172,14 +179,23 @@ public class CountingService {
                     line.setAdjustmentEventId(eventId);
                     line.setStatus("ADJUSTED");
                     adjusted++;
+                    log.info("count task {} line {}: variance {} within tolerance {}, posted StockAdjusted "
+                                    + "delta {} (reason COUNTING, sku {}, location {}, hu {}, actor {}) -> event {}",
+                            taskId, line.getId(), variance, tolerance, variance, line.getSkuId(),
+                            line.getLocationId(), line.getHuId(), actor, eventId);
                 } else {
                     line.setStatus("APPROVED");
+                    log.debug("count task {} line {}: counted matches expected (sku {}, location {}), approved",
+                            taskId, line.getId(), line.getSkuId(), line.getLocationId());
                 }
             } else {
                 line.setStatus("RECOUNT");
                 recounts++;
                 recountCells.add(new CountTaskScope(
                         line.getLocationId(), line.getSkuId(), line.getBatchId(), line.getUomCode()));
+                log.info("count task {} line {}: variance {} exceeds tolerance {} (sku {}, location {}), "
+                                + "flagged for recount; no adjustment posted",
+                        taskId, line.getId(), variance, tolerance, line.getSkuId(), line.getLocationId());
             }
         }
 
@@ -194,9 +210,13 @@ public class CountingService {
                     task.getCountType(), "RECOUNT", task.getScheduleId(), task.getId(),
                     task.getTolerance(), task.getGtpStationId(), recountCells));
             recountTaskId = recount.getId();
-            log.info("count task {} flagged {} line(s) for recount -> task {}", taskId, recounts, recountTaskId);
+            log.info("count task {} reconciled by {} with {} out-of-tolerance line(s): task stays alive "
+                            + "as RECOUNT, follow-up task {} spawned for those cells",
+                    taskId, actor, recounts, recountTaskId);
         } else {
             task.setStatus("RECONCILED");
+            log.info("count task {} reconciled by {}: {} line(s) approved, {} adjusted, no recounts",
+                    taskId, actor, approved, adjusted);
         }
         return new ReconciliationResult(task.getId(), task.getStatus(), approved, adjusted, recounts, recountTaskId);
     }
@@ -250,6 +270,9 @@ public class CountingService {
             }
             line.setStationLastCount(countedQty);
             line.setStationCountState("RECOUNT");
+            // blind count: the expected qty is deliberately not logged while the line is open.
+            log.info("station count on task {} line {}: first count {} differs from the system qty, "
+                    + "recount requested (blind)", taskId, lineId, countedQty);
             return new StationCountResult("RECOUNT", "Recount this tote.");
         }
 
@@ -269,12 +292,19 @@ public class CountingService {
             line.setAdjustmentEventId(eventId);
             line.setStatus("ADJUSTED");
             line.setStationCountState("ADJUSTED");
+            log.info("station count on task {} line {}: two counts agree at {}, confirmed variance; "
+                            + "posted StockAdjusted delta {} (reason COUNTING, sku {}, location {}, hu {}, "
+                            + "actor {}) -> event {}",
+                    taskId, lineId, countedQty, delta, line.getSkuId(), line.getLocationId(),
+                    line.getHuId(), actor == null || actor.isBlank() ? "system" : actor, eventId);
             reconcileIfAllTerminal(taskId);
             return new StationCountResult("ADJUSTED", "Adjusted by " + delta.toPlainString() + "; sent to the host.");
         }
         // This count differs from the last one: hold it and count a third time.
         line.setStationLastCount(countedQty);
         line.setStationCountState("RECOUNT");
+        log.info("station count on task {} line {}: count {} differs from the held count, "
+                + "a third count is required (blind)", taskId, lineId, countedQty);
         return new StationCountResult("RECOUNT", "Counts did not match. Count again.");
     }
 
@@ -284,6 +314,9 @@ public class CountingService {
         line.setVariance(BigDecimal.ZERO);
         line.setStatus("APPROVED");
         line.setStationCountState("ACCEPTED");
+        log.info("station count on task {} line {}: count {} matches the system qty (sku {}, hu {}), "
+                        + "accepted with no adjustment",
+                line.getCountTaskId(), line.getId(), countedQty, line.getSkuId(), line.getHuId());
         reconcileIfAllTerminal(line.getCountTaskId());
         return new StationCountResult("ACCEPTED", "Count matches the system quantity.");
     }
@@ -296,6 +329,8 @@ public class CountingService {
         if (allTerminal) {
             CountTask task = task(taskId);
             task.setStatus("RECONCILED");
+            log.info("count task {} reconciled: all {} line(s) reached a terminal state at the station",
+                    taskId, taskLines.size());
         }
     }
 
@@ -340,5 +375,7 @@ public class CountingService {
         }
         lines.deleteAll(lines.findByCountTaskId(taskId));
         tasks.delete(task);
+        log.info("count task {} deleted before counting started (scope {} {}, origin {})",
+                taskId, task.getScopeType(), task.getScopeRef(), task.getOrigin());
     }
 }

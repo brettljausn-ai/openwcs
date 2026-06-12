@@ -23,6 +23,8 @@ import org.openwcs.gtp.repo.PutInstructionRepository;
 import org.openwcs.gtp.repo.StationNodeRepository;
 import org.openwcs.gtp.repo.TaskLineRepository;
 import org.openwcs.gtp.repo.WorkCycleRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +40,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class WorkCycleService {
+
+    private static final Logger log = LoggerFactory.getLogger(WorkCycleService.class);
 
     private final GtpStationRepository stations;
     private final StationNodeRepository nodes;
@@ -90,6 +94,7 @@ public class WorkCycleService {
         cycles.save(cycle);
 
         BigDecimal available = request.qty();
+        int putCount = 0;
         List<DestinationDemand> open = demands.findOpenForStationAndSku(stationId, request.skuId());
         for (DestinationDemand demand : open) {
             if (available.signum() <= 0) {
@@ -113,11 +118,24 @@ public class WorkCycleService {
             instruction.setPutLightId(dest.getPutLightId());
             instruction.setQty(put);
             puts.save(instruction);
+            putCount++;
+            log.debug("put-list entry for cycle {}: qty {} of sku {} to node {} (order {})",
+                    cycle.getId(), put, request.skuId(), dest.getCode(), demand.getOrderRef());
 
             available = available.subtract(put);
         }
         // remaining_qty reflects stock not yet reserved by put instructions; it is decremented on
         // confirmation. At present time everything assigned to a put is still in the HU.
+        if (putCount == 0) {
+            log.info("present built no puts: no open demand for sku {} at station {}; "
+                            + "qty {} stays on stock hu {} (cycle {})",
+                    request.skuId(), station.getCode(), request.qty(), request.stockHuId(), cycle.getId());
+        } else {
+            log.info("present at station {} built put-list: {} put(s) allocating {} of {} presented "
+                            + "from stock hu {} (sku {}, cycle {}); {} unallocated stays on the hu",
+                    station.getCode(), putCount, request.qty().subtract(available), request.qty(),
+                    request.stockHuId(), request.skuId(), cycle.getId(), available);
+        }
         return cycle;
     }
 
@@ -207,6 +225,9 @@ public class WorkCycleService {
             }
             default -> throw new IllegalArgumentException("unsupported operating mode: " + mode);
         }
+        log.info("{} cycle {} started at station {}: {} task line(s), stock hu {}{}",
+                mode, cycle.getId(), station.getCode(), specs.size(), request.stockHuId(),
+                request.targetHuId() != null ? ", target hu " + request.targetHuId() : "");
         return cycle;
     }
 
@@ -239,6 +260,8 @@ public class WorkCycleService {
                     throw new IllegalArgumentException("decant move qty must be zero or positive");
                 }
                 line.setActualQty(moved);
+                log.info("decant move confirmed on cycle {}: qty {} of sku {} into compartment {} of hu {}",
+                        line.getWorkCycleId(), moved, line.getSkuId(), line.getCompartment(), line.getHuId());
             }
             case "COUNT_ENTRY" -> {
                 if (request == null || request.actualQty() == null) {
@@ -251,10 +274,20 @@ public class WorkCycleService {
                 BigDecimal expected = line.getExpectedQty() == null
                         ? BigDecimal.ZERO : line.getExpectedQty();
                 line.setVariance(request.actualQty().subtract(expected));
+                log.info("count entry confirmed on cycle {}: hu {} sku {} counted {} vs expected {} (variance {})",
+                        line.getWorkCycleId(), line.getHuId(), line.getSkuId(),
+                        request.actualQty(), expected, line.getVariance());
             }
-            case "QC_VERDICT" -> line.setVerdict(requireVerdict(request, "PASS", "FAIL", "HOLD"));
-            case "MAINTENANCE_CHECK" ->
-                    line.setVerdict(requireVerdict(request, "OK", "DEFECTIVE", "REPAIR"));
+            case "QC_VERDICT" -> {
+                line.setVerdict(requireVerdict(request, "PASS", "FAIL", "HOLD"));
+                log.info("qc verdict {} recorded on cycle {} for hu {} sku {}",
+                        line.getVerdict(), line.getWorkCycleId(), line.getHuId(), line.getSkuId());
+            }
+            case "MAINTENANCE_CHECK" -> {
+                line.setVerdict(requireVerdict(request, "OK", "DEFECTIVE", "REPAIR"));
+                log.info("maintenance check verdict {} recorded on cycle {} for hu {}",
+                        line.getVerdict(), line.getWorkCycleId(), line.getHuId());
+            }
             default -> throw new IllegalStateException("unknown task-line type: " + line.getLineType());
         }
         line.setStatus("CONFIRMED");
@@ -264,6 +297,8 @@ public class WorkCycleService {
         if (taskLines.findByWorkCycleId(cycle.getId()).stream()
                 .noneMatch(t -> "OPEN".equals(t.getStatus()))) {
             cycle.setStatus("COMPLETED");
+            log.info("{} cycle {} completed: no open task lines remain",
+                    cycle.getOperatingMode(), cycle.getId());
         }
         return line;
     }
@@ -410,16 +445,33 @@ public class WorkCycleService {
                         instruction.getDestinationDemandId()));
 
         instruction.setConfirmedQty(confirmed);
-        instruction.setStatus(confirmed.compareTo(instruction.getQty()) < 0 ? "SHORT" : "CONFIRMED");
+        boolean shortPut = confirmed.compareTo(instruction.getQty()) < 0;
+        instruction.setStatus(shortPut ? "SHORT" : "CONFIRMED");
 
         demand.setPuttedQty(demand.getPuttedQty().add(confirmed));
+        String stationCode = stations.findById(cycle.getStationId())
+                .map(GtpStation::getCode).orElse(null);
+        if (shortPut) {
+            log.warn("put {} confirmed SHORT at station {}: {} of {} lit for order {} (sku {}); "
+                            + "remaining demand {} stays open for the next presentation",
+                    instruction.getId(), stationCode, confirmed, instruction.getQty(),
+                    instruction.getOrderRef(), cycle.getSkuId(), demand.remaining());
+        } else {
+            log.info("put {} confirmed at station {}: qty {} for order {} (sku {}); demand remaining {}",
+                    instruction.getId(), stationCode, confirmed,
+                    instruction.getOrderRef(), cycle.getSkuId(), demand.remaining());
+        }
         if (demand.remaining().signum() <= 0) {
             demand.setStatus("COMPLETED");
+            log.info("destination demand for order {} (sku {}) completed at station {}: fully putted",
+                    demand.getOrderRef(), demand.getSkuId(), stationCode);
         }
 
         cycle.setRemainingQty(cycle.getRemainingQty().subtract(confirmed));
         if (allResolved(cycle.getId())) {
             cycle.setStatus("COMPLETED");
+            log.info("picking cycle {} completed at station {}: all puts resolved, qty {} left on stock hu {}",
+                    cycle.getId(), stationCode, cycle.getRemainingQty(), cycle.getStockHuId());
         }
         return instruction;
     }
@@ -429,18 +481,30 @@ public class WorkCycleService {
     public WorkCycle close(UUID cycleId) {
         WorkCycle cycle = cycles.findById(cycleId)
                 .orElseThrow(() -> new NotFoundException("work cycle", cycleId));
+        int cancelledPuts = 0;
+        int cancelledLines = 0;
         for (PutInstruction p : puts.findByWorkCycleId(cycleId)) {
             if ("OPEN".equals(p.getStatus())) {
                 p.setStatus("CANCELLED");
+                cancelledPuts++;
             }
         }
         for (TaskLine t : taskLines.findByWorkCycleId(cycleId)) {
             if ("OPEN".equals(t.getStatus())) {
                 t.setStatus("CANCELLED");
+                cancelledLines++;
             }
         }
         if (!"COMPLETED".equals(cycle.getStatus())) {
             cycle.setStatus("CLOSED");
+        }
+        if (cancelledPuts > 0 || cancelledLines > 0) {
+            log.warn("{} cycle {} closed before completion (e.g. stock hu {} sent away): "
+                            + "{} open put(s) and {} open task line(s) cancelled",
+                    cycle.getOperatingMode(), cycleId, cycle.getStockHuId(), cancelledPuts, cancelledLines);
+        } else {
+            log.info("{} cycle {} closed (status {})",
+                    cycle.getOperatingMode(), cycleId, cycle.getStatus());
         }
         return cycle;
     }
