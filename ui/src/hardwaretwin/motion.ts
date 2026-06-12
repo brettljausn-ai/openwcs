@@ -237,61 +237,6 @@ export function projectPointOnPath(path: PathSample, p: XZ): { s: number; d: num
 }
 
 // ----------------------------------------------------------------------------------------------------
-// Belt spacing — totes are solid objects: two can never share the same stretch of belt
-// ----------------------------------------------------------------------------------------------------
-
-/** Minimum nose-to-nose gap between totes rendered on the same belt (tote is 0.6 m long). */
-export const TOTE_MIN_GAP_M = 0.75
-
-export interface SpacingItem {
-  id: string
-  xz: XZ
-  /** Fixed items (queued totes in their assigned slots) hold position; movers queue behind them. */
-  fixed?: boolean
-}
-
-export type SpaceOnBelts = (items: SpacingItem[]) => Map<string, XZ>
-
-/** Build a per-frame spacing pass: every item is attributed to its nearest belt (the locator's own
- *  projection); on each belt the item furthest along leads and every follower is clamped to at
- *  least `minGapM` behind the one ahead — pushed BACK along the belt's own geometry, never
- *  sideways. Fixed items (queue slots) are obstacles: they never move, movers stack up behind
- *  them. Off-belt items are untouched. Returns only the items whose position changed. */
-export function buildBeltSpacer(geoms: ConveyorGeomLike[], minGapM = TOTE_MIN_GAP_M): SpaceOnBelts {
-  const belts = prepareBelts(geoms)
-  return (items) => {
-    const adjusted = new Map<string, XZ>()
-    const byBelt = new Map<PreparedBelt, Array<{ it: SpacingItem; s: number }>>()
-    for (const it of items) {
-      let best: { belt: PreparedBelt; s: number; d: number } | null = null
-      for (const belt of belts) {
-        const { s, d } = projectOnto(belt, it.xz)
-        if (d <= ON_BELT_TOL_M && (!best || d < best.d)) best = { belt, s, d }
-      }
-      if (!best) continue
-      let arr = byBelt.get(best.belt)
-      if (!arr) byBelt.set(best.belt, (arr = []))
-      arr.push({ it, s: best.s })
-    }
-    for (const [belt, arr] of byBelt) {
-      if (arr.length < 2) continue
-      // Furthest along leads; ties broken by id so the order (and thus the queue) is stable.
-      arr.sort((a, b) => b.s - a.s || (a.it.id < b.it.id ? -1 : 1))
-      let nextAllowed = Infinity
-      for (const e of arr) {
-        let s = e.s
-        if (!e.it.fixed && s > nextAllowed) {
-          s = Math.max(0, nextAllowed)
-          adjusted.set(e.it.id, pointAtLen({ pts: belt.pts, cum: belt.cum, total: belt.total }, s))
-        }
-        nextAllowed = Math.min(nextAllowed, s) - minGapM
-      }
-    }
-    return adjusted
-  }
-}
-
-// ----------------------------------------------------------------------------------------------------
 // Timeline — the per-tote interpolation buffer
 // ----------------------------------------------------------------------------------------------------
 
