@@ -29,6 +29,10 @@ import SettingsScreen from './settings/SettingsScreen'
 import UsersScreen from './users/UsersScreen'
 import AccessControlScreen from './access/AccessControlScreen'
 import WarehouseAccessScreen from './warehouseaccess/WarehouseAccessScreen'
+import MaterialFlowReport from './reporting/MaterialFlowReport'
+import AsrsReport from './reporting/AsrsReport'
+import StockReport from './reporting/StockReport'
+import OrderFlowReport from './reporting/OrderFlowReport'
 import SystemInfoScreen from './systeminfo/SystemInfoScreen'
 import LogsPage from './systeminfo/LogsPage'
 import DatabaseScreen from './admindb/DatabaseScreen'
@@ -54,6 +58,11 @@ const COMPONENTS: Record<string, JSX.Element> = {
   'master-data:equipment': <MasterDataScreen />,
   'master-data:handling-unit-types': <MasterDataScreen />,
   'master-data:label-templates': <MasterDataScreen />,
+  'reporting:material-flow': <MaterialFlowReport />,
+  'reporting:asrs': <AsrsReport />,
+  'reporting:stock': <StockReport />,
+  'reporting:inbound': <OrderFlowReport direction="INBOUND" />,
+  'reporting:outbound': <OrderFlowReport direction="OUTBOUND" />,
   'gtp-config': <GtpConfigScreen />,
   settings: <SettingsScreen />,
   users: <UsersScreen />,

@@ -695,6 +695,78 @@ export const HELP: Record<string, ScreenHelp> = {
       "Which template prints for a dispatch is chosen by your shipping configuration."
     ]
   },
+  "reporting:material-flow": {
+    "summary": "The Material flow report shows how well the conveyor system reads and moves handling units: scans, no reads and unknown barcodes at every scan point per day, a prediction of which scanners need attention, a 3D traffic heatmap of the conveyor system, and daily transit times.",
+    "sections": [
+      { "heading": "Getting started", "body": "Pick the warehouse in the top-bar switcher and choose a reporting window (7 to 90 days). All figures are per day within that window. A freshly deployed system starts empty: report history accumulates from deployment day as the conveyors run." },
+      { "heading": "Scan quality", "body": "The stacked bars split every day's scans into good reads, no reads (the scanner saw a label but could not read it) and unknowns (a barcode the system does not know). The chips above summarise the window: total scans, errors and the overall error rate." },
+      { "heading": "Scanners needing attention", "body": "Each scan point's history is analysed: its overall error rate and the trend of its daily error rate (a regression over the window). A scanner is flagged when its rate exceeds 2 % or its rate is rising: rising error rates usually mean a dirty lens, misalignment or failing labels upstream, and catching them early avoids no-read chutes filling up. The mini chart shows the daily error rate; the arrow shows the trend." },
+      { "heading": "Traffic heatmap", "body": "The same 3D scene as the Automation topology and Hardware visualisation, with each conveyor tinted by how many transports ran over it in the window (log scale: the legend shows the busiest conveyor's count). Rotate with the left mouse button, pan with the right, zoom with the wheel. Toggle Labels to see equipment codes and scan-point markers." },
+      { "heading": "Transit times", "body": "Daily p50 and p95 transport times in seconds across completed transports: a rising p95 with a flat p50 typically means congestion or recirculation on part of the system." }
+    ],
+    "tips": [
+      "Sort the scanner table by Error rate or Trend to triage: flagged rows are already on top.",
+      "A scanner with few scans can show a noisy error rate; judge trends over a longer window (30/90 days).",
+      "Traffic that cannot be mapped to a placed conveyor (no node position nearby) is reported under the heatmap rather than silently dropped.",
+      "Use the 90-day window to see weekly patterns; the 7-day window to inspect this week's anomalies."
+    ]
+  },
+  "reporting:asrs": {
+    "summary": "The ASRS report covers the automated storage system: storage density in figures and percent with a 90-day history and a 14-day forecast, a 3D heatmap of where storage movements happen in the rack, daily movement volumes with forecast, and movements per device (shuttle, crane, lift).",
+    "sections": [
+      { "heading": "Getting started", "body": "Pick the warehouse in the top-bar switcher. The report always covers the last 90 days; the forecast continues 14 days past the last reported day. History accumulates from deployment day." },
+      { "heading": "Storage density", "body": "Density is occupied cells as a share of total cells, summed across storage blocks. The chips show the latest day's figures; the chart shows the 90-day history with a dashed 14-day forecast (a weekday-seasonal average: each forecast day is the average of the same weekday over the trailing weeks). The block table breaks the latest day down per storage block." },
+      { "heading": "Movement heatmap", "body": "Rack cells are coloured by stores plus retrieves over the window, rendered inside the real 3D rack at the same cell positions the Hardware visualisation uses for stored totes (log scale). Hot cells show where the work concentrates; a cold band can reveal unbalanced slotting. The chart next to it shows total movements per day with the dashed 14-day forecast of the totals." },
+      { "heading": "Movements per device", "body": "Completed and failed device tasks per physical device (shuttle, crane, conveyor loop of the ASRS) over the window: both as stacked bars and as a sortable table. Failures concentrated on one device usually point at hardware, not software." }
+    ],
+    "tips": [
+      "A density forecast trending towards 100 % is the early warning to free up stock or add capacity before put-away stalls.",
+      "Movements on locations without rack-cell coordinates cannot be painted in 3D; the screen reports how many were skipped.",
+      "Block density uses each block's latest reported day, so a block that stopped reporting shows its last known state.",
+      "Use the Labels toggle in the heatmap to identify equipment and scan points around the rack."
+    ]
+  },
+  "reporting:stock": {
+    "summary": "The Stock report shows current stock per SKU in single quantities, split between available (free to allocate), allocated (reserved for orders) and unavailable (blocked, damaged or otherwise not usable).",
+    "sections": [
+      { "heading": "Getting started", "body": "Pick the warehouse in the top-bar switcher. This report is a current-state snapshot, not a history: it shows the stock position as of now." },
+      { "heading": "Reading the figures", "body": "The chips total the warehouse: distinct SKUs in stock, total units, and the available/allocated/unavailable split. The stacked bars show the biggest SKUs by total units so the dominant items are visible at a glance." },
+      { "heading": "The SKU table", "body": "One row per SKU with the three-way split and the total, sortable by any column and searchable by SKU code or description. SKU codes come from master data: you never see raw ids." }
+    ],
+    "tips": [
+      "Sort by Unavailable to find stock that is blocked and should be investigated or written off.",
+      "Sort by Allocated vs Available to see SKUs close to running out of free stock.",
+      "Quantities are single units (the SKU's base unit of measure), matching the inventory service's stock ledger."
+    ]
+  },
+  "reporting:inbound": {
+    "summary": "The Inbound report shows what is coming into the warehouse: expected inbound (received orders that are not yet stock), started vs active work, daily volumes over the last 90 days, and a day map showing which hours of the day the inbound volume actually arrives.",
+    "sections": [
+      { "heading": "Getting started", "body": "Pick the warehouse in the top-bar switcher. The report always covers the last 90 days; history accumulates from deployment day." },
+      { "heading": "Headline figures", "body": "Expected inbound counts orders received from the host that have not yet become stock. Started counts orders where receiving has begun in the window; Active counts orders currently in progress." },
+      { "heading": "Daily volumes", "body": "Received, started and completed orders per day over the last 90 days. Quiet days render as zero rather than disappearing, so gaps in the operation are visible." },
+      { "heading": "Day map (hours of day)", "body": "The whole window compiled into the 24 hours of the day: each cell is one hour, coloured by how much inbound activity fell into that hour across all days. Outlined cells are the peaks (at least 85 % of the busiest hour): that is when your receiving doors are actually busy." }
+    ],
+    "tips": [
+      "A growing gap between received and completed lines means receiving is falling behind the host's deliveries.",
+      "Use the day map to align shift staffing with when trucks actually arrive, not when they are scheduled.",
+      "Expected inbound that stays high while Active is low usually means orders are waiting for goods that never arrived."
+    ]
+  },
+  "reporting:outbound": {
+    "summary": "The Outbound report mirrors the inbound view for shipping: expected outbound (received orders not yet released), started vs active work, daily volumes over the last 90 days, and a day map showing which hours of the day the outbound volume runs.",
+    "sections": [
+      { "heading": "Getting started", "body": "Pick the warehouse in the top-bar switcher. The report always covers the last 90 days; history accumulates from deployment day." },
+      { "heading": "Headline figures", "body": "Expected outbound counts orders received from the host that are not yet released to the floor. Started counts orders where fulfilment has begun in the window; Active counts orders currently in progress." },
+      { "heading": "Daily volumes", "body": "Received, started and completed orders per day over the last 90 days. Quiet days render as zero rather than disappearing, so gaps in the operation are visible." },
+      { "heading": "Day map (hours of day)", "body": "The whole window compiled into the 24 hours of the day: each cell is one hour, coloured by how much outbound activity fell into that hour across all days. Outlined cells are the peaks (at least 85 % of the busiest hour): typically your carrier cut-off rushes." }
+    ],
+    "tips": [
+      "Peaks just before carrier cut-offs are normal; peaks long after them mean orders are released too late.",
+      "A rising received line with a flat completed line is the earliest backlog warning.",
+      "Compare the inbound and outbound day maps to find hours where both compete for the same staff and equipment."
+    ]
+  },
   "admin-database": {
     "summary": "The Database console lets administrators look directly into the shared PostgreSQL database: browse every service schema and its tables, and run read-only SELECT queries. It is a diagnostic tool — nothing on this screen can change data.",
     "sections": [
