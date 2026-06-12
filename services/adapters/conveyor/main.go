@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -115,6 +116,46 @@ type deviceTaskResult struct {
 // supportedCommands are the moves this conveyor simulator accepts.
 var supportedCommands = map[string]bool{"CONVEY": true, "DIVERT": true, "MERGE": true, "SCAN": true}
 
+// huRef renders the handling unit a task moves as a human-readable log fragment: the HU code when
+// the payload carries one ("hu DEMO-HU-003"), the huId as fallback. Log lines must never show a
+// bare UUID when the payload carries a code.
+func huRef(payload map[string]interface{}) string {
+	if s := payloadString(payload, "huCode"); s != "" {
+		return "hu " + s
+	}
+	if s := payloadString(payload, "huId"); s != "" {
+		return "hu(id-only) " + s
+	}
+	return "no hu reference"
+}
+
+// routeRef renders the conveyor route from the payload fields flow sets (entryNode/destinationNode),
+// or "" when the payload carries no route.
+func routeRef(payload map[string]interface{}) string {
+	from, to := payloadString(payload, "entryNode"), payloadString(payload, "destinationNode")
+	if from == "" && to == "" {
+		return ""
+	}
+	if from == "" {
+		from = "?"
+	}
+	if to == "" {
+		to = "?"
+	}
+	return " route " + from + " -> " + to
+}
+
+// payloadString returns payload[key] when it is a non-empty string ("" otherwise).
+func payloadString(payload map[string]interface{}, key string) string {
+	if payload == nil {
+		return ""
+	}
+	if s, ok := payload[key].(string); ok {
+		return strings.TrimSpace(s)
+	}
+	return ""
+}
+
 // handleTask is the real-adapter device entrypoint: it validates the command, then fails because no
 // live hardware is connected (the PLC client is unimplemented). Hardware emulation moved to the
 // equipment-emulator service, so flow only routes here when the emulator flag is OFF.
@@ -125,13 +166,15 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 	}
 	var req deviceTaskRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("%s: WARNING device task POST rejected: body is not valid JSON (%v); caller gets HTTP 400 and no task runs", serviceName, err)
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if !supportedCommands[req.Command] {
-		log.Printf("%s: task %s rejected unsupported command %q", serviceName, req.TaskID, req.Command)
+		log.Printf("%s: WARNING task %s (%s, equipment %s) rejected: command %q is not in the %s command set; task FAILED, nothing moved",
+			serviceName, req.TaskID, huRef(req.Payload), req.EquipmentID, req.Command, family)
 		_ = json.NewEncoder(w).Encode(deviceTaskResult{
 			Status: "FAILED",
 			Detail: "unsupported command: " + req.Command,
@@ -142,7 +185,8 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 	// No real-hardware code exists yet (the PLC client is the TODO in deviceLoop), and emulation now
 	// lives in the equipment-emulator service — so a task only reaches this real adapter when the
 	// emulator flag is OFF, where it fails cleanly as "not connected".
-	log.Printf("%s: task %s (%s) not executed — no live hardware connected", serviceName, req.TaskID, req.Command)
+	log.Printf("%s: WARNING task %s refused: %s %s for %s%s (equipment %s) not executed, no live conveyor PLC is connected (PLC client unimplemented; tasks reach this adapter only while the emulator flag is OFF); task FAILED, turn the emulator ON or connect real hardware",
+		serviceName, req.TaskID, family, req.Command, huRef(req.Payload), routeRef(req.Payload), req.EquipmentID)
 	_ = json.NewEncoder(w).Encode(deviceTaskResult{
 		Status: "FAILED",
 		Detail: "hardware not connected (no live conveyor adapter configured)",

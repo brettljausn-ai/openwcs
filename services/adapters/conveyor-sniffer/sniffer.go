@@ -52,17 +52,31 @@ func (s *sniffer) handle(conn net.Conn) {
 	defer conn.Close()
 	ip, port, _ := net.SplitHostPort(conn.RemoteAddr().String())
 	if !s.ipAllowed(ip) {
-		log.Printf("conveyor-sniffer: rejecting telegram source %s (not in allowlist)", ip)
+		log.Printf("conveyor-sniffer: WARNING rejecting telegram source %s:%s (not in allowlist); connection dropped, scans from this controller are ignored", ip, port)
 		return
 	}
+	log.Printf("conveyor-sniffer: telegram stream connected from controller %s:%s", ip, port)
+	forwarded, undecodable, dropped := 0, 0, 0
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {
-		ev, ok := s.decoder.Decode(scanner.Text())
+		raw := scanner.Text()
+		ev, ok := s.decoder.Decode(raw)
 		if !ok {
+			undecodable++
+			log.Printf("conveyor-sniffer: WARNING undecodable telegram from %s:%s dropped (no node/barcode pair parsed); raw line: %q", ip, port, raw)
 			continue
 		}
 		if err := s.forwarder.Forward(ev, ip, port); err != nil {
-			log.Printf("conveyor-sniffer: forward of %s@%s failed: %v", ev.Barcode, ev.Node, err)
+			dropped++
+			log.Printf("conveyor-sniffer: WARNING forward of barcode %s at node %s (source %s:%s) failed: %v; observation lost, topology learning misses this scan", ev.Barcode, ev.Node, ip, port, err)
+			continue
 		}
+		forwarded++
+		log.Printf("conveyor-sniffer: scan forwarded: barcode %s at node %s (controller %s:%s)", ev.Barcode, ev.Node, ip, port)
 	}
+	if err := scanner.Err(); err != nil {
+		log.Printf("conveyor-sniffer: WARNING telegram stream from %s:%s broke: %v (%d scans forwarded, %d undecodable, %d forward failures this session)", ip, port, err, forwarded, undecodable, dropped)
+		return
+	}
+	log.Printf("conveyor-sniffer: telegram stream from %s:%s closed by peer (%d scans forwarded, %d undecodable, %d forward failures this session)", ip, port, forwarded, undecodable, dropped)
 }
