@@ -40,7 +40,7 @@ export const HELP: Record<string, ScreenHelp> = {
     ],
     "tips": [
       "The twin polls every few seconds; toggle auto-refresh off if you want to freeze the picture while you investigate.",
-      "Tote motion between scan points is approximated; positions are exact at every scanned point."
+      "Tote motion replays a few seconds behind real time, interpolated between reported scans along the conveyor geometry; positions are exact at every scanned point, and big jumps (rack store and retrieve, induction) are real."
     ]
   },
   "system-info": {

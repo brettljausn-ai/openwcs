@@ -6,6 +6,7 @@ import { getStationQueue } from '../gtpops/api'
 import { listLocations } from '../masterdata/api'
 import { listHandlingUnits } from '../inventory/api'
 import { loadConveyorNodePositions } from './api'
+import { insertPoint, pruneBefore, type ToteTimeline } from './motion'
 import {
   deriveStoredTotes,
   deriveTwin,
@@ -24,7 +25,11 @@ import {
 // on cleanup, and a `refreshRef` so the interval reads the freshest poll fn without being recreated
 // on every render.
 
-const DEFAULT_INTERVAL_MS = 3000
+// 2 s: one device-task read plus a capped trace fan-out per tick is cheap, and a shorter poll lets
+// the render delay (RENDER_DELAY_MS in motion.ts) stay short — fresher smooth motion.
+const DEFAULT_INTERVAL_MS = 2000
+const TIMELINE_RETENTION_MS = 60_000 // history a tote keeps behind the delayed render clock
+const TIMELINE_IDLE_DROP_MS = 30_000 // drop a timeline this long after its HU left the live picture
 const TASK_WINDOW = 500 // wide window so totes/throughput aren't truncated by the newest-first cap
 const TRACE_FANOUT_CAP = 12 // max per-tick HU trace fetches (live transports are cap-metered anyway)
 const ACTIVE_STATUSES = new Set(['REQUESTED', 'DISPATCHED', 'IN_PROGRESS', 'PENDING'])
@@ -40,6 +45,9 @@ export interface UseLiveTwinResult {
    *  same way the topology editor does (conveyor vs rack vs sorter). Loaded once per warehouse. */
   lib: Map<string, Equipment>
   snapshot: TwinSnapshot | null
+  /** Per-tote interpolation buffers (huId → timestamped scan waypoints) for smooth motion. The Map
+   *  identity is STABLE; its contents are mutated on each poll and read per-frame by the 3D layer. */
+  timelines: Map<string, ToteTimeline>
   /** HUs at rest in storage, positioned at their cell inside the ASRS rack (ADR-0009 §5). */
   storedTotes: StoredTote[]
   loading: boolean
@@ -71,9 +79,13 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
   const nodeXZRef = useRef<Map<string, [number, number]>>(new Map())
   // Storage cells (master-data locations with cell coordinates) — loaded once per warehouse.
   const cellsRef = useRef<StorageCell[]>([])
+  // Per-tote interpolation buffers (motion.ts). One stable Map for the component's lifetime —
+  // mutated on each poll, read per-frame by the 3D layer; cleared when the warehouse changes.
+  const timelinesRef = useRef<Map<string, ToteTimeline>>(new Map())
 
   // Load the static topology ONCE per warehouse.
   useEffect(() => {
+    timelinesRef.current.clear() // buffered motion belongs to the previous warehouse
     if (!warehouseId) {
       setTopology(null)
       setLib(EMPTY_LIB)
@@ -175,11 +187,40 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
             .map((e) => ({ huId: e.huId as string, huCode: e.huCode ?? null })),
         )
       }
-      const snap = deriveTwin(tasks, topo, Date.now(), {
+      const nowMs = Date.now()
+      const snap = deriveTwin(tasks, topo, nowMs, {
         tracesByHu,
         nodeXZ: nodeXZRef.current,
         queuedByStation,
       })
+      // Feed the per-tote interpolation buffers (motion.ts): every SCANNED row with a resolvable
+      // node position becomes a timestamped waypoint (insert is idempotent — polls overlap).
+      const timelines = timelinesRef.current
+      const nodeXZ = nodeXZRef.current
+      for (const [huId, rows] of tracesByHu) {
+        let tl = timelines.get(huId)
+        for (const r of rows) {
+          if (r.event !== 'SCANNED' || !r.point) continue
+          const xz = nodeXZ.get(r.point)
+          if (!xz) continue
+          const t = Date.parse(r.ts)
+          if (Number.isNaN(t)) continue
+          if (!tl) {
+            tl = { points: [] }
+            timelines.set(huId, tl)
+          }
+          insertPoint(tl, { tMs: t, xz, nextXZ: (r.toPoint && nodeXZ.get(r.toPoint)) || null })
+        }
+      }
+      // Prune: bound per-tote history, and drop timelines whose HU left the live picture a while ago.
+      const liveHuIds = new Set(snap.totes.map((t) => t.huId))
+      for (const [huId, tl] of timelines) {
+        pruneBefore(tl, nowMs - TIMELINE_RETENTION_MS)
+        const newest = tl.points[tl.points.length - 1]
+        if (!liveHuIds.has(huId) && (!newest || nowMs - newest.tMs > TIMELINE_IDLE_DROP_MS)) {
+          timelines.delete(huId)
+        }
+      }
       setSnapshot(snap)
       // Rack contents: every registry HU at rest, excluding HUs currently shown as live totes.
       try {
@@ -226,5 +267,15 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
     void refreshRef.current()
   }, [])
 
-  return { topology, lib, snapshot, storedTotes, loading, error, lastUpdated, refresh: refreshNow }
+  return {
+    topology,
+    lib,
+    snapshot,
+    timelines: timelinesRef.current,
+    storedTotes,
+    loading,
+    error,
+    lastUpdated,
+    refresh: refreshNow,
+  }
 }

@@ -34,6 +34,16 @@ import {
   type ToteView,
   type TwinSnapshot,
 } from './twin'
+import {
+  RENDER_DELAY_MS,
+  buildPathResolver,
+  newSmoothState,
+  sampleTimeline,
+  smoothStep,
+  type SmoothState,
+  type ToteTimeline,
+  type XZ,
+} from './motion'
 
 const BG = '#081e16'
 const LIME = '#8DC63F'
@@ -53,6 +63,9 @@ export interface HardwareTwin3DProps {
    *  rack vs sorter) so the scene looks exactly like the editor. */
   lib: Map<string, Equipment>
   snapshot: TwinSnapshot
+  /** Per-tote interpolation buffers (motion.ts) — when provided, tote motion replays the buffered
+   *  scan timeline RENDER_DELAY_MS behind real time, interpolated along the conveyor geometry. */
+  timelines?: Map<string, ToteTimeline>
   /** HUs at rest in storage, rendered at their cell position inside the ASRS rack (ADR-0009 §5). */
   storedTotes?: StoredTote[]
   activeLevelId?: string | null
@@ -68,6 +81,7 @@ export default function HardwareTwin3D({
   topology,
   lib,
   snapshot,
+  timelines,
   storedTotes = [],
   activeLevelId = null,
   selectedPlacedId = null,
@@ -113,6 +127,7 @@ export default function HardwareTwin3D({
         topology={topology}
         lib={lib}
         snapshot={snapshot}
+        timelines={timelines}
         activeLevelId={activeLevelId}
         selectedPlacedId={selectedPlacedId}
         selectedHuId={selectedHuId}
@@ -143,6 +158,7 @@ interface SceneContentProps {
   topology: AutomationTopology
   lib: Map<string, Equipment>
   snapshot: TwinSnapshot
+  timelines?: Map<string, ToteTimeline>
   activeLevelId: string | null
   selectedPlacedId: string | null
   selectedHuId: string | null
@@ -155,6 +171,7 @@ function SceneContent({
   topology,
   lib,
   snapshot,
+  timelines,
   activeLevelId,
   selectedPlacedId,
   selectedHuId,
@@ -249,7 +266,13 @@ function SceneContent({
         )
       })}
 
-      <Totes totes={snapshot.totes} geomById={geomById} selectedHuId={selectedHuId} onSelectTote={onSelectTote} />
+      <Totes
+        totes={snapshot.totes}
+        timelines={timelines}
+        geomById={geomById}
+        selectedHuId={selectedHuId}
+        onSelectTote={onSelectTote}
+      />
     </group>
   )
 }
@@ -331,18 +354,25 @@ function toteColor(state: ToteView['state']): string {
 
 interface TotesProps {
   totes: ToteView[]
+  timelines?: Map<string, ToteTimeline>
   geomById: Map<string, PlacementGeom>
   selectedHuId: string | null
   onSelectTote?: (huId: string | null) => void
 }
 
-// ADR-0008 replay: a tote's live position is the OBSERVED scan trail — the last scanned node,
-// interpolated toward the answered next node at the real conveyor speed (0.5 m/s) from the scan
-// timestamp. Per-frame wall-clock interpolation gives continuous motion between polls without
-// inventing a path. Totes without scans sit statically at their (strict) anchor.
-function Totes({ totes, geomById, selectedHuId, onSelectTote }: TotesProps): JSX.Element {
+// Smooth, honest tote motion (motion.ts): the per-frame target is the buffered scan timeline
+// sampled at `now - RENDER_DELAY_MS` and interpolated along the conveyor polylines — only ever
+// between KNOWN points, so polling cadence never shows (no freeze-then-jump). Buffer underruns
+// dead-reckon gently toward the known next node; revised data blends in over ~0.5 s; genuine
+// discontinuities (rack store/retrieve, induction) still teleport. The animation itself is pure
+// rAF/delta-time (useFrame) and fully independent of poll timing. Totes without a timeline fall
+// back to the single latest scan, then to their (strict) anchor.
+function Totes({ totes, timelines, geomById, selectedHuId, onSelectTote }: TotesProps): JSX.Element {
   const groupRefs = useRef<Map<string, THREE.Group>>(new Map())
-  const posRefs = useRef<Map<string, THREE.Vector3>>(new Map())
+  const smoothers = useRef<Map<string, SmoothState>>(new Map())
+
+  // Conveyor-geometry path resolver (memoised per endpoint pair inside).
+  const pathBetween = useMemo(() => buildPathResolver(Array.from(geomById.values())), [geomById])
 
   const resolved = useMemo(() => {
     const out: Array<{ tote: ToteView; anchor: THREE.Vector3 | null }> = []
@@ -355,57 +385,73 @@ function Totes({ totes, geomById, selectedHuId, onSelectTote }: TotesProps): JSX
           anchor = new THREE.Vector3(a[0], a[1] + BELT_LIFT, a[2])
         }
       }
-      if (!anchor && !tote.scan) continue // nothing observed to show
+      if (!anchor && !tote.scan && !timelines?.get(tote.huId)?.points.length) continue // nothing observed
       out.push({ tote, anchor })
     }
     return out
-  }, [totes, geomById])
+  }, [totes, geomById, timelines])
 
   const liveIds = useMemo(() => new Set(resolved.map((r) => r.tote.huId)), [resolved])
 
   useFrame((_state, delta) => {
-    const pos = posRefs.current
     const groups = groupRefs.current
-    for (const id of Array.from(pos.keys())) {
+    const sm = smoothers.current
+    for (const id of Array.from(sm.keys())) {
       if (!liveIds.has(id)) {
-        pos.delete(id)
+        sm.delete(id)
         groups.delete(id)
       }
     }
-    const nowMs = Date.now()
+    // Render BEHIND real time so the next scan is (almost) always already buffered — see motion.ts.
+    const renderT = Date.now() - RENDER_DELAY_MS
     for (const { tote, anchor } of resolved) {
       const g = groups.get(tote.huId)
       if (!g) continue
 
-      // Where the observed state puts the tote THIS frame.
-      let target: THREE.Vector3 | null = null
-      if (tote.scan) {
+      // Where the observed state puts the tote THIS frame. Queued totes sit at their station
+      // anchor (the real induction queue is the truth there) — the timeline only drives motion.
+      let xz: XZ | null = null
+      let y = SCAN_BELT_Y + BELT_LIFT
+      if (tote.state === 'queued' && anchor) {
+        xz = [anchor.x, anchor.z]
+        y = anchor.y
+      }
+      const tl = timelines?.get(tote.huId)
+      if (!xz && tl && tl.points.length) {
+        xz = sampleTimeline(tl, renderT, pathBetween)
+      }
+      if (!xz && tote.scan) {
+        // Legacy single-scan fallback (no buffered timeline available).
         const { fromXZ, toXZ, tsMs } = tote.scan
         if (toXZ) {
           const dx = toXZ[0] - fromXZ[0]
           const dz = toXZ[1] - fromXZ[1]
           const dist = Math.hypot(dx, dz)
-          const travelled = Math.max(0, (nowMs - tsMs) / 1000) * SCAN_SPEED_MPS
+          const travelled = Math.max(0, (renderT - tsMs) / 1000) * SCAN_SPEED_MPS
           const f = dist > 0 ? Math.min(1, travelled / dist) : 1
-          target = new THREE.Vector3(fromXZ[0] + dx * f, SCAN_BELT_Y + BELT_LIFT, fromXZ[1] + dz * f)
+          xz = [fromXZ[0] + dx * f, fromXZ[1] + dz * f]
         } else {
-          target = new THREE.Vector3(fromXZ[0], SCAN_BELT_Y + BELT_LIFT, fromXZ[1])
+          xz = [fromXZ[0], fromXZ[1]]
         }
-      } else if (anchor) {
-        target = anchor
       }
-      if (!target) continue
+      if (!xz && anchor) {
+        xz = [anchor.x, anchor.z]
+        y = anchor.y
+      }
+      if (!xz) continue
 
-      let cur = pos.get(tote.huId)
-      if (!cur) {
-        cur = target.clone()
-        pos.set(tote.huId, cur)
-        g.position.copy(cur)
+      let st = sm.get(tote.huId)
+      if (!st) {
+        st = newSmoothState()
+        sm.set(tote.huId, st)
+        smoothStep(st, xz, delta)
+        g.position.set(xz[0], y, xz[1])
         continue
       }
-      // Smooth toward the observed position (absorbs the jump when a new scan row lands).
-      cur.lerp(target, Math.min(1, delta * 6))
-      g.position.copy(cur)
+      const out = smoothStep(st, xz, delta)
+      // Y rarely changes (belt ↔ station top); ease it independently of the planar smoothing.
+      const ny = g.position.y + (y - g.position.y) * Math.min(1, delta * 8)
+      g.position.set(out[0], ny, out[1])
     }
   })
 
