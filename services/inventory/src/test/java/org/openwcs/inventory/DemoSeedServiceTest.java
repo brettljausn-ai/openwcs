@@ -59,7 +59,8 @@ class DemoSeedServiceTest {
         int stocked = Math.min(24, locations.size() * 2); // the existing stocked-HU formula
         assertThat(result.emptyHandlingUnits()).isEqualTo(50);
         assertThat(result.handlingUnits()).isEqualTo(stocked + 50);
-        assertThat(result.stockRows()).isPositive();
+        // exactly one stock row (one SKU) per stocked HU: the demo HU type is 1-compartment
+        assertThat(result.stockRows()).isEqualTo(stocked);
 
         List<HandlingUnit> hus = handlingUnits.findByWarehouseId(warehouseId);
         assertThat(hus).hasSize(stocked + 50);
@@ -68,6 +69,10 @@ class DemoSeedServiceTest {
         long husWithStock = stock.findByWarehouseId(warehouseId).stream()
                 .map(s -> s.getHuId()).distinct().count();
         assertThat(husWithStock).isEqualTo(stocked);
+        // no HU carries more than one SKU
+        assertThat(stock.findByWarehouseId(warehouseId).stream()
+                .collect(java.util.stream.Collectors.groupingBy(s -> s.getHuId(), java.util.stream.Collectors.counting()))
+                .values()).allMatch(n -> n == 1);
 
         demo.clear(warehouseId);
         assertThat(handlingUnits.findByWarehouseId(warehouseId)).isEmpty();
