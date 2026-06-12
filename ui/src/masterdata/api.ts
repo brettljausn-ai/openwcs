@@ -50,6 +50,23 @@ export interface UnitOfMeasure {
   baseUnit: boolean
 }
 
+// One-call "product card" (GET /skus/{id}/card?warehouseId=): SKU identity + base-UoM item
+// dimensions + the warehouse profile's metadata blob, for operator screens like the GTP tote panel.
+export interface SkuCard {
+  id: string
+  code: string
+  description?: string | null
+  imageUrl?: string | null
+  baseUom?: {
+    code: string
+    lengthMm?: number | null
+    widthMm?: number | null
+    heightMm?: number | null
+    weightG?: number | null
+  } | null
+  metadata?: Record<string, unknown>
+}
+
 export interface Barcode {
   id?: string
   skuId?: string
@@ -189,6 +206,10 @@ export async function listSkus(q?: string): Promise<Sku[]> {
   const url = q ? `${base}/skus?size=500&q=${encodeURIComponent(q)}` : `${base}/skus?size=500`
   const p = await unwrap<Page<Sku>>(await fetch(url))
   return p.content
+}
+export async function getSkuCard(skuId: string, warehouseId?: string): Promise<SkuCard> {
+  const qs = warehouseId ? `?warehouseId=${encodeURIComponent(warehouseId)}` : ''
+  return unwrap(await fetch(`${base}/skus/${skuId}/card${qs}`))
 }
 export async function listSkuUoms(skuId: string): Promise<UnitOfMeasure[]> {
   return unwrap(await fetch(`${base}/skus/${skuId}/uoms`))
