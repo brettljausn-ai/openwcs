@@ -1242,6 +1242,9 @@ function GuidedBlockBuilder({
             rackLevel: level,
             posX: pos,
             posY: level,
+            // Travel rank to the aisle's in/outfeed (assumed at position 1, ground level);
+            // drives the velocity-to-exit objective in slotting. Editable per location.
+            distanceToExit: pos - 1 + (level - 1),
             mixedAllowed: false,
             laneDepth,
           })

@@ -63,7 +63,7 @@ class PutawayServiceTest {
 
     private static StorageLocation loc(UUID id, String aisle, int laneDepth, double dist, List<String> allowedHuTypes) {
         return new StorageLocation(id, "L-" + id.toString().substring(0, 4), "STORAGE", "ASRS_SLOT",
-                aisle, 1, laneDepth, BigDecimal.valueOf(dist), null, "ACTIVE", allowedHuTypes);
+                aisle, 1, laneDepth, null, null, null, BigDecimal.valueOf(dist), null, "ACTIVE", allowedHuTypes);
     }
 
     @Test
