@@ -29,3 +29,25 @@ Outbound
 * Last 90 days, values per day
 * Day map of last 90 days compiled into hours of day (show peaks)
 
+
+---
+
+Enrichment (research-based additions, standard commercial-WCS report set)
+
+Material Flow (additions)
+* Throughput per scan point per hour (current + history)
+* Transit-time distribution induct -> arrival (p50/p95 per day) from the HU transport trace
+* Recirculation rate per sorter/divert per day
+
+Equipment (new report, fits Material Flow or its own tab)
+* Device-task throughput + failure rate per equipment per day (completed vs failed)
+* Equipment utilization proxy: active task time share per equipment family
+
+GTP (new report, later phase)
+* Station throughput (cycles/puts per hour), queue depth over time
+
+Method notes
+* History accumulates from deployment day (daily counters/snapshots); 90-day windows fill over time
+* 14-day forecasts: weekday-seasonal moving average (simple, explainable), shown as dashed continuation
+* Heatmaps reuse the existing 3D topology/twin scene (conveyor edges coloured by traffic; ASRS rack cells by movement count)
+* Sidebar: Reporting is its own collapsible category; each report is a subitem (Material Flow, ASRS, Stock, Inbound, Outbound)
