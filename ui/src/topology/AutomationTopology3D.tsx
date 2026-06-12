@@ -3691,6 +3691,8 @@ interface EquipmentMeshProps {
   showLabels?: boolean
   /** Scene conveyor height for ASRS IN/OUT stub bodies (flush with the conveyors they feed). */
   stubHeightM?: number
+  /** Overrides the conveyor BODY colour (the twin's live state tint). Editor leaves it unset. */
+  bodyTint?: string
 }
 
 export function EquipmentMesh({
@@ -3710,6 +3712,7 @@ export function EquipmentMesh({
   onHandleDragChange,
   showLabels = true,
   stubHeightM,
+  bodyTint,
 }: EquipmentMeshProps) {
   // Highlight either the editor selection or (in connect mode) the chosen source.
   const highlight = connectMode ? connectSource : selected
@@ -3724,6 +3727,7 @@ export function EquipmentMesh({
         eq={eq}
         cat={cat}
         color={color}
+        bodyTint={bodyTint}
         selected={highlight}
         editable={selected && !connectMode}
         drawing={drawing}
@@ -3755,6 +3759,7 @@ export function EquipmentMesh({
         width={eq.widthM}
         selected={highlight}
         highlightColor={highlightColor}
+        tint={bodyTint}
       />
     )
   } else if (cat === 'asrs') {
@@ -3951,6 +3956,8 @@ interface ConveyorPathProps {
   showLabels?: boolean
   /** Height for NON-conveyor stub bodies (an ASRS's IN/OUT pieces) — the scene's conveyor height. */
   stubHeightM?: number
+  /** Overrides the conveyor BODY colour (the twin's live state tint). Editor leaves it unset. */
+  bodyTint?: string
 }
 
 // Renders a conveyor as a DIRECTED section graph: one box per section `[i,j]` (length = |path[i]
@@ -3972,6 +3979,7 @@ function ConveyorPath({
   onHandleDragChange,
   showLabels = true,
   stubHeightM,
+  bodyTint: bodyTintProp,
 }: ConveyorPathProps) {
   const path = (eq.path ?? []) as number[][]
   const sections = effectiveSections(eq)
@@ -3980,8 +3988,8 @@ function ConveyorPath({
   // For a NON-conveyor path host (an ASRS / manual-storage stub), tint the conveyor body in the
   // equipment's own category colour so the stub reads as that equipment's IN/OUT piece — not the
   // default light-blue conveyor (which on an ASRS looks like a vague blur). A real conveyor keeps
-  // the default look (tint = undefined).
-  const bodyTint = cat === 'conveyor' ? undefined : categoryBodyColor(cat) ?? undefined
+  // the default look (tint = undefined) unless the caller overrides it (the twin's live state tint).
+  const bodyTint = bodyTintProp ?? (cat === 'conveyor' ? undefined : categoryBodyColor(cat) ?? undefined)
   // A real conveyor uses its own envelope; a stub host (ASRS / manual-storage) draws its IN/OUT
   // stubs at a CONVEYOR width AND height so they read as low, flat conveyor pieces — not the full
   // rack footprint width or its (often ~10 m) rack height (which rendered the stub as a tall wall).
