@@ -16,7 +16,9 @@ import { useLiveTwin } from './useLiveTwin'
 // the main bundle; it default-exports a component matching HardwareTwin3DProps.
 const HardwareTwin3D = lazy(() => import('./HardwareTwin3D'))
 
-const POLL_MS = 3000
+// 2 s poll: cheap (one device-task read + capped trace fan-out) and keeps the interpolation
+// buffer fed so the delayed render clock (motion.ts RENDER_DELAY_MS) rarely underruns.
+const POLL_MS = 2000
 
 // Tote-state colours — must match the 3D component's palette.
 const TOTE_COLOURS: Record<ToteView['state'], string> = {
@@ -46,10 +48,10 @@ function shortId(id?: string | null): string {
 export default function HardwareTwinScreen() {
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const [autoRefresh, setAutoRefresh] = useState(true)
-  const { topology, lib, snapshot, storedTotes, loading, error, lastUpdated, refresh } = useLiveTwin(warehouseId, {
-    intervalMs: POLL_MS,
-    autoRefresh,
-  })
+  const { topology, lib, snapshot, timelines, storedTotes, loading, error, lastUpdated, refresh } = useLiveTwin(
+    warehouseId,
+    { intervalMs: POLL_MS, autoRefresh },
+  )
 
   const [showLabels, setShowLabels] = useState(false)
   const [activeLevelId, setActiveLevelId] = useState<string | null>(null)
@@ -226,6 +228,7 @@ export default function HardwareTwinScreen() {
                   topology={topology}
                   lib={lib}
                   snapshot={snapshot ?? EMPTY_SNAPSHOT}
+                  timelines={timelines}
                   storedTotes={storedTotes}
                   showLabels={showLabels}
                   activeLevelId={activeLevelId}
