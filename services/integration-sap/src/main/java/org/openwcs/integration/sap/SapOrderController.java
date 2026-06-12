@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.UUID;
 import org.openwcs.integration.sap.client.HostApiClient;
 import org.openwcs.integration.sap.client.MasterDataClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,6 +26,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/integration/sap")
 public class SapOrderController {
+
+    private static final Logger log = LoggerFactory.getLogger(SapOrderController.class);
 
     private final HostApiClient hostApi;
     private final MasterDataClient masterData;
@@ -53,6 +57,9 @@ public class SapOrderController {
         }
         host.put("lines", lines(sap.items()));
         hostApi.createOrder(host);
+        log.info("SAP sales order {} translated to canonical host order (same ref): {} items resolved to SKUs, sold-to {} (service {}, route {})",
+                sap.salesOrder(), sap.items() == null ? 0 : sap.items().size(),
+                sap.soldTo(), sap.serviceCode(), sap.routeCode());
     }
 
     @PostMapping("/asns")
@@ -63,6 +70,8 @@ public class SapOrderController {
         host.put("supplierRef", sap.supplier());
         host.put("lines", lines(sap.items()));
         hostApi.createAsn(host);
+        log.info("SAP inbound delivery {} translated to canonical host ASN (same ref): {} items resolved to SKUs, supplier {}",
+                sap.inboundDelivery(), sap.items() == null ? 0 : sap.items().size(), sap.supplier());
     }
 
     private List<Map<String, Object>> lines(List<SapItem> items) {
@@ -71,6 +80,8 @@ public class SapOrderController {
             for (SapItem item : items) {
                 UUID skuId = masterData.skuIdByCode(item.material());
                 if (skuId == null) {
+                    log.warn("SAP message rejected: material {} has no SKU in master-data, returning 422 to SAP; sync the SKU first, then resend",
+                            item.material());
                     throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                             "Unknown material (no SKU with code " + item.material() + ")");
                 }

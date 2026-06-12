@@ -13,6 +13,8 @@ import org.openwcs.iam.domain.AppUser;
 import org.openwcs.iam.domain.Role;
 import org.openwcs.iam.repo.AppUserRepository;
 import org.openwcs.iam.repo.RoleRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class IamService {
+
+    private static final Logger log = LoggerFactory.getLogger(IamService.class);
 
     private final AppUserRepository users;
     private final RoleRepository roles;
@@ -54,13 +58,18 @@ public class IamService {
         role.setName(request.name());
         role.setDescription(request.description());
         role.setPermissions(permissions);
-        return RoleView.from(roles.save(role));
+        RoleView created = RoleView.from(roles.save(role));
+        log.info("role {} created with {} permissions: {}", role.getName(), permissions.size(), new TreeSet<>(permissions));
+        return created;
     }
 
     @Transactional
     public RoleView setRolePermissions(String name, Requests.SetPermissions request) {
         Role role = requireRole(name);
+        Set<String> before = new TreeSet<>(role.getPermissions());
         role.setPermissions(validatePermissions(request.permissions()));
+        log.info("role {} permissions replaced: {} -> {} (affects every user holding the role)",
+                name, before, new TreeSet<>(role.getPermissions()));
         return RoleView.from(role);
     }
 
@@ -81,7 +90,10 @@ public class IamService {
         user.setUsername(request.username());
         user.setDisplayName(request.displayName());
         user.setExternalId(request.externalId());
-        return UserView.from(users.save(user));
+        UserView created = UserView.from(users.save(user));
+        log.info("user {} ('{}') created in the IAM catalog (no roles yet)",
+                user.getUsername(), user.getDisplayName());
+        return created;
     }
 
     @Transactional
@@ -94,6 +106,8 @@ public class IamService {
             }
         }
         user.setRoles(assigned);
+        log.info("user {} roles replaced: now {} (effective permissions are the union across these roles)",
+                username, assigned.stream().map(Role::getName).collect(java.util.stream.Collectors.toCollection(TreeSet::new)));
         return UserView.from(user);
     }
 

@@ -4,6 +4,8 @@ import java.util.UUID;
 import org.flowable.engine.delegate.DelegateExecution;
 import org.flowable.engine.delegate.JavaDelegate;
 import org.openwcs.process.client.SlottingClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -17,6 +19,8 @@ import org.springframework.stereotype.Component;
  */
 @Component("assignPutaway")
 public class AssignPutawayDelegate implements JavaDelegate {
+
+    private static final Logger log = LoggerFactory.getLogger(AssignPutawayDelegate.class);
 
     private final SlottingClient slotting;
 
@@ -34,9 +38,18 @@ public class AssignPutawayDelegate implements JavaDelegate {
         UUID blockId = asUuid(execution.getVariable("blockId"));
         Object qty = execution.getVariable("qty");
 
-        SlottingClient.Putaway decision =
-                slotting.assignPutaway(warehouseId, huId, skuId, batchId, uomId, qty, blockId);
+        SlottingClient.Putaway decision;
+        try {
+            decision = slotting.assignPutaway(warehouseId, huId, skuId, batchId, uomId, qty, blockId);
+        } catch (RuntimeException e) {
+            log.error("assignPutaway failed for hu {} sku {} (process instance {}): {}",
+                    huId, skuId, execution.getProcessInstanceId(), e.toString());
+            throw e;
+        }
 
+        log.info("putaway assigned by process {} (instance {}): hu {} sku {} -> location {} (mode {}, block {})",
+                execution.getProcessInstanceBusinessKey(), execution.getProcessInstanceId(),
+                huId, skuId, decision.locationId(), decision.mode(), decision.blockId());
         execution.setVariable("targetLocationId", decision.locationId());
         execution.setVariable("putawayMode", decision.mode());
         execution.setVariable("putawayBlockId", decision.blockId());

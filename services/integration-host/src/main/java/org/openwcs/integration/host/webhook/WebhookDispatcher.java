@@ -45,6 +45,8 @@ public class WebhookDispatcher {
     }
 
     private void deliver(WebhookSubscription sub) {
+        long startCursor = sub.getCursor();
+        int delivered = 0;
         List<TxLogClient.TxEvent> events = txLog.feed(sub.getCursor(), batchSize);
         for (TxLogClient.TxEvent event : events) {
             Map<String, Object> confirmation = new HashMap<>();
@@ -61,11 +63,17 @@ public class WebhookDispatcher {
                         .toBodilessEntity();
             } catch (RestClientException e) {
                 // Delivery failed: stop here and retry from this cursor on the next pass.
-                log.warn("Webhook {} delivery failed at position {}: {}",
-                        sub.getId(), event.position(), e.toString());
+                log.warn("webhook delivery to {} (subscription {}) failed at tx-log position {} ({} {}): {}; cursor stays at {}, the event will be retried on the next pass",
+                        sub.getCallbackUrl(), sub.getId(), event.position(), event.eventType(),
+                        event.streamId(), e.toString(), sub.getCursor());
                 return;
             }
             sub.setCursor(event.position());
+            delivered++;
+        }
+        if (delivered > 0) {
+            log.info("webhook confirmations delivered to {} (subscription {}): {} events, cursor advanced {} -> {}",
+                    sub.getCallbackUrl(), sub.getId(), delivered, startCursor, sub.getCursor());
         }
     }
 }

@@ -4,6 +4,8 @@ import java.util.Map;
 import java.util.Set;
 import org.openwcs.common.security.AccessControl;
 import org.openwcs.iam.service.ScreenAccessService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,6 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/iam/screen-access")
 public class ScreenAccessController {
 
+    private static final Logger log = LoggerFactory.getLogger(ScreenAccessController.class);
+
     private final ScreenAccessService service;
 
     public ScreenAccessController(ScreenAccessService service) {
@@ -35,7 +39,12 @@ public class ScreenAccessController {
 
     /** Replace the whole override map. Screens absent from the body fall back to UI defaults. */
     @PutMapping
-    public Map<String, ScreenAccessView> replace(@RequestBody Map<String, ScreenAccessView> overrides) {
+    public Map<String, ScreenAccessView> replace(
+            @RequestBody Map<String, ScreenAccessView> overrides,
+            @RequestHeader(value = "X-Auth-User", required = false) String actor) {
+        log.info("screen-access override replacement requested by {}: {} screens in the submitted map",
+                actor == null ? "unauthenticated caller" : actor,
+                overrides == null ? 0 : overrides.size());
         return service.replaceAll(overrides);
     }
 

@@ -7,6 +7,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -21,6 +23,8 @@ import org.springframework.web.util.ContentCachingResponseWrapper;
  */
 @Component
 public class IdempotencyFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(IdempotencyFilter.class);
 
     static final String HEADER = "Idempotency-Key";
 
@@ -44,6 +48,8 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         Optional<IdempotencyRecord> existing = store.findById(key);
         if (existing.isPresent()) {
             IdempotencyRecord record = existing.get();
+            log.info("idempotency key {} reused on POST {}: replaying the original {} response, request not re-processed (no duplicate order/ASN/adjustment)",
+                    key, request.getRequestURI(), record.getHttpStatus());
             response.setStatus(record.getHttpStatus());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             if (record.getResponseBody() != null) {
@@ -61,8 +67,12 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         if (status >= 200 && status < 300) {
             try {
                 store.save(new IdempotencyRecord(key, status, body));
+                log.debug("idempotency key {} recorded for POST {} ({}): a retry with this key will replay this response",
+                        key, request.getRequestURI(), status);
             } catch (DataIntegrityViolationException race) {
                 // A concurrent request with the same key already stored it; nothing to do.
+                log.debug("idempotency key {} already recorded by a concurrent request on POST {}; keeping the first record",
+                        key, request.getRequestURI());
             }
         }
     }
