@@ -8,6 +8,8 @@ import org.openwcs.masterdata.domain.Location;
 import org.openwcs.masterdata.domain.StorageBlock;
 import org.openwcs.masterdata.repo.LocationRepository;
 import org.openwcs.masterdata.repo.StorageBlockRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -27,6 +29,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/master-data/storage-blocks")
 public class StorageBlockController {
+
+    private static final Logger log = LoggerFactory.getLogger(StorageBlockController.class);
 
     private final StorageBlockRepository blocks;
     private final LocationRepository locations;
@@ -103,13 +107,20 @@ public class StorageBlockController {
             locations.deleteAll(blockLocations);
         }
         blocks.delete(existing);
+        log.info("storage block deleted: block {} ({}, type {}) removed from warehouse {} with"
+                        + " {} location(s) cascade-deleted because an admin requested the delete",
+                existing.getCode(), id, existing.getStorageType(), existing.getWarehouseId(),
+                blockLocations.size());
         return ResponseEntity.noContent().build();
     }
 
     private StorageBlock setStatus(UUID id, String status) {
         StorageBlock block = blocks.findById(id).orElseThrow(() -> new NotFoundException("StorageBlock", id));
         block.setStatus(status);
-        return blocks.save(block);
+        StorageBlock saved = blocks.save(block);
+        log.info("storage block status changed: block {} ({}) set to {} because an admin requested it",
+                saved.getCode(), id, status);
+        return saved;
     }
 
     private static void requireAdmin(String roles) {

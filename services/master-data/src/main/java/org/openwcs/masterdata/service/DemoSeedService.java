@@ -28,6 +28,8 @@ import org.openwcs.masterdata.repo.SkuRepository;
 import org.openwcs.masterdata.repo.SystemConfigurationRepository;
 import org.openwcs.masterdata.repo.UnitOfMeasureRepository;
 import org.openwcs.masterdata.repo.WarehouseFulfillmentConfigRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +44,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class DemoSeedService {
+
+    private static final Logger log = LoggerFactory.getLogger(DemoSeedService.class);
 
     static final String DEMO_FLAG = "DEMO_MODE_ENABLED";
     static final String SKU_PREFIX = "DEMO-SKU-";
@@ -108,10 +112,14 @@ public class DemoSeedService {
     @Transactional
     public DemoResult enable(UUID warehouseId) {
         if (skus.count() > 0) {
+            log.warn("demo enable rejected: the sku catalog already holds {} skus (host data present);"
+                    + " demo mode only seeds an empty system, nothing was changed", skus.count());
             throw new IllegalStateException(
                     "Demo mode can only be enabled on a fresh system with no host data (the SKU catalog is not empty).");
         }
         if (warehouseId == null || locations.countByWarehouseId(warehouseId) == 0) {
+            log.warn("demo enable rejected: warehouse {} has no storage locations;"
+                    + " demo mode places stock into existing locations, nothing was changed", warehouseId);
             throw new IllegalStateException(
                     "Create storage locations for this warehouse first — demo mode places stock into existing locations.");
         }
@@ -197,6 +205,10 @@ public class DemoSeedService {
         }
 
         setFlag(true);
+        log.info("demo mode enabled: seeded {} skus (codes prefixed {}), {} uoms, {} barcodes,"
+                        + " {} demo shippers and {} demo hu type(s) for warehouse {}"
+                        + " because an admin switched demo mode on for an empty catalog",
+                skuN, SKU_PREFIX, uomN, bcN, shipperN, huN, warehouseId);
         return new DemoResult(skuN, uomN, bcN, shipperN, huN);
     }
 
@@ -236,6 +248,10 @@ public class DemoSeedService {
         }
 
         setFlag(false);
+        log.info("demo mode disabled: full catalog reset removed {} skus, {} uoms, {} barcodes,"
+                        + " {} demo shippers and {} demo hu type(s)"
+                        + " because disable restores the pre-demo empty catalog",
+                skuN, uomN, bcN, shipperN, huN);
         return new DemoResult(skuN, uomN, bcN, shipperN, huN);
     }
 
@@ -276,6 +292,8 @@ public class DemoSeedService {
             }
         } catch (IOException e) {
             // Demo images are best-effort; fall back to none.
+            log.warn("demo sku images skipped: could not read /demo-sku-images.txt ({});"
+                    + " demo skus are seeded without product images", e.toString());
         }
         return urls;
     }

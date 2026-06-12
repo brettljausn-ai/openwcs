@@ -17,6 +17,8 @@ import org.openwcs.inventory.repo.HandlingUnitRepository;
 import org.openwcs.inventory.repo.ReservationRepository;
 import org.openwcs.inventory.repo.SerialUnitRepository;
 import org.openwcs.inventory.repo.StockRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class DemoSeedService {
+
+    private static final Logger log = LoggerFactory.getLogger(DemoSeedService.class);
 
     /** Demo HU codes share this prefix so {@link #clear(UUID)} can recognise and remove them. */
     private static final String DEMO_HU_PREFIX = "DEMO-HU-";
@@ -61,6 +65,8 @@ public class DemoSeedService {
         List<UUID> locationIds = req.locationIds();
         List<UUID> skuIds = req.skuIds();
         if (locationIds == null || locationIds.isEmpty() || skuIds == null || skuIds.isEmpty()) {
+            log.warn("demo seed skipped: no location ids or no sku ids supplied for warehouse {};"
+                    + " nothing was created", req.warehouseId());
             return new DemoSeedResult(0, 0, 0);
         }
 
@@ -112,6 +118,10 @@ public class DemoSeedService {
             emptyCreated++;
         }
 
+        log.info("demo seed complete: {} handling units ({} stocked, {} empty, codes prefixed {}) and"
+                        + " {} stock rows created in warehouse {} because demo seed was requested",
+                huCreated + emptyCreated, huCreated, emptyCreated, DEMO_HU_PREFIX,
+                stockCreated, req.warehouseId());
         return new DemoSeedResult(huCreated + emptyCreated, emptyCreated, stockCreated);
     }
 
@@ -132,6 +142,9 @@ public class DemoSeedService {
         int hus = handlingUnits.deleteBulkByWarehouseId(warehouseId);
         int batchRows = batches.deleteBulkByWarehouseId(warehouseId);
 
+        log.info("demo clear complete: warehouse {} operationally reset because demo mode was switched off;"
+                        + " removed {} reservations, {} stock rows, {} handling units, {} serial units, {} batches",
+                warehouseId, reservationRows, stockRows, hus, serials, batchRows);
         return new DemoClearResult(reservationRows, stockRows, hus, serials, batchRows);
     }
 }

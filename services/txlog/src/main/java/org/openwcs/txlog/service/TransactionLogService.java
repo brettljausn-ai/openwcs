@@ -10,7 +10,10 @@ import org.openwcs.txlog.domain.Event;
 import org.openwcs.txlog.domain.OutboxMessage;
 import org.openwcs.txlog.repo.EventRepository;
 import org.openwcs.txlog.repo.OutboxRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class TransactionLogService {
+
+    private static final Logger log = LoggerFactory.getLogger(TransactionLogService.class);
 
     private final EventRepository events;
     private final OutboxRepository outbox;
@@ -56,7 +61,17 @@ public class TransactionLogService {
                 cmd.streamId(), seq, cmd.eventType(), occurredAt, now,
                 cmd.actor(), cmd.correlationId(), payload, payloadVersion);
         // Flush now so a (stream_id, seq) collision surfaces inside this call.
-        events.saveAndFlush(event);
+        try {
+            events.saveAndFlush(event);
+        } catch (DataIntegrityViolationException e) {
+            log.warn("append conflict: stream {} seq {} already exists ({} from actor {},"
+                            + " expectedSeq {}); the append is rejected and the caller must"
+                            + " reload the stream and retry with the next sequence",
+                    cmd.streamId(), seq, cmd.eventType(), cmd.actor(), cmd.expectedSeq());
+            throw e;
+        }
+        log.debug("event appended: {} on stream {} seq {} (event {}) staged for publication on topic {}",
+                event.getEventType(), event.getStreamId(), event.getSeq(), event.getEventId(), streamTopic);
 
         EventEnvelope envelope = new EventEnvelope(
                 event.getEventId(), event.getStreamId(), event.getSeq(), event.getEventType(),
@@ -93,6 +108,10 @@ public class TransactionLogService {
         long eventCount = events.count();
         long outboxCount = outbox.count();
         events.truncateJournal();
+        log.info("transaction journal cleared: {} events and {} outbox rows truncated"
+                + " because of a demo-mode reset; feed positions are not reused, so consumer"
+                + " cursors stay valid and simply see no rows until new events arrive",
+                eventCount, outboxCount);
         return new ClearCounts(eventCount, outboxCount);
     }
 
