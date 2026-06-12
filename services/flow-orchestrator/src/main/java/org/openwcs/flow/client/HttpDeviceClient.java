@@ -3,6 +3,8 @@ package org.openwcs.flow.client;
 import java.util.HashMap;
 import java.util.Map;
 import org.openwcs.flow.domain.DeviceTask;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -14,6 +16,8 @@ import org.springframework.web.client.RestClient;
  */
 @Component
 public class HttpDeviceClient implements DeviceClient {
+
+    private static final Logger log = LoggerFactory.getLogger(HttpDeviceClient.class);
 
     private final RestClient.Builder builder;
     private final FlowProperties properties;
@@ -28,7 +32,12 @@ public class HttpDeviceClient implements DeviceClient {
 
     @Override
     public DeviceResult execute(DeviceTask task) {
-        String baseUrl = resolveBaseUrl(task.getFamily(), emulatorMode.enabled());
+        boolean emulatorOn = emulatorMode.enabled();
+        String baseUrl = resolveBaseUrl(task.getFamily(), emulatorOn);
+        log.info("dispatching device task {} ({} {}) to {} at {} (hardware-emulator mode {})",
+                task.getId(), task.getFamily(), task.getCommand(),
+                emulatorOn ? "the equipment emulator" : "the " + task.getFamily() + " adapter",
+                baseUrl, emulatorOn ? "on" : "off");
         Map<String, Object> body = new HashMap<>();
         body.put("taskId", task.getId());
         body.put("warehouseId", task.getWarehouseId());

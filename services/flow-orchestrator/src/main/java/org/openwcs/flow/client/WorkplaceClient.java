@@ -46,7 +46,8 @@ public class WorkplaceClient {
             }
             return new Caps(s.maxInTransitPicking(), s.maxInTransitOther());
         } catch (RestClientException e) {
-            log.debug("Workplace {} cap lookup failed ({}); defaulting to {}", workplaceId, e.toString(), DEFAULT_CAP);
+            log.warn("cap lookup for workplace {} failed, defaulting both caps to {} (metering runs "
+                    + "degraded against the default): {}", workplaceId, DEFAULT_CAP, e.toString());
             return new Caps(DEFAULT_CAP, DEFAULT_CAP);
         }
     }

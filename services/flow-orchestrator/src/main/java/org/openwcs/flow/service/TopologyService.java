@@ -18,6 +18,8 @@ import org.openwcs.flow.repo.ConveyorControllerRepository;
 import org.openwcs.flow.repo.ConveyorEdgeRepository;
 import org.openwcs.flow.repo.ConveyorLoopRepository;
 import org.openwcs.flow.repo.ConveyorNodeRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class TopologyService {
+
+    private static final Logger log = LoggerFactory.getLogger(TopologyService.class);
 
     private final ConveyorNodeRepository nodes;
     private final ConveyorEdgeRepository edges;
@@ -130,6 +134,11 @@ public class TopologyService {
                 loops.save(loop);
             }
         }
+        log.info("conveyor topology replaced for warehouse {} (editor save): {} nodes, {} edges, "
+                        + "{} loops, {} controllers", warehouseId, topology.nodes().size(),
+                topology.edges() == null ? 0 : topology.edges().size(),
+                topology.loops() == null ? 0 : topology.loops().size(),
+                topology.controllers() == null ? 0 : topology.controllers().size());
         return get(warehouseId);
     }
 }

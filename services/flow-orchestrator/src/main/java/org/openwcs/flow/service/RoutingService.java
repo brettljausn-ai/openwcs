@@ -67,6 +67,8 @@ public class RoutingService {
         route.setCurrentIndex(0);
         route.setStatus("ACTIVE");
         route.setDetail(null);
+        log.info("route plan assigned for hu {}: targets {} ({})", request.barcode(), request.targets(),
+                route.getId() == null ? "new plan" : "replacing the active plan");
         return view(routes.save(route));
     }
 
@@ -92,12 +94,17 @@ public class RoutingService {
     private RoutingDecision evaluate(ScanRequest scan) {
         ConveyorNode here = nodes.findByWarehouseIdAndCode(scan.warehouseId(), scan.node()).orElse(null);
         if (here == null) {
+            log.warn("scan of barcode {} at unknown node {}: answering EXCEPTION (node not in the routing graph)",
+                    scan.barcode(), scan.node());
             return RoutingDecision.exception("Unknown node: " + scan.node());
         }
         HuRoute route = routes
                 .findFirstByWarehouseIdAndBarcodeAndStatus(scan.warehouseId(), scan.barcode(), "ACTIVE")
                 .orElse(null);
         if (route == null) {
+            // Strays scan all the time; per-scan detail stays DEBUG, anomalies that change state are louder.
+            log.debug("scan of barcode {} at node {}: no active route plan, answering NO_ROUTE",
+                    scan.barcode(), scan.node());
             return RoutingDecision.noRoute();
         }
         // The HU is at `here` now; record its loop for occupancy counting.
@@ -110,10 +117,14 @@ public class RoutingService {
                 && scan.node().equals(targets.get(route.getCurrentIndex()))) {
             reached = scan.node();
             route.setCurrentIndex(route.getCurrentIndex() + 1);
+            log.info("hu {} reached target {} ({} of {} targets done)", scan.barcode(), reached,
+                    route.getCurrentIndex(), targets.size());
         }
         if (route.getCurrentIndex() >= targets.size()) {
             route.setStatus("COMPLETED");
             routes.save(route);
+            log.info("route for hu {} COMPLETED at node {}: all {} targets reached", scan.barcode(),
+                    scan.node(), targets.size());
             return RoutingDecision.complete(reached);
         }
 
@@ -146,15 +157,26 @@ public class RoutingService {
                     RoutingDecision overflow = overflowToward(scan.warehouseId(), warehouseEdges, here,
                             loop.getOverflowTargetCode(), currentTarget);
                     if (overflow != null) {
+                        log.warn("loop {} at capacity ({} HUs): diverting hu {} at node {} to overflow {} "
+                                        + "via exit {} (loop policy OVERFLOW, original target {})",
+                                toLoop, loop.getMaxHus(), scan.barcode(), scan.node(),
+                                loop.getOverflowTargetCode(), overflow.exitCode(), currentTarget);
                         return overflow;
                     }
                 }
+                log.warn("loop {} at capacity ({} HUs): holding hu {} at node {} (loop policy {}, "
+                                + "target {} unreachable until a slot frees)",
+                        toLoop, loop.getMaxHus(), scan.barcode(), scan.node(), loop.getWhenFull(),
+                        currentTarget);
                 return RoutingDecision.hold(currentTarget, "Loop " + toLoop + " is at capacity");
             }
         }
 
         routes.save(route);
         String toCode = toNode == null ? null : toNode.getCode();
+        log.info("next hop for hu {} at node {}: edge to {} via exit {} (shortest path to target {}, "
+                + "edge cost {})", scan.barcode(), scan.node(), toCode, hop.getExitCode(), currentTarget,
+                hop.getCost());
         return RoutingDecision.route(hop.getExitCode(), toCode, currentTarget, reached);
     }
 
@@ -203,7 +225,8 @@ public class RoutingService {
     }
 
     private RoutingDecision fail(HuRoute route, String detail) {
-        log.warn("Routing exception for {}: {}", route.getBarcode(), detail);
+        log.warn("routing exception for hu {}: {} (route set to EXCEPTION, manual intervention needed)",
+                route.getBarcode(), detail);
         route.setStatus("EXCEPTION");
         route.setDetail(detail);
         routes.save(route);
