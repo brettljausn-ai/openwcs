@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../auth/AuthContext'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import { useDemoMode, seedDemoOrders } from '../demo/useDemoMode'
 import { useCatalog } from '../lib/useCatalog'
@@ -7,7 +8,7 @@ import DataTable from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
 
 // Outbound Orders screen — UI-only against existing endpoints:
-//   order-management:  GET/POST /api/orders, /api/orders/{id}, /api/orders/{id}/{release|cancel|ship}
+//   order-management:  GET/POST /api/orders, /api/orders/{id}, /api/orders/{id}/{release|release-short|cancel|ship}
 //   allocation:        POST /api/allocation/orders, GET /api/allocation/orders/{orderRef},
 //                      POST /api/allocation/orders/{orderRef}/cancel
 //   master-data:       GET /api/master-data/warehouses, GET /api/master-data/skus
@@ -71,8 +72,9 @@ function statusBadge(status: string): string {
     case 'SHIPPED':
       return 'badge-success'
     case 'RELEASED':
-    case 'PARTIALLY_ALLOCATED':
       return 'badge-info'
+    case 'PARTIALLY_ALLOCATED': // short released: picks what is available, ships short
+      return 'badge-warning'
     case 'NOT_FULFILLABLE':
     case 'CUBING_FAILED':
     case 'CANCELLED':
@@ -278,11 +280,13 @@ function OrderDetail({ orderId, onClose, onChanged, skuCache, locationCode }: {
   skuCache: Map<string, Sku>
   locationCode: (id?: string | null) => string
 }) {
+  const { roles } = useAuth()
   const [order, setOrder] = useState<Order | null>(null)
   const [alloc, setAlloc] = useState<Allocation | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [confirmShort, setConfirmShort] = useState(false)
 
   const loadOrder = useCallback(() => {
     setLoading(true)
@@ -313,7 +317,7 @@ function OrderDetail({ orderId, onClose, onChanged, skuCache, locationCode }: {
   }, [order, alloc])
   const skuLabel = useSkuLabels(skuCache, skuIds)
 
-  function act(kind: 'release' | 'allocate' | 'cancel' | 'ship') {
+  function act(kind: 'release' | 'release-short' | 'allocate' | 'cancel' | 'ship') {
     if (!order) return
     setBusy(true)
     setErr('')
@@ -347,10 +351,14 @@ function OrderDetail({ orderId, onClose, onChanged, skuCache, locationCode }: {
   }
 
   const status = order?.status
+  const supervisor = roles.includes('ADMIN') || roles.includes('SUPERVISOR')
   const canRelease = status === 'CREATED'
   const canAllocate = status === 'RELEASED' || status === 'PARTIALLY_ALLOCATED' || status === 'NOT_FULFILLABLE'
-  const canShip = status === 'ALLOCATED'
+  // Short allocate and release: a supervisor decision on an order that came back short.
+  const canReleaseShort = status === 'NOT_FULFILLABLE' && supervisor
+  const canShip = status === 'ALLOCATED' || status === 'PARTIALLY_ALLOCATED'
   const canCancel = status && !['SHIPPED', 'CANCELLED'].includes(status)
+  const shortLines = (alloc?.lines || []).filter((l) => l.status === 'SHORT')
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -511,10 +519,78 @@ function OrderDetail({ orderId, onClose, onChanged, skuCache, locationCode }: {
             <div className="dialog-actions" style={{ flexWrap: 'wrap' }}>
               {canRelease && <button className="btn btn-primary" disabled={busy} onClick={() => act('release')}>Release</button>}
               {canAllocate && <button className="btn btn-primary" disabled={busy} onClick={() => act('allocate')}>Allocate &amp; cube</button>}
+              {canReleaseShort && (
+                <button className="btn btn-primary" disabled={busy} onClick={() => setConfirmShort(true)}
+                        title="Supervisor decision: pick the available quantity and ship the order short">
+                  Short allocate and release
+                </button>
+              )}
               {canShip && <button className="btn btn-primary" disabled={busy} onClick={() => act('ship')}>Dispatch</button>}
               {canCancel && <button className="btn btn-danger" disabled={busy} onClick={() => act('cancel')}>Cancel</button>}
               {busy && <span className="spin" />}
             </div>
+
+            {/* short allocate + release confirmation */}
+            {confirmShort && (
+              <div className="modal-backdrop" onClick={() => setConfirmShort(false)}>
+                <div className="dialog" style={{ maxWidth: 620 }} onClick={(e) => e.stopPropagation()}>
+                  <h3 style={{ marginBottom: '.5rem' }}>Short allocate and release {order.orderRef}?</h3>
+                  <p className="muted" style={{ fontSize: '.85rem' }}>
+                    These lines cannot be fully allocated:
+                  </p>
+                  {shortLines.length > 0 ? (
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>#</th><th>SKU</th>
+                          <th style={{ textAlign: 'right' }}>Ordered</th>
+                          <th style={{ textAlign: 'right' }}>Allocatable</th>
+                          <th style={{ textAlign: 'right' }}>Shortfall</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shortLines.map((l) => {
+                          const ordered = l.requestedQty ?? 0
+                          const allocatable = l.allocatedQty ?? 0
+                          const sku = skuCache.get(l.skuId)
+                          return (
+                            <tr key={l.lineNo}>
+                              <td>{l.lineNo}</td>
+                              <td>
+                                {skuLabel(l.skuId)}
+                                {sku?.description && (
+                                  <span className="muted" style={{ marginLeft: '.4rem', fontSize: '.8rem' }}>
+                                    {sku.description}
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ textAlign: 'right' }}>{fmtNum(ordered)}</td>
+                              <td style={{ textAlign: 'right' }}>{fmtNum(allocatable)}</td>
+                              <td style={{ textAlign: 'right' }}><strong>{fmtNum(ordered - allocatable)}</strong></td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p className="muted" style={{ fontSize: '.85rem' }}>
+                      No allocation detail is available for this order; the shortfall per line will
+                      be determined when the short allocation runs.
+                    </p>
+                  )}
+                  <p style={{ margin: '.75rem 0' }}>
+                    The available quantity will be picked and the order will be short shipped.
+                  </p>
+                  <div className="dialog-actions">
+                    <button className="btn btn-ghost" disabled={busy} onClick={() => setConfirmShort(false)}>Keep waiting for stock</button>
+                    <button className="btn btn-primary" disabled={busy}
+                            onClick={() => { setConfirmShort(false); act('release-short') }}>
+                      Short allocate and release
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

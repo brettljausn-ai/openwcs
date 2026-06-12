@@ -13,6 +13,7 @@ import org.openwcs.orders.api.PageResponse;
 import org.openwcs.orders.api.PostTransactionRequest;
 import org.openwcs.orders.client.AllocationClient;
 import org.openwcs.orders.client.MasterDataClient;
+import org.openwcs.orders.domain.LineStatus;
 import org.openwcs.orders.domain.OrderLine;
 import org.openwcs.orders.domain.OrderLineTransaction;
 import org.openwcs.orders.domain.OrderOutboxMessage;
@@ -115,6 +116,74 @@ public class OrderService {
         return OrderView.from(releaseOrder(require(id)));
     }
 
+    /**
+     * Short allocate and release: the explicit supervisor decision to work a short order with
+     * whatever stock is available. Re-runs allocation in allow-short mode — the available qty
+     * per line is reserved (zero-stock lines allocate nothing), only the allocated quantities
+     * are cubed, and the order is released as PARTIALLY_ALLOCATED so it picks and ships short.
+     * {@code actor} is the deciding user, recorded for audit.
+     */
+    @Transactional
+    public OrderView releaseShort(UUID id, String actor) {
+        if (actor == null || actor.isBlank()) {
+            throw new IllegalArgumentException("actor is required to short release an order (audit)");
+        }
+        OutboundOrder order = require(id);
+        if (order.getOrderType() != OrderType.OUTBOUND) {
+            throw new IllegalOrderStateException("Only OUTBOUND orders are released/allocated");
+        }
+        if (order.getStatus() != OrderStatus.NOT_FULFILLABLE) {
+            throw new IllegalOrderStateException(
+                    "Only NOT_FULFILLABLE orders can be short released (was " + order.getStatus() + ")");
+        }
+        AllocationClient.AllocationResult result = callAllocation(order, true);
+        if (result.fulfillable()) {
+            // Stock arrived between the short decision and the re-run: nothing is short after all.
+            applyLineResults(order, result);
+            order.setStatus(OrderStatus.ALLOCATED);
+            order.setStatusDetail(null);
+            log.info("order {} short release by {} found full stock: all {} lines allocated, status ALLOCATED",
+                    order.getOrderRef(), actor, order.getLines().size());
+        } else if (result.shortFulfillable()) {
+            applyLineResults(order, result);
+            order.setStatus(OrderStatus.PARTIALLY_ALLOCATED);
+            order.setStatusDetail(shortReleaseDetail(actor, result.detail()));
+            log.info("order {} short released by {}: {} — available qty reserved, order will pick and"
+                            + " ship short (PARTIALLY_ALLOCATED)",
+                    order.getOrderRef(), actor, result.detail());
+        } else if (result.cubingFailed()) {
+            order.setStatus(OrderStatus.CUBING_FAILED);
+            order.setStatusDetail(result.detail());
+            log.warn("order {} short release by {} parked in CUBING_FAILED: {}",
+                    order.getOrderRef(), actor, result.detail());
+        } else {
+            // Nothing at all is available — there is nothing to pick, so refuse the short release.
+            throw new IllegalOrderStateException("Cannot short release " + order.getOrderRef()
+                    + ": no stock is available for any line, nothing would be picked");
+        }
+        return OrderView.from(order);
+    }
+
+    /** Status detail shown on a short-released order: the decision (who) + the shortfall summary. */
+    private static String shortReleaseDetail(String actor, String allocationDetail) {
+        String summary = allocationDetail == null ? "Short allocated" : allocationDetail;
+        return summary + " (short released by " + actor + ")";
+    }
+
+    /** Copy the per-line allocation outcome onto the order lines (allocated qty + ALLOCATED/SHORT). */
+    private static void applyLineResults(OutboundOrder order, AllocationClient.AllocationResult result) {
+        for (AllocationClient.LineResult lineResult : result.lines()) {
+            order.getLines().stream()
+                    .filter(l -> l.getLineNo() == lineResult.lineNo())
+                    .findFirst()
+                    .ifPresent(line -> {
+                        line.setAllocatedQty(lineResult.allocatedQty());
+                        line.setStatus("SHORT".equals(lineResult.status())
+                                ? LineStatus.SHORT : LineStatus.ALLOCATED);
+                    });
+        }
+    }
+
     /** Most-urgent-first queue of orders awaiting release (CREATED or NOT_FULFILLABLE). */
     @Transactional(readOnly = true)
     public List<OrderView> releaseQueue(UUID warehouseId) {
@@ -155,15 +224,54 @@ public class OrderService {
         return OrderView.from(order);
     }
 
+    /**
+     * Dispatch the order. A PARTIALLY_ALLOCATED (short-released) order ships short: the
+     * OrderShipped confirmation reports the actually shipped qty per line against the ordered
+     * qty, so the shortfall is visible to the host.
+     */
     @Transactional
-    public OrderView ship(UUID id) {
+    public OrderView ship(UUID id, String actor) {
         OutboundOrder order = require(id);
-        if (order.getStatus() != OrderStatus.ALLOCATED) {
-            throw new IllegalOrderStateException("Only ALLOCATED orders can ship (was " + order.getStatus() + ")");
+        if (order.getStatus() != OrderStatus.ALLOCATED && order.getStatus() != OrderStatus.PARTIALLY_ALLOCATED) {
+            throw new IllegalOrderStateException(
+                    "Only ALLOCATED or PARTIALLY_ALLOCATED orders can ship (was " + order.getStatus() + ")");
         }
+        OrderStatus previous = order.getStatus();
+        boolean shortShipped = previous == OrderStatus.PARTIALLY_ALLOCATED;
         order.setStatus(OrderStatus.SHIPPED);
-        log.info("order {} dispatched: ALLOCATED -> SHIPPED", order.getOrderRef());
+        // Stage the OrderShipped confirmation (per-line ordered vs shipped) on the outbox; the
+        // relay appends it to the transaction log, where the host confirmation feed picks it up.
+        outbox.save(new OrderOutboxMessage(null, order.getOrderRef(), "OrderShipped", order.getId(),
+                actor == null || actor.isBlank() ? "system" : actor, shippedPayload(order, shortShipped)));
+        log.info("order {} dispatched by {}: {} -> SHIPPED{}", order.getOrderRef(),
+                actor == null || actor.isBlank() ? "system" : actor, previous,
+                shortShipped ? " (short shipped: " + order.getStatusDetail() + ")" : "");
         return OrderView.from(order);
+    }
+
+    /** OrderShipped event payload: ordered vs actually shipped (allocated/picked) qty per line. */
+    private static Map<String, Object> shippedPayload(OutboundOrder order, boolean shortShipped) {
+        List<Map<String, Object>> lines = new java.util.ArrayList<>();
+        for (OrderLine line : order.getLines()) {
+            // Shipped = the allocated (reserved + picked) qty. Lines of a fully ALLOCATED order
+            // released before per-line tracking carry allocatedQty 0; they shipped in full.
+            java.math.BigDecimal shipped = line.getAllocatedQty().signum() > 0
+                    ? line.getAllocatedQty()
+                    : (shortShipped ? java.math.BigDecimal.ZERO : line.getQty());
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("lineNo", line.getLineNo());
+            entry.put("skuId", line.getSkuId());
+            entry.put("orderedQty", line.getQty());
+            entry.put("shippedQty", shipped);
+            entry.put("shortQty", line.getQty().subtract(shipped));
+            lines.add(entry);
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("warehouseId", order.getWarehouseId());
+        payload.put("orderRef", order.getOrderRef());
+        payload.put("shortShipped", shortShipped);
+        payload.put("lines", lines);
+        return payload;
     }
 
     /**
@@ -250,25 +358,13 @@ public class OrderService {
                     "Only CREATED, NOT_FULFILLABLE or CUBING_FAILED orders can be released (was "
                             + order.getStatus() + ")");
         }
-        List<AllocationClient.Line> lines = order.getLines().stream()
-                .map(l -> new AllocationClient.Line(l.getLineNo(), l.getSkuId(), l.getQty()))
-                .toList();
-        // Effective dispatch-label template: order override -> service default -> warehouse default.
-        String template = order.getLabelTemplateCode();
-        if (template == null && order.getServiceCode() != null) {
-            template = masterData.serviceLabelTemplate(order.getServiceCode());
-        }
-        if (template == null) {
-            template = masterData.warehouseDefaultLabelTemplate(order.getWarehouseId());
-        }
-        AllocationClient.Dispatch dispatch = new AllocationClient.Dispatch(
-                order.getShipTo(), order.getServiceCode(), order.getRouteCode(), template);
-        AllocationClient.AllocationResult result =
-                allocation.allocate(order.getOrderRef(), order.getWarehouseId(), lines, dispatch);
+        AllocationClient.AllocationResult result = callAllocation(order, false);
         if (result.fulfillable()) {
+            applyLineResults(order, result);
             order.setStatus(OrderStatus.ALLOCATED);
             order.setStatusDetail(null);
-            log.info("order {} released: all {} lines allocated, status ALLOCATED", order.getOrderRef(), lines.size());
+            log.info("order {} released: all {} lines allocated, status ALLOCATED", order.getOrderRef(),
+                    order.getLines().size());
         } else if (result.cubingFailed()) {
             // A SKU is larger than the biggest carton; surface the reason for the UI.
             order.setStatus(OrderStatus.CUBING_FAILED);
@@ -282,6 +378,24 @@ public class OrderService {
                     order.getOrderRef(), result.detail());
         }
         return order;
+    }
+
+    /** Delegate allocation + cubing for the order (shared by release and short release). */
+    private AllocationClient.AllocationResult callAllocation(OutboundOrder order, boolean allowShort) {
+        List<AllocationClient.Line> lines = order.getLines().stream()
+                .map(l -> new AllocationClient.Line(l.getLineNo(), l.getSkuId(), l.getQty()))
+                .toList();
+        // Effective dispatch-label template: order override -> service default -> warehouse default.
+        String template = order.getLabelTemplateCode();
+        if (template == null && order.getServiceCode() != null) {
+            template = masterData.serviceLabelTemplate(order.getServiceCode());
+        }
+        if (template == null) {
+            template = masterData.warehouseDefaultLabelTemplate(order.getWarehouseId());
+        }
+        AllocationClient.Dispatch dispatch = new AllocationClient.Dispatch(
+                order.getShipTo(), order.getServiceCode(), order.getRouteCode(), template);
+        return allocation.allocate(order.getOrderRef(), order.getWarehouseId(), lines, dispatch, allowShort);
     }
 
     private OutboundOrder require(UUID id) {

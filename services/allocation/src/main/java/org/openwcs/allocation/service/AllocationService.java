@@ -29,6 +29,9 @@ import org.springframework.transaction.annotation.Transactional;
  * Allocates outbound orders against pick-able locations and cubes them into shippers
  * (ADR 0002). On full reservation the order is FULFILLABLE with a pick + cube plan;
  * otherwise every reservation is released and the order is reported NOT_FULFILLABLE.
+ * In allow-short mode (an explicit supervisor decision relayed by order-management) a
+ * short order instead keeps what it could reserve, cubes only the allocated quantities
+ * (fully-short lines are skipped), and is reported FULFILLABLE_SHORT.
  */
 @Service
 public class AllocationService {
@@ -89,13 +92,15 @@ public class AllocationService {
 
     @Transactional
     public AllocationView allocate(AllocateOrderRequest request) {
-        // Idempotent / retry: a prior FULFILLABLE plan is returned as-is; a prior
-        // NOT_FULFILLABLE plan (no held reservations) is discarded and recomputed.
+        // Idempotent / retry: a prior FULFILLABLE / FULFILLABLE_SHORT plan (held reservations)
+        // is returned as-is; a prior NOT_FULFILLABLE plan (no held reservations) is discarded
+        // and recomputed.
         var existing = allocations.findByOrderRef(request.orderRef());
         if (existing.isPresent()) {
-            if ("FULFILLABLE".equals(existing.get().getStatus())) {
-                log.debug("order {} already has a FULFILLABLE plan; returning it unchanged (idempotent retry)",
-                        request.orderRef());
+            String existingStatus = existing.get().getStatus();
+            if ("FULFILLABLE".equals(existingStatus) || "FULFILLABLE_SHORT".equals(existingStatus)) {
+                log.debug("order {} already has a {} plan; returning it unchanged (idempotent retry)",
+                        request.orderRef(), existingStatus);
                 return AllocationView.from(existing.get());
             }
             log.debug("order {} re-allocating: discarding prior {} plan", request.orderRef(),
@@ -165,10 +170,17 @@ public class AllocationService {
             throw e;
         }
 
-        if (fulfillable) {
+        // Allow-short only helps if at least something was reserved; an order with nothing
+        // available stays NOT_FULFILLABLE (there would be nothing to pick or ship).
+        boolean anythingAllocated = allocation.getLines().stream()
+                .anyMatch(l -> l.getAllocatedQty().signum() > 0);
+
+        if (fulfillable || (request.shortAllowed() && anythingAllocated)) {
             List<ShipperAssignment> shippers;
             try {
-                shippers = cube(request, cubingMode, uomsBySku);
+                // Cube the ALLOCATED quantities (== requested when fulfillable); fully-short
+                // lines contribute nothing and are skipped.
+                shippers = cube(request, cubingMode, uomsBySku, allocation.getLines());
             } catch (CubingEngine.ItemDoesNotFitException e) {
                 // A SKU is larger than the biggest carton: the order can't be cubed. Hold nothing
                 // and park it in CUBING_FAILED with the reason so an operator can resolve it.
@@ -185,12 +197,22 @@ public class AllocationService {
                 reservationsMade.forEach(this::safeRelease);
                 throw e;
             }
-            allocation.setStatus("FULFILLABLE");
+            if (fulfillable) {
+                allocation.setStatus("FULFILLABLE");
+                log.info("order {} allocated FULFILLABLE: {} lines fully reserved ({} picks), cubed into"
+                                + " {} shippers [{}] ({} mode, largest-first fit)",
+                        request.orderRef(), allocation.getLines().size(), reservationsMade.size(),
+                        shippers.size(), shipperCodes(shippers), cubingMode);
+            } else {
+                // Allow-short: keep the reservations, ship what is there, report the shortfall.
+                allocation.setStatus("FULFILLABLE_SHORT");
+                allocation.setStatusDetail(shortSummary(allocation.getLines()));
+                log.info("order {} short allocated FULFILLABLE_SHORT: {}; {} reservations held, cubed into"
+                                + " {} shippers [{}] ({} mode)",
+                        request.orderRef(), allocation.getStatusDetail(), reservationsMade.size(),
+                        shippers.size(), shipperCodes(shippers), cubingMode);
+            }
             allocation.setShippers(applyDispatchLabels(shippers, request));
-            log.info("order {} allocated FULFILLABLE: {} lines fully reserved ({} picks), cubed into"
-                            + " {} shippers [{}] ({} mode, largest-first fit)",
-                    request.orderRef(), allocation.getLines().size(), reservationsMade.size(),
-                    shippers.size(), shipperCodes(shippers), cubingMode);
         } else {
             // Hold nothing for a non-fulfillable order; keep per-line diagnostics but drop the
             // (now released) reservation ids from the picks.
@@ -257,17 +279,24 @@ public class AllocationService {
         }
     }
 
+    /**
+     * Cube the ALLOCATED quantities of the given lines. Equals the requested quantities for a
+     * fulfillable order; in allow-short mode it is what could actually be reserved, and lines
+     * with nothing allocated are skipped (they ship nothing, so they take no carton space).
+     */
     private List<ShipperAssignment> cube(AllocateOrderRequest request, String cubingMode,
-                                         Map<UUID, List<UomDef>> uomsBySku) {
+                                         Map<UUID, List<UomDef>> uomsBySku, List<AllocationLine> lines) {
         List<ShipperDef> shippers = masterData.shippers(request.warehouseId());
         if ("ONE_TO_ONE".equals(cubingMode)) {
+            // Host-supplied cube plan; used verbatim (a host instructing ONE_TO_ONE owns the
+            // carton contents, including any short handling on its side).
             return oneToOneCube(request, shippers, uomsBySku);
         }
-        return appCube(request, shippers, uomsBySku);
+        return appCube(request, shippers, uomsBySku, lines);
     }
 
     private List<ShipperAssignment> appCube(AllocateOrderRequest request, List<ShipperDef> shippers,
-                                            Map<UUID, List<UomDef>> uomsBySku) {
+                                            Map<UUID, List<UomDef>> uomsBySku, List<AllocationLine> lines) {
         List<ShipperDef> active = activeShippers(shippers);
         if (active.isEmpty()) {
             log.warn("No shipper configured for warehouse {}; order {} left un-cubed",
@@ -275,13 +304,34 @@ public class AllocationService {
             return List.of();
         }
         List<CubingEngine.Item> items = new ArrayList<>();
-        for (AllocateOrderRequest.Line line : request.lines()) {
-            items.add(item(line.lineNo(), line.skuId(), line.qty().longValue(),
-                    uomsBySku.computeIfAbsent(line.skuId(), masterData::skuUoms)));
+        for (AllocationLine line : lines) {
+            if (line.getAllocatedQty().signum() <= 0) {
+                continue; // fully-short line: nothing to pick, nothing to cube
+            }
+            items.add(item(line.getLineNo(), line.getSkuId(), line.getAllocatedQty().longValue(),
+                    uomsBySku.computeIfAbsent(line.getSkuId(), masterData::skuUoms)));
         }
         // The engine ranks the active shippers by size and packs largest-first, downsizing the
         // final carton to the remainder (ADR 0002).
         return CubingEngine.appCube(items, active);
+    }
+
+    /** Human-readable shortfall summary for FULFILLABLE_SHORT, e.g. "line 1 short 3 of 5". */
+    private static String shortSummary(List<AllocationLine> lines) {
+        StringBuilder summary = new StringBuilder();
+        for (AllocationLine line : lines) {
+            if (!"SHORT".equals(line.getStatus())) {
+                continue;
+            }
+            BigDecimal shortfall = line.getRequestedQty().subtract(line.getAllocatedQty());
+            if (!summary.isEmpty()) {
+                summary.append("; ");
+            }
+            summary.append("line ").append(line.getLineNo())
+                    .append(" short ").append(shortfall.stripTrailingZeros().toPlainString())
+                    .append(" of ").append(line.getRequestedQty().stripTrailingZeros().toPlainString());
+        }
+        return "Short allocated: " + summary;
     }
 
     private List<ShipperAssignment> oneToOneCube(AllocateOrderRequest request, List<ShipperDef> shippers,

@@ -9,9 +9,16 @@
         -> releaseOrder        (${releaseOrder})    release the order in order-management
         -> allocateOrder       (${allocateOrder})   allocate + cube via the allocation service
         -> exclusive gateway   on ${allocationStatus}
-             FULFILLABLE     -> confirm (operator pick & pack) -> dispatch -> assignRoute -> end
+             FULFILLABLE / FULFILLABLE_SHORT
+                             -> confirm (operator pick & pack) -> dispatch -> assignRoute -> end
              NOT_FULFILLABLE -> notFulfillable end event (host/exception handling owns the rest)
     The allocateOrder delegate writes allocationStatus / shipperCount back as process variables.
+
+    Short allocate and release: a NOT_FULFILLABLE order parks at the notFulfillable end (the
+    instance is over). When a supervisor decides to short allocate (UI action or a new instance
+    started with variable allowShort=true), release + allocation run in allow-short mode: the
+    available qty is reserved, the status comes back FULFILLABLE_SHORT, and the order flows the
+    normal pick/dispatch path — it ships short.
     A production process adds wave management, short-pick and exception sub-processes.
   -->
   <process id="outbound" name="Outbound" isExecutable="true">
@@ -28,7 +35,7 @@
 
     <exclusiveGateway id="gateway" name="Allocation fulfillable?" default="flowNotFulfillable"/>
     <sequenceFlow id="flowFulfillable" sourceRef="gateway" targetRef="confirm">
-      <conditionExpression xsi:type="tFormalExpression">${allocationStatus == 'FULFILLABLE'}</conditionExpression>
+      <conditionExpression xsi:type="tFormalExpression">${allocationStatus == 'FULFILLABLE' || allocationStatus == 'FULFILLABLE_SHORT'}</conditionExpression>
     </sequenceFlow>
     <sequenceFlow id="flowNotFulfillable" sourceRef="gateway" targetRef="notFulfillable"/>
 

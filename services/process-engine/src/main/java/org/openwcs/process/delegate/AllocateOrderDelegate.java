@@ -18,8 +18,10 @@ import org.springframework.stereotype.Component;
  * it as {@code flowable:delegateExpression="${allocateOrder}"}.
  *
  * <p>Expects: {@code orderRef}, {@code warehouseId} (required); optional {@code lines} (a List of
- * maps each with {@code lineNo}, {@code skuId}, {@code qty}). Sets: {@code allocationStatus}
- * ({@code FULFILLABLE} | {@code NOT_FULFILLABLE}) and {@code shipperCount}.
+ * maps each with {@code lineNo}, {@code skuId}, {@code qty}) and {@code allowShort} (short
+ * allocate: reserve the available qty and ship short). Sets: {@code allocationStatus}
+ * ({@code FULFILLABLE} | {@code FULFILLABLE_SHORT} | {@code NOT_FULFILLABLE}) and
+ * {@code shipperCount}.
  */
 @Component("allocateOrder")
 public class AllocateOrderDelegate implements JavaDelegate {
@@ -37,10 +39,11 @@ public class AllocateOrderDelegate implements JavaDelegate {
         String orderRef = execution.getVariable("orderRef").toString();
         UUID warehouseId = asUuid(execution.getVariable("warehouseId"));
         List<AllocationClient.Line> lines = readLines(execution.getVariable("lines"));
+        boolean allowShort = ProcessVariables.allowShort(execution);
 
         AllocationClient.Allocation result;
         try {
-            result = allocation.allocate(orderRef, warehouseId, lines);
+            result = allocation.allocate(orderRef, warehouseId, lines, allowShort);
         } catch (RuntimeException e) {
             log.error("allocateOrder failed for order {} ({} lines, process instance {}): {}",
                     orderRef, lines.size(), execution.getProcessInstanceId(), e.toString());

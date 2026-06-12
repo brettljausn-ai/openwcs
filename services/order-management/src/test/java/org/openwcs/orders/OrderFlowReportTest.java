@@ -2,6 +2,7 @@ package org.openwcs.orders;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.when;
 
@@ -138,11 +139,11 @@ class OrderFlowReportTest {
     @Test
     void outboundFlowSplitsExpectedActiveStartedAndCompleted() {
         UUID wh = UUID.randomUUID();
-        when(allocation.allocate(any(), any(), anyList(), any())).thenAnswer(invocation -> {
+        when(allocation.allocate(any(), any(), anyList(), any(), anyBoolean())).thenAnswer(invocation -> {
             String orderRef = invocation.getArgument(0);
             return "OUT-4".equals(orderRef)
-                    ? new AllocationClient.AllocationResult("NOT_FULFILLABLE", "no stock")
-                    : new AllocationClient.AllocationResult("FULFILLABLE", null);
+                    ? new AllocationClient.AllocationResult("NOT_FULFILLABLE", "no stock", java.util.List.of())
+                    : new AllocationClient.AllocationResult("FULFILLABLE", null, java.util.List.of());
         });
 
         OrderView created = create(wh, "OUT-1", "OUTBOUND", "5");   // received, not released
@@ -151,7 +152,7 @@ class OrderFlowReportTest {
         post(picking.id(), "2");
         OrderView shipped = create(wh, "OUT-3", "OUTBOUND", "5");   // released and shipped
         orders.release(shipped.id());
-        orders.ship(shipped.id());
+        orders.ship(shipped.id(), "tester");
         OrderView short_ = create(wh, "OUT-4", "OUTBOUND", "5");    // released, not fulfillable
         orders.release(short_.id());
 

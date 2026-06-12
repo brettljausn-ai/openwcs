@@ -2,6 +2,7 @@ package org.openwcs.process;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -70,7 +71,7 @@ class OutboundProcessTest {
         UUID skuId = UUID.randomUUID();
         String orderRef = "SO-1001";
 
-        when(allocationClient.allocate(eq(orderRef), eq(warehouse), anyList()))
+        when(allocationClient.allocate(eq(orderRef), eq(warehouse), anyList(), eq(false)))
                 .thenReturn(new AllocationClient.Allocation(orderRef, "FULFILLABLE", 2));
 
         ProcessInstance instance = runtime.startProcessInstanceByKey("outbound", Map.of(
@@ -85,7 +86,7 @@ class OutboundProcessTest {
 
         // Released and allocated, then parked on the operator user task (not ended).
         verify(orderClient).release(orderId);
-        verify(allocationClient).allocate(eq(orderRef), eq(warehouse), anyList());
+        verify(allocationClient).allocate(eq(orderRef), eq(warehouse), anyList(), eq(false));
         assertThat(instance.isEnded()).isFalse();
 
         List<Task> tasks = taskService.createTaskQuery().processInstanceId(instance.getId()).list();
@@ -107,7 +108,7 @@ class OutboundProcessTest {
         UUID skuId = UUID.randomUUID();
         String orderRef = "SO-2002";
 
-        when(allocationClient.allocate(anyString(), any(), anyList()))
+        when(allocationClient.allocate(anyString(), any(), anyList(), anyBoolean()))
                 .thenReturn(new AllocationClient.Allocation(orderRef, "NOT_FULFILLABLE", 0));
 
         ProcessInstance instance = runtime.startProcessInstanceByKey("outbound", Map.of(
@@ -120,7 +121,7 @@ class OutboundProcessTest {
 
         // Released + allocation attempted, but the gateway routes to the not-fulfillable end.
         verify(orderClient).release(orderId);
-        verify(allocationClient).allocate(eq(orderRef), eq(warehouse), anyList());
+        verify(allocationClient).allocate(eq(orderRef), eq(warehouse), anyList(), eq(false));
         verify(deviceTaskClient, never()).dispatch(any(), any(), any(), any(), any(), any());
         verifyNoInteractions(routeClient);
 
@@ -130,5 +131,42 @@ class OutboundProcessTest {
         HistoricProcessInstance history = historyService.createHistoricProcessInstanceQuery()
                 .processInstanceId(instance.getId()).singleResult();
         assertThat(history.getEndActivityId()).isEqualTo("notFulfillable");
+    }
+
+    @Test
+    void allowShortInstanceShortReleasesAndFlowsTheHappyPath() {
+        UUID warehouse = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        UUID skuId = UUID.randomUUID();
+        String orderRef = "SO-3003";
+
+        // Allow-short allocation reserves what is available and reports FULFILLABLE_SHORT.
+        when(allocationClient.allocate(eq(orderRef), eq(warehouse), anyList(), eq(true)))
+                .thenReturn(new AllocationClient.Allocation(orderRef, "FULFILLABLE_SHORT", 1));
+
+        ProcessInstance instance = runtime.startProcessInstanceByKey("outbound", Map.of(
+                "orderId", orderId.toString(),
+                "orderRef", orderRef,
+                "warehouseId", warehouse.toString(),
+                "allowShort", true,
+                "barcode", "HU-3",
+                "targets", List.of("PICK", "SHIP"),
+                "lines", List.of(Map.of("lineNo", 1, "skuId", skuId.toString(), "qty", new BigDecimal("5"))),
+                "family", "CONVEYOR",
+                "command", "CONVEY"));
+
+        // The supervisor decision drives release-short, then the gateway takes the happy path.
+        verify(orderClient).releaseShort(orderId);
+        verify(orderClient, never()).release(any());
+        assertThat(instance.isEnded()).isFalse();
+
+        List<Task> tasks = taskService.createTaskQuery().processInstanceId(instance.getId()).list();
+        assertThat(tasks).hasSize(1);
+        assertThat(tasks.get(0).getName()).isEqualTo("Confirm pick complete");
+
+        taskService.complete(tasks.get(0).getId());
+        verify(deviceTaskClient).dispatch(eq(warehouse), eq("CONVEYOR"), any(), eq("CONVEY"), any(), any());
+        verify(routeClient).assignRoute(eq(warehouse), eq("HU-3"), eq(List.of("PICK", "SHIP")));
+        assertThat(runtime.createProcessInstanceQuery().processInstanceId(instance.getId()).count()).isZero();
     }
 }

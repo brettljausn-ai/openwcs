@@ -107,6 +107,26 @@ paths:
         "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
         "409": { $ref: '#/components/responses/Problem' }
         "502": { $ref: '#/components/responses/Problem' }
+  /api/orders/{id}/release-short:
+    parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
+    post:
+      tags: [Release]
+      summary: Short allocate and release a NOT_FULFILLABLE order
+      description: >
+        The explicit supervisor decision to work a short order with whatever stock is
+        available: allocation re-runs in allow-short mode (the available qty per line is
+        reserved, zero-stock lines allocate nothing), and the order is released as
+        PARTIALLY_ALLOCATED with the per-line allocated quantities and SHORT line statuses.
+        It then picks and ships short; the OrderShipped confirmation reports shipped vs
+        ordered per line. Requires the ORDER_RELEASE permission (SUPERVISOR/ADMIN in the
+        shipped role catalog); the deciding user is taken from the gateway-forwarded
+        X-Auth-User header and logged. 409 when the order is not NOT_FULFILLABLE or when
+        nothing at all is available to pick.
+      operationId: releaseOrderShort
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
+        "409": { $ref: '#/components/responses/Problem' }
+        "502": { $ref: '#/components/responses/Problem' }
   /api/orders/{id}/cancel:
     parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
     post:
@@ -121,7 +141,11 @@ paths:
     parameters: [ { name: id, in: path, required: true, schema: { type: string, format: uuid } } ]
     post:
       tags: [Orders]
-      summary: Ship an allocated order
+      summary: Ship an allocated (or short-released) order
+      description: >
+        Dispatches an ALLOCATED or PARTIALLY_ALLOCATED order and stages an OrderShipped
+        event for the host confirmation feed with the ordered vs actually shipped qty per
+        line, so a short ship is visible to the host.
       operationId: shipOrder
       responses:
         "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }

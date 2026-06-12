@@ -55,8 +55,10 @@ public class BatchingService {
             if (allocation == null) {
                 log.warn("order {} not batched: no allocation found (must be allocated before batching)", orderRef);
                 notBatched.add(orderRef);
-            } else if (!"FULFILLABLE".equals(allocation.getStatus())) {
-                log.warn("order {} not batched: allocation status {} (only FULFILLABLE orders are batchable)",
+            } else if (!"FULFILLABLE".equals(allocation.getStatus())
+                    && !"FULFILLABLE_SHORT".equals(allocation.getStatus())) {
+                log.warn("order {} not batched: allocation status {} (only FULFILLABLE/FULFILLABLE_SHORT"
+                                + " orders are batchable)",
                         orderRef, allocation.getStatus());
                 notBatched.add(orderRef);
             } else if (totalPieces(allocation) > config.batchMaxPieces()) {

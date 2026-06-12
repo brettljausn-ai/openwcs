@@ -30,7 +30,7 @@ public class OrderAllocation extends Auditable {
     @Column(name = "warehouse_id", nullable = false)
     private UUID warehouseId;
 
-    /** FULFILLABLE | NOT_FULFILLABLE | CANCELLED | CUBING_FAILED. */
+    /** FULFILLABLE | FULFILLABLE_SHORT | NOT_FULFILLABLE | CANCELLED | CUBING_FAILED. */
     @Column(name = "status", nullable = false)
     private String status;
 

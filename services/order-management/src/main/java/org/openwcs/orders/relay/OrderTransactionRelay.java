@@ -55,8 +55,10 @@ public class OrderTransactionRelay {
                 java.util.UUID eventId = txlog.append(
                         message.getStreamId(), message.getEventType(),
                         message.getCorrelationId(), message.getActor(), message.getPayload());
-                transactions.findById(message.getLineTxnId())
-                        .ifPresent(txn -> txn.setEventId(eventId));
+                if (message.getLineTxnId() != null) { // order-level events have no line transaction
+                    transactions.findById(message.getLineTxnId())
+                            .ifPresent(txn -> txn.setEventId(eventId));
+                }
                 message.markPublished(Instant.now());
                 published++;
             } catch (RuntimeException e) {

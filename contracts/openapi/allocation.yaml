@@ -22,7 +22,11 @@ paths:
       description: >
         Reserves each line against PICK-purpose locations and cubes the order. Returns the
         plan with status FULFILLABLE or NOT_FULFILLABLE (in which case all reservations are
-        released). Idempotent for an already-FULFILLABLE order.
+        released). With allowShort=true (the explicit supervisor decision to short allocate)
+        a short order instead keeps what it could reserve, cubes only the allocated
+        quantities, and returns FULFILLABLE_SHORT; fully-short lines allocate nothing.
+        Idempotent for an order that already holds reservations (FULFILLABLE or
+        FULFILLABLE_SHORT).
       operationId: allocateOrder
       requestBody:
         required: true
@@ -84,7 +88,7 @@ paths:
       tags: [Batches]
       summary: Build pick batches from allocated orders
       description: >
-        Groups eligible orders (FULFILLABLE, total pieces ≤ the warehouse batchMaxPieces)
+        Groups eligible orders (FULFILLABLE or FULFILLABLE_SHORT, total pieces ≤ the warehouse batchMaxPieces)
         into pick totes (≤ batchMaxOrders each), merges their picks into one combined pick
         list, and records the per-order separation plan. Ineligible orders are returned in
         notBatched. 409 if batch picking is disabled for the warehouse.
@@ -177,17 +181,27 @@ components:
             serviceCode: { type: string, nullable: true }
             routeCode: { type: string, nullable: true }
             labelTemplateCode: { type: string, nullable: true }
+        allowShort:
+          type: boolean
+          default: false
+          description: >
+            Allow-short mode: a line with insufficient stock allocates the available quantity
+            (possibly zero) instead of failing the order; reservations are kept and the plan
+            returns FULFILLABLE_SHORT. Used by the supervisor "short allocate and release"
+            decision.
     Allocation:
       type: object
       properties:
         id: { type: string, format: uuid }
         orderRef: { type: string }
         warehouseId: { type: string, format: uuid }
-        status: { type: string, enum: [FULFILLABLE, NOT_FULFILLABLE, CANCELLED, CUBING_FAILED] }
+        status: { type: string, enum: [FULFILLABLE, FULFILLABLE_SHORT, NOT_FULFILLABLE, CANCELLED, CUBING_FAILED] }
         statusDetail:
           type: string
           nullable: true
-          description: Reason for the current status — e.g. the SKU/line that did not fit any carton when CUBING_FAILED.
+          description: >
+            Reason for the current status — e.g. the SKU/line that did not fit any carton when
+            CUBING_FAILED, or the per-line shortfall summary when FULFILLABLE_SHORT.
         cubingMode: { type: string, enum: [APP, ONE_TO_ONE] }
         lines:
           type: array

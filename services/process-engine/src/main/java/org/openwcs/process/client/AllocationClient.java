@@ -11,10 +11,12 @@ import java.util.UUID;
 public interface AllocationClient {
 
     /**
-     * Allocate + cube the given order. Returns the resulting plan, whose {@code status} is either
-     * {@code FULFILLABLE} or {@code NOT_FULFILLABLE}; idempotent for an already-FULFILLABLE order.
+     * Allocate + cube the given order. Returns the resulting plan, whose {@code status} is
+     * {@code FULFILLABLE}, {@code FULFILLABLE_SHORT} (allow-short mode: the available qty is
+     * reserved and the order ships short) or {@code NOT_FULFILLABLE}; idempotent for an order
+     * that already holds reservations.
      */
-    Allocation allocate(String orderRef, UUID warehouseId, List<Line> lines);
+    Allocation allocate(String orderRef, UUID warehouseId, List<Line> lines, boolean allowShort);
 
     /** An order line to allocate. */
     record Line(int lineNo, UUID skuId, BigDecimal qty) {

@@ -21,7 +21,8 @@ public class HttpAllocationClient implements AllocationClient {
     }
 
     @Override
-    public AllocationResult allocate(String orderRef, UUID warehouseId, List<Line> lines, Dispatch dispatch) {
+    public AllocationResult allocate(String orderRef, UUID warehouseId, List<Line> lines, Dispatch dispatch,
+                                     boolean allowShort) {
         List<Map<String, Object>> lineBodies = new ArrayList<>();
         for (Line line : lines) {
             lineBodies.add(Map.of("lineNo", line.lineNo(), "skuId", line.skuId(), "qty", line.qty()));
@@ -30,6 +31,9 @@ public class HttpAllocationClient implements AllocationClient {
         body.put("orderRef", orderRef);
         body.put("warehouseId", warehouseId);
         body.put("lines", lineBodies);
+        if (allowShort) {
+            body.put("allowShort", true);
+        }
         if (dispatch != null) {
             Map<String, Object> dispatchBody = new java.util.HashMap<>();
             dispatchBody.put("shipTo", dispatch.shipTo()); // serialized by field name; matches allocation ShipTo
@@ -44,9 +48,13 @@ public class HttpAllocationClient implements AllocationClient {
                 .retrieve()
                 .body(AllocationResponse.class);
         if (response == null) {
-            return new AllocationResult("NOT_FULFILLABLE", null);
+            return new AllocationResult("NOT_FULFILLABLE", null, List.of());
         }
-        return new AllocationResult(response.status(), response.statusDetail());
+        List<LineResult> lineResults = response.lines() == null ? List.of()
+                : response.lines().stream()
+                        .map(l -> new LineResult(l.lineNo(), l.allocatedQty(), l.status()))
+                        .toList();
+        return new AllocationResult(response.status(), response.statusDetail(), lineResults);
     }
 
     @Override
@@ -61,6 +69,11 @@ public class HttpAllocationClient implements AllocationClient {
         }
     }
 
-    private record AllocationResponse(String status, String statusDetail) {
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    private record AllocationResponse(String status, String statusDetail, List<LineResponse> lines) {
+    }
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    private record LineResponse(int lineNo, java.math.BigDecimal allocatedQty, String status) {
     }
 }
