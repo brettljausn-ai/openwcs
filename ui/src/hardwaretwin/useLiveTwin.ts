@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { loadAutomationTopology, type AutomationTopology } from '../topology/automationApi'
 import { listEquipment, type Equipment } from '../masterdata/api'
 import { listDeviceTasks, listHuTrace } from '../transport/api'
@@ -40,6 +40,7 @@ export interface UseLiveTwinOptions {
 }
 
 export interface UseLiveTwinResult {
+  clockOffsetMsRef: MutableRefObject<number | null>
   topology: AutomationTopology | null
   /** Master-data equipment library (id → Equipment) — lets the 3D scene classify each placement the
    *  same way the topology editor does (conveyor vs rack vs sorter). Loaded once per warehouse. */
@@ -82,6 +83,11 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
   // Per-tote interpolation buffers (motion.ts). One stable Map for the component's lifetime —
   // mutated on each poll, read per-frame by the 3D layer; cleared when the warehouse changes.
   const timelinesRef = useRef<Map<string, ToteTimeline>>(new Map())
+  // Server-vs-client clock offset estimate (newest trace timestamp minus client now at receipt).
+  // The renderer anchors its delayed clock to DATA time, not the wall clock, so a skewed demo-box
+  // clock cannot push the sample point outside the buffered window (observed live: totes bouncing
+  // between a node and a dead-reckoned phantom position every poll).
+  const clockOffsetMsRef = useRef<number | null>(null)
 
   // Load the static topology ONCE per warehouse.
   useEffect(() => {
@@ -210,6 +216,10 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
             timelines.set(huId, tl)
           }
           insertPoint(tl, { tMs: t, xz, nextXZ: (r.toPoint && nodeXZ.get(r.toPoint)) || null })
+          const off = t - nowMs
+          if (clockOffsetMsRef.current == null || off > clockOffsetMsRef.current) {
+            clockOffsetMsRef.current = off
+          }
         }
       }
       // Prune: bound per-tote history, and drop timelines whose HU left the live picture a while ago.
@@ -268,6 +278,7 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
   }, [])
 
   return {
+    clockOffsetMsRef,
     topology,
     lib,
     snapshot,
