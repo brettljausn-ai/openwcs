@@ -1,6 +1,6 @@
 # openWCS — As-Built Documentation
 
-_Last updated: 2026-06-12 (flow routing fast path: in-memory graph snapshot + precomputed next-hops + async scan side effects + decision-latency endpoint)_
+_Last updated: 2026-06-13 (logging convention applied to all services; slotting assignment lifecycle + single-aisle block starvation fix; inventory stock-follows-HU with bucket merge on collision; digital twin live conveyor state colours + smooth tote motion)_
 
 What is **actually implemented** today (not the target architecture). Design intent:
 [`build.md`](../build.md); decisions: [`docs/adr/`](./adr); live progress:
@@ -45,12 +45,12 @@ What is **actually implemented** today (not the target architecture). Design int
 All Java services: Java 21 / Spring Boot 3.3.2, PostgreSQL 16 via Flyway + JPA/Hibernate 6
 (`ddl-auto: validate` — migrations own the schema), UUID keys, JSONB via `@JdbcTypeCode`.
 
-**Logging convention** (applied so far in inventory, master-data, txlog): decisions and state
-changes log at INFO with the business object, its human-readable code where the row at hand
-carries one (SKU code, HU code, location code, order ref) next to the UUID, and the trigger
-("because ..."); skipped/degraded/best-effort-failed paths log at WARN with reason and
-consequence; per-item loop detail at DEBUG; ERROR only where a human must act. SLF4J
-parameterized messages, each line readable in isolation in the per-service daily logs.
+**Logging convention** (applied across all services): decisions and state changes log at INFO
+with the business object, its human-readable code where the row at hand carries one (SKU code,
+HU code, location code, order ref) next to the UUID, and the trigger ("because ...");
+skipped/degraded/best-effort-failed paths log at WARN with reason and consequence; per-item
+loop detail at DEBUG; ERROR only where a human must act. SLF4J parameterized messages, each
+line readable in isolation in the per-service daily logs.
 
 ---
 
