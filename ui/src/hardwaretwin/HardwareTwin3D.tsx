@@ -517,6 +517,14 @@ interface TotesProps {
 
 /** Spacing between queue slots along the belt (tote 0.6 m + a visible gap). */
 const QUEUE_SPACING_M = 0.8
+/** Anti-stack: minimum nose-to-tail gap between two MOVING totes sharing a belt run. */
+const TOTE_MIN_SEP_M = 0.8
+/** How many relaxation passes the anti-stack separation runs (resolves short chains of totes). */
+const SEP_PASSES = 2
+/** Two totes count as "on the same run" (so they should not overlap) when their headings align. */
+const SAME_DIR_DOT = 0.7
+/** Look-back window used to estimate a tote's heading from its timeline. */
+const HEADING_LOOKBACK_MS = 250
 
 // Smooth, honest tote motion (motion.ts): the per-frame target is the buffered scan timeline
 // sampled at `now - RENDER_DELAY_MS` and interpolated along the conveyor polylines — only ever
@@ -586,25 +594,26 @@ function Totes({
     const prevT = renderClockRef.current
     const renderT = prevT == null ? raw : Math.max(prevT, Math.min(raw, prevT + delta * 2000))
     renderClockRef.current = renderT
+    // Phase 1 — resolve each tote's target position (+ heading, for the anti-stack pass).
+    type Frame = { tote: ToteView; g: THREE.Group; xz: XZ; y: number; heading: XZ | null }
+    const frame: Frame[] = []
     for (const { tote, anchor } of resolved) {
       const g = groups.get(tote.huId)
       if (!g) continue
 
-      // Where the observed state puts the tote THIS frame. The QUEUE HEAD (queueIndex 0) is the
-      // tote being worked: it sits IN the station. Every later entry waits ON the inbound
-      // conveyor — slot i sits (i − 1) × spacing upstream of the link point, so the queue is a
-      // visible line of totes on the approach belt, not a stack inside the workstation box.
       let xz: XZ | null = null
       let y = SCAN_BELT_Y + BELT_LIFT
+      let heading: XZ | null = null
       if (tote.state === 'queued') {
+        // Totes at a workplace WAIT ON the inbound conveyor, never on the station box. The active
+        // (head, queueIndex 0) tote sits at the conveyor link point, held there until the workplace
+        // releases it; each tote behind it queues one slot (0.8 m) further upstream. (Reality: a GTP
+        // tote dwells on the conveyor at the pick position — it does not move onto the workstation.)
         const qi = tote.queueIndex ?? 0
         const head = tote.anchorPlacedId ? queueHeads.get(tote.anchorPlacedId) : undefined
         const beltPath = head ? beltPaths.get(head.beltId) : undefined
-        if (qi === 0 && anchor) {
-          xz = [anchor.x, anchor.z]
-          y = anchor.y
-        } else if (head && beltPath) {
-          xz = pointAtLen(beltPath, Math.max(0, head.s - (qi - 1) * QUEUE_SPACING_M))
+        if (head && beltPath) {
+          xz = pointAtLen(beltPath, Math.max(0, head.s - qi * QUEUE_SPACING_M))
         } else if (anchor) {
           // No linked conveyor in the topology — the station anchor stays the honest fallback.
           xz = [anchor.x, anchor.z]
@@ -614,6 +623,16 @@ function Totes({
       const tl = timelines?.get(tote.huId)
       if (!xz && tl && tl.points.length) {
         xz = sampleTimeline(tl, renderT, pathBetween)
+        // Heading from a short look-back, so two totes sharing a belt can be spaced nose-to-tail.
+        if (xz) {
+          const back = sampleTimeline(tl, renderT - HEADING_LOOKBACK_MS, pathBetween)
+          if (back) {
+            const dx = xz[0] - back[0]
+            const dz = xz[1] - back[1]
+            const m = Math.hypot(dx, dz)
+            if (m > 1e-3) heading = [dx / m, dz / m]
+          }
+        }
       }
       if (!xz && tote.scan) {
         // Legacy single-scan fallback (no buffered timeline available).
@@ -634,7 +653,37 @@ function Totes({
         y = anchor.y
       }
       if (!xz) continue
+      frame.push({ tote, g, xz, y, heading })
+    }
 
+    // Phase 2 — anti-stack: two totes retrieved together share a near-identical path, so they would
+    // render on the same spot and travel as one. Totes are solid: when two MOVING totes heading the
+    // same way overlap, push the trailing one BACK along its own heading so they sit nose-to-tail.
+    // This works in each tote's own travel direction (never a belt re-projection), so it can't snap
+    // a tote to a crossing belt's start at a divert (where headings diverge and the pass disengages).
+    const movers = frame.filter((f) => f.heading && f.tote.state !== 'queued')
+    for (let pass = 0; pass < SEP_PASSES; pass++) {
+      for (let i = 0; i < movers.length; i++) {
+        for (let k = i + 1; k < movers.length; k++) {
+          const a = movers[i]
+          const b = movers[k]
+          const dx = b.xz[0] - a.xz[0]
+          const dz = b.xz[1] - a.xz[1]
+          const d = Math.hypot(dx, dz)
+          if (d >= TOTE_MIN_SEP_M || d < 1e-4) continue
+          const ah = a.heading as XZ
+          const bh = b.heading as XZ
+          if (ah[0] * bh[0] + ah[1] * bh[1] < SAME_DIR_DOT) continue // not on the same run
+          const h = ah // ~equal to bh on a shared belt
+          const behind = a.xz[0] * h[0] + a.xz[1] * h[1] < b.xz[0] * h[0] + b.xz[1] * h[1] ? a : b
+          const push = TOTE_MIN_SEP_M - d
+          behind.xz = [behind.xz[0] - h[0] * push, behind.xz[1] - h[1] * push]
+        }
+      }
+    }
+
+    // Phase 3 — smooth toward the (possibly separated) target and apply.
+    for (const { tote, g, xz, y } of frame) {
       let st = sm.get(tote.huId)
       if (!st) {
         st = newSmoothState()
