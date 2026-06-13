@@ -39,6 +39,10 @@ public class AppUser extends Auditable {
     @Column(name = "status", nullable = false)
     private String status = "ACTIVE";
 
+    /** The user's chosen UI language (frontend only): en|de|fr|es|zh. Default English. */
+    @Column(name = "language", nullable = false)
+    private String language = "en";
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_role",
@@ -84,6 +88,14 @@ public class AppUser extends Auditable {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getLanguage() {
+        return language;
+    }
+
+    public void setLanguage(String language) {
+        this.language = language;
     }
 
     public Set<Role> getRoles() {

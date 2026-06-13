@@ -571,6 +571,15 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
   color: var(--text-dim);
 }
 .warehouse-switcher .select { min-width: 240px; }
+.lang-switcher { display: inline-flex; align-items: center; gap: .55rem; margin-left: .5rem; }
+.lang-switcher-label {
+  font-family: var(--font-mono);
+  font-size: .62rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.lang-switcher .select { min-width: 120px; }
 /* The routed screen fills the remaining height; padded screens scroll, canvas
    screens (topology/processes) use their own height:100% layout. */
 .app-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }

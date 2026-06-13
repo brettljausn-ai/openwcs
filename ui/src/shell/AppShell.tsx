@@ -3,6 +3,8 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { SCREENS, SECTION_ORDER, ScreenDef, Section } from '../auth/screens'
 import WarehouseSwitcher from '../warehouse/WarehouseSwitcher'
+import LanguageSwitcher from '../i18n/LanguageSwitcher'
+import { useT } from '../i18n/useT'
 import HelpButton from '../help/HelpButton'
 import { SidebarProvider, useSidebar } from './SidebarContext'
 
@@ -22,6 +24,7 @@ export default function AppShell() {
 
 function AppShellInner() {
   const { can, session, logout, roles } = useAuth()
+  const tc = useT('common')
   const { pathname } = useLocation()
 
   const dashboard = SCREENS.find((s) => s.key === 'dashboard')!
@@ -91,7 +94,7 @@ function AppShellInner() {
             <div className="name">{session?.name}</div>
             <div className="role">{roles[0] || 'user'}</div>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={logout} title="Sign out">Sign out</button>
+          <button className="btn btn-ghost btn-sm" onClick={logout} title={tc('signOut', 'Sign out')}>{tc('signOut', 'Sign out')}</button>
         </div>
       </aside>
 
@@ -108,6 +111,7 @@ function AppShellInner() {
           </button>
           <HelpButton />
           <WarehouseSwitcher />
+          <LanguageSwitcher />
         </div>
         <div className="app-body">
           <Outlet />
