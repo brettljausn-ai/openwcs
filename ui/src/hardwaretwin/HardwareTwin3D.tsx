@@ -517,6 +517,8 @@ interface TotesProps {
 
 /** Spacing between queue slots along the belt (tote 0.6 m + a visible gap). */
 const QUEUE_SPACING_M = 0.8
+/** A queued tote is parked at the last trail node within this distance of a belt (the link point). */
+const QUEUE_BELT_TOL_M = 0.6
 /** Anti-stack: minimum nose-to-tail gap between two MOVING totes sharing a belt run. */
 const TOTE_MIN_SEP_M = 0.8
 /** How many relaxation passes the anti-stack separation runs (resolves short chains of totes). */
@@ -555,6 +557,19 @@ function Totes({
   // which flung totes to a conveyor's start and snapped them back every frame. No projection, no
   // jump. (Belt-state jam derivation still uses buildBeltLocator over conveyorGeoms — separate.)
   const pathBetween = useMemo<PathBetween>(() => chordPath, [])
+
+  // Is a world point ON a conveyor belt? (within ~0.6 m of some belt's polyline). Used to park a
+  // queued tote at the last node of its trail that sits on a conveyor — the link point — rather
+  // than on the station node it scanned last (which is inside the workstation box).
+  const onAnyBelt = useCallback(
+    (p: XZ): boolean => {
+      for (const bp of beltPaths.values()) {
+        if (projectPointOnPath(bp, p).d <= QUEUE_BELT_TOL_M) return true
+      }
+      return false
+    },
+    [beltPaths],
+  )
 
   const resolved = useMemo(() => {
     const out: Array<{ tote: ToteView; anchor: THREE.Vector3 | null }> = []
@@ -606,43 +621,55 @@ function Totes({
       let heading: XZ | null = null
       const tl = timelines?.get(tote.huId)
       const hasTimeline = !!(tl && tl.points.length)
-      if (tote.state === 'queued' && !hasTimeline) {
-        // Queued but we never saw this tote move (e.g. the page just loaded): fall back to the
-        // editor's inbound link point. A station can link MULTIPLE conveyors (a stock-in and an
-        // order-out spur both meet PP1), so the topology connection alone is ambiguous — when we DO
-        // have the tote's own arrival path (below) we trust THAT instead, since it tells us the belt
-        // the tote actually came in on.
-        const qi = tote.queueIndex ?? 0
-        const head = tote.anchorPlacedId ? queueHeads.get(tote.anchorPlacedId) : undefined
-        const beltPath = head ? beltPaths.get(head.beltId) : undefined
-        if (head && beltPath) {
-          xz = pointAtLen(beltPath, Math.max(0, head.s - qi * QUEUE_SPACING_M))
-        } else if (anchor) {
-          xz = [anchor.x, anchor.z]
-          y = anchor.y
+      if (tote.state === 'queued') {
+        // A queued tote waits ON the inbound conveyor, parked at the CONVEYOR LINK POINT, not on the
+        // workstation. Its last scanned node is the station's own node (e.g. PP1#0, which sits in the
+        // middle of the 1.2 m workstation box), so parking there put it on the station. Walk back
+        // through the buffered waypoints to the last one that lies on a conveyor belt (the link
+        // point, e.g. BIN_CONVEYOR-1#17 just outside the box) and park there. The anti-stack pass
+        // then queues the ones behind it nose-to-tail upstream on that same belt.
+        if (hasTimeline) {
+          const pts = tl.points
+          let pi = -1
+          for (let i = pts.length - 1; i >= 0; i--) {
+            if (onAnyBelt(pts[i].xz)) {
+              pi = i
+              break
+            }
+          }
+          if (pi >= 0) {
+            xz = pts[pi].xz
+            if (pi >= 1) {
+              const a = pts[pi - 1].xz
+              const dx = xz[0] - a[0]
+              const dz = xz[1] - a[1]
+              const m = Math.hypot(dx, dz)
+              if (m > 1e-3) heading = [dx / m, dz / m]
+            }
+          }
+        }
+        if (!xz) {
+          // No arrival path on a belt (page just loaded, or no conveyor under the trail): fall back
+          // to the editor's inbound link point, then the station anchor.
+          const qi = tote.queueIndex ?? 0
+          const head = tote.anchorPlacedId ? queueHeads.get(tote.anchorPlacedId) : undefined
+          const beltPath = head ? beltPaths.get(head.beltId) : undefined
+          if (head && beltPath) {
+            xz = pointAtLen(beltPath, Math.max(0, head.s - qi * QUEUE_SPACING_M))
+          } else if (anchor) {
+            xz = [anchor.x, anchor.z]
+            y = anchor.y
+          }
         }
       }
-      // The tote's own motion timeline drives BOTH in-transit and queued totes: a queued tote holds
-      // at its arrival point ON the belt it came in on, and the anti-stack pass below queues the
-      // ones behind it nose-to-tail along that same belt — no guessing which conveyor is the inbound.
+      // In-transit totes follow their motion timeline (queued ones were parked above).
       if (!xz && hasTimeline) {
         xz = sampleTimeline(tl, renderT, pathBetween)
         if (xz) {
-          // Moving tote: heading from a short look-back (its current travel direction).
           const back = sampleTimeline(tl, renderT - HEADING_LOOKBACK_MS, pathBetween)
           if (back) {
             const dx = xz[0] - back[0]
             const dz = xz[1] - back[1]
-            const m = Math.hypot(dx, dz)
-            if (m > 1e-3) heading = [dx / m, dz / m]
-          }
-          // Stopped tote (queued at the station): no motion, so take the heading from the last
-          // buffered segment (the arrival direction), which keeps the spacing pass working.
-          if (!heading && tl.points.length >= 2) {
-            const a = tl.points[tl.points.length - 2].xz
-            const b = tl.points[tl.points.length - 1].xz
-            const dx = b[0] - a[0]
-            const dz = b[1] - a[1]
             const m = Math.hypot(dx, dz)
             if (m > 1e-3) heading = [dx / m, dz / m]
           }
