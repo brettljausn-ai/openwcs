@@ -266,26 +266,44 @@ export async function enableDemo(warehouseId: string): Promise<DemoResult> {
  * services (stock, reservations, handling units, orders, transports, counts, GTP work, and the
  * transaction journal), then remove the whole SKU catalog from master data. Infrastructure
  * (warehouses, blocks, locations, topology, GTP/station config, equipment, users) is kept.
- * All clears are attempted even if some fail, and the master-data catalog removal always runs;
- * a failed clear is then surfaced (not swallowed) so the admin knows the reset was partial and
+ *
+ * The clears run in TWO ORDERED PHASES, not all at once. Phase 1 tears down the transport
+ * PRODUCERS (flow-orchestrator, gtp, counting and order-management), which are the only things
+ * that issue handling-unit location bookings ({@code PUT /handling-units/{id}/location}) as a tote
+ * is retrieved, conveyed to a station and stored back. Only once those pipelines are torn down (so
+ * no induction entry or device task remains to drive a booking) does Phase 2 wipe the inventory
+ * registry and the journal. Firing inventory in parallel with flow/gtp used to let an in-flight
+ * transport callback re-book a handling unit's location right as the registry was being cleared:
+ * the booking would land on a tote sitting at an operational location (a conveyor segment or a
+ * station), which is exactly the population that was observed surviving demo-off. Ordering the
+ * teardown removes that race.
+ *
+ * All clears in a phase are attempted even if some fail, and the master-data catalog removal always
+ * runs; a failed clear is then surfaced (not swallowed) so the admin knows the reset was partial and
  * can flip the toggle again once the service is back. Admin-only.
  */
 export async function disableDemo(warehouseId: string): Promise<DemoResult> {
   const failed: string[] = []
   if (warehouseId) {
     const wh = encodeURIComponent(warehouseId)
-    const clears: Array<[string, string]> = [
-      ['inventory', `/api/inventory/demo/clear?warehouseId=${wh}`],
-      ['orders', `/api/orders/demo/clear?warehouseId=${wh}`],
-      ['counting', `/api/counting/demo/clear?warehouseId=${wh}`],
+    // Phase 1: tear down the transport pipeline (the producers of HU location bookings) FIRST.
+    const producers: Array<[string, string]> = [
       ['flow', `/api/flow/demo/clear?warehouseId=${wh}`],
       ['gtp', `/api/gtp/demo/clear?warehouseId=${wh}`],
+      ['counting', `/api/counting/demo/clear?warehouseId=${wh}`],
+      ['orders', `/api/orders/demo/clear?warehouseId=${wh}`],
+    ]
+    // Phase 2: only now wipe the inventory registry + the (global) journal; nothing can re-book.
+    const stores: Array<[string, string]> = [
+      ['inventory', `/api/inventory/demo/clear?warehouseId=${wh}`],
       ['txlog', '/api/txlog/demo/clear'], // the journal is global, not warehouse-scoped
     ]
-    const settled = await Promise.allSettled(clears.map(([, url]) => demoPost(url)))
-    settled.forEach((s, i) => {
-      if (s.status === 'rejected') failed.push(clears[i][0])
-    })
+    for (const phase of [producers, stores]) {
+      const settled = await Promise.allSettled(phase.map(([, url]) => demoPost(url)))
+      settled.forEach((s, i) => {
+        if (s.status === 'rejected') failed.push(phase[i][0])
+      })
+    }
   }
   const result = (await demoPost('/api/master-data/demo/disable')) as DemoResult
   if (failed.length) {

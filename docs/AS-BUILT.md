@@ -130,13 +130,20 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
     may only seed onto a fresh, host-free system. On enable the UI also calls
     `POST /api/inventory/demo/seed`, which registers stocked DEMO handling units **plus 50 empty
     HUs** (no stock) so the empty-HU flows (ASRS empty-HU management, GTP order totes) have totes
-    to work with. **Disable = full reset** orchestrated by the UI:
-    per-service clears (`/api/inventory|orders|counting|flow|gtp/demo/clear?warehouseId=` and the
-    global `/api/txlog/demo/clear` journal wipe) then the master-data disable, which removes the
-    WHOLE SKU catalog (UoMs/barcodes cascade), demo shippers and the demo HU type — all via bulk
-    DELETE statements (never loads rows), unsetting cubing-config `default_shipper_id` references
-    first (that FK used to 409 the disable). Failed clears are surfaced to the admin, not
-    swallowed. Warehouses, locations, blocks, topology and GTP/station config are kept.
+    to work with. **Disable = full reset** orchestrated by the UI in **two ordered phases**:
+    Phase 1 tears down the transport PRODUCERS (`/api/flow|gtp|counting|orders/demo/clear?warehouseId=`),
+    the only services that issue handling-unit location bookings as a tote is retrieved, conveyed and
+    stored back, and only once those are torn down does Phase 2 wipe the registry and journal
+    (`/api/inventory/demo/clear?warehouseId=` + the global `/api/txlog/demo/clear`). Then the master-data
+    disable removes the WHOLE SKU catalog (UoMs/barcodes cascade), demo shippers and the demo HU type,
+    all via bulk DELETE statements (never loads rows), unsetting cubing-config `default_shipper_id`
+    references first (that FK used to 409 the disable). The phase order matters: firing inventory in
+    parallel with flow/gtp let an in-flight transport callback re-book a handling unit's location at the
+    moment the registry was cleared, so a tote parked at an operational location (conveyor segment or
+    station) could appear to survive the reset; tearing the producers down first closes that race. The
+    inventory clear itself is location-blind (warehouse-scoped bulk DELETE; `handling_unit` carries no
+    inbound FK), so it never leaves operational-location HUs behind. Failed clears are surfaced to the
+    admin, not swallowed. Warehouses, locations, blocks, topology and GTP/station config are kept.
   - **Stock rules** (`SINGLE_SKU_PER_COMPARTMENT_ENABLED`, **default ON**, `/api/master-data/stock-rules`
     get + `/single-sku-per-compartment/enable|disable` ADMIN-gated): one HU compartment holds exactly
     one SKU, so an HU never carries more distinct SKUs than its type has compartments. GTP decanting
