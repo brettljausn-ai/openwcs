@@ -3,6 +3,7 @@
 // and the "day map": the window compiled into the 24 hours of the day with peaks highlighted.
 import { useEffect, useMemo, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import { useT } from '../i18n/useT'
 import { loadOrderFlow, type FlowDirection, type OrderFlowReportDto } from './api'
 import { addDays } from './forecast'
 import {
@@ -17,22 +18,8 @@ import {
 
 const DAYS = 90
 
-const COPY: Record<FlowDirection, { title: string; intro: string; expected: string; expectedHint: string }> = {
-  INBOUND: {
-    title: 'Inbound',
-    intro: 'Inbound orders over the last 90 days: what is expected, what is running, daily volumes and the hours of the day the goods actually arrive.',
-    expected: 'Expected inbound',
-    expectedHint: 'Received inbound orders that are not yet stock.',
-  },
-  OUTBOUND: {
-    title: 'Outbound',
-    intro: 'Outbound orders over the last 90 days: what is expected, what is running, daily volumes and the hours of the day the orders actually move.',
-    expected: 'Expected outbound',
-    expectedHint: 'Received outbound orders that are not yet released.',
-  },
-}
-
 export default function OrderFlowReport({ direction }: { direction: FlowDirection }) {
+  const t = useT('reporting')
   const { currentWarehouseId: warehouseId } = useWarehouse()
 
   const [report, setReport] = useState<OrderFlowReportDto | null>(null)
@@ -76,13 +63,28 @@ export default function OrderFlowReport({ direction }: { direction: FlowDirectio
   }, [report])
 
   const hasHistory = (report?.perDay?.length ?? 0) > 0
-  const copy = COPY[direction]
+  const copy =
+    direction === 'INBOUND'
+      ? {
+          title: t('inboundTitle', 'Inbound'),
+          titleLower: t('inboundTitleLower', 'inbound'),
+          intro: t('inboundIntro', 'Inbound orders over the last 90 days: what is expected, what is running, daily volumes and the hours of the day the goods actually arrive.'),
+          expected: t('expectedInbound', 'Expected inbound'),
+          expectedHint: t('expectedInboundHint', 'Received inbound orders that are not yet stock.'),
+        }
+      : {
+          title: t('outboundTitle', 'Outbound'),
+          titleLower: t('outboundTitleLower', 'outbound'),
+          intro: t('outboundIntro', 'Outbound orders over the last 90 days: what is expected, what is running, daily volumes and the hours of the day the orders actually move.'),
+          expected: t('expectedOutbound', 'Expected outbound'),
+          expectedHint: t('expectedOutboundHint', 'Received outbound orders that are not yet released.'),
+        }
 
   if (!warehouseId) {
     return (
       <div className="app-content">
         <div className="glass" style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-dim)' }}>
-          Select a warehouse in the top bar to load its {copy.title.toLowerCase()} report.
+          {t('selectWarehouseOrderFlow', 'Select a warehouse in the top bar to load its {dir} report.').replace('{dir}', copy.titleLower)}
         </div>
       </div>
     )
@@ -91,7 +93,7 @@ export default function OrderFlowReport({ direction }: { direction: FlowDirectio
   return (
     <div className="app-content">
       <div className="page-head">
-        <span className="eyebrow">Reporting</span>
+        <span className="eyebrow">{t('eyebrow', 'Reporting')}</span>
         <h1>{copy.title}</h1>
         <p>{copy.intro}</p>
       </div>
@@ -100,44 +102,44 @@ export default function OrderFlowReport({ direction }: { direction: FlowDirectio
 
       <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '1rem' }} title={copy.expectedHint}>
         <StatChip label={copy.expected} value={report ? report.expected.toLocaleString() : '-'} color={CHART_COLORS.blue} />
-        <StatChip label="Started" value={report ? report.started.toLocaleString() : '-'} color={CHART_COLORS.amber} />
-        <StatChip label="Active" value={report ? report.active.toLocaleString() : '-'} color={CHART_COLORS.lime} />
+        <StatChip label={t('chipStarted', 'Started')} value={report ? report.started.toLocaleString() : '-'} color={CHART_COLORS.amber} />
+        <StatChip label={t('chipActive', 'Active')} value={report ? report.active.toLocaleString() : '-'} color={CHART_COLORS.lime} />
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
         <ChartCard
-          title={`${copy.title} per day`}
-          subtitle={`Orders received, started and completed per day over the last ${DAYS} days.`}
+          title={t('orderFlowPerDay', '{dir} per day').replace('{dir}', copy.title)}
+          subtitle={t('orderFlowPerDaySub', 'Orders received, started and completed per day over the last {days} days.').replace('{days}', String(DAYS))}
           minWidth={460}
         >
           {loading && !report ? (
             <LoadingNote />
           ) : !hasHistory ? (
-            <EmptyHistoryNote what={`${copy.title.toLowerCase()} history`} />
+            <EmptyHistoryNote what={t('whatOrderFlowHistory', '{dir} history').replace('{dir}', copy.titleLower)} />
           ) : (
             <DailyChart
               data={dailyData}
               height={280}
               series={[
-                { key: 'received', name: 'Received', color: CHART_COLORS.blue },
-                { key: 'started', name: 'Started', color: CHART_COLORS.amber },
-                { key: 'completed', name: 'Completed', color: CHART_COLORS.lime },
+                { key: 'received', name: t('seriesReceived', 'Received'), color: CHART_COLORS.blue },
+                { key: 'started', name: t('chipStarted', 'Started'), color: CHART_COLORS.amber },
+                { key: 'completed', name: t('colCompleted', 'Completed'), color: CHART_COLORS.lime },
               ]}
             />
           )}
         </ChartCard>
         <ChartCard
-          title="Hours of the day"
-          subtitle={`The last ${DAYS} days compiled into hours of the day: when the ${copy.title.toLowerCase()} volume actually runs.`}
+          title={t('hoursOfTheDay', 'Hours of the day')}
+          subtitle={t('hoursOfTheDaySub', 'The last {days} days compiled into hours of the day: when the {dir} volume actually runs.').replace('{days}', String(DAYS)).replace('{dir}', copy.titleLower)}
           minWidth={380}
         >
           {loading && !report ? (
             <LoadingNote />
           ) : hourCounts.every((c) => c === 0) ? (
-            <EmptyHistoryNote what={`${copy.title.toLowerCase()} activity`} />
+            <EmptyHistoryNote what={t('whatOrderFlowActivity', '{dir} activity').replace('{dir}', copy.titleLower)} />
           ) : (
             <div style={{ paddingTop: '.75rem' }}>
-              <HourOfDayStrip counts={hourCounts} caption={`Each cell is one hour of the day (00-23), summed over the window.`} />
+              <HourOfDayStrip counts={hourCounts} caption={t('hourOfDayCaption', 'Each cell is one hour of the day (00-23), summed over the window.')} />
             </div>
           )}
         </ChartCard>

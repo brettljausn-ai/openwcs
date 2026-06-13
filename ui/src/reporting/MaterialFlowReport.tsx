@@ -3,6 +3,7 @@
 // conveyor traffic heatmap on the real 3D topology scene, and daily transit times.
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import { useT } from '../i18n/useT'
 import Select from '../ui/Select'
 import DataTable, { type Column } from '../ui/DataTable'
 import { loadAutomationTopology, type AutomationTopology } from '../topology/automationApi'
@@ -49,6 +50,7 @@ interface ScannerRow {
 }
 
 export default function MaterialFlowReport() {
+  const t = useT('reporting')
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const [days, setDays] = useState(30)
   const [showLabels, setShowLabels] = useState(false)
@@ -190,13 +192,13 @@ export default function MaterialFlowReport() {
   }, [transitRows, windowDays])
 
   const columns: Column<ScannerRow>[] = [
-    { key: 'node', header: 'Scan point', sortable: true, render: (r) => <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{r.node}</span> },
-    { key: 'scans', header: 'Scans', align: 'right', sortable: true, sortValue: (r) => r.scans },
-    { key: 'noReads', header: 'No reads', align: 'right', sortable: true, sortValue: (r) => r.noReads },
-    { key: 'unknowns', header: 'Unknowns', align: 'right', sortable: true, sortValue: (r) => r.unknowns },
+    { key: 'node', header: t('colScanPoint', 'Scan point'), sortable: true, render: (r) => <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{r.node}</span> },
+    { key: 'scans', header: t('colScans', 'Scans'), align: 'right', sortable: true, sortValue: (r) => r.scans },
+    { key: 'noReads', header: t('colNoReads', 'No reads'), align: 'right', sortable: true, sortValue: (r) => r.noReads },
+    { key: 'unknowns', header: t('colUnknowns', 'Unknowns'), align: 'right', sortable: true, sortValue: (r) => r.unknowns },
     {
       key: 'rate',
-      header: 'Error rate',
+      header: t('colErrorRate', 'Error rate'),
       align: 'right',
       sortable: true,
       sortValue: (r) => r.rate,
@@ -204,7 +206,7 @@ export default function MaterialFlowReport() {
     },
     {
       key: 'trend',
-      header: 'Trend',
+      header: t('colTrend', 'Trend'),
       align: 'center',
       sortable: true,
       sortValue: (r) => r.slope,
@@ -218,14 +220,14 @@ export default function MaterialFlowReport() {
         )
       },
     },
-    { key: 'spark', header: 'Daily error rate', render: (r) => <Sparkline values={r.spark} color={r.attention ? CHART_COLORS.red : CHART_COLORS.lime} /> },
+    { key: 'spark', header: t('colDailyErrorRate', 'Daily error rate'), render: (r) => <Sparkline values={r.spark} color={r.attention ? CHART_COLORS.red : CHART_COLORS.lime} /> },
     {
       key: 'attention',
-      header: 'Status',
+      header: t('colStatus', 'Status'),
       sortable: true,
       sortValue: (r) => Number(r.attention),
       render: (r) =>
-        r.attention ? <span className="badge badge-danger">needs attention</span> : <span className="badge badge-success">ok</span>,
+        r.attention ? <span className="badge badge-danger">{t('badgeNeedsAttention', 'needs attention')}</span> : <span className="badge badge-success">{t('badgeOk', 'ok')}</span>,
     },
   ]
 
@@ -233,7 +235,7 @@ export default function MaterialFlowReport() {
     return (
       <div className="app-content">
         <div className="glass" style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-dim)' }}>
-          Select a warehouse in the top bar to load its material-flow report.
+          {t('selectWarehouse', 'Select a warehouse in the top bar to load its material-flow report.')}
         </div>
       </div>
     )
@@ -243,18 +245,18 @@ export default function MaterialFlowReport() {
     <div className="app-content">
       <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
-          <span className="eyebrow">Reporting</span>
-          <h1>Material flow</h1>
-          <p>Scan quality at every scan point, scanners predicted to need attention, and where the conveyor traffic runs.</p>
+          <span className="eyebrow">{t('eyebrow', 'Reporting')}</span>
+          <h1>{t('materialFlowTitle', 'Material flow')}</h1>
+          <p>{t('materialFlowIntro', 'Scan quality at every scan point, scanners predicted to need attention, and where the conveyor traffic runs.')}</p>
         </div>
         <label style={{ display: 'inline-flex', alignItems: 'center', gap: '.5rem', fontSize: '.85rem' }}>
-          <span className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.65rem', letterSpacing: '.12em', textTransform: 'uppercase' }}>Window</span>
+          <span className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.65rem', letterSpacing: '.12em', textTransform: 'uppercase' }}>{t('window', 'Window')}</span>
           <Select
-            ariaLabel="Report window"
+            ariaLabel={t('reportWindow', 'Report window')}
             value={String(days)}
             onChange={(v) => setDays(Number(v))}
             style={{ width: 140 }}
-            options={DAY_OPTIONS.map((d) => ({ value: String(d), label: `Last ${d} days` }))}
+            options={DAY_OPTIONS.map((d) => ({ value: String(d), label: t('lastNDays', 'Last {n} days').replace('{n}', String(d)) }))}
           />
         </label>
       </div>
@@ -262,43 +264,43 @@ export default function MaterialFlowReport() {
       {error && <p className="badge badge-danger" style={{ marginBottom: '1rem' }}>{error}</p>}
 
       <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-        <StatChip label="Scans" value={totals.scans.toLocaleString()} color={CHART_COLORS.lime} />
-        <StatChip label="No reads" value={totals.noReads.toLocaleString()} color={CHART_COLORS.amber} />
-        <StatChip label="Unknowns" value={totals.unknowns.toLocaleString()} color={CHART_COLORS.red} />
-        <StatChip label="Error rate" value={`${(totals.rate * 100).toFixed(2)} %`} color={totals.rate > ATTENTION_RATE ? 'var(--danger)' : undefined} />
-        <StatChip label="Scan points" value={scannerRows.length} />
+        <StatChip label={t('colScans', 'Scans')} value={totals.scans.toLocaleString()} color={CHART_COLORS.lime} />
+        <StatChip label={t('colNoReads', 'No reads')} value={totals.noReads.toLocaleString()} color={CHART_COLORS.amber} />
+        <StatChip label={t('colUnknowns', 'Unknowns')} value={totals.unknowns.toLocaleString()} color={CHART_COLORS.red} />
+        <StatChip label={t('colErrorRate', 'Error rate')} value={`${(totals.rate * 100).toFixed(2)} %`} color={totals.rate > ATTENTION_RATE ? 'var(--danger)' : undefined} />
+        <StatChip label={t('chipScanPoints', 'Scan points')} value={scannerRows.length} />
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-        <ChartCard title="Scan quality per day" subtitle="Good reads vs no reads vs unknown barcodes across all scan points.">
+        <ChartCard title={t('scanQualityPerDay', 'Scan quality per day')} subtitle={t('scanQualityPerDaySub', 'Good reads vs no reads vs unknown barcodes across all scan points.')}>
           {loading && scanRows.length === 0 ? (
             <LoadingNote />
           ) : scanRows.length === 0 ? (
-            <EmptyHistoryNote what="scans" />
+            <EmptyHistoryNote what={t('whatScans', 'scans')} />
           ) : (
             <StackedBars
               data={dailyScanData}
               xKey="day"
               xTick={(d) => String(d).slice(5)}
               series={[
-                { key: 'good', name: 'Good reads', color: CHART_COLORS.lime },
-                { key: 'noReads', name: 'No reads', color: CHART_COLORS.amber },
-                { key: 'unknowns', name: 'Unknowns', color: CHART_COLORS.red },
+                { key: 'good', name: t('seriesGoodReads', 'Good reads'), color: CHART_COLORS.lime },
+                { key: 'noReads', name: t('colNoReads', 'No reads'), color: CHART_COLORS.amber },
+                { key: 'unknowns', name: t('colUnknowns', 'Unknowns'), color: CHART_COLORS.red },
               ]}
             />
           )}
         </ChartCard>
-        <ChartCard title="Transit times" subtitle="Daily p50 / p95 transport time in seconds (completed transports).">
+        <ChartCard title={t('transitTimes', 'Transit times')} subtitle={t('transitTimesSub', 'Daily p50 / p95 transport time in seconds (completed transports).')}>
           {loading && transitRows.length === 0 ? (
             <LoadingNote />
           ) : transitRows.length === 0 ? (
-            <EmptyHistoryNote what="completed transports" />
+            <EmptyHistoryNote what={t('whatCompletedTransports', 'completed transports')} />
           ) : (
             <DailyChart
               data={transitData}
               series={[
-                { key: 'p50', name: 'p50 (s)', color: CHART_COLORS.blue },
-                { key: 'p95', name: 'p95 (s)', color: CHART_COLORS.violet },
+                { key: 'p50', name: t('seriesP50', 'p50 (s)'), color: CHART_COLORS.blue },
+                { key: 'p95', name: t('seriesP95', 'p95 (s)'), color: CHART_COLORS.violet },
               ]}
             />
           )}
@@ -306,24 +308,26 @@ export default function MaterialFlowReport() {
       </div>
 
       <div className="glass" style={{ padding: '1rem 1.1rem', marginBottom: '1rem' }}>
-        <h3 style={{ margin: '0 0 .15rem', fontSize: '.95rem' }}>Scanners needing attention</h3>
+        <h3 style={{ margin: '0 0 .15rem', fontSize: '.95rem' }}>{t('scannersNeedingAttention', 'Scanners needing attention')}</h3>
         <p className="muted" style={{ margin: '0 0 .75rem', fontSize: '.75rem' }}>
-          History-based prediction: a scanner is flagged when its no-read/unknown rate exceeds {ATTENTION_RATE * 100} % or its
-          daily error rate is rising (regression slope over the window).
+          {t(
+            'scannerPredictionNote',
+            'History-based prediction: a scanner is flagged when its no-read/unknown rate exceeds {rate} % or its daily error rate is rising (regression slope over the window).',
+          ).replace('{rate}', String(ATTENTION_RATE * 100))}
         </p>
         {loading && scannerRows.length === 0 ? (
           <LoadingNote />
         ) : scannerRows.length === 0 ? (
-          <EmptyHistoryNote what="scan-point history" />
+          <EmptyHistoryNote what={t('whatScanPointHistory', 'scan-point history')} />
         ) : (
           <DataTable
             columns={columns}
             rows={scannerRows}
             rowKey={(r) => r.node}
             search={(r) => r.node}
-            searchPlaceholder="Search scan points…"
+            searchPlaceholder={t('searchScanPoints', 'Search scan points…')}
             pageSize={10}
-            empty="No scan points in this window."
+            empty={t('emptyScanPoints', 'No scan points in this window.')}
           />
         )}
       </div>
@@ -331,35 +335,33 @@ export default function MaterialFlowReport() {
       <div className="glass" style={{ padding: '1rem 1.1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '.75rem', flexWrap: 'wrap' }}>
           <div>
-            <h3 style={{ margin: '0 0 .15rem', fontSize: '.95rem' }}>Traffic heatmap</h3>
+            <h3 style={{ margin: '0 0 .15rem', fontSize: '.95rem' }}>{t('trafficHeatmap', 'Traffic heatmap')}</h3>
             <p className="muted" style={{ margin: '0 0 .75rem', fontSize: '.75rem' }}>
-              The real 3D topology with each conveyor tinted by its transports over the window (edge traffic attributed to the
-              nearest conveyor, log scale).
+              {t('trafficHeatmapSub', 'The real 3D topology with each conveyor tinted by its transports over the window (edge traffic attributed to the nearest conveyor, log scale).')}
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', fontSize: '.85rem' }}>
               <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} />
-              Labels
+              {t('labels', 'Labels')}
             </label>
-            {traffic && <HeatLegend min={0} max={traffic.maxPerConveyor} unit="transports" />}
+            {traffic && <HeatLegend min={0} max={traffic.maxPerConveyor} unit={t('unitTransports', 'transports')} />}
           </div>
         </div>
         {!topology || topology.equipment.length === 0 ? (
-          <EmptyHistoryNote what="placed automation topology (build one under Engineering → Automation topology)" />
+          <EmptyHistoryNote what={t('whatPlacedTopology', 'placed automation topology (build one under Engineering → Automation topology)')} />
         ) : trafficRows.length === 0 ? (
-          <EmptyHistoryNote what="conveyor traffic" />
+          <EmptyHistoryNote what={t('whatConveyorTraffic', 'conveyor traffic')} />
         ) : (
           <div style={{ height: 'min(60vh, 540px)', borderRadius: 10, overflow: 'hidden' }}>
-            <Suspense fallback={<LoadingNote>Loading 3D scene…</LoadingNote>}>
+            <Suspense fallback={<LoadingNote>{t('loading3dScene', 'Loading 3D scene…')}</LoadingNote>}>
               <ReportScene3D topology={topology} lib={lib} conveyorHeat={traffic?.heatByPlaced ?? null} showLabels={showLabels} />
             </Suspense>
           </div>
         )}
         {traffic && traffic.unattributed > 0 && (
           <p className="muted" style={{ margin: '.5rem 0 0', fontSize: '.72rem' }}>
-            {traffic.unattributed.toLocaleString()} transports ran on routing edges that could not be mapped to a placed conveyor
-            (no node position within 4 m) and are not painted.
+            {t('unattributedTransports', '{n} transports ran on routing edges that could not be mapped to a placed conveyor (no node position within 4 m) and are not painted.').replace('{n}', traffic.unattributed.toLocaleString())}
           </p>
         )}
       </div>

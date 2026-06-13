@@ -3,6 +3,7 @@
 // storage movements per device (shuttle, crane, …).
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import { useT } from '../i18n/useT'
 import DataTable, { type Column } from '../ui/DataTable'
 import { loadAutomationTopology, type AutomationTopology } from '../topology/automationApi'
 import { listEquipment, listLocations, listStorageBlocks, type Equipment, type Location, type StorageBlock } from '../masterdata/api'
@@ -42,6 +43,7 @@ interface DeviceRow {
 }
 
 export default function AsrsReport() {
+  const t = useT('reporting')
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const catalog = useCatalog(warehouseId)
   const [showLabels, setShowLabels] = useState(false)
@@ -180,25 +182,25 @@ export default function AsrsReport() {
   )
 
   const deviceColumns: Column<DeviceRow>[] = [
-    { key: 'equipment', header: 'Device', sortable: true, render: (r) => deviceLabel(r.equipment) },
-    { key: 'family', header: 'Family', sortable: true, render: (r) => <span className="badge">{r.family}</span> },
-    { key: 'completed', header: 'Completed', align: 'right', sortable: true, sortValue: (r) => r.completed },
+    { key: 'equipment', header: t('colDevice', 'Device'), sortable: true, render: (r) => deviceLabel(r.equipment) },
+    { key: 'family', header: t('colFamily', 'Family'), sortable: true, render: (r) => <span className="badge">{r.family}</span> },
+    { key: 'completed', header: t('colCompleted', 'Completed'), align: 'right', sortable: true, sortValue: (r) => r.completed },
     {
       key: 'failed',
-      header: 'Failed',
+      header: t('colFailed', 'Failed'),
       align: 'right',
       sortable: true,
       sortValue: (r) => r.failed,
       render: (r) => <span style={{ color: r.failed > 0 ? 'var(--danger)' : undefined }}>{r.failed}</span>,
     },
-    { key: 'total', header: 'Total', align: 'right', sortable: true, sortValue: (r) => r.completed + r.failed, render: (r) => r.completed + r.failed },
+    { key: 'total', header: t('colTotal', 'Total'), align: 'right', sortable: true, sortValue: (r) => r.completed + r.failed, render: (r) => r.completed + r.failed },
   ]
 
   if (!warehouseId) {
     return (
       <div className="app-content">
         <div className="glass" style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-dim)' }}>
-          Select a warehouse in the top bar to load its ASRS report.
+          {t('selectWarehouseAsrs', 'Select a warehouse in the top bar to load its ASRS report.')}
         </div>
       </div>
     )
@@ -209,55 +211,55 @@ export default function AsrsReport() {
   return (
     <div className="app-content">
       <div className="page-head">
-        <span className="eyebrow">Reporting</span>
-        <h1>ASRS</h1>
-        <p>Storage density over the last {DAYS} days with a {FORECAST_DAYS}-day forecast, where the storage movements happen, and movements per device.</p>
+        <span className="eyebrow">{t('eyebrow', 'Reporting')}</span>
+        <h1>{t('asrsTitle', 'ASRS')}</h1>
+        <p>{t('asrsIntro', 'Storage density over the last {days} days with a {forecast}-day forecast, where the storage movements happen, and movements per device.').replace('{days}', String(DAYS)).replace('{forecast}', String(FORECAST_DAYS))}</p>
       </div>
 
       {error && <p className="badge badge-danger" style={{ marginBottom: '1rem' }}>{error}</p>}
 
       <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-        <StatChip label="Occupied cells" value={latest ? latest.occ.toLocaleString() : '-'} color={CHART_COLORS.blue} />
-        <StatChip label="Total cells" value={latest ? latest.tot.toLocaleString() : '-'} />
-        <StatChip label="Density" value={latest ? `${latest.pct.toFixed(1)} %` : '-'} color={CHART_COLORS.lime} />
-        <StatChip label="Movements (window)" value={totalMovements.toLocaleString()} color={CHART_COLORS.amber} />
-        <StatChip label="Devices" value={deviceRows.length} />
+        <StatChip label={t('chipOccupiedCells', 'Occupied cells')} value={latest ? latest.occ.toLocaleString() : '-'} color={CHART_COLORS.blue} />
+        <StatChip label={t('chipTotalCells', 'Total cells')} value={latest ? latest.tot.toLocaleString() : '-'} />
+        <StatChip label={t('chipDensity', 'Density')} value={latest ? `${latest.pct.toFixed(1)} %` : '-'} color={CHART_COLORS.lime} />
+        <StatChip label={t('chipMovementsWindow', 'Movements (window)')} value={totalMovements.toLocaleString()} color={CHART_COLORS.amber} />
+        <StatChip label={t('chipDevices', 'Devices')} value={deviceRows.length} />
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-        <ChartCard title="Storage density" subtitle={`Occupied cells as % of total, ${DAYS}-day history with a dashed ${FORECAST_DAYS}-day forecast (weekday-seasonal average).`}>
+        <ChartCard title={t('storageDensity', 'Storage density')} subtitle={t('storageDensitySub', 'Occupied cells as % of total, {days}-day history with a dashed {forecast}-day forecast (weekday-seasonal average).').replace('{days}', String(DAYS)).replace('{forecast}', String(FORECAST_DAYS))}>
           {loading && density.length === 0 ? (
             <LoadingNote />
           ) : density.length === 0 ? (
-            <EmptyHistoryNote what="density history" />
+            <EmptyHistoryNote what={t('whatDensityHistory', 'density history')} />
           ) : (
             <DailyChart
               data={densityChartData}
               yTick={(v) => `${v}%`}
               series={[
-                { key: 'pct', name: 'Density %', color: CHART_COLORS.lime },
-                { key: 'forecast', name: 'Forecast', color: CHART_COLORS.blue, dashed: true },
+                { key: 'pct', name: t('seriesDensityPct', 'Density %'), color: CHART_COLORS.lime },
+                { key: 'forecast', name: t('seriesForecast', 'Forecast'), color: CHART_COLORS.blue, dashed: true },
               ]}
             />
           )}
         </ChartCard>
-        <ChartCard title="Density by block" subtitle="Latest reported day per storage block.">
+        <ChartCard title={t('densityByBlock', 'Density by block')} subtitle={t('densityByBlockSub', 'Latest reported day per storage block.')}>
           {loading && blockRows.length === 0 ? (
             <LoadingNote />
           ) : blockRows.length === 0 ? (
-            <EmptyHistoryNote what="density history" />
+            <EmptyHistoryNote what={t('whatDensityHistory', 'density history')} />
           ) : (
             <DataTable
               columns={[
-                { key: 'block', header: 'Block', sortable: true },
-                { key: 'occupied', header: 'Occupied', align: 'right', sortable: true, sortValue: (r) => r.occupied },
-                { key: 'total', header: 'Total', align: 'right', sortable: true, sortValue: (r) => r.total },
-                { key: 'pct', header: 'Density', align: 'right', sortable: true, sortValue: (r) => r.pct, render: (r) => `${r.pct.toFixed(1)} %` },
+                { key: 'block', header: t('colBlock', 'Block'), sortable: true },
+                { key: 'occupied', header: t('colOccupied', 'Occupied'), align: 'right', sortable: true, sortValue: (r) => r.occupied },
+                { key: 'total', header: t('colTotal', 'Total'), align: 'right', sortable: true, sortValue: (r) => r.total },
+                { key: 'pct', header: t('chipDensity', 'Density'), align: 'right', sortable: true, sortValue: (r) => r.pct, render: (r) => `${r.pct.toFixed(1)} %` },
               ]}
               rows={blockRows}
               rowKey={(r) => r.blockId}
               pageSize={8}
-              empty="No storage blocks reported."
+              empty={t('emptyStorageBlocks', 'No storage blocks reported.')}
             />
           )}
         </ChartCard>
@@ -267,49 +269,48 @@ export default function AsrsReport() {
         <div className="glass" style={{ padding: '1rem 1.1rem', flex: '2 1 480px', minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '.75rem', flexWrap: 'wrap' }}>
             <div>
-              <h3 style={{ margin: '0 0 .15rem', fontSize: '.95rem' }}>Storage-movement heatmap</h3>
+              <h3 style={{ margin: '0 0 .15rem', fontSize: '.95rem' }}>{t('storageMovementHeatmap', 'Storage-movement heatmap')}</h3>
               <p className="muted" style={{ margin: '0 0 .75rem', fontSize: '.75rem' }}>
-                Rack cells coloured by stores + retrieves over the window, at the same cell positions the hardware twin renders
-                stored totes (log scale).
+                {t('storageMovementHeatmapSub', 'Rack cells coloured by stores + retrieves over the window, at the same cell positions the hardware twin renders stored totes (log scale).')}
               </p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', fontSize: '.85rem' }}>
                 <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} />
-                Labels
+                {t('labels', 'Labels')}
               </label>
-              {heat && <HeatLegend min={0} max={heat.maxPerCell} unit="movements/cell" />}
+              {heat && <HeatLegend min={0} max={heat.maxPerCell} unit={t('unitMovementsPerCell', 'movements/cell')} />}
             </div>
           </div>
           {!topology || topology.equipment.length === 0 ? (
-            <EmptyHistoryNote what="placed automation topology (build one under Engineering → Automation topology)" />
+            <EmptyHistoryNote what={t('whatPlacedTopology', 'placed automation topology (build one under Engineering → Automation topology)')} />
           ) : movements.length === 0 ? (
-            <EmptyHistoryNote what="storage movements" />
+            <EmptyHistoryNote what={t('whatStorageMovements', 'storage movements')} />
           ) : (
             <div style={{ height: 'min(60vh, 520px)', borderRadius: 10, overflow: 'hidden' }}>
-              <Suspense fallback={<LoadingNote>Loading 3D scene…</LoadingNote>}>
+              <Suspense fallback={<LoadingNote>{t('loading3dScene', 'Loading 3D scene…')}</LoadingNote>}>
                 <ReportScene3D topology={topology} lib={lib} cells={heat?.cells ?? null} showLabels={showLabels} />
               </Suspense>
             </div>
           )}
           {heat && heat.unplaced > 0 && (
             <p className="muted" style={{ margin: '.5rem 0 0', fontSize: '.72rem' }}>
-              {heat.unplaced.toLocaleString()} movements hit locations without rack-cell coordinates and are not painted.
+              {t('unplacedMovements', '{n} movements hit locations without rack-cell coordinates and are not painted.').replace('{n}', heat.unplaced.toLocaleString())}
             </p>
           )}
         </div>
-        <ChartCard title="Storage movements per day" subtitle={`Stores + retrieves, with a dashed ${FORECAST_DAYS}-day forecast of the totals.`} minWidth={320}>
+        <ChartCard title={t('storageMovementsPerDay', 'Storage movements per day')} subtitle={t('storageMovementsPerDaySub', 'Stores + retrieves, with a dashed {forecast}-day forecast of the totals.').replace('{forecast}', String(FORECAST_DAYS))} minWidth={320}>
           {loading && movements.length === 0 ? (
             <LoadingNote />
           ) : movements.length === 0 ? (
-            <EmptyHistoryNote what="storage movements" />
+            <EmptyHistoryNote what={t('whatStorageMovements', 'storage movements')} />
           ) : (
             <DailyChart
               data={movementChartData}
               height={300}
               series={[
-                { key: 'movements', name: 'Movements', color: CHART_COLORS.amber },
-                { key: 'forecast', name: 'Forecast', color: CHART_COLORS.blue, dashed: true },
+                { key: 'movements', name: t('seriesMovements', 'Movements'), color: CHART_COLORS.amber },
+                { key: 'forecast', name: t('seriesForecast', 'Forecast'), color: CHART_COLORS.blue, dashed: true },
               ]}
             />
           )}
@@ -317,23 +318,23 @@ export default function AsrsReport() {
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-        <ChartCard title="Movements per device" subtitle="Completed vs failed device tasks per shuttle / crane / device over the window.">
+        <ChartCard title={t('movementsPerDevice', 'Movements per device')} subtitle={t('movementsPerDeviceSub', 'Completed vs failed device tasks per shuttle / crane / device over the window.')}>
           {loading && deviceRows.length === 0 ? (
             <LoadingNote />
           ) : deviceRows.length === 0 ? (
-            <EmptyHistoryNote what="device movements" />
+            <EmptyHistoryNote what={t('whatDeviceMovements', 'device movements')} />
           ) : (
             <StackedBars
               data={deviceChartData}
               xKey="device"
               series={[
-                { key: 'completed', name: 'Completed', color: CHART_COLORS.lime },
-                { key: 'failed', name: 'Failed', color: CHART_COLORS.red },
+                { key: 'completed', name: t('colCompleted', 'Completed'), color: CHART_COLORS.lime },
+                { key: 'failed', name: t('colFailed', 'Failed'), color: CHART_COLORS.red },
               ]}
             />
           )}
         </ChartCard>
-        <ChartCard title="Device details" subtitle="Totals per device over the window.">
+        <ChartCard title={t('deviceDetails', 'Device details')} subtitle={t('deviceDetailsSub', 'Totals per device over the window.')}>
           {loading && deviceRows.length === 0 ? (
             <LoadingNote />
           ) : (
@@ -342,9 +343,9 @@ export default function AsrsReport() {
               rows={deviceRows}
               rowKey={(r) => r.equipment}
               search={(r) => `${deviceLabel(r.equipment)} ${r.family}`}
-              searchPlaceholder="Search devices…"
+              searchPlaceholder={t('searchDevices', 'Search devices…')}
               pageSize={8}
-              empty="No device movements in this window."
+              empty={t('emptyDeviceMovements', 'No device movements in this window.')}
             />
           )}
         </ChartCard>
