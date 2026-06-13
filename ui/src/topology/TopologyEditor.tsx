@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
+import { useT } from '../i18n/useT'
 import RoutingGraphTables from './RoutingGraphTables'
 // Lazy so three.js / r3f are code-split and only fetched when the 3D layout tab is opened.
 const AutomationTopology3D = lazy(() => import('./AutomationTopology3D'))
@@ -8,6 +9,7 @@ type TopologyTab = '3d' | 'routing'
 // Tabbed shell around the two topology views: the 3D physical automation layout (default) and the
 // routing graph, a table-based inspector (RoutingGraphTables) over the generated node/edge graph.
 export default function TopologyEditor() {
+  const t = useT('topology')
   const [tab, setTab] = useState<TopologyTab>('3d')
   // Fold the page chrome (title + level meta) away to give the drawing canvas more height.
   // Persisted so the editor reopens the way the user left it.
@@ -32,8 +34,8 @@ export default function TopologyEditor() {
     <div className="app-content">
       {!collapsed && (
         <div className="page-head">
-          <span className="eyebrow">Configuration</span>
-          <h1>Automation topology</h1>
+          <span className="eyebrow">{t('eyebrow', 'Configuration')}</span>
+          <h1>{t('title', 'Automation topology')}</h1>
         </div>
       )}
       <div className="topo-tabs" role="tablist">
@@ -44,7 +46,7 @@ export default function TopologyEditor() {
           className={`topo-tab${tab === '3d' ? ' is-active' : ''}`}
           onClick={() => setTab('3d')}
         >
-          3D layout
+          {t('tab3dLayout', '3D layout')}
         </button>
         <button
           type="button"
@@ -53,11 +55,11 @@ export default function TopologyEditor() {
           className={`topo-tab${tab === 'routing' ? ' is-active' : ''}`}
           onClick={() => setTab('routing')}
         >
-          Routing graph
+          {t('tabRoutingGraph', 'Routing graph')}
         </button>
       </div>
       {tab === '3d' ? (
-        <Suspense fallback={<div className="glass card-pad">Loading 3D editor…</div>}>
+        <Suspense fallback={<div className="glass card-pad">{t('loading3dEditor', 'Loading 3D editor…')}</div>}>
           <AutomationTopology3D collapsed={collapsed} onToggleChrome={toggleCollapsed} />
         </Suspense>
       ) : (
