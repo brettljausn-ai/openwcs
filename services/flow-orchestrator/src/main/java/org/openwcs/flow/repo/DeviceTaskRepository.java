@@ -13,6 +13,12 @@ import org.springframework.data.repository.query.Param;
 public interface DeviceTaskRepository extends JpaRepository<DeviceTask, UUID> {
     List<DeviceTask> findByCorrelationIdOrderByCreatedAtAsc(UUID correlationId);
 
+    /** In-flight CONVEY tasks for a warehouse, newest first — the live twin's moving totes. */
+    @Query("select t from DeviceTask t where t.warehouseId = :warehouseId and t.command = 'CONVEY'"
+            + " and t.status in :statuses order by t.createdAt desc")
+    List<DeviceTask> findActiveConvey(@Param("warehouseId") UUID warehouseId,
+                                      @Param("statuses") java.util.Collection<String> statuses);
+
     /** All device tasks for a warehouse (used by the demo full-reset clear). */
     List<DeviceTask> findByWarehouseId(UUID warehouseId);
 

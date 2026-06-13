@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { loadAutomationTopology, type AutomationTopology } from '../topology/automationApi'
 import { listEquipment, type Equipment } from '../masterdata/api'
-import { listDeviceTasks, listHuTrace } from '../transport/api'
+import { listDeviceTasks } from '../transport/api'
 import { getStationQueue } from '../gtpops/api'
 import { listLocations } from '../masterdata/api'
 import { listHandlingUnits } from '../inventory/api'
-import { loadConveyorNodePositions } from './api'
+import { loadConveyorNodePositions, listTotePaths, type TwinPaths } from './api'
 import { insertPoint, pruneBefore, type ToteTimeline } from './motion'
 import {
   deriveStoredTotes,
   deriveTwin,
-  type ScanRow,
   type StorageCell,
   type StoredTote,
   type TwinSnapshot,
@@ -25,14 +24,12 @@ import {
 // on cleanup, and a `refreshRef` so the interval reads the freshest poll fn without being recreated
 // on every render.
 
-// 2 s: one device-task read plus a capped trace fan-out per tick is cheap, and a shorter poll lets
-// the render delay (RENDER_DELAY_MS in motion.ts) stay short — fresher smooth motion.
+// 2 s: one device-task read plus one tote-paths read per tick is cheap, and a shorter poll lets the
+// render delay (RENDER_DELAY_MS in motion.ts) stay short — fresher smooth motion.
 const DEFAULT_INTERVAL_MS = 2000
 const TIMELINE_RETENTION_MS = 60_000 // history a tote keeps behind the delayed render clock
 const TIMELINE_IDLE_DROP_MS = 30_000 // drop a timeline this long after its HU left the live picture
 const TASK_WINDOW = 500 // wide window so totes/throughput aren't truncated by the newest-first cap
-const TRACE_FANOUT_CAP = 12 // max per-tick HU trace fetches (live transports are cap-metered anyway)
-const ACTIVE_STATUSES = new Set(['REQUESTED', 'DISPATCHED', 'IN_PROGRESS', 'PENDING'])
 
 export interface UseLiveTwinOptions {
   intervalMs?: number
@@ -149,28 +146,13 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
     setLoading(true)
     try {
       const tasks = await listDeviceTasks({ warehouseId, limit: TASK_WINDOW })
-      // HUs with live transports: trace them for scan positions (cap to keep the fan-out tiny).
-      const activeHus: string[] = []
-      for (const t of tasks) {
-        const status = (t.status || '').toUpperCase()
-        const huId = typeof t.payload?.huId === 'string' ? (t.payload.huId as string) : t.correlationId
-        if (!huId || !ACTIVE_STATUSES.has(status)) continue
-        if (!activeHus.includes(huId)) activeHus.push(huId)
-        if (activeHus.length >= TRACE_FANOUT_CAP) break
-      }
-      const traces = await Promise.all(
-        activeHus.map((huId) =>
-          listHuTrace(huId, warehouseId)
-            .then((rows) => [huId, rows] as const)
-            .catch(() => [huId, []] as const),
-        ),
-      )
-      const tracesByHu = new Map<string, ScanRow[]>()
-      for (const [huId, rows] of traces) {
-        tracesByHu.set(
-          huId,
-          rows.map((r) => ({ event: r.event, point: r.point, toPoint: r.toPoint, ts: r.ts })),
-        )
+      // The backend "visu master" resolves every in-transit tote's ACTUAL conveyor polyline (world
+      // positions baked in) plus the server clock — no client-side belt guessing, no clock skew.
+      let totePaths: TwinPaths = { serverNowMs: Date.now(), totes: [] }
+      try {
+        totePaths = await listTotePaths(warehouseId)
+      } catch {
+        /* keep the last motion on a transient failure (equipment activity still updates) */
       }
       // The REAL induction queue per placed workstation — the truth source for "queued" totes
       // (a tote whose work is DONE stops being shown; no phantom queued from stale tasks).
@@ -194,32 +176,38 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
         )
       }
       const nowMs = Date.now()
+      // Anchor the delayed render clock to the SERVER clock: waypoint timestamps are server-stamped,
+      // so playing them in server time (Date.now() + offset) keeps sampling inside the buffer
+      // regardless of any client/server skew (the old bounce source).
+      clockOffsetMsRef.current = totePaths.serverNowMs - nowMs
+      // In-transit HUs the backend gave a path: deriveTwin keeps their tote view alive even without a
+      // local scan/anchor, since the path (not a re-derived position) drives their motion.
+      const pathHuIds = new Set(totePaths.totes.map((tp) => tp.huId))
       const snap = deriveTwin(tasks, topo, nowMs, {
-        tracesByHu,
         nodeXZ: nodeXZRef.current,
         queuedByStation,
+        pathHuIds,
       })
-      // Feed the per-tote interpolation buffers (motion.ts): every SCANNED row with a resolvable
-      // node position becomes a timestamped waypoint (insert is idempotent — polls overlap).
+      // Feed the per-tote interpolation buffers (motion.ts) from the backend path: each waypoint is a
+      // timestamped world position, its next-node the following waypoint (graph-adjacent, so a
+      // straight segment between them is the belt). insertPoint is idempotent — polls overlap.
       const timelines = timelinesRef.current
-      const nodeXZ = nodeXZRef.current
-      for (const [huId, rows] of tracesByHu) {
-        let tl = timelines.get(huId)
-        for (const r of rows) {
-          if (r.event !== 'SCANNED' || !r.point) continue
-          const xz = nodeXZ.get(r.point)
-          if (!xz) continue
-          const t = Date.parse(r.ts)
-          if (Number.isNaN(t)) continue
+      for (const tp of totePaths.totes) {
+        const wps = tp.waypoints
+        let tl = timelines.get(tp.huId)
+        for (let i = 0; i < wps.length; i++) {
+          const w = wps[i]
+          if (w.tMs == null) continue
           if (!tl) {
             tl = { points: [] }
-            timelines.set(huId, tl)
+            timelines.set(tp.huId, tl)
           }
-          insertPoint(tl, { tMs: t, xz, nextXZ: (r.toPoint && nodeXZ.get(r.toPoint)) || null })
-          const off = t - nowMs
-          if (clockOffsetMsRef.current == null || off > clockOffsetMsRef.current) {
-            clockOffsetMsRef.current = off
-          }
+          const nextW = i + 1 < wps.length ? wps[i + 1] : tp.next
+          insertPoint(tl, {
+            tMs: w.tMs,
+            xz: [w.x, w.z],
+            nextXZ: nextW ? [nextW.x, nextW.z] : null,
+          })
         }
       }
       // Prune: bound per-tote history, and drop timelines whose HU left the live picture a while ago.

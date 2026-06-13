@@ -38,7 +38,7 @@ import {
 import {
   RENDER_DELAY_MS,
   buildBeltLocator,
-  buildPathResolver,
+  chordPath,
   makePath,
   newSmoothState,
   pointAtLen,
@@ -46,6 +46,7 @@ import {
   sampleTimeline,
   smoothStep,
   type PathSample,
+  type PathBetween,
   type SmoothState,
   type ToteTimeline,
   type XZ,
@@ -539,12 +540,13 @@ function Totes({
   const groupRefs = useRef<Map<string, THREE.Group>>(new Map())
   const smoothers = useRef<Map<string, SmoothState>>(new Map())
 
-  // Conveyor-geometry path resolver (memoised per endpoint pair inside).
-  // (No per-frame anti-overlap pass: an earlier spacing clamp re-projected totes onto the nearest
-  // belt and pushed followers back along it, which at junctions snapped totes to a CROSSING belt's
-  // start point and bounced them back — far worse than the brief overlaps it tried to hide. The
-  // scan timeline is the truth for moving totes; only queue slots are arranged.)
-  const pathBetween = useMemo(() => buildPathResolver(Array.from(geomById.values())), [geomById])
+  // Tote-motion path resolver: a STRAIGHT segment between consecutive waypoints. The backend
+  // "visu master" emits the tote's actual traversed-node sequence (graph-adjacent), so the chord
+  // between two consecutive waypoints IS the belt section. We deliberately do NOT project onto the
+  // drawn belts anymore: that projection was ambiguous at diverts (two branches meet at one point),
+  // which flung totes to a conveyor's start and snapped them back every frame. No projection, no
+  // jump. (Belt-state jam derivation still uses buildBeltLocator over conveyorGeoms — separate.)
+  const pathBetween = useMemo<PathBetween>(() => chordPath, [])
 
   const resolved = useMemo(() => {
     const out: Array<{ tote: ToteView; anchor: THREE.Vector3 | null }> = []
