@@ -7,6 +7,7 @@ import ComingSoon from './shell/ComingSoon'
 import BackendOverlay from './shell/BackendOverlay'
 import Dashboard from './Dashboard'
 import { WarehouseProvider } from './warehouse/WarehouseContext'
+import { LanguageProvider } from './i18n/LanguageContext'
 
 // Existing feature screens (re-homed into the shell).
 import TopologyEditor from './topology/TopologyEditor'
@@ -107,9 +108,11 @@ export default function App() {
           <Route
             element={
               <RequireAuth>
-                <WarehouseProvider>
-                  <AppShell />
-                </WarehouseProvider>
+                <LanguageProvider>
+                  <WarehouseProvider>
+                    <AppShell />
+                  </WarehouseProvider>
+                </LanguageProvider>
               </RequireAuth>
             }
           >

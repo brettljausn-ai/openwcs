@@ -40,6 +40,36 @@ public class IamService {
         return java.util.Arrays.stream(Permission.values()).map(Enum::name).toList();
     }
 
+    // ------------------------------------------------------------------- Language (frontend only)
+    /** The languages the frontend ships; anything else falls back to English. */
+    private static final Set<String> LANGUAGES = Set.of("en", "de", "fr", "es", "zh");
+    private static final String DEFAULT_LANGUAGE = "en";
+
+    /** A user's saved UI language, or {@code en} when the user has no row / no preference. */
+    @Transactional(readOnly = true)
+    public String languageOf(String username) {
+        return users.findByUsername(username).map(AppUser::getLanguage).orElse(DEFAULT_LANGUAGE);
+    }
+
+    /**
+     * Persist a user's UI language. Unknown codes are coerced to English. The row is created if the
+     * user is not registered yet (e.g. a Keycloak login that has not been managed in IAM), so the
+     * preference still sticks across devices. Returns the language actually stored.
+     */
+    @Transactional
+    public String setLanguage(String username, String language) {
+        String lang = language != null && LANGUAGES.contains(language) ? language : DEFAULT_LANGUAGE;
+        AppUser user = users.findByUsername(username).orElseGet(() -> {
+            AppUser created = new AppUser();
+            created.setUsername(username);
+            return created;
+        });
+        user.setLanguage(lang);
+        users.save(user);
+        log.info("user {} set UI language to {}", username, lang);
+        return lang;
+    }
+
     // ------------------------------------------------------------------- Roles
     @Transactional(readOnly = true)
     public List<RoleView> listRoles() {

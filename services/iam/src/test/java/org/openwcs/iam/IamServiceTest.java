@@ -45,6 +45,25 @@ class IamServiceTest {
     }
 
     @Test
+    void uiLanguageDefaultsToEnglishAndPersists() {
+        // Unknown user -> English default, nothing stored.
+        assertThat(iam.languageOf("nobody")).isEqualTo("en");
+
+        // A managed user keeps their chosen language.
+        iam.createUser(new Requests.CreateUser("lang-user", "Lang User", "kc-lang"));
+        assertThat(iam.setLanguage("lang-user", "de")).isEqualTo("de");
+        assertThat(iam.languageOf("lang-user")).isEqualTo("de");
+
+        // Unknown codes are coerced to English.
+        assertThat(iam.setLanguage("lang-user", "xx")).isEqualTo("en");
+        assertThat(iam.languageOf("lang-user")).isEqualTo("en");
+
+        // Setting a language for an unmanaged user auto-provisions the row so it sticks.
+        assertThat(iam.setLanguage("fresh-login", "zh")).isEqualTo("zh");
+        assertThat(iam.languageOf("fresh-login")).isEqualTo("zh");
+    }
+
+    @Test
     void effectivePermissionsAreUnionOfRoles() {
         iam.createUser(new Requests.CreateUser("alice", "Alice", "kc-sub-1"));
         UserView user = iam.setUserRoles("alice", new Requests.SetRoles(Set.of("OPERATOR")));

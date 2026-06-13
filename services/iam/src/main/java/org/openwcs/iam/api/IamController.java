@@ -10,7 +10,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import java.util.Map;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -23,6 +25,26 @@ public class IamController {
 
     public IamController(IamService service) {
         this.service = service;
+    }
+
+    /** The calling user's saved UI language (frontend only). Falls back to {@code en}. The caller is
+     *  the gateway-provided {@code X-Auth-User}. */
+    @GetMapping("/me/language")
+    public Map<String, String> myLanguage(
+            @RequestHeader(value = "X-Auth-User", required = false) String username) {
+        String lang = username == null || username.isBlank() ? "en" : service.languageOf(username);
+        return Map.of("language", lang);
+    }
+
+    /** Persist the calling user's UI language. Unknown codes are coerced to English. */
+    @PutMapping("/me/language")
+    public Map<String, String> setMyLanguage(
+            @RequestHeader(value = "X-Auth-User", required = false) String username,
+            @RequestBody Map<String, String> body) {
+        if (username == null || username.isBlank()) {
+            return Map.of("language", "en");
+        }
+        return Map.of("language", service.setLanguage(username, body.get("language")));
     }
 
     /** The code-defined permission catalog. */
