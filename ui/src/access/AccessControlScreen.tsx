@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useT } from '../i18n/useT'
 import UserAutocomplete from '../ui/UserAutocomplete'
 
 // Roles the matrix offers as columns. Mirrors the Role union in ui/src/auth/screens.ts
@@ -81,6 +82,7 @@ function rowFromOverride(entry: CatalogEntry, o: Override | undefined): RowState
 }
 
 export default function AccessControlScreen() {
+  const t = useT('access')
   const [rows, setRows] = useState<Record<string, RowState>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -193,11 +195,10 @@ export default function AccessControlScreen() {
   return (
     <div className="app-content">
       <div className="page-head">
-        <div className="eyebrow">Administration</div>
-        <h1>Access control</h1>
+        <div className="eyebrow">{t('eyebrow', 'Administration')}</div>
+        <h1>{t('title', 'Access control')}</h1>
         <p>
-          Map each screen to the roles and individual users that may open it. A screen with no
-          selection here falls back to its built-in default roles. ADMIN always has access.
+          {t('subtitle', 'Map each screen to the roles and individual users that may open it. A screen with no selection here falls back to its built-in default roles. ADMIN always has access.')}
         </p>
       </div>
 
@@ -219,12 +220,16 @@ export default function AccessControlScreen() {
           }}
         >
           <div className="muted">
-            {loading ? 'Loading…' : `${overriddenCount} of ${CATALOG.length} screens overridden`}
+            {loading
+              ? t('loading', 'Loading…')
+              : t('overriddenCount', '{n} of {total} screens overridden')
+                  .replace('{n}', String(overriddenCount))
+                  .replace('{total}', String(CATALOG.length))}
           </div>
           <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
-            {savedAt && <span className="badge badge-success">Saved</span>}
+            {savedAt && <span className="badge badge-success">{t('saved', 'Saved')}</span>}
             <button className="btn btn-primary" onClick={save} disabled={loading || saving}>
-              {saving ? 'Saving…' : 'Save changes'}
+              {saving ? t('saving', 'Saving…') : t('saveChanges', 'Save changes')}
             </button>
           </div>
         </div>
@@ -232,13 +237,13 @@ export default function AccessControlScreen() {
         <table>
           <thead>
             <tr>
-              <th style={{ minWidth: 180 }}>Screen</th>
+              <th style={{ minWidth: 180 }}>{t('colScreen', 'Screen')}</th>
               {ROLES.map((r) => (
                 <th key={r} style={{ textAlign: 'center' }}>
                   {r}
                 </th>
               ))}
-              <th style={{ minWidth: 220 }}>Allowed users</th>
+              <th style={{ minWidth: 220 }}>{t('colAllowedUsers', 'Allowed users')}</th>
               <th style={{ width: 1 }}></th>
             </tr>
           </thead>
@@ -276,6 +281,7 @@ function SectionRows({
   onSetUsers: (key: string, usernames: string[]) => void
   onClear: (key: string) => void
 }) {
+  const t = useT('access')
   const entries = CATALOG.filter((e) => e.section === section)
   return (
     <>
@@ -295,7 +301,7 @@ function SectionRows({
                 {entry.key}
                 {!overridden && (
                   <span className="badge badge-info" style={{ marginLeft: '.5rem' }}>
-                    default
+                    {t('default', 'default')}
                   </span>
                 )}
               </div>
@@ -315,7 +321,7 @@ function SectionRows({
               <UserAutocomplete
                 value={row.users}
                 onChange={(u) => onSetUsers(entry.key, u)}
-                ariaLabel={`Allowed users for ${entry.label}`}
+                ariaLabel={t('allowedUsersFor', 'Allowed users for {screen}').replace('{screen}', entry.label)}
               />
             </td>
             <td>
@@ -323,9 +329,9 @@ function SectionRows({
                 className="btn btn-ghost btn-sm"
                 onClick={() => onClear(entry.key)}
                 disabled={loading || !overridden}
-                title="Clear override (revert to defaults)"
+                title={t('clearTip', 'Clear override (revert to defaults)')}
               >
-                Clear
+                {t('clear', 'Clear')}
               </button>
             </td>
           </tr>

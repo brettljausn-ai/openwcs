@@ -1,0 +1,20 @@
+// Spanish (Español): database console (namespace 'admindb').
+export default {
+  eyebrow: 'openWCS · Administración',
+  title: 'Base de datos',
+  subtitle: 'Explore el esquema de cada servicio y ejecute consultas SELECT de solo lectura sobre la base de datos compartida.',
+  schemas: 'Esquemas',
+  loadingSchemas: 'Cargando esquemas…',
+  noTables: 'Sin tablas',
+  sqlQuery: 'Consulta SQL',
+  running: 'Ejecutando…',
+  run: 'Ejecutar',
+  editorHint: '⌘/Ctrl+Intro ejecuta · solo SELECT · solo lectura',
+  row: 'fila',
+  rows: 'filas',
+  truncatedTip: 'La consulta devolvió más filas que el límite; solo se obtuvo la primera página.',
+  truncated: 'truncado',
+  filterRows: 'Filtrar filas del resultado…',
+  noRows: 'La consulta no devolvió filas.',
+  emptyHelp: 'Elija una tabla a la izquierda o escriba un SELECT y pulse Ejecutar. Los resultados están limitados (200 filas por defecto) y cada consulta se ejecuta en una transacción de solo lectura con un tiempo límite de 10 segundos.',
+}

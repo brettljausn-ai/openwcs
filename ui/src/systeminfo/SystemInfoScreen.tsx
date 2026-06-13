@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useT } from '../i18n/useT'
 import DataTable from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
 import LogViewer from './LogViewer'
@@ -22,6 +23,7 @@ function fmtTime(iso: string): string {
 }
 
 export default function SystemInfoScreen() {
+  const t = useT('systeminfo')
   const [services, setServices] = useState<ServiceStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -68,9 +70,9 @@ export default function SystemInfoScreen() {
   return (
     <div className="app-content">
       <div className="page-head">
-        <div className="eyebrow">openWCS · Administration</div>
-        <h1>System info</h1>
-        <p>Version, health and build of every service and device adapter.</p>
+        <div className="eyebrow">{t('eyebrow', 'openWCS · Administration')}</div>
+        <h1>{t('title', 'System info')}</h1>
+        <p>{t('subtitle', 'Version, health and build of every service and device adapter.')}</p>
       </div>
 
       {error && <div className="alert alert-danger" style={{ marginBottom: '1rem' }}>{error}</div>}
@@ -79,20 +81,20 @@ export default function SystemInfoScreen() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '.6rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
             <span className={`badge ${allUp ? 'badge-success' : up === 0 ? 'badge-danger' : 'badge-warning'}`}>
-              {up}/{total} up
+              {up}/{total} {t('up', 'up')}
             </span>
             <span style={{ color: 'var(--text-dim)', fontSize: '.8rem' }}>
-              {lastUpdated ? `Checked ${lastUpdated.toLocaleTimeString()}` : 'Checking…'}
+              {lastUpdated ? t('checked', 'Checked {time}').replace('{time}', lastUpdated.toLocaleTimeString()) : t('checking', 'Checking…')}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '.8rem' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.8rem' }}>
               <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-              Auto-refresh
-              <InfoTip text={`Re-checks every ${REFRESH_MS / 1000}s.`} />
+              {t('autoRefresh', 'Auto-refresh')}
+              <InfoTip text={t('autoRefreshTip', 'Re-checks every {seconds}s.').replace('{seconds}', String(REFRESH_MS / 1000))} />
             </label>
             <button type="button" className="btn btn-outline btn-sm" onClick={refresh} disabled={loading}>
-              {loading ? 'Checking…' : 'Refresh'}
+              {loading ? t('checking', 'Checking…') : t('refresh', 'Refresh')}
             </button>
           </div>
         </div>
@@ -100,31 +102,31 @@ export default function SystemInfoScreen() {
 
       <DataTable<ServiceStatus>
         columns={[
-          { key: 'name', header: 'Service', sortable: true, sortValue: (s) => s.name, render: (s) => <strong>{s.name}</strong> },
+          { key: 'name', header: t('colService', 'Service'), sortable: true, sortValue: (s) => s.name, render: (s) => <strong>{s.name}</strong> },
           {
             key: 'kind',
-            header: 'Kind',
+            header: t('colKind', 'Kind'),
             sortable: true,
             sortValue: (s) => s.kind,
-            render: (s) => <span className="badge">{s.kind === 'go' ? 'Go adapter' : 'Java'}</span>,
+            render: (s) => <span className="badge">{s.kind === 'go' ? t('goAdapter', 'Go adapter') : t('java', 'Java')}</span>,
           },
           {
             key: 'status',
-            header: 'Health',
+            header: t('colHealth', 'Health'),
             sortable: true,
             sortValue: (s) => s.status,
-            render: (s) => <span className={statusBadge(s.status)}>{s.status || 'UNKNOWN'}</span>,
+            render: (s) => <span className={statusBadge(s.status)}>{s.status || t('unknown', 'UNKNOWN')}</span>,
           },
-          { key: 'version', header: 'Version', render: (s) => s.version || '—' },
+          { key: 'version', header: t('colVersion', 'Version'), render: (s) => s.version || '—' },
           {
             key: 'commit',
-            header: 'Commit',
+            header: t('colCommit', 'Commit'),
             render: (s) => (s.commit ? <code style={{ fontSize: '.78rem' }}>{s.commit}</code> : '—'),
           },
-          { key: 'buildTime', header: 'Built', sortable: true, sortValue: (s) => s.buildTime, render: (s) => fmtTime(s.buildTime) },
+          { key: 'buildTime', header: t('colBuilt', 'Built'), sortable: true, sortValue: (s) => s.buildTime, render: (s) => fmtTime(s.buildTime) },
           {
             key: 'latencyMs',
-            header: 'Probe',
+            header: t('colProbe', 'Probe'),
             align: 'right',
             sortable: true,
             sortValue: (s) => s.latencyMs,
@@ -132,11 +134,11 @@ export default function SystemInfoScreen() {
           },
           {
             key: 'logs',
-            header: 'Logs',
+            header: t('colLogs', 'Logs'),
             align: 'right',
             render: (s) => (
               <button type="button" className="btn btn-outline btn-sm" onClick={() => setLogsFor(s.name)}>
-                Logs
+                {t('logs', 'Logs')}
               </button>
             ),
           },
@@ -144,9 +146,9 @@ export default function SystemInfoScreen() {
         rows={services}
         rowKey={(s) => s.name}
         search={(s) => `${s.name} ${s.kind} ${s.status} ${s.version} ${s.commit}`}
-        searchPlaceholder="Search services…"
+        searchPlaceholder={t('searchServices', 'Search services…')}
         pageSize={50}
-        empty={loading ? 'Checking services…' : 'No services reported.'}
+        empty={loading ? t('checkingServices', 'Checking services…') : t('noServices', 'No services reported.')}
       />
 
       {logsFor && <LogsModal name={logsFor} onClose={() => setLogsFor(null)} />}
@@ -158,6 +160,7 @@ export default function SystemInfoScreen() {
 // The viewer (filter + tail + refresh) is shared with the full Logs page; "Open as page" navigates
 // to that route for a roomier, searchable view.
 function LogsModal({ name, onClose }: { name: string; onClose: () => void }) {
+  const t = useT('systeminfo')
   const navigate = useNavigate()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -181,16 +184,16 @@ function LogsModal({ name, onClose }: { name: string; onClose: () => void }) {
         style={{ width: 'min(900px, 100%)', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: '1rem 1.1rem', borderRadius: 14 }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.6rem', marginBottom: '.6rem' }}>
-          <h3 style={{ margin: 0, fontFamily: 'var(--font-mono)' }}>{name} · logs</h3>
+          <h3 style={{ margin: 0, fontFamily: 'var(--font-mono)' }}>{name} · {t('logsLower', 'logs')}</h3>
           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
             <button
               type="button"
               className="btn btn-outline btn-sm"
               onClick={() => navigate(`/system-info/logs/${encodeURIComponent(name)}`)}
             >
-              Open as page
+              {t('openAsPage', 'Open as page')}
             </button>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>{t('close', 'Close')}</button>
           </div>
         </div>
         <LogViewer name={name} fillHeight />

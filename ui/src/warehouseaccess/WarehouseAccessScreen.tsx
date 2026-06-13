@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useT } from '../i18n/useT'
 import InfoTip from '../ui/InfoTip'
 import Select from '../ui/Select'
 import { countUsers, searchUsers, KcUser } from '../users/api'
@@ -28,6 +29,7 @@ function sameRow(a: RowState, b: RowState): boolean {
 }
 
 export default function WarehouseAccessScreen() {
+  const t = useT('warehouseaccess')
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [access, setAccessMap] = useState<Record<string, { warehouses: string[]; defaultWarehouse: string | null }>>({})
   const [edits, setEdits] = useState<Record<string, RowState>>({})
@@ -51,7 +53,7 @@ export default function WarehouseAccessScreen() {
         setWarehouses(whs)
         setAccessMap(map)
       })
-      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : 'Failed to load warehouse access.'))
+      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : t('errLoadAccess', 'Failed to load warehouse access.')))
     return () => {
       cancelled = true
     }
@@ -71,7 +73,7 @@ export default function WarehouseAccessScreen() {
           setTotal(count)
           setError(null)
         })
-        .catch((e) => !cancelled && setError(e instanceof Error ? e.message : 'Failed to search users.'))
+        .catch((e) => !cancelled && setError(e instanceof Error ? e.message : t('errSearchUsers', 'Failed to search users.')))
         .finally(() => !cancelled && setLoading(false))
       return () => {
         cancelled = true
@@ -120,7 +122,7 @@ export default function WarehouseAccessScreen() {
       setEdits({})
       setSavedAt(Date.now())
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed.')
+      setError(e instanceof Error ? e.message : t('errSave', 'Save failed.'))
     } finally {
       setSaving(false)
     }
@@ -132,12 +134,10 @@ export default function WarehouseAccessScreen() {
   return (
     <div className="app-content">
       <div className="page-head">
-        <div className="eyebrow">Administration</div>
-        <h1>Warehouse access</h1>
+        <div className="eyebrow">{t('eyebrow', 'Administration')}</div>
+        <h1>{t('title', 'Warehouse access')}</h1>
         <p>
-          Choose which warehouses each user may work in and their default (selected automatically when
-          they sign in). Users switch among their allowed warehouses from the top bar; only admins change
-          this mapping. Admins are never warehouse-scoped.
+          {t('subtitle', 'Choose which warehouses each user may work in and their default (selected automatically when they sign in). Users switch among their allowed warehouses from the top bar; only admins change this mapping. Admins are never warehouse-scoped.')}
         </p>
       </div>
 
@@ -161,7 +161,7 @@ export default function WarehouseAccessScreen() {
             className="form-control"
             type="search"
             style={{ maxWidth: 320 }}
-            placeholder="Search users…"
+            placeholder={t('searchPlaceholder', 'Search users…')}
             value={query}
             onChange={(e) => {
               setFirst(0)
@@ -169,41 +169,44 @@ export default function WarehouseAccessScreen() {
             }}
           />
           <InfoTip
-            text="Filter the user list by username, first or last name. Search runs server-side across all users, not just the current page."
+            text={t('searchTip', 'Filter the user list by username, first or last name. Search runs server-side across all users, not just the current page.')}
             example="amaier"
           />
           <span className="muted" style={{ fontSize: '.82rem', whiteSpace: 'nowrap' }}>
-            {total} users · {warehouses.length} warehouses · {dirty.length} unsaved
+            {t('counts', '{users} users · {warehouses} warehouses · {unsaved} unsaved')
+              .replace('{users}', String(total))
+              .replace('{warehouses}', String(warehouses.length))
+              .replace('{unsaved}', String(dirty.length))}
           </span>
           <div style={{ flex: 1 }} />
-          {savedAt && <span className="badge badge-success">Saved</span>}
+          {savedAt && <span className="badge badge-success">{t('saved', 'Saved')}</span>}
           <button className="btn btn-primary" onClick={save} disabled={loading || saving || dirty.length === 0}>
-            {saving ? 'Saving…' : 'Save changes'}
+            {saving ? t('saving', 'Saving…') : t('saveChanges', 'Save changes')}
           </button>
         </div>
 
         {warehouses.length === 0 ? (
-          <div className="muted">No warehouses defined yet — create one under Master data first.</div>
+          <div className="muted">{t('noWarehouses', 'No warehouses defined yet. Create one under Master data first.')}</div>
         ) : (
           <>
             <div style={{ overflowX: 'auto' }}>
               <table>
                 <thead>
                   <tr>
-                    <th style={{ minWidth: 200 }}>User</th>
+                    <th style={{ minWidth: 200 }}>{t('colUser', 'User')}</th>
                     {warehouses.map((w) => (
                       <th key={w.id} style={{ textAlign: 'center' }} title={w.name}>
                         {w.code}{' '}
                         <InfoTip
-                          text={`Toggle on to let the user work in warehouse ${w.name}; toggle off to revoke it. Removing a user's default also clears their default.`}
+                          text={t('warehouseColTip', "Toggle on to let the user work in warehouse {name}; toggle off to revoke it. Removing a user's default also clears their default.").replace('{name}', w.name)}
                           example={`${w.code} on`}
                         />
                       </th>
                     ))}
                     <th style={{ minWidth: 220 }}>
-                      Default{' '}
+                      {t('colDefault', 'Default')}{' '}
                       <InfoTip
-                        text="The warehouse auto-selected when the user signs in. Must be one of their allowed warehouses; leave as none to make them pick on login."
+                        text={t('defaultColTip', 'The warehouse auto-selected when the user signs in. Must be one of their allowed warehouses; leave as none to make them pick on login.')}
                         example="WH01 — Central DC"
                       />
                     </th>
@@ -213,13 +216,13 @@ export default function WarehouseAccessScreen() {
                   {loading ? (
                     <tr>
                       <td colSpan={warehouses.length + 2} className="muted" style={{ textAlign: 'center', padding: '1.5rem' }}>
-                        Loading…
+                        {t('loading', 'Loading…')}
                       </td>
                     </tr>
                   ) : users.length === 0 ? (
                     <tr>
                       <td colSpan={warehouses.length + 2} className="muted" style={{ textAlign: 'center', padding: '1.5rem' }}>
-                        No users match “{query}”.
+                        {t('noUsersMatch', 'No users match “{query}”.').replace('{query}', query)}
                       </td>
                     </tr>
                   ) : (
@@ -232,7 +235,7 @@ export default function WarehouseAccessScreen() {
                           <td>
                             <div>
                               {u.username}
-                              {isDirty && <span className="badge badge-warning" style={{ marginLeft: '.5rem' }}>edited</span>}
+                              {isDirty && <span className="badge badge-warning" style={{ marginLeft: '.5rem' }}>{t('edited', 'edited')}</span>}
                             </div>
                             {(u.firstName || u.lastName) && (
                               <div className="muted" style={{ fontSize: '.78rem' }}>
@@ -251,12 +254,12 @@ export default function WarehouseAccessScreen() {
                           ))}
                           <td>
                             <Select
-                              ariaLabel={`Default warehouse for ${u.username}`}
+                              ariaLabel={t('defaultWarehouseFor', 'Default warehouse for {user}').replace('{user}', u.username)}
                               value={row.default ?? ''}
                               onChange={(v) => setDefault(u.username, v)}
-                              placeholder="— none —"
+                              placeholder={t('none', '— none —')}
                               options={[
-                                { value: '', label: '— none —' },
+                                { value: '', label: t('none', '— none —') },
                                 ...allowedWarehouses.map((w) => ({ value: w.id, label: `${w.code} — ${w.name}` })),
                               ]}
                             />
@@ -276,15 +279,15 @@ export default function WarehouseAccessScreen() {
                   disabled={first === 0 || loading}
                   onClick={() => setFirst(Math.max(0, first - PAGE_SIZE))}
                 >
-                  Prev
+                  {t('prev', 'Prev')}
                 </button>
-                <span className="muted">Page {currentPage} of {pageCount}</span>
+                <span className="muted">{t('pageOf', 'Page {current} of {total}').replace('{current}', String(currentPage)).replace('{total}', String(pageCount))}</span>
                 <button
                   className="btn btn-ghost btn-sm"
                   disabled={currentPage >= pageCount || loading}
                   onClick={() => setFirst(first + PAGE_SIZE)}
                 >
-                  Next
+                  {t('next', 'Next')}
                 </button>
               </div>
             )}

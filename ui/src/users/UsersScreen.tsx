@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useT } from '../i18n/useT'
 import InfoTip from '../ui/InfoTip'
 import Select from '../ui/Select'
 import { Warehouse, getAccess, listWarehouses, setAccess } from '../warehouseaccess/api'
@@ -26,6 +27,7 @@ import {
 type EditTarget = { mode: 'create' } | { mode: 'edit'; user: KcUser }
 
 export default function UsersScreen() {
+  const t = useT('users')
   const [users, setUsers] = useState<KcUser[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
@@ -74,7 +76,7 @@ export default function UsersScreen() {
   }
 
   async function onDelete(u: KcUser) {
-    if (!confirm(`Delete user "${u.username}"? This cannot be undone.`)) return
+    if (!confirm(t('confirmDelete', 'Delete user "{name}"? This cannot be undone.').replace('{name}', u.username))) return
     setBusyId(u.id)
     setError(null)
     try {
@@ -90,9 +92,9 @@ export default function UsersScreen() {
   return (
     <div className="app-content">
       <div className="page-head">
-        <div className="eyebrow">Administration</div>
-        <h1>User management</h1>
-        <p>Manage Keycloak users, their realm roles and credentials for the openWCS realm.</p>
+        <div className="eyebrow">{t('eyebrow', 'Administration')}</div>
+        <h1>{t('title', 'User management')}</h1>
+        <p>{t('subtitle', 'Manage Keycloak users, their realm roles and credentials for the openWCS realm.')}</p>
       </div>
 
       {error && <div className="alert alert-danger">{error}</div>}
@@ -101,20 +103,20 @@ export default function UsersScreen() {
         <form onSubmit={onSearch} style={{ display: 'flex', gap: '.6rem', flex: 1, maxWidth: 460 }}>
           <input
             className="form-control"
-            placeholder="Search by username, email or name…"
+            placeholder={t('searchPlaceholder', 'Search by username, email or name…')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <button type="submit" className="btn btn-ghost" disabled={loading}>
-            Search
+            {t('search', 'Search')}
           </button>
         </form>
         <div className="spacer" />
         <button className="btn btn-ghost" onClick={() => refresh()} disabled={loading}>
-          {loading ? <span className="spin" /> : 'Refresh'}
+          {loading ? <span className="spin" /> : t('refresh', 'Refresh')}
         </button>
         <button className="btn btn-primary" onClick={() => setEdit({ mode: 'create' })}>
-          + New user
+          {t('newUser', '+ New user')}
         </button>
       </div>
 
@@ -122,11 +124,11 @@ export default function UsersScreen() {
         <table>
           <thead>
             <tr>
-              <th>Username</th>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Status</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
+              <th>{t('colUsername', 'Username')}</th>
+              <th>{t('colName', 'Name')}</th>
+              <th>{t('colEmail', 'Email')}</th>
+              <th>{t('colStatus', 'Status')}</th>
+              <th style={{ textAlign: 'right' }}>{t('colActions', 'Actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -140,27 +142,27 @@ export default function UsersScreen() {
                   <td>{u.email || <span className="muted">—</span>}</td>
                   <td>
                     {u.enabled ? (
-                      <span className="badge badge-success">Enabled</span>
+                      <span className="badge badge-success">{t('enabled', 'Enabled')}</span>
                     ) : (
-                      <span className="badge badge-danger">Disabled</span>
+                      <span className="badge badge-danger">{t('disabled', 'Disabled')}</span>
                     )}
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '.4rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                       <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setRolesTarget(u)}>
-                        Roles
+                        {t('roles', 'Roles')}
                       </button>
                       <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEdit({ mode: 'edit', user: u })}>
-                        Edit
+                        {t('edit', 'Edit')}
                       </button>
                       <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setPwTarget(u)}>
-                        Password
+                        {t('password', 'Password')}
                       </button>
                       <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => toggleEnabled(u)}>
-                        {u.enabled ? 'Disable' : 'Enable'}
+                        {u.enabled ? t('disable', 'Disable') : t('enable', 'Enable')}
                       </button>
                       <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => onDelete(u)}>
-                        Delete
+                        {t('delete', 'Delete')}
                       </button>
                     </div>
                   </td>
@@ -170,7 +172,7 @@ export default function UsersScreen() {
             {users.length === 0 && !loading && (
               <tr>
                 <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: '1.5rem' }}>
-                  No users found.
+                  {t('noUsers', 'No users found.')}
                 </td>
               </tr>
             )}
@@ -215,6 +217,7 @@ function UserDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const t = useT('users')
   const isEdit = target.mode === 'edit'
   const existing = target.mode === 'edit' ? target.user : null
   const [form, setForm] = useState<NewUser>({
@@ -263,10 +266,10 @@ function UserDialog({
 
   const warehouseOptions = useMemo(
     () => [
-      { value: '', label: '— none —' },
+      { value: '', label: t('none', '— none —') },
       ...warehouses.map((w) => ({ value: w.id, label: `${w.code} — ${w.name}` })),
     ],
-    [warehouses],
+    [warehouses, t],
   )
 
   async function submit(e: React.FormEvent) {
@@ -308,11 +311,11 @@ function UserDialog({
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <form className="dialog" onMouseDown={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h2>{isEdit ? 'Edit user' : 'New user'}</h2>
+        <h2>{isEdit ? t('editUser', 'Edit user') : t('newUserTitle', 'New user')}</h2>
         {error && <div className="alert alert-danger">{error}</div>}
 
         <div style={{ marginBottom: '.9rem' }}>
-          <label>Username <InfoTip text="The unique login name for this Keycloak account. Cannot be changed after the user is created." example="jdoe" /></label>
+          <label>{t('username', 'Username')} <InfoTip text={t('usernameTip', 'The unique login name for this Keycloak account. Cannot be changed after the user is created.')} example="jdoe" /></label>
           <input
             className="form-control"
             value={form.username}
@@ -322,7 +325,7 @@ function UserDialog({
           />
         </div>
         <div style={{ marginBottom: '.9rem' }}>
-          <label>Email <InfoTip text="The user's email address, used for notifications and account-recovery flows. Optional." example="jane.doe@example.com" /></label>
+          <label>{t('email', 'Email')} <InfoTip text={t('emailTip', "The user's email address, used for notifications and account-recovery flows. Optional.")} example="jane.doe@example.com" /></label>
           <input
             className="form-control"
             type="email"
@@ -332,38 +335,38 @@ function UserDialog({
         </div>
         <div style={{ display: 'flex', gap: '.9rem', marginBottom: '.9rem' }}>
           <div style={{ flex: 1 }}>
-            <label>First name <InfoTip text="The user's given name, shown in the user list and across the app. Optional." example="Jane" /></label>
+            <label>{t('firstName', 'First name')} <InfoTip text={t('firstNameTip', "The user's given name, shown in the user list and across the app. Optional.")} example="Jane" /></label>
             <input className="form-control" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />
           </div>
           <div style={{ flex: 1 }}>
-            <label>Last name <InfoTip text="The user's family name, shown in the user list and across the app. Optional." example="Doe" /></label>
+            <label>{t('lastName', 'Last name')} <InfoTip text={t('lastNameTip', "The user's family name, shown in the user list and across the app. Optional.")} example="Doe" /></label>
             <input className="form-control" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
           </div>
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: 'pointer' }}>
           <input type="checkbox" checked={form.enabled} onChange={(e) => set('enabled', e.target.checked)} />
-          Enabled <InfoTip text="When on, the user can sign in. Turn off to disable the account without deleting it." example="On" />
+          {t('enabledLabel', 'Enabled')} <InfoTip text={t('enabledTip', 'When on, the user can sign in. Turn off to disable the account without deleting it.')} example="On" />
         </label>
 
         {isEdit && (
           <div style={{ marginTop: '.9rem' }}>
-            <label>Default warehouse <InfoTip text="The warehouse pre-selected for this user after login; choosing one also grants them access to it. Leave as none for no default." example="WH01 — Main DC" /></label>
+            <label>{t('defaultWarehouse', 'Default warehouse')} <InfoTip text={t('defaultWarehouseTip', 'The warehouse pre-selected for this user after login; choosing one also grants them access to it. Leave as none for no default.')} example="WH01 — Main DC" /></label>
             <Select
               value={defaultWarehouse}
               onChange={setDefaultWarehouse}
               options={warehouseOptions}
-              ariaLabel="Default warehouse"
-              placeholder="— none —"
+              ariaLabel={t('defaultWarehouse', 'Default warehouse')}
+              placeholder={t('none', '— none —')}
             />
           </div>
         )}
 
         <div className="dialog-actions">
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>
-            Cancel
+            {t('cancel', 'Cancel')}
           </button>
           <button type="submit" className="btn btn-primary" disabled={saving || !form.username.trim()}>
-            {saving ? <span className="spin" /> : isEdit ? 'Save changes' : 'Create user'}
+            {saving ? <span className="spin" /> : isEdit ? t('saveChanges', 'Save changes') : t('createUser', 'Create user')}
           </button>
         </div>
       </form>
@@ -384,6 +387,7 @@ function PasswordDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const t = useT('users')
   const [password, setPassword] = useState('')
   const [confirmPw, setConfirmPw] = useState('')
   const [temporary, setTemporary] = useState(true)
@@ -411,15 +415,15 @@ function PasswordDialog({
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <form className="dialog" onMouseDown={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h2>Set password</h2>
+        <h2>{t('setPassword', 'Set password')}</h2>
         <p className="muted" style={{ marginTop: 0 }}>
-          For <strong>{user.username}</strong>
+          {t('for', 'For')} <strong>{user.username}</strong>
         </p>
         {error && <div className="alert alert-danger">{error}</div>}
-        {done && <div className="alert" style={{ background: 'rgba(141,198,63,.12)', color: '#8DC63F' }}>Password updated.</div>}
+        {done && <div className="alert" style={{ background: 'rgba(141,198,63,.12)', color: '#8DC63F' }}>{t('passwordUpdated', 'Password updated.')}</div>}
 
         <div style={{ marginBottom: '.9rem' }}>
-          <label>New password <InfoTip text="The new credential to set for this user. Should meet the realm's password policy (length, complexity)." example="Wcs!Spring2026" /></label>
+          <label>{t('newPassword', 'New password')} <InfoTip text={t('newPasswordTip', "The new credential to set for this user. Should meet the realm's password policy (length, complexity).")} example="Wcs!Spring2026" /></label>
           <input
             className="form-control"
             type="password"
@@ -429,7 +433,7 @@ function PasswordDialog({
           />
         </div>
         <div style={{ marginBottom: '.9rem' }}>
-          <label>Confirm password <InfoTip text="Re-enter the new password exactly to confirm there were no typos." example="Wcs!Spring2026" /></label>
+          <label>{t('confirmPassword', 'Confirm password')} <InfoTip text={t('confirmPasswordTip', 'Re-enter the new password exactly to confirm there were no typos.')} example="Wcs!Spring2026" /></label>
           <input
             className="form-control"
             type="password"
@@ -437,19 +441,19 @@ function PasswordDialog({
             autoComplete="new-password"
             onChange={(e) => setConfirmPw(e.target.value)}
           />
-          {mismatch && <div className="alert alert-danger" style={{ marginBottom: 0 }}>Passwords do not match.</div>}
+          {mismatch && <div className="alert alert-danger" style={{ marginBottom: 0 }}>{t('passwordsMismatch', 'Passwords do not match.')}</div>}
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: 'pointer' }}>
           <input type="checkbox" checked={temporary} onChange={(e) => setTemporary(e.target.checked)} />
-          Temporary (user must change at next login) <InfoTip text="When on, this password is one-time only and the user is forced to set their own at next sign-in." example="On" />
+          {t('temporary', 'Temporary (user must change at next login)')} <InfoTip text={t('temporaryTip', 'When on, this password is one-time only and the user is forced to set their own at next sign-in.')} example="On" />
         </label>
 
         <div className="dialog-actions">
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>
-            Cancel
+            {t('cancel', 'Cancel')}
           </button>
           <button type="submit" className="btn btn-primary" disabled={saving || !password || mismatch}>
-            {saving ? <span className="spin" /> : 'Set password'}
+            {saving ? <span className="spin" /> : t('setPassword', 'Set password')}
           </button>
         </div>
       </form>
@@ -462,6 +466,7 @@ function PasswordDialog({
 // --------------------------------------------------------------------------
 
 function RolesDialog({ user, onClose }: { user: KcUser; onClose: () => void }) {
+  const t = useT('users')
   const [assigned, setAssigned] = useState<KcRole[]>([])
   const [available, setAvailable] = useState<KcRole[]>([])
   const [loading, setLoading] = useState(true)
@@ -503,7 +508,7 @@ function RolesDialog({ user, onClose }: { user: KcUser; onClose: () => void }) {
   async function toggle(roleName: ManagedRole, nowAssigned: boolean) {
     const role = roleByName.get(roleName)
     if (!role) {
-      setError(`Realm role "${roleName}" does not exist in this realm.`)
+      setError(t('roleMissing', 'Realm role "{role}" does not exist in this realm.').replace('{role}', roleName))
       return
     }
     setBusy(roleName)
@@ -522,9 +527,9 @@ function RolesDialog({ user, onClose }: { user: KcUser; onClose: () => void }) {
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div className="dialog" onMouseDown={(e) => e.stopPropagation()}>
-        <h2>Realm roles</h2>
+        <h2>{t('realmRoles', 'Realm roles')}</h2>
         <p className="muted" style={{ marginTop: 0 }}>
-          For <strong>{user.username}</strong>
+          {t('for', 'For')} <strong>{user.username}</strong>
         </p>
         {error && <div className="alert alert-danger">{error}</div>}
 
@@ -536,9 +541,9 @@ function RolesDialog({ user, onClose }: { user: KcUser; onClose: () => void }) {
           <table>
             <thead>
               <tr>
-                <th>Role</th>
-                <th>State</th>
-                <th style={{ textAlign: 'right' }}>Action</th>
+                <th>{t('roleCol', 'Role')}</th>
+                <th>{t('stateCol', 'State')}</th>
+                <th style={{ textAlign: 'right' }}>{t('actionCol', 'Action')}</th>
               </tr>
             </thead>
             <tbody>
@@ -551,11 +556,11 @@ function RolesDialog({ user, onClose }: { user: KcUser; onClose: () => void }) {
                     <td style={{ fontFamily: 'var(--font-mono)' }}>{roleName}</td>
                     <td>
                       {has ? (
-                        <span className="badge badge-success">Assigned</span>
+                        <span className="badge badge-success">{t('assigned', 'Assigned')}</span>
                       ) : exists ? (
-                        <span className="badge badge-info">Available</span>
+                        <span className="badge badge-info">{t('available', 'Available')}</span>
                       ) : (
-                        <span className="badge badge-warning">Missing</span>
+                        <span className="badge badge-warning">{t('missing', 'Missing')}</span>
                       )}
                     </td>
                     <td style={{ textAlign: 'right' }}>
@@ -564,7 +569,7 @@ function RolesDialog({ user, onClose }: { user: KcUser; onClose: () => void }) {
                         disabled={isBusy || !exists}
                         onClick={() => toggle(roleName, has)}
                       >
-                        {isBusy ? <span className="spin" /> : has ? 'Remove' : 'Assign'}
+                        {isBusy ? <span className="spin" /> : has ? t('remove', 'Remove') : t('assign', 'Assign')}
                       </button>
                     </td>
                   </tr>
@@ -576,7 +581,7 @@ function RolesDialog({ user, onClose }: { user: KcUser; onClose: () => void }) {
 
         <div className="dialog-actions">
           <button type="button" className="btn btn-primary" onClick={onClose}>
-            Done
+            {t('done', 'Done')}
           </button>
         </div>
       </div>
