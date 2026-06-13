@@ -249,8 +249,14 @@ export async function enableDemo(warehouseId: string): Promise<DemoResult> {
   const cat = (await demoPost(`/api/master-data/demo/enable${q}`)) as DemoResult
   const huTypes = await ok<{ id: string; name: string }[]>(await fetch('/api/master-data/handling-unit-types'))
   const huTypeId = huTypes.find((t) => t.name === 'DEMO-STORAGE-HU')?.id ?? null
+  // Seed demo stock into real STORAGE locations only. Without the purpose filter the list also
+  // includes the warehouse's operational locations (a conveyor segment, a station, the UNKNOWN
+  // catch-all), and the round-robin seed dropped the first demo HUs onto them — DEMO-HU-000 landed
+  // on the ASRS infeed conveyor and DEMO-HU-001 on a pick station instead of in ASRS slots.
   const locationIds = warehouseId
-    ? await idsFrom(`/api/master-data/locations?warehouseId=${encodeURIComponent(warehouseId)}&size=500`)
+    ? await idsFrom(
+        `/api/master-data/locations?warehouseId=${encodeURIComponent(warehouseId)}&purpose=STORAGE&size=500`,
+      )
     : []
   const skuIds = await idsFrom('/api/master-data/skus?ownerClient=DEMO&size=500')
   const inv = (await demoPost('/api/inventory/demo/seed', { warehouseId, huTypeId, locationIds, skuIds })) as {
