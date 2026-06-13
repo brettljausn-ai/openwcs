@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, type ThreeEvent } from '@react-three/fiber'
 import { Grid, Html, Line, OrbitControls, PivotControls, RoundedBox, Text } from '@react-three/drei'
 import * as THREE from 'three'
-import Select from '../ui/Select'
+import Select, { type SelectOption } from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import {
@@ -31,6 +31,7 @@ import {
   equipmentNodes,
   linkCandidates,
   nodeLinkStatuses,
+  type EquipNode,
   type MeetingPoint,
 } from './nodeLinks'
 
@@ -565,6 +566,8 @@ export default function AutomationTopology3D({
   const [selectedConnId, setSelectedConnId] = useState<string | null>(null)
   // The function point whose config dialog is open (clicking a marker in 2D/3D), or null.
   const [editFpId, setEditFpId] = useState<string | null>(null)
+  // The connection whose detail/edit dialog is open (clicking a Connections-panel row), or null.
+  const [detailConnId, setDetailConnId] = useState<string | null>(null)
   // Library filter: show only equipment with no placement anywhere in the editor.
   const [unplacedOnly, setUnplacedOnly] = useState(false)
 
@@ -1451,6 +1454,14 @@ export default function AutomationTopology3D({
     setDirty(true)
   }, [])
 
+  // Edit an existing connection in place (anchored path points, label, status). Mutates the
+  // in-memory model so the existing Save (PUT /automation/topology) round-trips the change, exactly
+  // like the other editor edits.
+  const updateConnection = useCallback((id: string, patch: Partial<AutomationConnection>) => {
+    setConnections((cs) => cs.map((c) => (c.id === id ? { ...c, ...patch } : c)))
+    setDirty(true)
+  }, [])
+
   const toggleConnectMode = useCallback(() => {
     setConnectMode((on) => {
       const next = !on
@@ -2105,6 +2116,10 @@ export default function AutomationTopology3D({
             equipmentById={equipmentById}
             selectedConnId={selectedConnId}
             onSelect={(id) => setSelectedConnId((s) => (s === id ? null : id))}
+            onOpen={(id) => {
+              setSelectedConnId(id)
+              setDetailConnId(id)
+            }}
             onDelete={deleteConnection}
           />
         </aside>
@@ -2126,6 +2141,23 @@ export default function AutomationTopology3D({
               onUpdate={updateFunctionPoint}
               onDelete={deleteFunctionPoint}
               onClose={() => setEditFpId(null)}
+            />
+          )
+        })()}
+
+      {/* Connection detail / edit dialog, opened by clicking a row in the Connections panel. */}
+      {detailConnId &&
+        (() => {
+          const conn = connections.find((c) => c.id === detailConnId)
+          if (!conn) return null
+          return (
+            <ConnectionDetailDialog
+              conn={conn}
+              equipment={equipment}
+              lib={libById}
+              onUpdate={updateConnection}
+              onDelete={deleteConnection}
+              onClose={() => setDetailConnId(null)}
             />
           )
         })()}
@@ -2612,18 +2644,21 @@ function NodeLinksPanel({
   )
 }
 
-// Collapsible list of equipment-to-equipment connections with per-row delete + highlight-select.
+// Collapsible list of equipment-to-equipment connections. Clicking a row opens the detail/edit
+// dialog (and highlights the link in the scene); the inline Delete button removes the link without
+// opening the dialog (stops propagation).
 function ConnectionsPanel({
   connections,
   equipmentById,
   selectedConnId,
-  onSelect,
+  onOpen,
   onDelete,
 }: {
   connections: AutomationConnection[]
   equipmentById: Map<string, AutomationEquipment>
   selectedConnId: string | null
   onSelect: (id: string) => void
+  onOpen: (id: string) => void
   onDelete: (id: string) => void
 }) {
   const [open, setOpen] = useState(true)
@@ -2661,8 +2696,12 @@ function ConnectionsPanel({
                   <button
                     type="button"
                     className="atopo-conns-label"
-                    onClick={() => onSelect(c.id)}
-                    title={dangling ? 'One endpoint is missing from this layout' : 'Highlight this link'}
+                    onClick={() => onOpen(c.id)}
+                    title={
+                      dangling
+                        ? 'One endpoint is missing from this layout, click for details'
+                        : 'Open connection details'
+                    }
                   >
                     {fromLabel} ↔ {toLabel}
                     {dangling ? <span className="atopo-muted"> · dangling</span> : null}
@@ -2670,7 +2709,10 @@ function ConnectionsPanel({
                   <button
                     type="button"
                     className="btn btn-danger btn-sm"
-                    onClick={() => onDelete(c.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDelete(c.id)
+                    }}
                   >
                     Delete
                   </button>
@@ -2679,6 +2721,199 @@ function ConnectionsPanel({
             })}
           </ul>
         ))}
+    </div>
+  )
+}
+
+// The detail / edit dialog for a single equipment-to-equipment connection, opened by clicking its
+// row in the Connections panel. It shows the link un-truncated: both endpoints with their full
+// equipment code AND the specific node each end is anchored to (CODE#index), whether the link is
+// hand-drawn (explicit) or auto-inferred fallback, the gap in metres between the resolved nodes
+// (when both ends resolve), and the status. The anchored path point of each end, the label and the
+// status are editable: edits mutate the in-memory connection and round-trip through the editor's
+// Save, exactly like the other editor edits. The link can also be deleted from here.
+function ConnectionDetailDialog({
+  conn,
+  equipment,
+  lib,
+  onUpdate,
+  onDelete,
+  onClose,
+}: {
+  conn: AutomationConnection
+  equipment: AutomationEquipment[]
+  lib: Map<string, Equipment>
+  onUpdate: (id: string, patch: Partial<AutomationConnection>) => void
+  onDelete: (id: string) => void
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const fromEq = equipment.find((e) => e.id === conn.fromPlacedId)
+  const toEq = equipment.find((e) => e.id === conn.toPlacedId)
+  const fromNodes = useMemo(
+    () => (fromEq ? equipmentNodes(fromEq, category(fromEq, lib)) : []),
+    [fromEq, lib],
+  )
+  const toNodes = useMemo(() => (toEq ? equipmentNodes(toEq, category(toEq, lib)) : []), [toEq, lib])
+
+  // Resolve each end to its node: by anchored path index when set, else the projection's
+  // equipment-level fallback (exit = last node of FROM, entry = first node of TO).
+  const fromNode =
+    conn.fromPathIndex != null
+      ? fromNodes.find((n) => n.index === conn.fromPathIndex) ?? null
+      : fromNodes[fromNodes.length - 1] ?? null
+  const toNode =
+    conn.toPathIndex != null
+      ? toNodes.find((n) => n.index === conn.toPathIndex) ?? null
+      : toNodes[0] ?? null
+
+  const fromCode = fromNode?.code ?? `${fromEq?.code ?? '?'}#?`
+  const toCode = toNode?.code ?? `${toEq?.code ?? '?'}#?`
+  const distM =
+    fromNode && toNode ? Math.hypot(fromNode.x - toNode.x, fromNode.z - toNode.z) : null
+
+  // An explicit row anchors a specific path point on either end; with both unset the projection
+  // falls back to the equipment-level exit/entry nodes (so the link "follows" the geometry).
+  const anchored = conn.fromPathIndex != null || conn.toPathIndex != null
+  const isWorkstationRole = conn.fromPointId != null || conn.toPointId != null
+  const dangling = !fromEq || !toEq
+
+  // Path-point options for an end: "Auto" (null = use the projection fallback) plus every routable
+  // node index on that equipment, labelled with its projected node code.
+  const indexOptions = (nodes: EquipNode[], fallback: 'exit' | 'entry'): SelectOption[] => {
+    const fallbackNode = fallback === 'exit' ? nodes[nodes.length - 1] : nodes[0]
+    return [
+      {
+        value: '',
+        label: fallbackNode ? `Auto (${fallbackNode.code})` : 'Auto',
+      },
+      ...nodes.map((n) => ({ value: String(n.index), label: n.code })),
+    ]
+  }
+
+  return (
+    <div className="atopo-modal-backdrop" onPointerDown={onClose}>
+      <div className="atopo-modal glass" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="atopo-modal-head">
+          <h3>Connection</h3>
+          <button type="button" className="atopo-modal-x" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+
+        <div className="atopo-conn-endpoints">
+          <span className="atopo-conn-code">{fromCode}</span>
+          <span className="atopo-conn-arrow">↔</span>
+          <span className="atopo-conn-code">{toCode}</span>
+        </div>
+
+        <dl className="atopo-conn-meta">
+          <div>
+            <dt>Type</dt>
+            <dd>
+              {isWorkstationRole
+                ? 'Workstation role interaction'
+                : anchored
+                  ? 'Explicit node link (hand-drawn)'
+                  : 'Explicit link (auto-inferred endpoints)'}
+            </dd>
+          </div>
+          <div>
+            <dt>Distance</dt>
+            <dd>{distM != null ? `${distM.toFixed(2)} m` : 'unknown (endpoint missing)'}</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd>{conn.status ?? 'ACTIVE'}</dd>
+          </div>
+        </dl>
+
+        {dangling && (
+          <p className="atopo-links-note">
+            One endpoint is missing from this layout, so this link is dangling. It will be dropped on
+            the next Generate routing. Delete it or restore the equipment.
+          </p>
+        )}
+
+        {!isWorkstationRole && (
+          <div className="atopo-grid2">
+            <label className="atopo-field">
+              <span>From path point</span>
+              <Select
+                ariaLabel="From path point"
+                value={conn.fromPathIndex != null ? String(conn.fromPathIndex) : ''}
+                onChange={(v) => onUpdate(conn.id, { fromPathIndex: v === '' ? null : Number(v) })}
+                options={indexOptions(fromNodes, 'exit')}
+              />
+            </label>
+            <label className="atopo-field">
+              <span>To path point</span>
+              <Select
+                ariaLabel="To path point"
+                value={conn.toPathIndex != null ? String(conn.toPathIndex) : ''}
+                onChange={(v) => onUpdate(conn.id, { toPathIndex: v === '' ? null : Number(v) })}
+                options={indexOptions(toNodes, 'entry')}
+              />
+            </label>
+          </div>
+        )}
+
+        <label className="atopo-field">
+          <span>
+            Label{' '}
+            <InfoTip
+              text="Optional human-readable name for this link, shown in the Connections list and the routing graph."
+              example="ASRS outfeed to pick line"
+            />
+          </span>
+          <input
+            className="form-control"
+            value={conn.label ?? ''}
+            placeholder="optional"
+            onChange={(e) => onUpdate(conn.id, { label: e.target.value || null })}
+          />
+        </label>
+
+        <label className="atopo-field">
+          <span>Status</span>
+          <Select
+            ariaLabel="Status"
+            value={conn.status ?? 'ACTIVE'}
+            onChange={(v) => onUpdate(conn.id, { status: v })}
+            options={[
+              { value: 'ACTIVE', label: 'ACTIVE' },
+              { value: 'INACTIVE', label: 'INACTIVE' },
+            ]}
+          />
+        </label>
+
+        <p className="atopo-muted atopo-conn-savehint">
+          Changes apply to the layout in memory; press Save to persist them.
+        </p>
+
+        <div className="atopo-modal-actions">
+          <button
+            type="button"
+            className="btn btn-danger btn-sm"
+            onClick={() => {
+              onDelete(conn.id)
+              onClose()
+            }}
+          >
+            Delete
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -4511,6 +4746,18 @@ function Styles() {
       }
       .atopo-modal-x:hover { color: var(--text); }
       .atopo-modal-actions { display: flex; justify-content: space-between; gap: .5rem; margin-top: .3rem; }
+      .atopo-conn-endpoints {
+        display: flex; align-items: center; flex-wrap: wrap; gap: .4rem;
+        padding: .5rem .6rem; border-radius: 10px;
+        border: 1px solid var(--glass-border); background: rgba(141, 198, 63, .06);
+      }
+      .atopo-conn-code { font-family: var(--font-mono); font-size: .82rem; font-weight: 600; word-break: break-all; }
+      .atopo-conn-arrow { color: var(--herbal-lime); }
+      .atopo-conn-meta { display: flex; flex-direction: column; gap: .3rem; margin: 0; }
+      .atopo-conn-meta > div { display: flex; justify-content: space-between; gap: .6rem; align-items: baseline; }
+      .atopo-conn-meta dt { margin: 0; font-size: .74rem; color: var(--text-dim); }
+      .atopo-conn-meta dd { margin: 0; font-size: .78rem; text-align: right; }
+      .atopo-conn-savehint { font-size: .72rem; margin: 0; }
       .atopo-areas {
         display: flex; flex-direction: column; gap: .5rem; margin-top: .4rem;
         padding: .6rem .7rem; border-radius: 10px;

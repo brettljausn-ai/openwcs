@@ -691,7 +691,15 @@ authoring source the conveyor routing graph (§7b) is now generated from.
   **Connections section**: per endpoint node it shows the linked counterpart (code, distance, and HOW:
   auto vs explicit), or "not linked" with the nearest candidate, and offers an explicit **node-to-node
   link** from a candidate list of other equipment's nodes sorted **closest first**; Unlink removes the
-  explicit connection and says honestly when proximity still auto-links the pair. A **routing graph
+  explicit connection and says honestly when proximity still auto-links the pair. The Properties panel
+  also lists **every explicit connection** (`Connections (N)`) with a per-row Delete; **clicking a row
+  opens a connection detail/edit dialog** (Delete stays inline, it does not open the dialog) that shows
+  the link un-truncated, both endpoints with their full equipment code AND the exact node each end is
+  anchored to (`CODE#index`), whether it is a hand-drawn node link or an explicit link with
+  auto-inferred endpoints, the gap in metres between the resolved nodes, and the status; the **anchored
+  path point of each end, the label and the status are editable** (path-point Selects offer Auto, the
+  projection exit/entry fallback, or any routable node on that end), with edits mutating the in-memory
+  connection so the editor's Save round-trips them. A **routing graph
   table** tab shows the generated graph
   (nodes, edges, costs) as a read-mostly inspector. **Route test mode** (`RouteTest.tsx`): toggle "Test
   route" in the toolbar, then click a start and a target point in the 3D scene (resolved to the nearest
