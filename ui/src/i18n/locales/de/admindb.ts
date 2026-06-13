@@ -1,0 +1,20 @@
+// German (Deutsch): database console (namespace 'admindb').
+export default {
+  eyebrow: 'openWCS · Administration',
+  title: 'Datenbank',
+  subtitle: 'Durchsuchen Sie jedes Service-Schema und führen Sie schreibgeschützte SELECT-Abfragen gegen die gemeinsame Datenbank aus.',
+  schemas: 'Schemas',
+  loadingSchemas: 'Schemas werden geladen…',
+  noTables: 'Keine Tabellen',
+  sqlQuery: 'SQL-Abfrage',
+  running: 'Wird ausgeführt…',
+  run: 'Ausführen',
+  editorHint: '⌘/Strg+Enter führt aus · nur SELECT · schreibgeschützt',
+  row: 'Zeile',
+  rows: 'Zeilen',
+  truncatedTip: 'Die Abfrage lieferte mehr Zeilen als die Obergrenze; nur die erste Seite wurde abgerufen.',
+  truncated: 'gekürzt',
+  filterRows: 'Ergebniszeilen filtern…',
+  noRows: 'Die Abfrage lieferte keine Zeilen.',
+  emptyHelp: 'Wählen Sie links eine Tabelle oder schreiben Sie ein SELECT und klicken Sie auf Ausführen. Ergebnisse sind begrenzt (Standard 200 Zeilen) und jede Abfrage läuft in einer schreibgeschützten Transaktion mit 10 Sekunden Zeitlimit.',
+}

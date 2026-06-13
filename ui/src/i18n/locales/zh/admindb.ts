@@ -1,0 +1,20 @@
+// Chinese (中文): database console (namespace 'admindb').
+export default {
+  eyebrow: 'openWCS · 管理',
+  title: '数据库',
+  subtitle: '浏览每个服务的架构，并对共享数据库执行只读 SELECT 查询。',
+  schemas: '架构',
+  loadingSchemas: '正在加载架构…',
+  noTables: '无数据表',
+  sqlQuery: 'SQL 查询',
+  running: '执行中…',
+  run: '执行',
+  editorHint: '⌘/Ctrl+Enter 执行 · 仅 SELECT · 只读',
+  row: '行',
+  rows: '行',
+  truncatedTip: '查询返回的行数超过上限；仅获取了第一页。',
+  truncated: '已截断',
+  filterRows: '筛选结果行…',
+  noRows: '查询未返回任何行。',
+  emptyHelp: '在左侧选择一个数据表，或编写 SELECT 并点击执行。结果有上限（默认 200 行），且每次查询都在只读事务中执行，超时为 10 秒。',
+}

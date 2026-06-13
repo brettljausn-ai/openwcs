@@ -1,4 +1,5 @@
 import { KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { useT } from '../i18n/useT'
 import DataTable, { Column } from '../ui/DataTable'
 import { CellValue, QueryResult, SchemaMeta, fetchSchemas, runQuery } from './api'
 
@@ -27,6 +28,7 @@ function CellView({ value }: { value: CellValue }) {
 }
 
 export default function DatabaseScreen() {
+  const t = useT('admindb')
   const [schemas, setSchemas] = useState<SchemaMeta[]>([])
   const [schemasError, setSchemasError] = useState<string | null>(null)
   const [openSchemas, setOpenSchemas] = useState<Set<string>>(new Set())
@@ -124,19 +126,19 @@ export default function DatabaseScreen() {
   return (
     <div className="app-content">
       <div className="page-head">
-        <div className="eyebrow">openWCS · Administration</div>
-        <h1>Database</h1>
-        <p>Browse every service schema and run read-only SELECT queries against the shared database.</p>
+        <div className="eyebrow">{t('eyebrow', 'openWCS · Administration')}</div>
+        <h1>{t('title', 'Database')}</h1>
+        <p>{t('subtitle', 'Browse every service schema and run read-only SELECT queries against the shared database.')}</p>
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
         {/* Schema → table tree */}
         <aside className="glass card-pad" style={{ width: 280, flexShrink: 0, maxHeight: '72vh', overflowY: 'auto' }}>
           <div style={{ fontSize: '.72rem', letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: '.5rem' }}>
-            Schemas
+            {t('schemas', 'Schemas')}
           </div>
           {schemasError && <div className="alert alert-danger">{schemasError}</div>}
-          {!schemasError && schemas.length === 0 && <div className="muted">Loading schemas…</div>}
+          {!schemasError && schemas.length === 0 && <div className="muted">{t('loadingSchemas', 'Loading schemas…')}</div>}
           {schemas.map((schema) => {
             const open = openSchemas.has(schema.name)
             return (
@@ -156,7 +158,7 @@ export default function DatabaseScreen() {
                 </button>
                 {open &&
                   (schema.tables.length === 0 ? (
-                    <div className="muted" style={{ padding: '.1rem 0 .3rem 1.6rem', fontSize: '.78rem' }}>No tables</div>
+                    <div className="muted" style={{ padding: '.1rem 0 .3rem 1.6rem', fontSize: '.78rem' }}>{t('noTables', 'No tables')}</div>
                   ) : (
                     schema.tables.map((table) => {
                       const id = `${schema.name}.${table.name}`
@@ -208,22 +210,22 @@ export default function DatabaseScreen() {
               onKeyDown={onEditorKeyDown}
               rows={6}
               spellCheck={false}
-              aria-label="SQL query"
+              aria-label={t('sqlQuery', 'SQL query')}
               placeholder="select * from master_data.sku limit 100"
               style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: '.85rem', resize: 'vertical' }}
             />
             <div style={{ display: 'flex', alignItems: 'center', gap: '.8rem', marginTop: '.6rem', flexWrap: 'wrap' }}>
               <button type="button" className="btn btn-primary btn-sm" onClick={() => void execute(sql)} disabled={running || !sql.trim()}>
-                {running ? 'Running…' : 'Run'}
+                {running ? t('running', 'Running…') : t('run', 'Run')}
               </button>
-              <span style={{ color: 'var(--text-dim)', fontSize: '.75rem' }}>⌘/Ctrl+Enter runs · SELECT only · read-only</span>
+              <span style={{ color: 'var(--text-dim)', fontSize: '.75rem' }}>{t('editorHint', '⌘/Ctrl+Enter runs · SELECT only · read-only')}</span>
               <div style={{ flex: 1 }} />
               {result && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.8rem' }}>
-                  <span className="badge">{result.rowCount} {result.rowCount === 1 ? 'row' : 'rows'}</span>
+                  <span className="badge">{result.rowCount} {result.rowCount === 1 ? t('row', 'row') : t('rows', 'rows')}</span>
                   {result.truncated && (
-                    <span className="badge badge-warning" title="The query returned more rows than the cap; only the first page was fetched.">
-                      truncated
+                    <span className="badge badge-warning" title={t('truncatedTip', 'The query returned more rows than the cap; only the first page was fetched.')}>
+                      {t('truncated', 'truncated')}
                     </span>
                   )}
                   <span style={{ color: 'var(--text-dim)' }}>{result.executionMs} ms</span>
@@ -244,15 +246,14 @@ export default function DatabaseScreen() {
               rows={resultRows}
               rowKey={(r) => String(r.i)}
               search={(r) => r.cells.map((c) => String(c ?? '')).join(' ')}
-              searchPlaceholder="Filter result rows…"
+              searchPlaceholder={t('filterRows', 'Filter result rows…')}
               pageSize={50}
-              empty="The query returned no rows."
+              empty={t('noRows', 'The query returned no rows.')}
             />
           )}
           {!result && !error && (
             <div className="glass card-pad muted">
-              Pick a table on the left or write a SELECT and press Run. Results are capped (default 200 rows) and every
-              query runs in a read-only transaction with a 10 second timeout.
+              {t('emptyHelp', 'Pick a table on the left or write a SELECT and press Run. Results are capped (default 200 rows) and every query runs in a read-only transaction with a 10 second timeout.')}
             </div>
           )}
         </div>

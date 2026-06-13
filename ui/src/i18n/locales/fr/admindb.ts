@@ -1,0 +1,20 @@
+// French (Français): database console (namespace 'admindb').
+export default {
+  eyebrow: 'openWCS · Administration',
+  title: 'Base de données',
+  subtitle: 'Parcourez le schéma de chaque service et exécutez des requêtes SELECT en lecture seule sur la base de données partagée.',
+  schemas: 'Schémas',
+  loadingSchemas: 'Chargement des schémas…',
+  noTables: 'Aucune table',
+  sqlQuery: 'Requête SQL',
+  running: 'Exécution…',
+  run: 'Exécuter',
+  editorHint: '⌘/Ctrl+Entrée exécute · SELECT uniquement · lecture seule',
+  row: 'ligne',
+  rows: 'lignes',
+  truncatedTip: 'La requête a renvoyé plus de lignes que la limite ; seule la première page a été récupérée.',
+  truncated: 'tronqué',
+  filterRows: 'Filtrer les lignes de résultat…',
+  noRows: 'La requête n\'a renvoyé aucune ligne.',
+  emptyHelp: 'Choisissez une table à gauche ou écrivez un SELECT et appuyez sur Exécuter. Les résultats sont limités (200 lignes par défaut) et chaque requête s\'exécute dans une transaction en lecture seule avec un délai de 10 secondes.',
+}

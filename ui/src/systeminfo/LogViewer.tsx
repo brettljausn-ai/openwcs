@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useT } from '../i18n/useT'
 import { fetchLogDays, fetchServiceLogs } from './api'
 
 const TAIL_OPTIONS = [200, 500, 1000, 2000]
@@ -8,6 +9,7 @@ const TAIL_OPTIONS = [200, 500, 1000, 2000]
 // client-side by a free-text query. `fillHeight` makes the <pre> grow to fill its container (page
 // mode); otherwise it's capped (modal mode).
 export default function LogViewer({ name, fillHeight = false }: { name: string; fillHeight?: boolean }) {
+  const t = useT('systeminfo')
   const [tail, setTail] = useState(200)
   const [date, setDate] = useState('') // '' = most recent day
   const [days, setDays] = useState<string[]>([])
@@ -57,27 +59,27 @@ export default function LogViewer({ name, fillHeight = false }: { name: string; 
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
         <input
           className="form-control"
-          placeholder="Filter lines…"
+          placeholder={t('filterLines', 'Filter lines…')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{ flex: 1, minWidth: 160 }}
         />
         <label style={{ fontSize: '.78rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
-          Day
+          {t('day', 'Day')}
           <select
             className="form-control"
             value={date}
             onChange={(e) => setDate(e.target.value)}
             style={{ padding: '.15rem .35rem', height: 'auto' }}
           >
-            <option value="">Latest{days[0] ? ` (${days[0]})` : ''}</option>
+            <option value="">{t('latest', 'Latest')}{days[0] ? ` (${days[0]})` : ''}</option>
             {days.map((d) => (
               <option key={d} value={d}>{d}</option>
             ))}
           </select>
         </label>
         <label style={{ fontSize: '.78rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
-          Tail
+          {t('tail', 'Tail')}
           <select
             className="form-control"
             value={tail}
@@ -90,11 +92,11 @@ export default function LogViewer({ name, fillHeight = false }: { name: string; 
           </select>
         </label>
         <button type="button" className="btn btn-outline btn-sm" onClick={load} disabled={loading}>
-          {loading ? 'Loading…' : 'Refresh'}
+          {loading ? t('loading', 'Loading…') : t('refresh', 'Refresh')}
         </button>
         {q && (
           <span style={{ fontSize: '.75rem', color: 'var(--text-dim)' }}>
-            {shown.length} / {lines.length} lines
+            {t('linesCount', '{shown} / {total} lines').replace('{shown}', String(shown.length)).replace('{total}', String(lines.length))}
           </span>
         )}
       </div>
@@ -117,14 +119,14 @@ export default function LogViewer({ name, fillHeight = false }: { name: string; 
         }}
       >
         {loading && !text
-          ? 'Loading logs…'
+          ? t('loadingLogs', 'Loading logs…')
           : shown.length
             ? shown.join('\n')
             : err
               ? ''
               : q
-                ? 'No matching lines.'
-                : 'No log output.'}
+                ? t('noMatchingLines', 'No matching lines.')
+                : t('noLogOutput', 'No log output.')}
       </pre>
     </div>
   )
