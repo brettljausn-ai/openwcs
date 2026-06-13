@@ -16,6 +16,7 @@ import { useDemoMode, seedDemoOrders } from '../demo/useDemoMode'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
+import { useT } from '../i18n/useT'
 
 // ---------------------------------------------------------------- API types
 type OrderStatus =
@@ -138,6 +139,7 @@ function isLineReceived(line: OrderLine): boolean {
 
 // ---------------------------------------------------------------- component
 export default function InboundScreen() {
+  const t = useT('inbound')
   const { roles } = useAuth()
   const canReceive = roles.includes('ADMIN') || roles.includes('SUPERVISOR') || roles.includes('OPERATOR')
 
@@ -215,12 +217,12 @@ export default function InboundScreen() {
       // Order-management lists every order type; this screen is inbound only.
       setOrders((page.content ?? []).filter((o) => o.orderType === 'INBOUND'))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load inbound orders.')
+      setError(e instanceof Error ? e.message : t('errLoad', 'Failed to load inbound orders.'))
       setOrders([])
     } finally {
       setLoading(false)
     }
-  }, [warehouseId, statusFilter])
+  }, [warehouseId, statusFilter, t])
 
   useEffect(() => {
     loadOrders()
@@ -235,7 +237,7 @@ export default function InboundScreen() {
       await seedDemoOrders(warehouseId, 'INBOUND', 10)
       await loadOrders()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to add demo orders.')
+      setError(e instanceof Error ? e.message : t('errAddDemo', 'Failed to add demo orders.'))
     } finally {
       setSeeding(false)
     }
@@ -256,9 +258,9 @@ export default function InboundScreen() {
   return (
     <div className="app-content">
       <div className="page-head">
-        <div className="eyebrow">Operations</div>
-        <h1>Inbound orders</h1>
-        <p>Expected receipts (ASNs) and inbound orders — track lines, quantities and receive goods.</p>
+        <div className="eyebrow">{t('eyebrow', 'Operations')}</div>
+        <h1>{t('title', 'Inbound orders')}</h1>
+        <p>{t('subtitle', 'Expected receipts (ASNs) and inbound orders — track lines, quantities and receive goods.')}</p>
       </div>
 
       {/* Filters + actions */}
@@ -267,15 +269,15 @@ export default function InboundScreen() {
           style={{ maxWidth: 220 }}
           value={statusFilter}
           onChange={(v) => setStatusFilter(v)}
-          ariaLabel="Status filter"
+          ariaLabel={t('statusFilter', 'Status filter')}
           options={[
-            { value: '', label: 'All statuses' },
+            { value: '', label: t('allStatuses', 'All statuses') },
             ...STATUS_FILTERS.map((s) => ({ value: s, label: s.replace(/_/g, ' ') })),
           ]}
         />
 
         <button type="button" className="btn btn-ghost btn-sm" onClick={loadOrders} disabled={!warehouseId || loading}>
-          Refresh
+          {t('refresh', 'Refresh')}
         </button>
 
         {demoEnabled && (
@@ -284,16 +286,16 @@ export default function InboundScreen() {
             className="btn btn-outline btn-sm"
             onClick={addDemoOrders}
             disabled={!warehouseId || seeding}
-            title="Demo mode: create 10 sample inbound orders"
+            title={t('addDemoTitle', 'Demo mode: create 10 sample inbound orders')}
           >
-            {seeding ? 'Adding…' : 'Add 10 Orders'}
+            {seeding ? t('adding', 'Adding…') : t('add10Orders', 'Add 10 Orders')}
           </button>
         )}
 
         <div className="spacer" />
 
         <span className="muted" style={{ fontSize: '.82rem' }}>
-          Inbound orders &amp; ASNs are owned by the host system — received here, not created.
+          {t('hostOwnedNote', 'Inbound orders & ASNs are owned by the host system — received here, not created.')}
         </span>
       </div>
 
@@ -302,7 +304,7 @@ export default function InboundScreen() {
       {!warehouseId && !error && (
         <div className="glass card-pad" style={{ maxWidth: 560 }}>
           <p className="muted" style={{ margin: 0 }}>
-            Select a warehouse to view inbound orders. None are available yet — create one under Master data.
+            {t('selectWarehouse', 'Select a warehouse to view inbound orders. None are available yet — create one under Master data.')}
           </p>
         </div>
       )}
@@ -321,20 +323,20 @@ export default function InboundScreen() {
             rowKey={(o) => o.id}
             onRowClick={(o) => setDetail(o)}
             search={(o) => `${o.orderRef} ${o.customerRef ?? ''} ${o.status}`}
-            searchPlaceholder="Search inbound orders…"
+            searchPlaceholder={t('searchPlaceholder', 'Search inbound orders…')}
             initialSort={{ key: 'createdAt', dir: 'desc' }}
-            empty={`No inbound orders for ${warehouseLabel}.`}
+            empty={t('emptyForWarehouse', 'No inbound orders for {warehouse}.').replace('{warehouse}', warehouseLabel)}
             columns={[
               {
                 key: 'orderRef',
-                header: 'Reference',
+                header: t('colReference', 'Reference'),
                 sortable: true,
                 sortValue: (o) => o.orderRef ?? '',
                 render: (o) => <strong>{o.orderRef}</strong>,
               },
               {
                 key: 'status',
-                header: 'Status',
+                header: t('colStatus', 'Status'),
                 sortable: true,
                 sortValue: (o) => o.status,
                 render: (o) => (
@@ -343,14 +345,14 @@ export default function InboundScreen() {
               },
               {
                 key: 'customerRef',
-                header: 'Supplier / Cust.',
+                header: t('colSupplierCust', 'Supplier / Cust.'),
                 sortable: true,
                 sortValue: (o) => o.customerRef ?? '',
                 render: (o) => <span className="muted">{o.customerRef || '—'}</span>,
               },
               {
                 key: 'lines',
-                header: 'Lines',
+                header: t('colLines', 'Lines'),
                 align: 'right',
                 sortable: true,
                 sortValue: (o) => (o.lines ?? []).length,
@@ -358,7 +360,7 @@ export default function InboundScreen() {
               },
               {
                 key: 'expected',
-                header: 'Expected',
+                header: t('colExpected', 'Expected'),
                 align: 'right',
                 sortable: true,
                 sortValue: (o) => (o.lines ?? []).reduce((s, l) => s + (l.qty || 0), 0),
@@ -366,7 +368,7 @@ export default function InboundScreen() {
               },
               {
                 key: 'received',
-                header: 'Received',
+                header: t('colReceived', 'Received'),
                 align: 'right',
                 sortable: true,
                 sortValue: (o) => (o.lines ?? []).reduce((s, l) => s + receivedQty(l), 0),
@@ -374,7 +376,7 @@ export default function InboundScreen() {
               },
               {
                 key: 'createdAt',
-                header: 'Created',
+                header: t('colCreated', 'Created'),
                 sortable: true,
                 sortValue: (o) => o.createdAt ?? '',
                 render: (o) => <span className="muted">{fmtDate(o.createdAt)}</span>,
@@ -392,7 +394,7 @@ export default function InboundScreen() {
                       setDetail(o)
                     }}
                   >
-                    View
+                    {t('view', 'View')}
                   </button>
                 ),
               },
@@ -432,6 +434,7 @@ function DetailDialog({
   onClose: () => void
   onReceived: (id: string) => Promise<Order | null>
 }) {
+  const t = useT('inbound')
   const [receiveLine, setReceiveLine] = useState<OrderLine | null>(null)
 
   const lines = order.lines ?? []
@@ -450,20 +453,20 @@ function DetailDialog({
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.25rem 1.5rem', marginBottom: '1rem' }} className="muted">
-          <span>Type: INBOUND</span>
-          {order.customerRef && <span>Supplier / Cust.: {order.customerRef}</span>}
-          <span>Created: {fmtDate(order.createdAt)}</span>
-          {order.statusDetail && <span>Note: {order.statusDetail}</span>}
+          <span>{t('typeLabel', 'Type')}: INBOUND</span>
+          {order.customerRef && <span>{t('colSupplierCust', 'Supplier / Cust.')}: {order.customerRef}</span>}
+          <span>{t('colCreated', 'Created')}: {fmtDate(order.createdAt)}</span>
+          {order.statusDetail && <span>{t('note', 'Note')}: {order.statusDetail}</span>}
         </div>
 
         <table>
           <thead>
             <tr>
               <th style={{ width: 40 }}>#</th>
-              <th>SKU</th>
-              <th style={{ textAlign: 'right' }}>Expected</th>
-              <th style={{ textAlign: 'right' }}>Received</th>
-              <th>Line status</th>
+              <th>{t('sku', 'SKU')}</th>
+              <th style={{ textAlign: 'right' }}>{t('colExpected', 'Expected')}</th>
+              <th style={{ textAlign: 'right' }}>{t('colReceived', 'Received')}</th>
+              <th>{t('lineStatus', 'Line status')}</th>
               {canReceive && <th />}
             </tr>
           </thead>
@@ -471,7 +474,7 @@ function DetailDialog({
             {lines.length === 0 && (
               <tr>
                 <td colSpan={canReceive ? 6 : 5} className="muted" style={{ textAlign: 'center', padding: '1rem' }}>
-                  This order has no lines.
+                  {t('noLines', 'This order has no lines.')}
                 </td>
               </tr>
             )}
@@ -485,7 +488,7 @@ function DetailDialog({
                   <td style={{ textAlign: 'right' }}>{receivedQty(l)}</td>
                   <td>
                     <span className={done ? 'badge badge-success' : 'badge badge-info'}>
-                      {done ? 'Received' : 'Open'}
+                      {done ? t('statusReceived', 'Received') : t('statusOpen', 'Open')}
                     </span>
                   </td>
                   {canReceive && (
@@ -496,7 +499,7 @@ function DetailDialog({
                         disabled={terminal}
                         onClick={() => setReceiveLine(l)}
                       >
-                        Receive
+                        {t('receive', 'Receive')}
                       </button>
                     </td>
                   )}
@@ -508,7 +511,7 @@ function DetailDialog({
 
         <div className="dialog-actions">
           <button type="button" className="btn btn-ghost" onClick={onClose}>
-            Close
+            {t('close', 'Close')}
           </button>
         </div>
 
@@ -545,6 +548,7 @@ function ReceiveDialog({
   onClose: () => void
   onDone: () => Promise<void>
 }) {
+  const t = useT('inbound')
   const remaining = Math.max(0, line.qty - receivedQty(line))
   const [qty, setQty] = useState<string>(remaining ? String(remaining) : '1')
   const [locationId, setLocationId] = useState<string>(locations[0]?.id ?? '')
@@ -555,11 +559,11 @@ function ReceiveDialog({
     setErr(null)
     const n = Number(qty)
     if (!Number.isFinite(n) || n <= 0) {
-      setErr('Enter a quantity greater than zero.')
+      setErr(t('errQtyPositive', 'Enter a quantity greater than zero.'))
       return
     }
     if (!locationId) {
-      setErr('Select a receiving location.')
+      setErr(t('errSelectLocation', 'Select a receiving location.'))
       return
     }
     setBusy(true)
@@ -572,7 +576,7 @@ function ReceiveDialog({
       if (!res.ok) throw new Error(await problemMessage(res))
       await onDone()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to post receipt.')
+      setErr(e instanceof Error ? e.message : t('errPostReceipt', 'Failed to post receipt.'))
     } finally {
       setBusy(false)
     }
@@ -581,15 +585,15 @@ function ReceiveDialog({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="dialog" onClick={(e) => e.stopPropagation()}>
-        <h2>Receive line {line.lineNo}</h2>
+        <h2>{t('receiveLine', 'Receive line')} {line.lineNo}</h2>
         <p className="muted" style={{ marginTop: '-.5rem' }}>
-          {skuLabel(line.skuId)} · expected {line.qty}, received {receivedQty(line)}
+          {skuLabel(line.skuId)} · {t('expectedLower', 'expected')} {line.qty}, {t('receivedLower', 'received')} {receivedQty(line)}
         </p>
 
         {err && <div className="alert alert-danger">{err}</div>}
 
         <label className="muted" style={{ display: 'block', marginBottom: '.25rem' }}>
-          Quantity <InfoTip text="Number of units actually received for this line, in EACH. Posted as a receipt; can be less than expected for a partial receipt." example="12" />
+          {t('quantity', 'Quantity')} <InfoTip text={t('quantityTip', 'Number of units actually received for this line, in EACH. Posted as a receipt; can be less than expected for a partial receipt.')} example="12" />
         </label>
         <input
           className="form-control"
@@ -601,15 +605,15 @@ function ReceiveDialog({
         />
 
         <label className="muted" style={{ display: 'block', margin: '.75rem 0 .25rem' }}>
-          Receiving location <InfoTip text="The bin/location in the current warehouse where the received goods are put away. Stock is credited here on receipt." example="RCV-DOCK-01" />
+          {t('receivingLocation', 'Receiving location')} <InfoTip text={t('receivingLocationTip', 'The bin/location in the current warehouse where the received goods are put away. Stock is credited here on receipt.')} example="RCV-DOCK-01" />
         </label>
         <Select
           value={locationId}
           onChange={(v) => setLocationId(v)}
-          ariaLabel="Receiving location"
+          ariaLabel={t('receivingLocation', 'Receiving location')}
           options={
             locations.length === 0
-              ? [{ value: '', label: 'No locations available' }]
+              ? [{ value: '', label: t('noLocations', 'No locations available') }]
               : locations.map((l) => ({
                   value: l.id,
                   label: `${l.code}${l.purpose ? ` (${l.purpose})` : ''}`,
@@ -619,10 +623,10 @@ function ReceiveDialog({
 
         <div className="dialog-actions">
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>
-            Cancel
+            {t('cancel', 'Cancel')}
           </button>
           <button type="button" className="btn btn-primary" onClick={submit} disabled={busy}>
-            {busy ? 'Posting…' : 'Post receipt'}
+            {busy ? t('posting', 'Posting…') : t('postReceipt', 'Post receipt')}
           </button>
         </div>
       </div>

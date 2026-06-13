@@ -4,6 +4,7 @@ import { useWarehouse } from '../warehouse/WarehouseContext'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
+import { useT } from '../i18n/useT'
 import { HandlingUnitType, Location, listHandlingUnitTypes, listLocations } from '../masterdata/api'
 import {
   HandlingUnit,
@@ -33,6 +34,7 @@ function StatusBadge({ status }: { status?: string }) {
 }
 
 export default function HandlingUnitsScreen() {
+  const t = useT('inventory')
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const [rows, setRows] = useState<HandlingUnit[]>([])
   const [types, setTypes] = useState<HandlingUnitType[]>([])
@@ -82,24 +84,23 @@ export default function HandlingUnitsScreen() {
   return (
     <div className="app-content">
       <div className="page-head">
-        <span className="eyebrow">Operations</span>
-        <h1>Handling units</h1>
+        <span className="eyebrow">{t('eyebrow', 'Operations')}</span>
+        <h1>{t('huTitle', 'Handling units')}</h1>
         <p>
-          Registry of physical handling units (cartons, pallets, totes) — code, type, location and
-          status. Scoped to the warehouse selected in the top bar.
+          {t('huSubtitle', 'Registry of physical handling units (cartons, pallets, totes) — code, type, location and status. Scoped to the warehouse selected in the top bar.')}
         </p>
       </div>
 
       {!warehouseId ? (
         <div className="glass card-pad">
-          <div className="alert">Select a warehouse above to view its handling units.</div>
+          <div className="alert">{t('selectWarehouseHu', 'Select a warehouse above to view its handling units.')}</div>
         </div>
       ) : (
         <div className="glass card-pad hu-panel">
           <div className="toolbar">
             <div className="spacer" />
             <button className="btn btn-primary btn-sm" onClick={() => setEditing(blank)}>
-              + Register handling unit
+              {t('registerHuPlus', '+ Register handling unit')}
             </button>
           </div>
           {error && <div className="alert alert-danger">{error}</div>}
@@ -107,28 +108,28 @@ export default function HandlingUnitsScreen() {
             rows={rows}
             rowKey={(h) => h.huId ?? h.code}
             search={(h) => `${h.code} ${typeName(h.huTypeId)} ${locationCode(h.locationId)} ${h.status}`}
-            searchPlaceholder="Search handling units…"
+            searchPlaceholder={t('huSearchPlaceholder', 'Search handling units…')}
             initialSort={{ key: 'code', dir: 'asc' }}
-            empty={loading ? 'Loading…' : 'No handling units for this warehouse.'}
+            empty={loading ? t('loading', 'Loading…') : t('noHu', 'No handling units for this warehouse.')}
             columns={[
-              { key: 'code', header: 'Code', sortable: true, sortValue: (h) => h.code ?? '', render: (h) => <code>{h.code}</code> },
+              { key: 'code', header: t('colCode', 'Code'), sortable: true, sortValue: (h) => h.code ?? '', render: (h) => <code>{h.code}</code> },
               {
                 key: 'type',
-                header: 'Type',
+                header: t('colType', 'Type'),
                 sortable: true,
                 sortValue: (h) => typeName(h.huTypeId),
                 render: (h) => typeName(h.huTypeId),
               },
               {
                 key: 'location',
-                header: 'Location',
+                header: t('colLocation', 'Location'),
                 sortable: true,
                 sortValue: (h) => locationCode(h.locationId),
                 render: (h) => locationCode(h.locationId),
               },
               {
                 key: 'status',
-                header: 'Status',
+                header: t('colStatus', 'Status'),
                 sortable: true,
                 sortValue: (h) => h.status ?? '',
                 render: (h) => <StatusBadge status={h.status} />,
@@ -139,7 +140,7 @@ export default function HandlingUnitsScreen() {
                 render: (h) => (
                   <div className="hu-row-actions">
                     <button className="btn btn-ghost btn-sm" onClick={() => setEditing(h)}>
-                      Edit
+                      {t('edit', 'Edit')}
                     </button>
                   </div>
                 ),
@@ -177,6 +178,7 @@ function HandlingUnitDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const t = useT('inventory')
   const [d, setD] = useState<HandlingUnit>(initial)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -200,39 +202,39 @@ function HandlingUnitDialog({
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div className="dialog glass" onClick={(e) => e.stopPropagation()}>
-        <h2>{initial.huId ? 'Edit handling unit' : 'Register handling unit'}</h2>
+        <h2>{initial.huId ? t('editHu', 'Edit handling unit') : t('registerHu', 'Register handling unit')}</h2>
         {error && <div className="alert alert-danger">{error}</div>}
         <div className="hu-form">
           <div className="hu-field">
             <label>
-              Code<span style={{ color: '#ff8a80' }}> *</span>{' '}
+              {t('fieldCode', 'Code')}<span style={{ color: '#ff8a80' }}> *</span>{' '}
               <InfoTip
-                text="Unique barcode / identifier for this handling unit. Scanned to track the physical container as it moves through the warehouse."
+                text={t('codeTip', 'Unique barcode / identifier for this handling unit. Scanned to track the physical container as it moves through the warehouse.')}
                 example="HU-PLT-000123"
               />
             </label>
             <input
               className="form-control"
               value={d.code}
-              placeholder="Barcode / HU identifier"
+              placeholder={t('codePlaceholder', 'Barcode / HU identifier')}
               onChange={(e) => setD({ ...d, code: e.target.value })}
             />
           </div>
           <div className="hu-field">
             <label>
-              Type{' '}
+              {t('fieldType', 'Type')}{' '}
               <InfoTip
-                text="The kind of physical container this HU is, from the handling-unit type master data. Fixed once registered — change only via a controlled maintenance / QA process."
+                text={t('typeTip', 'The kind of physical container this HU is, from the handling-unit type master data. Fixed once registered — change only via a controlled maintenance / QA process.')}
                 example="Euro Pallet"
               />
             </label>
             <Select
-              ariaLabel="Handling unit type"
+              ariaLabel={t('huTypeAria', 'Handling unit type')}
               value={d.huTypeId ?? ''}
               disabled={!!initial.huId}
               onChange={(v) => setD({ ...d, huTypeId: v || null })}
               options={[
-                { value: '', label: '— None —' },
+                { value: '', label: t('none', '— None —') },
                 // Hide archived types from new/edit selection. If the current HU still
                 // references an archived type, keep that option so the value stays visible.
                 ...types
@@ -243,33 +245,33 @@ function HandlingUnitDialog({
           </div>
           <div className="hu-field">
             <label>
-              Location{' '}
+              {t('fieldLocation', 'Location')}{' '}
               <InfoTip
-                text="Where this handling unit currently sits. Set at registration — moving an HU is done through a controlled process (e.g. maintenance / QA), not edited here."
+                text={t('locationTip', 'Where this handling unit currently sits. Set at registration — moving an HU is done through a controlled process (e.g. maintenance / QA), not edited here.')}
                 example="A-01-02-03"
               />
             </label>
             <Select
-              ariaLabel="Location"
+              ariaLabel={t('fieldLocation', 'Location')}
               value={d.locationId ?? ''}
               disabled={!!initial.huId}
               onChange={(v) => setD({ ...d, locationId: v || null })}
               options={[
-                { value: '', label: '— None —' },
+                { value: '', label: t('none', '— None —') },
                 ...locations.map((l) => ({ value: l.id ?? '', label: l.code })),
               ]}
             />
           </div>
           <div className="hu-field">
             <label>
-              Status{' '}
+              {t('fieldStatus', 'Status')}{' '}
               <InfoTip
-                text="Lifecycle state of the HU: ACTIVE (in use, holding stock), EMPTY (available container), IN_TRANSIT (being moved), RETIRED (out of service)."
+                text={t('statusTip', 'Lifecycle state of the HU: ACTIVE (in use, holding stock), EMPTY (available container), IN_TRANSIT (being moved), RETIRED (out of service).')}
                 example="ACTIVE"
               />
             </label>
             <Select
-              ariaLabel="Status"
+              ariaLabel={t('fieldStatus', 'Status')}
               value={d.status}
               onChange={(v) => setD({ ...d, status: v as HandlingUnitStatus })}
               options={HU_STATUSES.map((s) => ({ value: s, label: s }))}
@@ -278,10 +280,10 @@ function HandlingUnitDialog({
         </div>
         <div className="dialog-actions">
           <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}>
-            Cancel
+            {t('cancel', 'Cancel')}
           </button>
           <button className="btn btn-primary btn-sm" onClick={save} disabled={saving || !valid}>
-            {saving ? <span className="spin" /> : 'Save'}
+            {saving ? <span className="spin" /> : t('save', 'Save')}
           </button>
         </div>
       </div>
