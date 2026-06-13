@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import InfoTip from '../ui/InfoTip'
+import { useT } from '../i18n/useT'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import { useSidebar } from '../shell/SidebarContext'
 import { HandlingUnit, listHandlingUnits } from '../inventory/api'
@@ -131,6 +132,7 @@ export default function GtpOpsScreen() {
 // --- Launcher: pick a workplace -------------------------------------------------------------------
 
 function Launcher({ onOpen }: { onOpen: (s: WorkplaceSession) => void }) {
+  const t = useT('gtpops')
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const [workplaces, setWorkplaces] = useState<Workplace[]>([])
   const [loading, setLoading] = useState(false)
@@ -207,10 +209,12 @@ function Launcher({ onOpen }: { onOpen: (s: WorkplaceSession) => void }) {
   return (
     <div className="app-content">
       <div className="page-head">
-        <h1>GTP workplaces</h1>
+        <h1>{t('title', 'GTP workplaces')}</h1>
         <p>
-          Goods-to-person operator consoles. Open a workplace to claim it — only one operator can run
-          a workplace at a time, so opening it elsewhere takes over this session.
+          {t(
+            'launcherIntro',
+            'Goods-to-person operator consoles. Open a workplace to claim it — only one operator can run a workplace at a time, so opening it elsewhere takes over this session.',
+          )}
         </p>
       </div>
 
@@ -227,17 +231,17 @@ function Launcher({ onOpen }: { onOpen: (s: WorkplaceSession) => void }) {
           }}
         >
           <span style={{ color: 'var(--text-dim)', fontSize: '.9rem' }}>
-            This device remembers workstation <strong style={{ color: 'var(--text)' }}>{remembered.code}</strong> and opens it automatically.
+            {t('remembersPrefix', 'This device remembers workstation')} <strong style={{ color: 'var(--text)' }}>{remembered.code}</strong> {t('remembersSuffix', 'and opens it automatically.')}
           </span>
           <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={forget}>
-            Forget this device's workstation
+            {t('forgetWorkstation', "Forget this device's workstation")}
           </button>
         </div>
       )}
 
       {!warehouseId.trim() && (
         <p style={{ color: 'var(--text-dim)', marginBottom: '1.25rem' }}>
-          Select a warehouse in the top bar to load its GTP workplaces.
+          {t('selectWarehouse', 'Select a warehouse in the top bar to load its GTP workplaces.')}
         </p>
       )}
 
@@ -262,7 +266,7 @@ function Launcher({ onOpen }: { onOpen: (s: WorkplaceSession) => void }) {
       ) : (
         !loading &&
         warehouseId.trim() && (
-          <p style={{ color: 'var(--text-dim)' }}>No GTP workplaces configured in this warehouse.</p>
+          <p style={{ color: 'var(--text-dim)' }}>{t('noWorkplaces', 'No GTP workplaces configured in this warehouse.')}</p>
         )
       )}
     </div>
@@ -278,6 +282,7 @@ function WorkplaceCard({
   opening: boolean
   onOpen: () => void
 }) {
+  const t = useT('gtpops')
   const orderNodes = workplace.nodes.filter((n) => n.role === 'ORDER').length
   const stockNodes = workplace.nodes.filter((n) => n.role === 'STOCK').length
   return (
@@ -285,11 +290,11 @@ function WorkplaceCard({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.5rem' }}>
         <h3 style={{ margin: 0, fontSize: '1.3rem' }}>{workplace.code}</h3>
         <span className={`badge ${workplace.inUse ? 'badge-warning' : 'badge-success'}`}>
-          {workplace.inUse ? 'In use' : 'Free'}
+          {workplace.inUse ? t('inUse', 'In use') : t('free', 'Free')}
         </span>
       </div>
       <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
-        <span className="badge badge-info">{workplace.mode === 'PUT_WALL' ? 'Put-wall' : 'Order locations'}</span>
+        <span className="badge badge-info">{workplace.mode === 'PUT_WALL' ? t('putWall', 'Put-wall') : t('orderLocations', 'Order locations')}</span>
         {workplace.supportedModes.map((m) => (
           <span key={m} className="badge">
             {m}
@@ -297,10 +302,10 @@ function WorkplaceCard({
         ))}
       </div>
       <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: '.85rem' }}>
-        {stockNodes} stock · {orderNodes} destinations
+        {stockNodes} {t('stock', 'stock')} · {orderNodes} {t('destinations', 'destinations')}
       </p>
       <button className="btn btn-primary btn-lg btn-block" onClick={onOpen} disabled={opening}>
-        {opening ? 'Opening…' : workplace.inUse ? 'Take over & open' : 'Open workplace'}
+        {opening ? t('opening', 'Opening…') : workplace.inUse ? t('takeOverOpen', 'Take over & open') : t('openWorkplace', 'Open workplace')}
       </button>
     </div>
   )
@@ -319,6 +324,7 @@ function OperatorConsole({
   onTakenOver: () => void
   onLeave: () => void
 }) {
+  const t = useT('gtpops')
   const { stationId, sessionId } = { stationId: session.stationId, sessionId: session.sessionId }
   const workplace = session.workplace
   const [cycle, setCycle] = useState<WorkCycle | null>(null)
@@ -516,13 +522,12 @@ function OperatorConsole({
           }}
         >
           <div style={{ fontSize: '2.5rem', marginBottom: '.5rem' }}>⚠</div>
-          <h2 style={{ marginTop: 0 }}>Session taken over</h2>
+          <h2 style={{ marginTop: 0 }}>{t('takenOverTitle', 'Session taken over')}</h2>
           <p style={{ color: 'var(--text-dim)' }}>
-            This workplace (<strong>{workplace.code}</strong>) was opened in another window — this
-            session was taken over and is no longer active. Any unconfirmed work here was not saved.
+            {t('takenOverPrefix', 'This workplace (')}<strong>{workplace.code}</strong>{t('takenOverBody', ') was opened in another window — this session was taken over and is no longer active. Any unconfirmed work here was not saved.')}
           </p>
           <button className="btn btn-primary btn-lg" onClick={onLeave}>
-            Back to workplaces
+            {t('backToWorkplaces', 'Back to workplaces')}
           </button>
         </div>
       </div>
@@ -535,20 +540,20 @@ function OperatorConsole({
         <div>
           <h1>{workplace.code}</h1>
           <p>
-            Operator console · {workplace.mode === 'PUT_WALL' ? 'put-wall' : 'order locations'} ·
-            session live
+            {t('operatorConsole', 'Operator console')} · {workplace.mode === 'PUT_WALL' ? t('putWallLower', 'put-wall') : t('orderLocationsLower', 'order locations')} ·{' '}
+            {t('sessionLive', 'session live')}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <label
             style={{ display: 'flex', alignItems: 'center', gap: '.4rem', color: 'var(--text-dim)', fontSize: '.85rem', cursor: 'pointer' }}
-            title="Auto-open this workstation on this device next time"
+            title={t('rememberTip', 'Auto-open this workstation on this device next time')}
           >
             <input type="checkbox" checked={remembered} onChange={(e) => toggleRemember(e.target.checked)} />
-            Remember this workstation on this device
+            {t('rememberWorkstation', 'Remember this workstation on this device')}
           </label>
           <span className={`badge ${acceptingWork ? 'badge-success' : 'badge-warning'}`}>
-            {acceptingWork ? 'Active' : 'Draining'}
+            {acceptingWork ? t('active', 'Active') : t('draining', 'Draining')}
           </span>
           <button
             className="btn btn-ghost"
@@ -556,11 +561,11 @@ function OperatorConsole({
             disabled={drainBusy}
             title={
               acceptingWork
-                ? 'Stop taking new totes; finish the queued work already at this station'
-                : 'Resume taking new totes at this station'
+                ? t('deactivateTip', 'Stop taking new totes; finish the queued work already at this station')
+                : t('activateTip', 'Resume taking new totes at this station')
             }
           >
-            {drainBusy ? 'Working…' : acceptingWork ? 'Deactivate (drain)' : 'Activate'}
+            {drainBusy ? t('working', 'Working…') : acceptingWork ? t('deactivateDrain', 'Deactivate (drain)') : t('activate', 'Activate')}
           </button>
           <button
             className="btn btn-ghost"
@@ -570,13 +575,13 @@ function OperatorConsole({
               onLeave()
             }}
           >
-            Release & exit
+            {t('releaseExit', 'Release & exit')}
           </button>
         </div>
       </div>
 
       {modes.length > 1 && (
-        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginBottom: '1rem' }} role="group" aria-label="Operating mode">
+        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginBottom: '1rem' }} role="group" aria-label={t('operatingMode', 'Operating mode')}>
           {modes.map((m) => {
             const on = m === activeMode
             const accent = modeAccent(m)
@@ -618,8 +623,7 @@ function OperatorConsole({
         >
           <span style={{ fontSize: '1.3rem' }}>⏸</span>
           <span>
-            <strong>Draining:</strong> finishing queued work, no new totes. Reactivate to resume
-            taking new totes.
+            <strong>{t('drainingLabel', 'Draining:')}</strong> {t('drainingBody', 'finishing queued work, no new totes. Reactivate to resume taking new totes.')}
           </span>
         </div>
       )}
@@ -654,7 +658,7 @@ function OperatorConsole({
                 style={{ alignSelf: 'flex-start' }}
                 onClick={completeHeadAndAdvance}
               >
-                Mark tote done & advance
+                {t('markToteDone', 'Mark tote done & advance')}
               </button>
             )}
           </>
@@ -685,7 +689,7 @@ function OperatorConsole({
                 style={{ alignSelf: 'flex-start' }}
                 onClick={completeHeadAndAdvance}
               >
-                Done counting
+                {t('doneCounting', 'Done counting')}
               </button>
             </>
           )
@@ -736,6 +740,7 @@ function ExceptionsDrawer({
   onToggle: () => void
   onToteRemoved: () => void
 }) {
+  const t = useT('gtpops')
   const hasHead = head != null
 
   const [dirtyBusy, setDirtyBusy] = useState(false)
@@ -760,7 +765,7 @@ function ExceptionsDrawer({
     setDirtyNote(null)
     try {
       await markToteDirty(stationId, head.id)
-      setDirtyNote('Tote sent to maintenance.')
+      setDirtyNote(t('toteSentMaintenance', 'Tote sent to maintenance.'))
       onToteRemoved()
     } catch (e) {
       setDirtyError(String(e instanceof Error ? e.message : e))
@@ -776,7 +781,7 @@ function ExceptionsDrawer({
     setBrokenNote(null)
     try {
       const res = await markProductBroken(stationId, head.id, parsedBroken)
-      setBrokenNote(`Adjusted ${res.adjusted} damaged unit(s).`)
+      setBrokenNote(t('adjustedDamaged', 'Adjusted {n} damaged unit(s).').replace('{n}', String(res.adjusted)))
       setBrokenQty('')
     } catch (e) {
       setBrokenError(String(e instanceof Error ? e.message : e))
@@ -792,7 +797,7 @@ function ExceptionsDrawer({
         <button
           type="button"
           onClick={onToggle}
-          aria-label="Exceptions"
+          aria-label={t('exceptions', 'Exceptions')}
           style={{
             position: 'fixed',
             top: 'calc(50% + 120px)',
@@ -818,7 +823,7 @@ function ExceptionsDrawer({
             boxShadow: '0 0 18px rgba(141, 198, 63, .25)',
           }}
         >
-          <span style={{ transform: 'rotate(180deg)' }}>Exceptions</span>
+          <span style={{ transform: 'rotate(180deg)' }}>{t('exceptions', 'Exceptions')}</span>
         </button>
       )}
 
@@ -856,20 +861,20 @@ function ExceptionsDrawer({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.6rem', marginBottom: '1rem' }}>
-          <span className="eyebrow">Exceptions</span>
-          <button className="btn btn-ghost btn-sm" onClick={onToggle} aria-label="Close exceptions">
+          <span className="eyebrow">{t('exceptions', 'Exceptions')}</span>
+          <button className="btn btn-ghost btn-sm" onClick={onToggle} aria-label={t('closeExceptions', 'Close exceptions')}>
             ✕
           </button>
         </div>
 
         {hasHead ? (
           <div style={{ marginBottom: '1rem', color: 'var(--text-dim)', fontSize: '.85rem' }}>
-            Current tote <strong style={{ color: 'var(--text)' }}>{head?.huCode ?? 'Tote'}</strong>
+            {t('currentTote', 'Current tote')} <strong style={{ color: 'var(--text)' }}>{head?.huCode ?? t('tote', 'Tote')}</strong>
             {head?.skuCode ? ` · ${head.skuCode}` : ''}
           </div>
         ) : (
           <p className="badge badge-warning" style={{ marginBottom: '1rem' }}>
-            No tote at the station.
+            {t('noToteAtStation', 'No tote at the station.')}
           </p>
         )}
 
@@ -878,16 +883,16 @@ function ExceptionsDrawer({
           className="glass"
           style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '.6rem', marginBottom: '1rem' }}
         >
-          <strong style={{ fontSize: '1.05rem' }}>Mark tote as dirty</strong>
+          <strong style={{ fontSize: '1.05rem' }}>{t('markToteDirty', 'Mark tote as dirty')}</strong>
           <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: '.85rem' }}>
-            Sends this tote to maintenance and advances to the next tote.
+            {t('markToteDirtyHint', 'Sends this tote to maintenance and advances to the next tote.')}
           </p>
           <button
             className="btn btn-primary btn-block"
             disabled={!hasHead || dirtyBusy}
             onClick={onDirty}
           >
-            {dirtyBusy ? 'Working…' : 'Mark tote as dirty'}
+            {dirtyBusy ? t('working', 'Working…') : t('markToteDirty', 'Mark tote as dirty')}
           </button>
           {dirtyNote && (
             <p className="badge badge-success" style={{ margin: 0 }}>
@@ -906,9 +911,9 @@ function ExceptionsDrawer({
           className="glass"
           style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '.6rem' }}
         >
-          <strong style={{ fontSize: '1.05rem' }}>Mark product as broken</strong>
+          <strong style={{ fontSize: '1.05rem' }}>{t('markProductBroken', 'Mark product as broken')}</strong>
           <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: '.85rem' }}>
-            Posts a damage adjustment for the broken units. The tote stays so you keep working it.
+            {t('markProductBrokenHint', 'Posts a damage adjustment for the broken units. The tote stays so you keep working it.')}
           </p>
           {!brokenOpen ? (
             <button
@@ -920,7 +925,7 @@ function ExceptionsDrawer({
                 setBrokenNote(null)
               }}
             >
-              Mark product as broken
+              {t('markProductBroken', 'Mark product as broken')}
             </button>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
@@ -931,7 +936,7 @@ function ExceptionsDrawer({
                   inputMode="numeric"
                   pattern="[0-9]*"
                   value={brokenQty}
-                  placeholder="Broken qty"
+                  placeholder={t('brokenQty', 'Broken qty')}
                   disabled={brokenBusy || !hasHead}
                   autoFocus
                   onChange={(e) => setBrokenQty(e.target.value.replace(/[^0-9]/g, ''))}
@@ -945,7 +950,7 @@ function ExceptionsDrawer({
                   disabled={!hasHead || !validBroken || brokenBusy}
                   onClick={onBroken}
                 >
-                  {brokenBusy ? 'Sending…' : 'Send adjustment'}
+                  {brokenBusy ? t('sending', 'Sending…') : t('sendAdjustment', 'Send adjustment')}
                 </button>
               </div>
             </div>
@@ -968,6 +973,7 @@ function ExceptionsDrawer({
 
 // Calm idle state shown when no tote is at the station and nothing is in progress.
 function WaitingForTotes({ loaded }: { loaded: boolean }) {
+  const t = useT('gtpops')
   return (
     <div
       className="glass"
@@ -983,25 +989,26 @@ function WaitingForTotes({ loaded }: { loaded: boolean }) {
       }}
     >
       <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>📦</div>
-      <h2 style={{ marginTop: 0, fontSize: '2rem' }}>Waiting for totes</h2>
+      <h2 style={{ marginTop: 0, fontSize: '2rem' }}>{t('waitingForTotes', 'Waiting for totes')}</h2>
       <p style={{ color: 'var(--text-dim)', margin: 0, fontSize: '1.05rem' }}>
         {loaded
-          ? 'None inbound at this station yet.'
-          : 'Checking the station queue…'}
+          ? t('noneInbound', 'None inbound at this station yet.')
+          : t('checkingQueue', 'Checking the station queue…')}
       </p>
     </div>
   )
 }
 
 function ModePlaceholder({ mode }: { mode: OperatingMode }) {
+  const t = useT('gtpops')
   return (
     <div
       className="glass"
       style={{ padding: '2.5rem', maxWidth: 560, textAlign: 'center', borderColor: modeAccent(mode).border }}
     >
       <div style={{ fontSize: '2rem', marginBottom: '.5rem' }}>🛠</div>
-      <h2 style={{ marginTop: 0 }}>{modeLabel(mode)} mode is active.</h2>
-      <p style={{ color: 'var(--text-dim)', margin: 0 }}>Guided flow coming soon.</p>
+      <h2 style={{ marginTop: 0 }}>{t('modeActive', '{mode} mode is active.').replace('{mode}', modeLabelT(t, mode))}</h2>
+      <p style={{ color: 'var(--text-dim)', margin: 0 }}>{t('guidedFlowSoon', 'Guided flow coming soon.')}</p>
     </div>
   )
 }
@@ -1017,6 +1024,10 @@ const MODE_LABELS: Record<string, string> = {
 }
 function modeLabel(mode: OperatingMode): string {
   return MODE_LABELS[mode] ?? mode
+}
+// Translated operator-facing mode label (key mode_PICKING etc.), falling back to the English MODE_LABELS.
+function modeLabelT(t: (key: string, english: string) => string, mode: OperatingMode): string {
+  return t(`mode_${mode}`, modeLabel(mode))
 }
 
 // Per-mode accent hue so the operator can tell at a glance which mode the station is in: counting
@@ -1054,6 +1065,9 @@ function ModeMismatch({
   supported: boolean
   onSwitch: () => void
 }) {
+  const t = useT('gtpops')
+  const requiredLabel = modeLabelT(t, required)
+  const currentLabel = modeLabelT(t, current)
   return (
     <div
       className="glass"
@@ -1070,17 +1084,17 @@ function ModeMismatch({
       }}
     >
       <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>⚠</div>
-      <h2 style={{ marginTop: 0, fontSize: '2rem' }}>{modeLabel(required)} required</h2>
+      <h2 style={{ marginTop: 0, fontSize: '2rem' }}>{t('modeRequired', '{mode} required').replace('{mode}', requiredLabel)}</h2>
       <p style={{ color: 'var(--text-dim)', margin: '0 0 1.5rem', fontSize: '1.05rem', maxWidth: 460 }}>
-        This tote needs <strong>{modeLabel(required)}</strong>, but the station is in{' '}
-        <strong>{modeLabel(current)}</strong> mode.{' '}
+        {t('mismatchPrefix', 'This tote needs')} <strong>{requiredLabel}</strong>{t('mismatchMiddle', ', but the station is in')}{' '}
+        <strong>{currentLabel}</strong> {t('mismatchModeWord', 'mode.')}{' '}
         {supported
-          ? 'Switch mode to work it.'
-          : `This workplace isn't set up for ${modeLabel(required)} — route the tote to a station that is.`}
+          ? t('switchModeToWork', 'Switch mode to work it.')
+          : t('mismatchNotSupported', "This workplace isn't set up for {mode} — route the tote to a station that is.").replace('{mode}', requiredLabel)}
       </p>
       {supported && (
         <button className="btn btn-primary btn-lg" onClick={onSwitch}>
-          Switch to {modeLabel(required)}
+          {t('switchTo', 'Switch to {mode}').replace('{mode}', requiredLabel)}
         </button>
       )}
     </div>
@@ -1103,6 +1117,7 @@ function QueueDrawer({
   open: boolean
   onToggle: () => void
 }) {
+  const t = useT('gtpops')
   return (
     <>
       {/* Slim handle pinned to the right edge. Hidden behind the panel when open. */}
@@ -1110,7 +1125,7 @@ function QueueDrawer({
         <button
           type="button"
           onClick={onToggle}
-          aria-label={`Inbound queue, ${count} totes`}
+          aria-label={t('inboundQueueAria', 'Inbound queue, {n} totes').replace('{n}', String(count))}
           style={{
             position: 'fixed',
             top: '50%',
@@ -1136,7 +1151,7 @@ function QueueDrawer({
             boxShadow: '0 0 18px rgba(141, 198, 63, .25)',
           }}
         >
-          <span style={{ transform: 'rotate(180deg)' }}>Queue ({count})</span>
+          <span style={{ transform: 'rotate(180deg)' }}>{t('queue', 'Queue')} ({count})</span>
         </button>
       )}
 
@@ -1174,10 +1189,10 @@ function QueueDrawer({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.6rem', marginBottom: '1rem' }}>
-          <span className="eyebrow">Inbound queue</span>
+          <span className="eyebrow">{t('inboundQueue', 'Inbound queue')}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
-            <span className="badge badge-info">{count} inbound</span>
-            <button className="btn btn-ghost btn-sm" onClick={onToggle} aria-label="Close inbound queue">
+            <span className="badge badge-info">{count} {t('inbound', 'inbound')}</span>
+            <button className="btn btn-ghost btn-sm" onClick={onToggle} aria-label={t('closeInboundQueue', 'Close inbound queue')}>
               ✕
             </button>
           </div>
@@ -1185,7 +1200,7 @@ function QueueDrawer({
 
         {entries.length === 0 ? (
           <p style={{ color: 'var(--text-dim)', margin: 0 }}>
-            No totes inbound. The station queue is clear.
+            {t('queueClear', 'No totes inbound. The station queue is clear.')}
           </p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.55rem' }}>
@@ -1212,15 +1227,16 @@ function QueueRow({
   position: number
   isHead: boolean
 }) {
+  const t = useT('gtpops')
   const requested = entry.status === 'REQUESTED'
   const inTransit = entry.status === 'IN_TRANSIT'
   const statusText = isHead
-    ? 'waiting'
+    ? t('statusWaiting', 'waiting')
     : requested
-      ? 'in storage'
+      ? t('statusInStorage', 'in storage')
       : inTransit
-        ? 'on conveyor'
-        : 'waiting'
+        ? t('statusOnConveyor', 'on conveyor')
+        : t('statusWaiting', 'waiting')
   const statusBadge = isHead
     ? 'badge-success'
     : requested
@@ -1263,7 +1279,7 @@ function QueueRow({
         <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <span className="badge">{entry.mode}</span>
           <span className={`badge ${statusBadge}`}>{statusText}</span>
-          {isHead && <span style={{ fontSize: '.75rem', color: 'var(--herbal-lime)' }}>next</span>}
+          {isHead && <span style={{ fontSize: '.75rem', color: 'var(--herbal-lime)' }}>{t('next', 'next')}</span>}
         </div>
       </div>
     </div>
@@ -1439,11 +1455,12 @@ function ToteIdentity({
   accent: ModeAccent
   large?: boolean
 }) {
+  const t = useT('gtpops')
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: large ? '.85rem' : '.6rem', flexWrap: 'wrap' }}>
         <ToteGlyph color={accent.solid} size={large ? 46 : 28} />
-        <strong style={{ fontSize: large ? '2.9rem' : '1.5rem', lineHeight: 1.05 }}>{huCode ?? 'Tote'}</strong>
+        <strong style={{ fontSize: large ? '2.9rem' : '1.5rem', lineHeight: 1.05 }}>{huCode ?? t('tote', 'Tote')}</strong>
         {qty != null && (
           <span style={{ color: accent.solid, fontWeight: 700, fontSize: large ? '1.6rem' : '1.1rem' }}>
             ×{qty}
@@ -1485,6 +1502,7 @@ function ActiveTotePanel({
   fill?: boolean
   accent?: ModeAccent // per-mode accent (counting orange etc.); defaults to the green picking accent
 }) {
+  const t = useT('gtpops')
   const [hus, setHus] = useState<HandlingUnit[]>([])
 
   useEffect(() => {
@@ -1553,7 +1571,7 @@ function ActiveTotePanel({
           maxWidth: fill ? 640 : undefined,
         }}
       >
-        <span className="eyebrow">Active tote at station</span>
+        <span className="eyebrow">{t('activeToteAtStation', 'Active tote at station')}</span>
         <ToteIdentity
           huCode={huCode}
           qty={qty}
@@ -1565,7 +1583,7 @@ function ActiveTotePanel({
         />
         {qty != null && (
           <div style={{ color: 'var(--text-dim)', fontSize: fill ? '1.05rem' : '.85rem' }}>
-            {qty} {qty === 1 ? 'unit' : 'units'} on the tote
+            {qty} {qty === 1 ? t('unit', 'unit') : t('units', 'units')} {t('onTheTote', 'on the tote')}
           </div>
         )}
         {error && (
@@ -1619,6 +1637,7 @@ function CountPanel({
   warehouseId: string
   onCounted: () => void
 }) {
+  const t = useT('gtpops')
   const { enabled: demoEnabled } = useDemoMode()
   const [hus, setHus] = useState<HandlingUnit[]>([])
 
@@ -1706,7 +1725,7 @@ function CountPanel({
         />
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.9rem', minWidth: 320, flex: 1, maxWidth: 640 }}>
-        <span className="eyebrow">Count this tote</span>
+        <span className="eyebrow">{t('countThisTote', 'Count this tote')}</span>
         <ToteIdentity
           huCode={huCode}
           qty={null} // blind count: never show a system quantity
@@ -1718,7 +1737,7 @@ function CountPanel({
         />
 
         <div style={{ color: 'var(--text-dim)', fontSize: '1.1rem', marginTop: '.25rem' }}>
-          Count every unit in this tote and enter the total.
+          {t('countEveryUnit', 'Count every unit in this tote and enter the total.')}
         </div>
 
         {note && note.tone === 'recount' && (
@@ -1748,7 +1767,7 @@ function CountPanel({
             type="text"
             inputMode="numeric"
             value={qtyText}
-            placeholder="Counted quantity"
+            placeholder={t('countedQuantity', 'Counted quantity')}
             disabled={busy}
             autoFocus
             onChange={(e) => setQtyText(e.target.value.replace(/[^0-9.]/g, ''))}
@@ -1763,7 +1782,7 @@ function CountPanel({
             onClick={submit}
             style={{ fontSize: '1.2rem', padding: '.9rem 1.6rem' }}
           >
-            {busy ? 'Submitting…' : 'Submit count'}
+            {busy ? t('submitting', 'Submitting…') : t('submitCount', 'Submit count')}
           </button>
         </div>
 
@@ -1786,6 +1805,7 @@ function CycleView({
   onChange: (c: WorkCycle | null) => void
   warehouseId: string
 }) {
+  const t = useT('gtpops')
   const openPuts = cycle.puts.filter((p) => p.status === 'OPEN')
   const done = cycle.puts.length > 0 && openPuts.length === 0
   const [error, setError] = useState<string | null>(null)
@@ -1817,9 +1837,9 @@ function CycleView({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <div className="glass" style={{ padding: '1.1rem 1.4rem', display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <Stat label="Operating mode" value={cycle.operatingMode} />
-        <Stat label="Remaining stock" value={cycle.remainingQty == null ? '—' : String(cycle.remainingQty)} />
-        <Stat label="Puts" value={`${cycle.puts.length - openPuts.length}/${cycle.puts.length}`} />
+        <Stat label={t('statOperatingMode', 'Operating mode')} value={cycle.operatingMode} />
+        <Stat label={t('statRemainingStock', 'Remaining stock')} value={cycle.remainingQty == null ? '—' : String(cycle.remainingQty)} />
+        <Stat label={t('statPuts', 'Puts')} value={`${cycle.puts.length - openPuts.length}/${cycle.puts.length}`} />
         <span className={`badge ${done ? 'badge-success' : 'badge-info'}`} style={{ marginLeft: 'auto' }}>
           {cycle.status}
         </span>
@@ -1837,7 +1857,7 @@ function CycleView({
       )}
 
       {cycle.puts.length === 0 ? (
-        <p style={{ color: 'var(--text-dim)' }}>No matching demand — nothing to put for this stock HU.</p>
+        <p style={{ color: 'var(--text-dim)' }}>{t('noMatchingDemand', 'No matching demand — nothing to put for this stock HU.')}</p>
       ) : (
         <div style={{ display: 'grid', gap: '.85rem', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
           {cycle.puts.map((p) => (
@@ -1847,7 +1867,7 @@ function CycleView({
       )}
 
       <button className="btn btn-ghost btn-lg" style={{ alignSelf: 'flex-start' }} onClick={finish}>
-        {done ? 'Finish & close cycle' : 'Close cycle (send HU away)'}
+        {done ? t('finishCloseCycle', 'Finish & close cycle') : t('closeCycle', 'Close cycle (send HU away)')}
       </button>
     </div>
   )
@@ -1869,6 +1889,7 @@ function ToteView({
   skuId: string | null
   warehouseId: string
 }) {
+  const t = useT('gtpops')
   const [hus, setHus] = useState<HandlingUnit[]>([])
   const [huTypes, setHuTypes] = useState<HandlingUnitType[]>([])
   const [skus, setSkus] = useState<Sku[]>([])
@@ -1916,7 +1937,7 @@ function ToteView({
     >
       <div>
         <div style={{ fontSize: '.7rem', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--text-faint)', marginBottom: '.5rem' }}>
-          Destination tote {destHu ? `· ${destHu.code}` : ''}
+          {t('destinationTote', 'Destination tote')} {destHu ? `· ${destHu.code}` : ''}
         </div>
         <div
           style={{
@@ -1958,13 +1979,13 @@ function ToteView({
           })}
         </div>
         <div style={{ marginTop: '.5rem', fontSize: '.8rem', color: 'var(--text-dim)' }}>
-          Put into compartment <strong style={{ color: 'var(--herbal-lime)' }}>{activeCompartment}</strong>
-          {compartments > 1 ? ` of ${compartments}` : ''}
+          {t('putIntoCompartment', 'Put into compartment')} <strong style={{ color: 'var(--herbal-lime)' }}>{activeCompartment}</strong>
+          {compartments > 1 ? ` ${t('ofCompartments', 'of {n}').replace('{n}', String(compartments))}` : ''}
         </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem', minWidth: 200 }}>
-        <span className="eyebrow">Active put</span>
+        <span className="eyebrow">{t('activePut', 'Active put')}</span>
         {sku?.imageUrl && (
           <img
             src={sku.imageUrl}
@@ -1978,12 +1999,12 @@ function ToteView({
         <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{sku ? sku.code : 'SKU'}</div>
         {sku?.description && <div style={{ color: 'var(--text-dim)', fontSize: '.85rem' }}>{sku.description}</div>}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem', marginTop: '.25rem' }}>
-          <span style={{ fontSize: '.8rem', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--text-faint)' }}>PUT</span>
+          <span style={{ fontSize: '.8rem', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--text-faint)' }}>{t('put', 'PUT')}</span>
           <span style={{ fontSize: '2.4rem', fontWeight: 700, color: 'var(--herbal-lime)', lineHeight: 1 }}>{put.qty}</span>
         </div>
         <div style={{ color: 'var(--text-dim)', fontSize: '.8rem' }}>
-          Order {put.orderRef}
-          {put.putLightId ? ` · Light ${put.putLightId}` : ''}
+          {t('order', 'Order')} {put.orderRef}
+          {put.putLightId ? ` · ${t('light', 'Light')} ${put.putLightId}` : ''}
         </div>
       </div>
     </div>
@@ -2006,6 +2027,7 @@ function gridFor(n: number): { cols: number; rows: number } {
 }
 
 function PutCard({ put, onConfirm }: { put: PutInstruction; onConfirm: (p: PutInstruction, qty?: number) => void }) {
+  const t = useT('gtpops')
   const [short, setShort] = useState('')
   const open = put.status === 'OPEN'
   const badge =
@@ -2029,13 +2051,13 @@ function PutCard({ put, onConfirm }: { put: PutInstruction; onConfirm: (p: PutIn
         {put.qty}
       </div>
       <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: '.8rem' }}>
-        {put.putLightId ? `Light ${put.putLightId}` : 'Destination'}
+        {put.putLightId ? `${t('light', 'Light')} ${put.putLightId}` : t('destination', 'Destination')}
         {put.orderHuId ? ` · HU ${put.orderHuId.slice(0, 8)}` : ''}
       </p>
       {open && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', marginTop: '.25rem' }}>
           <button className="btn btn-primary btn-lg btn-block" onClick={() => onConfirm(put)}>
-            Confirm put ({put.qty})
+            {t('confirmPut', 'Confirm put ({n})').replace('{n}', String(put.qty))}
           </button>
           <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
             <input
@@ -2044,16 +2066,16 @@ function PutCard({ put, onConfirm }: { put: PutInstruction; onConfirm: (p: PutIn
               min="0"
               max={put.qty}
               value={short}
-              placeholder="short qty"
+              placeholder={t('shortQty', 'short qty')}
               onChange={(e) => setShort(e.target.value)}
             />
-            <InfoTip text="Enter the actual quantity put when you cannot complete the full amount — confirms a short put for the remaining units. Must be less than the requested quantity." example="2" />
+            <InfoTip text={t('shortPutTip', 'Enter the actual quantity put when you cannot complete the full amount — confirms a short put for the remaining units. Must be less than the requested quantity.')} example="2" />
             <button
               className="btn btn-ghost"
               disabled={!(Number(short) > 0 && Number(short) < put.qty)}
               onClick={() => onConfirm(put, Number(short))}
             >
-              Short
+              {t('short', 'Short')}
             </button>
           </div>
         </div>

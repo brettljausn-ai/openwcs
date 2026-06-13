@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Select from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
+import { useT } from '../i18n/useT'
 import LocationPicker from './LocationPicker'
 import { listWarehouses, Warehouse } from '../masterdata/api'
 import {
@@ -35,6 +36,7 @@ import {
 // ---------------------------------------------------------------------------
 
 export default function GtpConfigScreen() {
+  const t = useT('gtpconfig')
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [warehouseId, setWarehouseId] = useState('')
   const [whError, setWhError] = useState<string | null>(null)
@@ -55,29 +57,34 @@ export default function GtpConfigScreen() {
   return (
     <div className="app-content">
       <div className="page-head">
-        <span className="eyebrow">Configuration</span>
-        <h1>GTP workplaces</h1>
+        <span className="eyebrow">{t('eyebrow', 'Configuration')}</span>
+        <h1>{t('title', 'GTP workplaces')}</h1>
         <p>
-          Configure goods-to-person workplaces (stations): their destination topology, the operating modes they
-          support, and their STOCK / ORDER nodes. Workplaces are scoped to the selected warehouse.
+          {t(
+            'intro',
+            'Configure goods-to-person workplaces (stations): their destination topology, the operating modes they support, and their STOCK / ORDER nodes. Workplaces are scoped to the selected warehouse.',
+          )}
         </p>
       </div>
 
       <div className="toolbar">
         <label style={{ margin: 0 }}>
-          Warehouse{' '}
+          {t('warehouse', 'Warehouse')}{' '}
           <InfoTip
-            text="The warehouse whose GTP workplaces you are configuring. All workplaces and nodes below are scoped to this site."
+            text={t(
+              'warehouseTip',
+              'The warehouse whose GTP workplaces you are configuring. All workplaces and nodes below are scoped to this site.',
+            )}
             example="WH-01 — Central DC"
           />
         </label>
         <Select
-          ariaLabel="Warehouse"
+          ariaLabel={t('warehouse', 'Warehouse')}
           style={{ maxWidth: 320 }}
           value={warehouseId}
           onChange={(v) => setWarehouseId(v)}
           options={[
-            { value: '', label: 'Select a warehouse…' },
+            { value: '', label: t('selectWarehouse', 'Select a warehouse…') },
             ...warehouses.map((w) => ({ value: w.id ?? '', label: `${w.code} — ${w.name}` })),
           ]}
         />
@@ -87,7 +94,7 @@ export default function GtpConfigScreen() {
       {warehouseId ? (
         <StationsPanel warehouseId={warehouseId} />
       ) : (
-        <div className="alert">Select a warehouse above to configure its GTP workplaces.</div>
+        <div className="alert">{t('selectWarehousePrompt', 'Select a warehouse above to configure its GTP workplaces.')}</div>
       )}
 
       <Styles />
@@ -163,6 +170,7 @@ function EditDialog({
   children: React.ReactNode
   canSave?: boolean
 }) {
+  const t = useT('gtpconfig')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function save() {
@@ -183,10 +191,10 @@ function EditDialog({
       <div className="gtp-form">{children}</div>
       <div className="dialog-actions">
         <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}>
-          Cancel
+          {t('cancel', 'Cancel')}
         </button>
         <button className="btn btn-primary btn-sm" onClick={save} disabled={saving || !canSave}>
-          {saving ? <span className="spin" /> : 'Save'}
+          {saving ? <span className="spin" /> : t('save', 'Save')}
         </button>
       </div>
     </Dialog>
@@ -206,6 +214,7 @@ function ConfirmDelete({
   onConfirm: () => Promise<void>
   onClose: () => void
 }) {
+  const t = useT('gtpconfig')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function go() {
@@ -225,7 +234,7 @@ function ConfirmDelete({
       <p>{message}</p>
       <div className="dialog-actions">
         <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={busy}>
-          Cancel
+          {t('cancel', 'Cancel')}
         </button>
         <button className="btn btn-danger btn-sm" onClick={go} disabled={busy}>
           {busy ? <span className="spin" /> : confirmLabel}
@@ -265,6 +274,7 @@ function uuidOrNull(v: string): string | null {
 // =========================================================================
 
 function StationsPanel({ warehouseId }: { warehouseId: string }) {
+  const t = useT('gtpconfig')
   const [rows, setRows] = useState<Station[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -295,30 +305,30 @@ function StationsPanel({ warehouseId }: { warehouseId: string }) {
     <>
       <div className="glass card-pad gtp-panel">
         <div className="toolbar">
-          <strong>Workplaces</strong>
+          <strong>{t('workplaces', 'Workplaces')}</strong>
           <div className="spacer" />
           <button className="btn btn-primary btn-sm" onClick={() => setEditing('new')}>
-            + New workplace
+            {t('newWorkplace', '+ New workplace')}
           </button>
         </div>
         {error && <div className="alert alert-danger">{error}</div>}
         <table>
           <thead>
             <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Topology</th>
-              <th>Operating modes</th>
-              <th>Nodes</th>
-              <th>Status</th>
+              <th>{t('colCode', 'Code')}</th>
+              <th>{t('colName', 'Name')}</th>
+              <th>{t('colTopology', 'Topology')}</th>
+              <th>{t('colOperatingModes', 'Operating modes')}</th>
+              <th>{t('colNodes', 'Nodes')}</th>
+              <th>{t('colStatus', 'Status')}</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <Empty text="Loading…" />
+              <Empty text={t('loading', 'Loading…')} />
             ) : rows.length === 0 ? (
-              <Empty text="No GTP workplaces in this warehouse yet." />
+              <Empty text={t('noWorkplaces', 'No GTP workplaces in this warehouse yet.')} />
             ) : (
               rows.map((s) => (
                 <tr
@@ -341,10 +351,10 @@ function StationsPanel({ warehouseId }: { warehouseId: string }) {
                   </td>
                   <td className="gtp-row-actions" onClick={(e) => e.stopPropagation()}>
                     <button className="btn btn-ghost btn-sm" onClick={() => setEditing(s)}>
-                      Edit
+                      {t('edit', 'Edit')}
                     </button>
                     <button className="btn btn-danger btn-sm" onClick={() => setDeleting(s)}>
-                      Delete
+                      {t('delete', 'Delete')}
                     </button>
                   </td>
                 </tr>
@@ -369,11 +379,12 @@ function StationsPanel({ warehouseId }: { warehouseId: string }) {
       )}
       {deleting && (
         <ConfirmDelete
-          title="Delete workplace"
-          confirmLabel="Delete"
+          title={t('deleteWorkplaceTitle', 'Delete workplace')}
+          confirmLabel={t('delete', 'Delete')}
           message={
             <>
-              Delete workplace <strong>{deleting.code}</strong> and all its nodes? This cannot be undone.
+              {t('deleteWorkplacePrefix', 'Delete workplace')} <strong>{deleting.code}</strong>{' '}
+              {t('deleteWorkplaceSuffix', 'and all its nodes? This cannot be undone.')}
             </>
           }
           onClose={() => setDeleting(null)}
@@ -412,6 +423,7 @@ function StationDialog({
   onClose: () => void
   onSaved: (s: Station) => void
 }) {
+  const t = useT('gtpconfig')
   const [code, setCode] = useState(initial?.code ?? '')
   const [name, setName] = useState(initial?.name ?? '')
   const [mode, setMode] = useState<StationMode>(initial?.mode ?? 'ORDER_LOCATION')
@@ -422,7 +434,7 @@ function StationDialog({
 
   return (
     <EditDialog
-      title={initial ? 'Edit workplace' : 'New workplace'}
+      title={initial ? t('editWorkplaceTitle', 'Edit workplace') : t('newWorkplaceTitle', 'New workplace')}
       canSave={valid}
       onClose={onClose}
       onSave={async () => {
@@ -451,9 +463,12 @@ function StationDialog({
         <Field
           label={
             <>
-              Code{' '}
+              {t('code', 'Code')}{' '}
               <InfoTip
-                text="Short unique identifier for this workplace within the warehouse. Used in operator screens and on the device."
+                text={t(
+                  'workplaceCodeTip',
+                  'Short unique identifier for this workplace within the warehouse. Used in operator screens and on the device.',
+                )}
                 example="GTP-03"
               />
             </>
@@ -465,9 +480,12 @@ function StationDialog({
         <Field
           label={
             <>
-              Name{' '}
+              {t('name', 'Name')}{' '}
               <InfoTip
-                text="Optional human-friendly description of the workplace, shown alongside the code to help operators recognise it."
+                text={t(
+                  'workplaceNameTip',
+                  'Optional human-friendly description of the workplace, shown alongside the code to help operators recognise it.',
+                )}
                 example="Aisle 3 Put-wall"
               />
             </>
@@ -476,7 +494,7 @@ function StationDialog({
           <input
             className="form-control"
             value={name}
-            placeholder="e.g. Aisle 3 Put-wall"
+            placeholder={t('workplaceNamePlaceholder', 'e.g. Aisle 3 Put-wall')}
             onChange={(e) => setName(e.target.value)}
           />
         </Field>
@@ -489,9 +507,12 @@ function StationDialog({
           <Field
             label={
               <>
-                Destination topology{' '}
+                {t('destinationTopology', 'Destination topology')}{' '}
                 <InfoTip
-                  text="How order destinations are arranged: ORDER_LOCATION = one fixed/conveyor target per order; PUT_WALL = many cubbies the operator distributes into. Only relevant for PICKING."
+                  text={t(
+                    'destinationTopologyTip',
+                    'How order destinations are arranged: ORDER_LOCATION = one fixed/conveyor target per order; PUT_WALL = many cubbies the operator distributes into. Only relevant for PICKING.',
+                  )}
                   example="PUT_WALL"
                 />
               </>
@@ -499,7 +520,7 @@ function StationDialog({
             required
           >
             <Select
-              ariaLabel="Destination topology"
+              ariaLabel={t('destinationTopology', 'Destination topology')}
               value={mode}
               onChange={(v) => setMode(v as StationMode)}
               options={STATION_MODES.map((m) => ({ value: m, label: m }))}
@@ -510,16 +531,19 @@ function StationDialog({
           <Field
             label={
               <>
-                Status{' '}
+                {t('status', 'Status')}{' '}
                 <InfoTip
-                  text="Lifecycle state of the workplace. Only ACTIVE workplaces accept work; ARCHIVED hides it from operational use."
+                  text={t(
+                    'workplaceStatusTip',
+                    'Lifecycle state of the workplace. Only ACTIVE workplaces accept work; ARCHIVED hides it from operational use.',
+                  )}
                   example="ACTIVE"
                 />
               </>
             }
           >
             <Select
-              ariaLabel="Status"
+              ariaLabel={t('status', 'Status')}
               value={status}
               onChange={(v) => setStatus(v)}
               options={['ACTIVE', 'INACTIVE', 'ARCHIVED'].map((s) => ({ value: s, label: s }))}
@@ -530,9 +554,12 @@ function StationDialog({
       <Field
         label={
           <>
-            Supported operating modes{' '}
+            {t('supportedOperatingModes', 'Supported operating modes')}{' '}
             <InfoTip
-              text="Which task types the operator may perform here when an HU is presented. PICKING is always enabled; tick others to allow them."
+              text={t(
+                'supportedOperatingModesTip',
+                'Which task types the operator may perform here when an HU is presented. PICKING is always enabled; tick others to allow them.',
+              )}
               example="PICKING, PUTAWAY"
             />
           </>
@@ -549,6 +576,7 @@ function StationDialog({
 // =========================================================================
 
 function NodesPanel({ station, onChanged }: { station: Station; onChanged: () => void }) {
+  const t = useT('gtpconfig')
   const [editing, setEditing] = useState<StationNode | 'new' | null>(null)
   const [deleting, setDeleting] = useState<StationNode | null>(null)
   const [modesOpen, setModesOpen] = useState(false)
@@ -561,40 +589,42 @@ function NodesPanel({ station, onChanged }: { station: Station; onChanged: () =>
       <div className="glass card-pad gtp-panel">
         <div className="toolbar">
           <strong>
-            Nodes — {station.code}
+            {t('nodesFor', 'Nodes —')} {station.code}
             {station.name ? ` (${station.name})` : ''}
           </strong>
           <div className="spacer" />
           <button className="btn btn-ghost btn-sm" onClick={() => setModesOpen(true)}>
-            Operating modes
+            {t('operatingModes', 'Operating modes')}
           </button>
           <button className="btn btn-ghost btn-sm" onClick={() => setCapacityOpen(true)}>
-            Capacity
+            {t('capacity', 'Capacity')}
           </button>
           <button className="btn btn-primary btn-sm" onClick={() => setEditing('new')}>
-            + New node
+            {t('newNode', '+ New node')}
           </button>
         </div>
         <p className="muted" style={{ fontSize: '.8rem', marginTop: 0 }}>
-          STOCK nodes present a stock HU to the operator; ORDER nodes are order destinations (a fixed/conveyor location
-          in ORDER_LOCATION mode, or a put-wall cubby in PUT_WALL mode) and carry an optional put-light.
+          {t(
+            'nodesHint',
+            'STOCK nodes present a stock HU to the operator; ORDER nodes are order destinations (a fixed/conveyor location in ORDER_LOCATION mode, or a put-wall cubby in PUT_WALL mode) and carry an optional put-light.',
+          )}
         </p>
         <table>
           <thead>
             <tr>
-              <th>Pos</th>
-              <th>Role</th>
-              <th>Code</th>
-              <th>Put-light id</th>
-              <th>Location id</th>
-              <th>Order HU id</th>
-              <th>Status</th>
+              <th>{t('colPos', 'Pos')}</th>
+              <th>{t('colRole', 'Role')}</th>
+              <th>{t('colCode', 'Code')}</th>
+              <th>{t('colPutLightId', 'Put-light id')}</th>
+              <th>{t('colLocationId', 'Location id')}</th>
+              <th>{t('colOrderHuId', 'Order HU id')}</th>
+              <th>{t('colStatus', 'Status')}</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {nodes.length === 0 ? (
-              <Empty text="No nodes configured. Add STOCK and ORDER nodes." />
+              <Empty text={t('noNodes', 'No nodes configured. Add STOCK and ORDER nodes.')} />
             ) : (
               nodes.map((n) => (
                 <tr key={n.id}>
@@ -611,10 +641,10 @@ function NodesPanel({ station, onChanged }: { station: Station; onChanged: () =>
                   </td>
                   <td className="gtp-row-actions">
                     <button className="btn btn-ghost btn-sm" onClick={() => setEditing(n)}>
-                      Edit
+                      {t('edit', 'Edit')}
                     </button>
                     <button className="btn btn-danger btn-sm" onClick={() => setDeleting(n)}>
-                      Remove
+                      {t('remove', 'Remove')}
                     </button>
                   </td>
                 </tr>
@@ -635,11 +665,12 @@ function NodesPanel({ station, onChanged }: { station: Station; onChanged: () =>
       )}
       {deleting && (
         <ConfirmDelete
-          title="Remove node"
-          confirmLabel="Remove"
+          title={t('removeNodeTitle', 'Remove node')}
+          confirmLabel={t('remove', 'Remove')}
           message={
             <>
-              Remove {deleting.role} node <strong>{deleting.code}</strong>?
+              {t('removeNodePrefix', 'Remove')} {deleting.role} {t('removeNodeSuffix', 'node')}{' '}
+              <strong>{deleting.code}</strong>?
             </>
           }
           onClose={() => setDeleting(null)}
@@ -672,6 +703,7 @@ function NodeDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const t = useT('gtpconfig')
   const [role, setRole] = useState<NodeRole>(initial?.role ?? 'STOCK')
   const [code, setCode] = useState(initial?.code ?? '')
   const [putLightId, setPutLightId] = useState(initial?.putLightId ?? '')
@@ -685,7 +717,7 @@ function NodeDialog({
 
   return (
     <EditDialog
-      title={initial ? 'Edit node' : 'New node'}
+      title={initial ? t('editNodeTitle', 'Edit node') : t('newNodeTitle', 'New node')}
       canSave={valid}
       onClose={onClose}
       onSave={async () => {
@@ -707,9 +739,12 @@ function NodeDialog({
         <Field
           label={
             <>
-              Role{' '}
+              {t('role', 'Role')}{' '}
               <InfoTip
-                text="STOCK node presents a source stock HU to the operator; ORDER node is an order destination (fixed location or put-wall cubby)."
+                text={t(
+                  'roleTip',
+                  'STOCK node presents a source stock HU to the operator; ORDER node is an order destination (fixed location or put-wall cubby).',
+                )}
                 example="ORDER"
               />
             </>
@@ -717,7 +752,7 @@ function NodeDialog({
           required
         >
           <Select
-            ariaLabel="Role"
+            ariaLabel={t('role', 'Role')}
             value={role}
             onChange={(v) => setRole(v as NodeRole)}
             options={NODE_ROLES.map((r) => ({ value: r, label: r }))}
@@ -726,9 +761,12 @@ function NodeDialog({
         <Field
           label={
             <>
-              Code{' '}
+              {t('code', 'Code')}{' '}
               <InfoTip
-                text="Short unique identifier for this node within the workplace. Shown to the operator and used to address the position."
+                text={t(
+                  'nodeCodeTip',
+                  'Short unique identifier for this node within the workplace. Shown to the operator and used to address the position.',
+                )}
                 example="ORD-A"
               />
             </>
@@ -743,9 +781,12 @@ function NodeDialog({
           <Field
             label={
               <>
-                Put-light id{' '}
+                {t('putLightId', 'Put-light id')}{' '}
                 <InfoTip
-                  text="Identifier of the physical pick/put-to-light or display device at this destination, used to guide the operator. Leave blank if none."
+                  text={t(
+                    'putLightIdTip',
+                    'Identifier of the physical pick/put-to-light or display device at this destination, used to guide the operator. Leave blank if none.',
+                  )}
                   example="PTL-0307"
                 />
               </>
@@ -754,16 +795,19 @@ function NodeDialog({
             <input
               className="form-control"
               value={putLightId}
-              placeholder="Physical light/display id"
+              placeholder={t('putLightIdPlaceholder', 'Physical light/display id')}
               onChange={(e) => setPutLightId(e.target.value)}
             />
           </Field>
           <Field
             label={
               <>
-                Order HU id{' '}
+                {t('orderHuId', 'Order HU id')}{' '}
                 <InfoTip
-                  text="UUID of the order handling unit (carton/tote) currently bound to this destination. Usually set by the system; leave blank if none."
+                  text={t(
+                    'orderHuIdTip',
+                    'UUID of the order handling unit (carton/tote) currently bound to this destination. Usually set by the system; leave blank if none.',
+                  )}
                   example="3f1c2a90-7e1b-4d6a-9c2f-2b8f0a1d4e57"
                 />
               </>
@@ -772,7 +816,7 @@ function NodeDialog({
             <input
               className="form-control gtp-mono"
               value={orderHuId}
-              placeholder="UUID (currently bound order HU)"
+              placeholder={t('orderHuIdPlaceholder', 'UUID (currently bound order HU)')}
               onChange={(e) => setOrderHuId(e.target.value)}
             />
           </Field>
@@ -782,9 +826,12 @@ function NodeDialog({
         <Field
           label={
             <>
-              Location{' '}
+              {t('location', 'Location')}{' '}
               <InfoTip
-                text="The master-data location this node maps to, when it is a fixed/conveyor position — searched by location code. Leave blank for dynamic put-wall cubbies."
+                text={t(
+                  'locationTip',
+                  'The master-data location this node maps to, when it is a fixed/conveyor position — searched by location code. Leave blank for dynamic put-wall cubbies.',
+                )}
                 example="A01-01-01"
               />
             </>
@@ -794,15 +841,18 @@ function NodeDialog({
             warehouseId={warehouseId}
             value={locationId}
             onChange={setLocationId}
-            placeholder="Search a location code…"
+            placeholder={t('searchLocationCode', 'Search a location code…')}
           />
         </Field>
         <Field
           label={
             <>
-              Position{' '}
+              {t('position', 'Position')}{' '}
               <InfoTip
-                text="Ordering index that determines where this node appears in the workplace layout and node list (lower numbers first)."
+                text={t(
+                  'positionTip',
+                  'Ordering index that determines where this node appears in the workplace layout and node list (lower numbers first).',
+                )}
                 example="1"
               />
             </>
@@ -819,16 +869,19 @@ function NodeDialog({
       <Field
         label={
           <>
-            Status{' '}
+            {t('status', 'Status')}{' '}
             <InfoTip
-              text="Whether this node is in operational use. INACTIVE nodes are kept on the workplace but skipped during work."
+              text={t(
+                'nodeStatusTip',
+                'Whether this node is in operational use. INACTIVE nodes are kept on the workplace but skipped during work.',
+              )}
               example="ACTIVE"
             />
           </>
         }
       >
         <Select
-          ariaLabel="Status"
+          ariaLabel={t('status', 'Status')}
           value={status}
           onChange={(v) => setStatus(v)}
           options={['ACTIVE', 'INACTIVE'].map((s) => ({ value: s, label: s }))}
@@ -851,10 +904,11 @@ function OperatingModesDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const t = useT('gtpconfig')
   const [modes, setModes] = useState<OperatingMode[]>(station.supportedModes)
   return (
     <EditDialog
-      title={`Operating modes — ${station.code}`}
+      title={`${t('operatingModes', 'Operating modes')} — ${station.code}`}
       onClose={onClose}
       onSave={async () => {
         await setSupportedModes(station.id, [...new Set<OperatingMode>(['PICKING', ...modes])])
@@ -862,7 +916,10 @@ function OperatingModesDialog({
       }}
     >
       <p className="muted" style={{ fontSize: '.85rem', marginTop: 0 }}>
-        What the operator can do at this workplace when an HU is presented. PICKING is always available.
+        {t(
+          'operatingModesHint',
+          'What the operator can do at this workplace when an HU is presented. PICKING is always available.',
+        )}
       </p>
       <ModeCheckboxes value={modes} onChange={setModes} />
     </EditDialog>
@@ -883,6 +940,7 @@ function CapacityDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const t = useT('gtpconfig')
   const [picking, setPicking] = useState(String(station.maxInTransitPicking))
   const [other, setOther] = useState(String(station.maxInTransitOther))
 
@@ -898,7 +956,7 @@ function CapacityDialog({
 
   return (
     <EditDialog
-      title={`In-transit capacity — ${station.code}`}
+      title={`${t('inTransitCapacity', 'In-transit capacity')} — ${station.code}`}
       canSave={valid}
       onClose={onClose}
       onSave={async () => {
@@ -907,17 +965,21 @@ function CapacityDialog({
       }}
     >
       <p className="muted" style={{ fontSize: '.85rem', marginTop: 0 }}>
-        How many handling units (totes) may have a transport en route to this workplace at once, capped
-        separately per mode class. Picking is the high-throughput case; Other covers decant, count, QC and
-        maintenance work.
+        {t(
+          'capacityHint',
+          'How many handling units (totes) may have a transport en route to this workplace at once, capped separately per mode class. Picking is the high-throughput case; Other covers decant, count, QC and maintenance work.',
+        )}
       </p>
       <div className="gtp-grid-2">
         <Field
           label={
             <>
-              Max in-transit HUs — Picking{' '}
+              {t('maxInTransitPicking', 'Max in-transit HUs — Picking')}{' '}
               <InfoTip
-                text="Caps how many HUs may have an active PICKING transport inbound to this workplace at once. Higher keeps the operator fed; too high backs up the inbound buffer."
+                text={t(
+                  'maxInTransitPickingTip',
+                  'Caps how many HUs may have an active PICKING transport inbound to this workplace at once. Higher keeps the operator fed; too high backs up the inbound buffer.',
+                )}
                 example="4"
               />
             </>
@@ -935,9 +997,12 @@ function CapacityDialog({
         <Field
           label={
             <>
-              Max in-transit HUs — Other (non-picking){' '}
+              {t('maxInTransitOther', 'Max in-transit HUs — Other (non-picking)')}{' '}
               <InfoTip
-                text="Caps how many HUs may have an active non-picking transport (decant, count, QC, maintenance) inbound to this workplace at once."
+                text={t(
+                  'maxInTransitOtherTip',
+                  'Caps how many HUs may have an active non-picking transport (decant, count, QC, maintenance) inbound to this workplace at once.',
+                )}
                 example="2"
               />
             </>
