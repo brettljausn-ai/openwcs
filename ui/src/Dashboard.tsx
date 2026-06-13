@@ -1,8 +1,10 @@
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
 import { SECTION_ORDER } from './auth/screens'
+import { useT } from './i18n/useT'
 
 export default function Dashboard() {
+  const t = useT('dashboard')
   const { myScreens, session } = useAuth()
   const navigate = useNavigate()
   const screens = myScreens().filter((s) => s.key !== 'dashboard')
@@ -10,9 +12,9 @@ export default function Dashboard() {
   return (
     <div className="app-content">
       <div className="page-head">
-        <div className="eyebrow">Welcome back</div>
-        <h1>Hello, {session?.name?.split(' ')[0] || 'there'}</h1>
-        <p>Your warehouse control system — jump into any area you have access to.</p>
+        <div className="eyebrow">{t('welcomeBack', 'Welcome back')}</div>
+        <h1>{t('hello', 'Hello, {name}').replace('{name}', session?.name?.split(' ')[0] || t('there', 'there'))}</h1>
+        <p>{t('intro', 'Your warehouse control system, jump into any area you have access to.')}</p>
       </div>
 
       {screens.some((s) => !s.section) && (

@@ -15,6 +15,7 @@ import {
   YAxis,
 } from 'recharts'
 import { HEAT_GRADIENT, heatColor, logT } from './heat'
+import { useT } from '../i18n/useT'
 
 export const CHART_COLORS = {
   lime: '#8DC63F',
@@ -101,16 +102,24 @@ export function StatChip({ label, value, color }: { label: string; value: ReactN
 
 /** Honest empty state: report history only accumulates from the day the system was deployed. */
 export function EmptyHistoryNote({ what }: { what: string }) {
+  const t = useT('reporting')
   return (
     <div style={{ padding: '1.6rem 1rem', textAlign: 'center', color: 'var(--text-dim)', fontSize: '.85rem' }}>
-      No {what} in this window yet. Report history accumulates from deployment day, so a freshly
-      deployed system starts empty and fills up as the warehouse runs.
+      {t('emptyHistoryPrefix', 'No')} {what} {t(
+        'emptyHistoryRest',
+        'in this window yet. Report history accumulates from deployment day, so a freshly deployed system starts empty and fills up as the warehouse runs.',
+      )}
     </div>
   )
 }
 
-export function LoadingNote({ children = 'Loading report…' }: { children?: ReactNode }) {
-  return <div style={{ padding: '1.6rem 1rem', textAlign: 'center', color: 'var(--text-dim)' }}>{children}</div>
+export function LoadingNote({ children }: { children?: ReactNode }) {
+  const t = useT('reporting')
+  return (
+    <div style={{ padding: '1.6rem 1rem', textAlign: 'center', color: 'var(--text-dim)' }}>
+      {children ?? t('loadingReport', 'Loading report…')}
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------- recharts wrappers
@@ -235,6 +244,7 @@ export function Sparkline({
  * Peak hours (≥ 85 % of the busiest hour) get a lime outline so the peaks are unmissable.
  */
 export function HourOfDayStrip({ counts, caption }: { counts: number[]; caption?: string }) {
+  const t = useT('reporting')
   const byHour = Array.from({ length: 24 }, (_, h) => counts[h] ?? 0)
   const max = Math.max(...byHour)
   return (
@@ -264,7 +274,7 @@ export function HourOfDayStrip({ counts, caption }: { counts: number[]; caption?
       </div>
       {caption && (
         <p className="muted" style={{ margin: '.3rem 0 0', fontSize: '.72rem' }}>
-          {caption} Outlined cells are peak hours (≥ 85 % of the busiest hour).
+          {caption} {t('peakHoursNote', 'Outlined cells are peak hours (≥ 85 % of the busiest hour).')}
         </p>
       )}
     </div>
@@ -274,6 +284,7 @@ export function HourOfDayStrip({ counts, caption }: { counts: number[]; caption?
 // ---------------------------------------------------------------- heat legend
 
 export function HeatLegend({ min, max, unit }: { min: number; max: number; unit: string }) {
+  const t = useT('reporting')
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.72rem', color: 'var(--text-dim)' }}>
       <span>{min}</span>
@@ -282,7 +293,7 @@ export function HeatLegend({ min, max, unit }: { min: number; max: number; unit:
         style={{ width: 120, height: 10, borderRadius: 5, background: HEAT_GRADIENT, display: 'inline-block' }}
       />
       <span>
-        {max} {unit} (log scale)
+        {max} {unit} {t('logScaleSuffix', '(log scale)')}
       </span>
     </div>
   )
