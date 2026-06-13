@@ -25,6 +25,7 @@ export default function AppShell() {
 function AppShellInner() {
   const { can, session, logout, roles } = useAuth()
   const tc = useT('common')
+  const tn = useT('nav')
   const { pathname } = useLocation()
 
   const dashboard = SCREENS.find((s) => s.key === 'dashboard')!
@@ -53,7 +54,7 @@ function AppShellInner() {
   const link = (s: ScreenDef) => (
     <NavLink key={s.key} to={s.path} end={s.path === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>
       <span className="nav-ico" aria-hidden="true">{s.icon}</span>
-      {s.label}
+      {tn(s.key, s.label)}
     </NavLink>
   )
 
@@ -80,7 +81,7 @@ function AppShellInner() {
                   onClick={() => toggle(g.section)}
                 >
                   <span className="sidebar-section-chev" aria-hidden="true">▸</span>
-                  {g.section}
+                  {tn(`section:${g.section}`, g.section)}
                 </button>
                 {isOpen && g.items.map(link)}
               </div>
