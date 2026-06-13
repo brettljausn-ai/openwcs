@@ -604,31 +604,45 @@ function Totes({
       let xz: XZ | null = null
       let y = SCAN_BELT_Y + BELT_LIFT
       let heading: XZ | null = null
-      if (tote.state === 'queued') {
-        // Totes at a workplace WAIT ON the inbound conveyor, never on the station box. The active
-        // (head, queueIndex 0) tote sits at the conveyor link point, held there until the workplace
-        // releases it; each tote behind it queues one slot (0.8 m) further upstream. (Reality: a GTP
-        // tote dwells on the conveyor at the pick position — it does not move onto the workstation.)
+      const tl = timelines?.get(tote.huId)
+      const hasTimeline = !!(tl && tl.points.length)
+      if (tote.state === 'queued' && !hasTimeline) {
+        // Queued but we never saw this tote move (e.g. the page just loaded): fall back to the
+        // editor's inbound link point. A station can link MULTIPLE conveyors (a stock-in and an
+        // order-out spur both meet PP1), so the topology connection alone is ambiguous — when we DO
+        // have the tote's own arrival path (below) we trust THAT instead, since it tells us the belt
+        // the tote actually came in on.
         const qi = tote.queueIndex ?? 0
         const head = tote.anchorPlacedId ? queueHeads.get(tote.anchorPlacedId) : undefined
         const beltPath = head ? beltPaths.get(head.beltId) : undefined
         if (head && beltPath) {
           xz = pointAtLen(beltPath, Math.max(0, head.s - qi * QUEUE_SPACING_M))
         } else if (anchor) {
-          // No linked conveyor in the topology — the station anchor stays the honest fallback.
           xz = [anchor.x, anchor.z]
           y = anchor.y
         }
       }
-      const tl = timelines?.get(tote.huId)
-      if (!xz && tl && tl.points.length) {
+      // The tote's own motion timeline drives BOTH in-transit and queued totes: a queued tote holds
+      // at its arrival point ON the belt it came in on, and the anti-stack pass below queues the
+      // ones behind it nose-to-tail along that same belt — no guessing which conveyor is the inbound.
+      if (!xz && hasTimeline) {
         xz = sampleTimeline(tl, renderT, pathBetween)
-        // Heading from a short look-back, so two totes sharing a belt can be spaced nose-to-tail.
         if (xz) {
+          // Moving tote: heading from a short look-back (its current travel direction).
           const back = sampleTimeline(tl, renderT - HEADING_LOOKBACK_MS, pathBetween)
           if (back) {
             const dx = xz[0] - back[0]
             const dz = xz[1] - back[1]
+            const m = Math.hypot(dx, dz)
+            if (m > 1e-3) heading = [dx / m, dz / m]
+          }
+          // Stopped tote (queued at the station): no motion, so take the heading from the last
+          // buffered segment (the arrival direction), which keeps the spacing pass working.
+          if (!heading && tl.points.length >= 2) {
+            const a = tl.points[tl.points.length - 2].xz
+            const b = tl.points[tl.points.length - 1].xz
+            const dx = b[0] - a[0]
+            const dz = b[1] - a[1]
             const m = Math.hypot(dx, dz)
             if (m > 1e-3) heading = [dx / m, dz / m]
           }
@@ -656,12 +670,14 @@ function Totes({
       frame.push({ tote, g, xz, y, heading })
     }
 
-    // Phase 2 — anti-stack: two totes retrieved together share a near-identical path, so they would
-    // render on the same spot and travel as one. Totes are solid: when two MOVING totes heading the
-    // same way overlap, push the trailing one BACK along its own heading so they sit nose-to-tail.
-    // This works in each tote's own travel direction (never a belt re-projection), so it can't snap
-    // a tote to a crossing belt's start at a divert (where headings diverge and the pass disengages).
-    const movers = frame.filter((f) => f.heading && f.tote.state !== 'queued')
+    // Phase 2 — anti-stack: totes are solid, so when two of them heading the same way overlap, push
+    // the trailing one BACK along its own heading until they sit nose-to-tail. This covers two cases
+    // with one pass: (a) two totes retrieved together share a near-identical path and would render as
+    // one; (b) totes QUEUED at a workplace all arrive at the same link point and must line up behind
+    // each other ON the belt they came in on. It works in each tote's own travel direction (never a
+    // belt re-projection), so it can't snap a tote to a crossing belt's start at a divert (where
+    // headings diverge and the pass disengages).
+    const movers = frame.filter((f) => f.heading)
     for (let pass = 0; pass < SEP_PASSES; pass++) {
       for (let i = 0; i < movers.length; i++) {
         for (let k = i + 1; k < movers.length; k++) {
