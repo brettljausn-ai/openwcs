@@ -16,6 +16,7 @@ func TestMain(m *testing.M) {
 	latencyOverrideMs.Store(0)
 	faultEvery.Store(0)
 	recircEvery.Store(0)
+	asrsHandoverMs.Store(0) // no handover spacing in the task suite — keep it fast and deterministic
 	conveySeq.Store(0)
 	os.Exit(m.Run())
 }

@@ -162,6 +162,17 @@ func handleTask(w http.ResponseWriter, r *http.Request) {
 func runTask(family string, req deviceTaskRequest) deviceTaskResult {
 	d := commandLatency(family, req.Command)
 
+	// Serialise tote moves through the ASRS shuttle/lift/handover: one tote at a time, spaced by
+	// asrsHandoverMs, so totes leave storage staggered instead of two completing at once and entering
+	// the conveyor on the same spot (a shuttle cannot deliver two totes simultaneously).
+	if usesHandover(family, req.Command) {
+		if wait := handover.reserve(orUnknown(req.EquipmentID), asrsHandover()); wait > 0 {
+			log.Printf("%s: task %s %s %s for %s queued %s behind the shuttle/lift/handover on %s (one tote at a time, %dms spacing)",
+				serviceName, req.TaskID, family, req.Command, huRef(req.Payload), wait, orUnknown(req.EquipmentID), asrsHandoverMs.Load())
+			time.Sleep(wait)
+		}
+	}
+
 	// Conveyor leg: model loop recirculation (ADR-0007 R2). A recirculating tote takes extra loop
 	// time before it diverts to its destination, so arrival order diverges from dispatch order; the
 	// divert/recirculate decision points are reported back for the HU transport trace (R4).
