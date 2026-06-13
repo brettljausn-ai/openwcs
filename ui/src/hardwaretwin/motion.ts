@@ -27,10 +27,13 @@ export type XZ = [number, number]
 /** How far behind real time tote motion renders (ms).
  *  Trade-off: the delay must exceed one poll interval (plus fetch latency) so that by the time the
  *  render clock reaches a scan, the NEXT scan has usually already been buffered — then motion is
- *  pure interpolation between known points and never stalls. Larger = smoother under poll jitter
- *  but more stale; smaller = fresher but underruns (dead reckoning) more often. With the twin's
- *  2 s poll, 3.5 s leaves ~1.5 s of slack for a slow poll and minor client/server clock skew. */
-export const RENDER_DELAY_MS = 3500
+ *  pure interpolation between known points and never stalls. Larger = smoother and more correct
+ *  (more buffered headroom before the render point) but more stale; smaller = fresher but underruns
+ *  (dead reckoning, the only PREDICTED motion) more often.
+ *  Set to 5 s deliberately: with the 2 s poll the render point sits ~2–3 scans behind the newest
+ *  data, so the tote is essentially ALWAYS interpolating between two known scanned points and never
+ *  guesses — the operator preference is "a few seconds behind, but guaranteed correct". */
+export const RENDER_DELAY_MS = 5000
 
 /** Fallback belt speed when the timeline is too short to estimate one (the emulator's nominal
  *  0.5 m/s walk speed — see SCAN_SPEED_MPS in twin.ts). */
