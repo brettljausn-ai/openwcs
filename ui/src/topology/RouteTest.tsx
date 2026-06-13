@@ -91,21 +91,34 @@ export function nearestNode(nodes: NodeDto[], x: number, z: number): NodeDto | n
   return bestNode
 }
 
-/** Human verdict for the hint-bar chip. */
+/** Human verdict for the hint-bar chip. `t` is the topology-namespace translator (English fallback
+ *  built in), so the numbers/codes stay interpolated in this component. */
 export function routeVerdict(
   result: RouteResult,
   startCode: string,
   targetCode: string,
+  t: (key: string, english: string) => string = (_k, en) => en,
 ): { ok: boolean; text: string } {
   if (result.found) {
     const hops = result.codes.length - 1
     const secs = Math.round(result.costM / TEST_SPEED_MPS)
+    const hopsLabel =
+      hops === 1 ? t('hopOne', '{n} hop') : t('hopMany', '{n} hops')
     return {
       ok: true,
-      text: `Path: ${hops} hop${hops === 1 ? '' : 's'} · ${result.costM.toFixed(1)} m · ≈${secs}s @ ${TEST_SPEED_MPS} m/s`,
+      text: t('verdictPath', 'Path: {hops} · {m} m · ≈{secs}s @ {speed} m/s')
+        .replace('{hops}', hopsLabel.replace('{n}', String(hops)))
+        .replace('{m}', result.costM.toFixed(1))
+        .replace('{secs}', String(secs))
+        .replace('{speed}', String(TEST_SPEED_MPS)),
     }
   }
-  return { ok: false, text: `No path from ${startCode} to ${targetCode}` }
+  return {
+    ok: false,
+    text: t('verdictNoPath', 'No path from {start} to {target}')
+      .replace('{start}', startCode)
+      .replace('{target}', targetCode),
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@
 // We map metres → pixels with a scale and a pan offset, and snap moves/draws to a metre grid.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useT } from '../i18n/useT'
 import type { Equipment } from '../masterdata/api'
 import type { AutomationConnection, AutomationEquipment, AutomationFunctionPoint } from './automationApi'
 import {
@@ -228,6 +229,7 @@ export default function PlanEditor2D({
   onWaypointSelect,
   onDeleteConnection,
 }: PlanEditor2DProps) {
+  const t = useT('topology')
   // View transform: pixels-per-metre and a pan offset (in pixels) of the world origin.
   const [pxPerM, setPxPerM] = useState(40)
   const [pan, setPan] = useState({ x: 0, y: 0 })
@@ -640,7 +642,7 @@ export default function PlanEditor2D({
       if (!end) {
         setDivertDraft({
           ...d,
-          error: 'uncheck Straight only at the end of a line — the main line continues here',
+          error: t('errUncheckStraight', 'uncheck Straight only at the end of a line, the main line continues here'),
         })
         return
       }
@@ -667,7 +669,7 @@ export default function PlanEditor2D({
       onAddDivertBranch(d.eqId, jx, jz, side, step)
     }
     setDivertDraft(null)
-  }, [divertDraft, conveyors, endOfLineAt, snapOn, gridStep, onAddFunctionPoint, onAddDivertBranch])
+  }, [divertDraft, conveyors, endOfLineAt, snapOn, gridStep, onAddFunctionPoint, onAddDivertBranch, t])
 
   // Clicking a palette type CREATES a pending function point floating at a staging spot near the
   // top-left of the canvas (in world metres). The user then drags it onto a conveyor to place it.
@@ -958,7 +960,7 @@ export default function PlanEditor2D({
     <div className="plan2d">
       {/* ---- toolbar: grid step, snap toggle, zoom, rotate ---- */}
       <div className="plan2d-bar">
-        <span className="plan2d-bar-label">Grid</span>
+        <span className="plan2d-bar-label">{t('grid', 'Grid')}</span>
         <div className="plan2d-seg">
           {GRID_OPTIONS.map((g) => (
             <button
@@ -973,19 +975,19 @@ export default function PlanEditor2D({
         </div>
         <label className="plan2d-check">
           <input type="checkbox" checked={snapOn} onChange={(e) => setSnapOn(e.target.checked)} />
-          Snap
+          {t('snap', 'Snap')}
         </label>
         <div className="plan2d-bar-spacer" />
         {selected && (
           <div className="plan2d-rotate">
-            <span className="plan2d-bar-label">Rotate</span>
-            <button type="button" className="plan2d-iconbtn" onClick={() => rotateBy(-15)} title="Rotate 15° CCW">
+            <span className="plan2d-bar-label">{t('rotate', 'Rotate')}</span>
+            <button type="button" className="plan2d-iconbtn" onClick={() => rotateBy(-15)} title={t('rotate15Ccw', 'Rotate 15° CCW')}>
               ⟲ 15°
             </button>
-            <button type="button" className="plan2d-iconbtn" onClick={() => rotateBy(15)} title="Rotate 15° CW">
+            <button type="button" className="plan2d-iconbtn" onClick={() => rotateBy(15)} title={t('rotate15Cw', 'Rotate 15° CW')}>
               ⟳ 15°
             </button>
-            <button type="button" className="plan2d-iconbtn" onClick={() => rotateBy(90)} title="Rotate 90°">
+            <button type="button" className="plan2d-iconbtn" onClick={() => rotateBy(90)} title={t('rotate90', 'Rotate 90°')}>
               90°
             </button>
           </div>
@@ -997,9 +999,9 @@ export default function PlanEditor2D({
             setPan({ x: 0, y: 0 })
             setPxPerM(40)
           }}
-          title="Reset view"
+          title={t('resetView', 'Reset view')}
         >
-          Reset view
+          {t('resetView', 'Reset view')}
         </button>
       </div>
 
@@ -1009,38 +1011,42 @@ export default function PlanEditor2D({
               drop target exists: INDUCT/DISCHARGE need an ASRS; every other type needs a conveyor. ---- */}
       {(conveyors.length > 0 || asrsItems.length > 0) && !drawing && (
         <div className="plan2d-fpbar">
-          <span className="plan2d-bar-label">New point</span>
+          <span className="plan2d-bar-label">{t('newPoint', 'New point')}</span>
           <div className="plan2d-fppalette">
-            {paletteTypes().map((t) => {
+            {paletteTypes().map((pt) => {
               // The two divert types collapse into ONE picker chip — directions are chosen on drop.
-              const isDivert = t === DIVERT_PICKER
-              const isPort = t === 'INDUCT' || t === 'DISCHARGE'
-              const isInfeed = t === 'INFEED'
+              const isDivert = pt === DIVERT_PICKER
+              const isPort = pt === 'INDUCT' || pt === 'DISCHARGE'
+              const isInfeed = pt === 'INFEED'
               // INDUCT/DISCHARGE drop onto an ASRS edge; everything else onto a conveyor.
               const enabled = isPort ? asrsItems.length > 0 : conveyors.length > 0
-              const target = isPort ? 'an ASRS' : 'a conveyor'
+              const target = isPort ? t('anAsrs', 'an ASRS') : t('aConveyor', 'a conveyor')
               // IN/OUT are ASRS-ONLY ports and FEED is the conveyor-side merge — say so up front.
               const title = !enabled
-                ? `Add ${target} first to place a ${isDivert ? 'divert' : t}`
+                ? t('titleAddTargetFirst', 'Add {target} first to place a {type}')
+                    .replace('{target}', target)
+                    .replace('{type}', isDivert ? t('divertWord', 'divert') : pt)
                 : isDivert
-                  ? 'Divert: drop onto a conveyor, then pick its directions (left / straight / right)'
+                  ? t('titleDivert', 'Divert: drop onto a conveyor, then pick its directions (left / straight / right)')
                   : isPort
-                    ? `ASRS port: snaps to a rack edge and drops a 1 m ${t === 'INDUCT' ? 'IN' : 'OUT'} stub`
+                    ? t('titleAsrsPort', 'ASRS port: snaps to a rack edge and drops a 1 m {dir} stub').replace('{dir}', pt === 'INDUCT' ? 'IN' : 'OUT')
                     : isInfeed
-                      ? 'Feed/merge: joins a feeding line INTO the conveyor you drop it on (use after an ASRS OUT stub)'
-                      : `Create a ${t} and drop it onto ${target} (click or drag)`
+                      ? t('titleInfeed', 'Feed/merge: joins a feeding line INTO the conveyor you drop it on (use after an ASRS OUT stub)')
+                      : t('titleCreateType', 'Create a {type} and drop it onto {target} (click or drag)')
+                          .replace('{type}', pt)
+                          .replace('{target}', target)
               return (
                 <button
-                  key={t}
+                  key={pt}
                   type="button"
                   className={`plan2d-fpbtn${isDivert ? ' is-divert' : ''}${
                     isPort ? ' is-port' : ''
                   }${isInfeed ? ' is-infeed' : ''}`}
-                  onClick={() => createPending(t)}
+                  onClick={() => createPending(pt)}
                   disabled={!enabled}
                   title={title}
                 >
-                  {isDivert ? 'DIV' : FUNCTION_SHORT[t] ?? t}
+                  {isDivert ? 'DIV' : FUNCTION_SHORT[pt] ?? pt}
                   {isPort && <span className="plan2d-fptag">ASRS</span>}
                 </button>
               )
@@ -1048,11 +1054,12 @@ export default function PlanEditor2D({
           </div>
           {pending && (
             <span className="plan2d-fphint">
-              Click{' '}
-              {pending.functionType === 'INDUCT' || pending.functionType === 'DISCHARGE'
-                ? 'an ASRS edge'
-                : 'a conveyor'}{' '}
-              to place the new point (or drag it) · Esc to cancel
+              {t('clickToPlace', 'Click {target} to place the new point (or drag it) · Esc to cancel').replace(
+                '{target}',
+                pending.functionType === 'INDUCT' || pending.functionType === 'DISCHARGE'
+                  ? t('anAsrsEdge', 'an ASRS edge')
+                  : t('aConveyor', 'a conveyor'),
+              )}
             </span>
           )}
         </div>
@@ -1243,9 +1250,9 @@ export default function PlanEditor2D({
               >
                 {linked
                   ? m.state === 'explicit'
-                    ? `linked · explicit${isSelected ? ' · selected' : ''}`
-                    : 'linked'
-                  : `not linked · ${m.distM.toFixed(1)} m`}
+                    ? t('linkedExplicit', 'linked · explicit') + (isSelected ? ' · ' + t('selected', 'selected') : '')
+                    : t('linked', 'linked')
+                  : t('notLinkedDist', 'not linked · {m} m').replace('{m}', m.distM.toFixed(1))}
               </text>
               {isSelected && (
                 <g
@@ -1384,7 +1391,7 @@ export default function PlanEditor2D({
             const [mx, my] = toPx(pending.world.x, pending.world.z)
             return (
               <text x={mx + 9} y={my + 20} className="plan2d-pendinghint" pointerEvents="none">
-                IN/OUT snap to ASRS edges · use FEED to join a conveyor
+                {t('inOutSnapHint', 'IN/OUT snap to ASRS edges · use FEED to join a conveyor')}
               </text>
             )
           })()}
@@ -1404,13 +1411,13 @@ export default function PlanEditor2D({
                 <foreignObject x={px + 12} y={py - 14} width={250} height={230} style={{ overflow: 'visible' }}>
                   <div className="plan2d-divpop" onPointerDown={(e) => e.stopPropagation()}>
                     <div className="plan2d-divpop-head">
-                      <span>Divert directions</span>
+                      <span>{t('divertDirections', 'Divert directions')}</span>
                       <button
                         type="button"
                         className="plan2d-divpop-x"
                         onClick={() => setDivertDraft(null)}
-                        aria-label="Cancel divert"
-                        title="Cancel (Esc)"
+                        aria-label={t('cancelDivert', 'Cancel divert')}
+                        title={t('cancelEsc', 'Cancel (Esc)')}
                       >
                         ✕
                       </button>
@@ -1421,7 +1428,7 @@ export default function PlanEditor2D({
                         checked={divertDraft.left}
                         onChange={() => toggleDivertDir('left')}
                       />
-                      ◀ Left
+                      ◀ {t('left', 'Left')}
                     </label>
                     <label className="plan2d-divpop-row">
                       <input
@@ -1429,7 +1436,7 @@ export default function PlanEditor2D({
                         checked={divertDraft.straight}
                         onChange={() => toggleDivertDir('straight')}
                       />
-                      ▲ Straight
+                      ▲ {t('straight', 'Straight')}
                     </label>
                     <label className="plan2d-divpop-row">
                       <input
@@ -1437,16 +1444,16 @@ export default function PlanEditor2D({
                         checked={divertDraft.right}
                         onChange={() => toggleDivertDir('right')}
                       />
-                      Right ▶
+                      {t('right', 'Right')} ▶
                     </label>
                     {ways < 2 ? (
-                      <div className="plan2d-divpop-err">a divert needs at least 2 ways out</div>
+                      <div className="plan2d-divpop-err">{t('divertNeeds2', 'a divert needs at least 2 ways out')}</div>
                     ) : divertDraft.error ? (
                       <div className="plan2d-divpop-err">{divertDraft.error}</div>
                     ) : null}
                     <div className="plan2d-divpop-actions">
                       <button type="button" className="plan2d-iconbtn" onClick={() => setDivertDraft(null)}>
-                        Cancel
+                        {t('cancel', 'Cancel')}
                       </button>
                       <button
                         type="button"
@@ -1454,7 +1461,7 @@ export default function PlanEditor2D({
                         disabled={ways < 2}
                         onClick={confirmDivert}
                       >
-                        OK
+                        {t('ok', 'OK')}
                       </button>
                     </div>
                   </div>
@@ -1466,28 +1473,28 @@ export default function PlanEditor2D({
 
       <div className="plan2d-hint">
         {divertDraft
-          ? 'Choose the divert directions — at least 2 of left / straight / right · Esc to cancel'
+          ? t('hintChooseDivert', 'Choose the divert directions, at least 2 of left / straight / right · Esc to cancel')
           : pending
             ? pending.snap
               ? pending.functionType === DIVERT_PICKER
-                ? 'Drop to place the divert — then choose its directions (left / straight / right)'
+                ? t('hintDropDivertPick', 'Drop to place the divert, then choose its directions (left / straight / right)')
                 : sideForType(pending.functionType)
-                  ? `Drop to place the divert — a junction + 1 m stub appears in the divert direction`
+                  ? t('hintDropDivert', 'Drop to place the divert, a junction + 1 m stub appears in the divert direction')
                   : pending.functionType === 'INFEED'
-                    ? `Drop to place the infeed — a junction + 1 m merge stub appears (extend it back to its source)`
+                    ? t('hintDropInfeed', 'Drop to place the infeed, a junction + 1 m merge stub appears (extend it back to its source)')
                     : pending.snap.kind === 'asrs-edge'
-                      ? `Drop to place the ${FUNCTION_SHORT[pending.functionType] ?? pending.functionType} port — a 1 m stub appears on the ASRS edge`
-                      : `Drop to place the ${FUNCTION_SHORT[pending.functionType] ?? pending.functionType} on the conveyor`
+                      ? t('hintDropPort', 'Drop to place the {type} port, a 1 m stub appears on the ASRS edge').replace('{type}', FUNCTION_SHORT[pending.functionType] ?? pending.functionType)
+                      : t('hintDropOnConveyor', 'Drop to place the {type} on the conveyor').replace('{type}', FUNCTION_SHORT[pending.functionType] ?? pending.functionType)
               : pending.functionType === 'INDUCT' || pending.functionType === 'DISCHARGE'
-                ? 'Drag onto an ASRS to place an IN/OUT port · drop off (or Esc) to cancel'
-                : 'Drag onto a conveyor to place · drop off any conveyor (or Esc) to cancel'
+                ? t('hintDragOntoAsrs', 'Drag onto an ASRS to place an IN/OUT port · drop off (or Esc) to cancel')
+                : t('hintDragOntoConveyor', 'Drag onto a conveyor to place · drop off any conveyor (or Esc) to cancel')
             : drawing
-              ? 'Draw a section: click a start point, then an end point — the section runs in that order. Click the conveyor (point or body) to start/end on it; click empty grid for a free point. Double-click a waypoint (or Esc) to finish.'
+              ? t('hintDrawSection', 'Draw a section: click a start point, then an end point, the section runs in that order. Click the conveyor (point or body) to start/end on it; click empty grid for a free point. Double-click a waypoint (or Esc) to finish.')
               : selectedLink
-                ? 'Link selected · press Delete/Backspace (or click the ✕) to remove the explicit connection · click empty space to deselect'
+                ? t('hintLinkSelected', 'Link selected · press Delete/Backspace (or click the ✕) to remove the explicit connection · click empty space to deselect')
                 : selectedWp
-                ? 'Waypoint selected · press Delete/Backspace (or click the ✕) to remove it · drag to move · double-click to draw from it · click empty space to deselect'
-                : 'Drag an item to move (snapped) · click a waypoint to select it (Delete removes) · double-click a waypoint to draw from it · drag empty space to pan · scroll to zoom'}
+                ? t('hintWaypointSelected', 'Waypoint selected · press Delete/Backspace (or click the ✕) to remove it · drag to move · double-click to draw from it · click empty space to deselect')
+                : t('hintDefault', 'Drag an item to move (snapped) · click a waypoint to select it (Delete removes) · double-click a waypoint to draw from it · drag empty space to pan · scroll to zoom')}
       </div>
 
       <PlanStyles />
@@ -1543,6 +1550,7 @@ function PlanItem({
   onWaypointDoubleClick: (index: number) => void
   onDrawAtPoint: (id: string, x: number, z: number) => void
 }) {
+  const t = useT('topology')
   const path = Array.isArray(eq.path) ? eq.path : []
   const isPathConveyor = conveyor && path.length >= 2
   // The path/sections overlay (directed sections + chevrons + junctions + waypoints + label). Shared
@@ -1699,7 +1707,7 @@ function PlanItem({
                       onWaypointDelete()
                     }}
                   >
-                    <title>Delete waypoint (or press Delete/Backspace)</title>
+                    <title>{t('deleteWaypointTitle', 'Delete waypoint (or press Delete/Backspace)')}</title>
                     <circle cx={0} cy={0} r={7} className="plan2d-wpdelete-bg" />
                     <text x={0} y={3.5} textAnchor="middle" className="plan2d-wpdelete-x">
                       ✕
@@ -1859,6 +1867,7 @@ function PendingMarker({
   toPx: (xM: number, zM: number) => [number, number]
   onDragStart: (e: React.PointerEvent<SVGGElement>) => void
 }) {
+  const t = useT('topology')
   const isDivert =
     pending.functionType === 'DIVERT_LEFT' ||
     pending.functionType === 'DIVERT_RIGHT' ||
@@ -1897,7 +1906,7 @@ function PendingMarker({
         strokeWidth={1.4}
       />
       <text x={mx + 9} y={my + 3.5} className="plan2d-fplabel" style={{ fill: color }}>
-        {short} · unplaced
+        {short} · {t('unplaced', 'unplaced')}
       </text>
     </g>
   )

@@ -4,6 +4,7 @@ import { Grid, Html, Line, OrbitControls, PivotControls, RoundedBox, Text } from
 import * as THREE from 'three'
 import Select, { type SelectOption } from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
+import { useT } from '../i18n/useT'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import {
   listEquipment,
@@ -517,6 +518,7 @@ export default function AutomationTopology3D({
   collapsed?: boolean
   onToggleChrome?: () => void
 } = {}) {
+  const t = useT('topology')
   const { currentWarehouseId: warehouseId } = useWarehouse()
 
   const [levels, setLevels] = useState<AutomationLevel[]>([])
@@ -633,13 +635,17 @@ export default function AutomationTopology3D({
       )
       setSelectedId(null)
       setDirty(false)
-      setInfo(`Loaded ${topo.levels.length} level(s), ${topo.equipment.length} equipment`)
+      setInfo(
+        t('loadedLevels', 'Loaded {levels} level(s), {equipment} equipment')
+          .replace('{levels}', String(topo.levels.length))
+          .replace('{equipment}', String(topo.equipment.length)),
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
     }
-  }, [warehouseId])
+  }, [warehouseId, t])
 
   useEffect(() => {
     load()
@@ -647,7 +653,7 @@ export default function AutomationTopology3D({
 
   const save = useCallback(async () => {
     if (!warehouseId) {
-      setError('No active warehouse selected')
+      setError(t('noActiveWarehouse', 'No active warehouse selected'))
       return
     }
     setSaving(true)
@@ -668,19 +674,19 @@ export default function AutomationTopology3D({
       )
       setSelectedId(null)
       setDirty(false)
-      setInfo('Saved')
+      setInfo(t('saved', 'Saved'))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSaving(false)
     }
-  }, [warehouseId, levels, equipment, connections, functionPoints])
+  }, [warehouseId, levels, equipment, connections, functionPoints, t])
 
   // Generate the conveyor routing graph (nodes/edges) from the current layout. Saves first so the
   // projection reads the persisted placement, then replaces the warehouse's routing graph.
   const projectGraph = useCallback(async () => {
     if (!warehouseId) {
-      setError('No active warehouse selected')
+      setError(t('noActiveWarehouse', 'No active warehouse selected'))
       return
     }
     setProjecting(true)
@@ -704,8 +710,14 @@ export default function AutomationTopology3D({
       setSelectedId(null)
       setDirty(false)
       const result = await projectRoutingGraph(warehouseId)
-      const warn = result.warnings.length ? ` · ${result.warnings.length} warning(s)` : ''
-      setInfo(`Routing graph generated: ${result.nodes} node(s), ${result.edges} edge(s)${warn}`)
+      const warn = result.warnings.length
+        ? ' · ' + t('warningsCount', '{n} warning(s)').replace('{n}', String(result.warnings.length))
+        : ''
+      setInfo(
+        t('routingGenerated', 'Routing graph generated: {nodes} node(s), {edges} edge(s)')
+          .replace('{nodes}', String(result.nodes))
+          .replace('{edges}', String(result.edges)) + warn,
+      )
       // The projection replaced the routing graph — drop the route-test cache so the next test
       // loads the fresh graph.
       setTestTopo(null)
@@ -716,7 +728,7 @@ export default function AutomationTopology3D({
     } finally {
       setProjecting(false)
     }
-  }, [warehouseId, levels, equipment, connections, functionPoints])
+  }, [warehouseId, levels, equipment, connections, functionPoints, t])
 
   // ---- level helpers -----------------------------------------------------
   const activeLevel = useMemo(
@@ -1337,7 +1349,7 @@ export default function AutomationTopology3D({
   const addFromLibrary = useCallback(
     (meta: Equipment) => {
       if (!activeLevelId) {
-        setError('Add a level first')
+        setError(t('addLevelFirst', 'Add a level first'))
         return
       }
       counter.current += 1
@@ -1361,7 +1373,7 @@ export default function AutomationTopology3D({
       setSelectedId(placed.id)
       setDirty(true)
     },
-    [activeLevelId],
+    [activeLevelId, t],
   )
 
   // Place a GTP station as a "workstation" box (no master-data equipment — it references the station
@@ -1369,7 +1381,7 @@ export default function AutomationTopology3D({
   const placeWorkstation = useCallback(
     (station: Station) => {
       if (!activeLevelId) {
-        setError('Add a level first')
+        setError(t('addLevelFirst', 'Add a level first'))
         return
       }
       counter.current += 1
@@ -1394,7 +1406,7 @@ export default function AutomationTopology3D({
       setSelectedId(placed.id)
       setDirty(true)
     },
-    [activeLevelId],
+    [activeLevelId, t],
   )
 
   const deleteSelected = useCallback(() => {
@@ -1493,7 +1505,7 @@ export default function AutomationTopology3D({
       return
     }
     if (!warehouseId) {
-      setError('No active warehouse selected')
+      setError(t('noActiveWarehouse', 'No active warehouse selected'))
       return
     }
     // Exclusive with the editing modes — entering test exits connect/draw and drops selection.
@@ -1506,7 +1518,7 @@ export default function AutomationTopology3D({
     try {
       const topo = testTopo ?? (await loadTopology(warehouseId))
       if (topo.nodes.length === 0) {
-        setError('No routing graph for this warehouse — Generate routing first.')
+        setError(t('noRoutingGraph', 'No routing graph for this warehouse — Generate routing first.'))
         return
       }
       setTestTopo(topo)
@@ -1519,7 +1531,7 @@ export default function AutomationTopology3D({
     } finally {
       setTestLoading(false)
     }
-  }, [testMode, testTopo, warehouseId, exitTestMode])
+  }, [testMode, testTopo, warehouseId, exitTestMode, t])
 
   // A scene click in test mode, already resolved to the nearest routing node. First pick = start,
   // second = target; a third pick restarts with a new start.
@@ -1608,8 +1620,8 @@ export default function AutomationTopology3D({
   }, [testMode, testTopo, testStart, testTarget])
 
   const testVerdict = useMemo(
-    () => (testResult && testStart && testTarget ? routeVerdict(testResult, testStart, testTarget) : null),
-    [testResult, testStart, testTarget],
+    () => (testResult && testStart && testTarget ? routeVerdict(testResult, testStart, testTarget, t) : null),
+    [testResult, testStart, testTarget, t],
   )
 
   // Conveyor-top height in the scene: route-test overlays render slightly above it.
@@ -1664,23 +1676,23 @@ export default function AutomationTopology3D({
                 setActiveLevelId(l.id)
                 setSelectedId(null)
               }}
-              title={`Elevation ${l.elevationM} m`}
+              title={t('elevationTitle', 'Elevation {m} m').replace('{m}', String(l.elevationM))}
             >
               {l.number} · {l.name}
             </button>
           ))}
           <button type="button" className="btn btn-ghost btn-sm" onClick={addLevel}>
-            + Add level
+            {t('addLevel', '+ Add level')}
           </button>
         </div>
         <div className="atopo-actions">
-          <div className="atopo-viewtoggle" role="group" aria-label="View">
+          <div className="atopo-viewtoggle" role="group" aria-label={t('viewGroup', 'View')}>
             <button
               type="button"
               className={`atopo-viewbtn${view === '3d' ? ' is-active' : ''}`}
               onClick={() => setView('3d')}
             >
-              3D
+              {t('view3d', '3D')}
             </button>
             <button
               type="button"
@@ -1691,10 +1703,10 @@ export default function AutomationTopology3D({
                 setView('2d')
               }}
             >
-              2D plan
+              {t('view2dPlan', '2D plan')}
             </button>
           </div>
-          {dirty && <span className="atopo-dirty">Unsaved changes</span>}
+          {dirty && <span className="atopo-dirty">{t('unsavedChanges', 'Unsaved changes')}</span>}
           {/* Manual Connect removed: physical connections are inferred from geometry by the routing
               projection; GTP workstation role-interactions are set in the Properties panel. */}
           <button
@@ -1702,9 +1714,9 @@ export default function AutomationTopology3D({
             className="btn btn-ghost btn-sm"
             onClick={projectGraph}
             disabled={loading || saving || projecting}
-            title="Generate the conveyor routing graph (nodes/edges) from this layout. Saves first, then replaces the Routing graph."
+            title={t('generateRoutingTip', 'Generate the conveyor routing graph (nodes/edges) from this layout. Saves first, then replaces the Routing graph.')}
           >
-            {projecting ? 'Generating…' : 'Generate routing'}
+            {projecting ? t('generating', 'Generating…') : t('generateRouting', 'Generate routing')}
           </button>
           <button
             type="button"
@@ -1712,15 +1724,15 @@ export default function AutomationTopology3D({
             onClick={toggleTestMode}
             disabled={loading || saving || projecting || testLoading}
             aria-pressed={testMode}
-            title="Test the routing graph: click a start point and a target in the 3D view to see whether (and how) a tote can travel between them."
+            title={t('testRouteTip', 'Test the routing graph: click a start point and a target in the 3D view to see whether (and how) a tote can travel between them.')}
           >
-            {testLoading ? 'Loading graph…' : testMode ? 'Exit test' : 'Test route'}
+            {testLoading ? t('loadingGraph', 'Loading graph…') : testMode ? t('exitTest', 'Exit test') : t('testRoute', 'Test route')}
           </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={load} disabled={loading || saving}>
-            {loading ? 'Loading…' : 'Reload'}
+            {loading ? t('loading', 'Loading…') : t('reload', 'Reload')}
           </button>
           <button type="button" className="btn btn-primary btn-sm" onClick={save} disabled={saving || loading}>
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('saving', 'Saving…') : t('save', 'Save')}
           </button>
           {onToggleChrome && (
             <button
@@ -1728,7 +1740,7 @@ export default function AutomationTopology3D({
               className="atopo-fold"
               onClick={onToggleChrome}
               aria-pressed={collapsed}
-              title={collapsed ? 'Unfold header (more controls)' : 'Fold header up (more canvas)'}
+              title={collapsed ? t('unfoldHeader', 'Unfold header (more controls)') : t('foldHeader', 'Fold header up (more canvas)')}
             >
               {collapsed ? '▾' : '▴'}
             </button>
@@ -1744,8 +1756,8 @@ export default function AutomationTopology3D({
         <div className="atopo-levelmeta glass">
           <label className="atopo-inline">
             <span>
-              Level name{' '}
-              <InfoTip text="Display name for this floor/level of the automation layout." example="Mezzanine" />
+              {t('levelName', 'Level name')}{' '}
+              <InfoTip text={t('levelNameTip', 'Display name for this floor/level of the automation layout.')} example="Mezzanine" />
             </span>
             <input
               className="form-control"
@@ -1755,8 +1767,8 @@ export default function AutomationTopology3D({
           </label>
           <label className="atopo-inline">
             <span>
-              Elevation (m){' '}
-              <InfoTip text="Height of this level's floor above the ground datum, in metres." example="5" />
+              {t('elevationM', 'Elevation (m)')}{' '}
+              <InfoTip text={t('elevationTip', "Height of this level's floor above the ground datum, in metres.")} example="5" />
             </span>
             <input
               className="form-control"
@@ -1772,7 +1784,7 @@ export default function AutomationTopology3D({
       <div className="atopo-body">
         {/* ---- left: equipment library ---- */}
         <aside className="atopo-panel atopo-library glass">
-          <h3>Equipment library</h3>
+          <h3>{t('equipmentLibrary', 'Equipment library')}</h3>
           {library.length > 0 && (
             <label className="md-check atopo-unplaced">
               <input
@@ -1780,15 +1792,15 @@ export default function AutomationTopology3D({
                 checked={unplacedOnly}
                 onChange={(e) => setUnplacedOnly(e.target.checked)}
               />
-              Unplaced only
+              {t('unplacedOnly', 'Unplaced only')}
             </label>
           )}
           {library.length === 0 ? (
             <p className="atopo-muted">
-              No equipment — create some in Master data → Equipment.
+              {t('noEquipment', 'No equipment — create some in Master data → Equipment.')}
             </p>
           ) : libraryGroups.length === 0 ? (
-            <p className="atopo-muted">All equipment is placed.</p>
+            <p className="atopo-muted">{t('allEquipmentPlaced', 'All equipment is placed.')}</p>
           ) : (
             libraryGroups.map(([type, items]) => (
               <div key={type} className="atopo-libgroup">
@@ -1803,7 +1815,7 @@ export default function AutomationTopology3D({
                         <span
                           className={`atopo-badge ${placedCount > 0 ? 'is-placed' : 'is-unplaced'}`}
                         >
-                          {placedCount > 0 ? `placed ${placedCount}` : 'not placed'}
+                          {placedCount > 0 ? t('placedN', 'placed {n}').replace('{n}', String(placedCount)) : t('notPlaced', 'not placed')}
                         </span>
                       </span>
                       <button
@@ -1812,7 +1824,7 @@ export default function AutomationTopology3D({
                         onClick={() => addFromLibrary(e)}
                         disabled={!activeLevelId}
                       >
-                        + Add
+                        {t('add', '+ Add')}
                       </button>
                     </div>
                   )
@@ -1825,7 +1837,7 @@ export default function AutomationTopology3D({
               connected to conveyors. Sourced from the GTP config, not the equipment library. */}
           {stations.length > 0 && (
             <div className="atopo-libgroup">
-              <div className="atopo-libgroup-head">GTP workplaces</div>
+              <div className="atopo-libgroup-head">{t('gtpWorkplaces', 'GTP workplaces')}</div>
               {stations.map((s) => {
                 const placedCount = equipment.filter((e) => e.stationId === s.id).length
                 return (
@@ -1834,7 +1846,7 @@ export default function AutomationTopology3D({
                       {s.code}
                       {s.name ? <span className="atopo-muted"> · {s.name}</span> : null}
                       <span className={`atopo-badge ${placedCount > 0 ? 'is-placed' : 'is-unplaced'}`}>
-                        {placedCount > 0 ? `placed ${placedCount}` : 'not placed'}
+                        {placedCount > 0 ? t('placedN', 'placed {n}').replace('{n}', String(placedCount)) : t('notPlaced', 'not placed')}
                       </span>
                     </span>
                     <button
@@ -1843,7 +1855,7 @@ export default function AutomationTopology3D({
                       onClick={() => placeWorkstation(s)}
                       disabled={!activeLevelId}
                     >
-                      + Add
+                      {t('add', '+ Add')}
                     </button>
                   </div>
                 )
@@ -1856,9 +1868,9 @@ export default function AutomationTopology3D({
         <div className="atopo-canvas glass">
           {levels.length === 0 ? (
             <div className="atopo-empty">
-              <p>This warehouse has no automation levels yet.</p>
+              <p>{t('noLevelsYet', 'This warehouse has no automation levels yet.')}</p>
               <button type="button" className="btn btn-primary btn-sm" onClick={addLevel}>
-                + Add the first level
+                {t('addFirstLevel', '+ Add the first level')}
               </button>
             </div>
           ) : view === '2d' ? (
@@ -1963,14 +1975,14 @@ export default function AutomationTopology3D({
             </Canvas>
             <div className="atopo-hint">
               {pickFpMode ? (
-                'Click a function point in the scene (Esc to cancel)'
+                t('hintPickFp', 'Click a function point in the scene (Esc to cancel)')
               ) : testMode ? (
                 <>
                   {!testStart
-                    ? 'Route test: click a start point, then a target — Esc to exit'
+                    ? t('hintTestStart', 'Route test: click a start point, then a target — Esc to exit')
                     : !testTarget
-                      ? `Route test: start ${testStart} — click a target — Esc to exit`
-                      : 'Route test: click to pick a new start — Esc to exit'}
+                      ? t('hintTestTarget', 'Route test: start {start} — click a target — Esc to exit').replace('{start}', testStart)
+                      : t('hintTestRestart', 'Route test: click to pick a new start — Esc to exit')}
                   {testVerdict && (
                     <span className={`atopo-route-chip ${testVerdict.ok ? 'is-ok' : 'is-bad'}`}>
                       {testVerdict.text}
@@ -1979,12 +1991,12 @@ export default function AutomationTopology3D({
                 </>
               ) : connectMode ? (
                 connectFrom
-                  ? `Connect: from ${equipmentById.get(connectFrom)?.code ?? '?'} — click a target (or the source again to cancel)`
-                  : 'Connect: click a source piece of equipment'
+                  ? t('hintConnectTarget', 'Connect: from {code} — click a target (or the source again to cancel)').replace('{code}', equipmentById.get(connectFrom)?.code ?? '?')
+                  : t('hintConnectSource', 'Connect: click a source piece of equipment')
               ) : drawPath ? (
-                'Draw mode: click a start point then an end point — the section runs start → end'
+                t('hintDrawMode', 'Draw mode: click a start point then an end point — the section runs start → end')
               ) : (
-                'Drag to orbit · right-drag to pan · scroll to zoom'
+                t('hintOrbit', 'Drag to orbit · right-drag to pan · scroll to zoom')
               )}
             </div>
             </>
@@ -1993,9 +2005,9 @@ export default function AutomationTopology3D({
 
         {/* ---- right: properties ---- */}
         <aside className="atopo-panel atopo-props glass">
-          <h3>Properties</h3>
+          <h3>{t('properties', 'Properties')}</h3>
           {!selected ? (
-            <p className="atopo-muted">Select a piece of equipment to edit it, or add one from the library.</p>
+            <p className="atopo-muted">{t('selectEquipmentHint', 'Select a piece of equipment to edit it, or add one from the library.')}</p>
           ) : (
             <div className="atopo-fields">
               {/* Conveyor section tools first — the most-used drawing controls, reachable without
@@ -2012,7 +2024,7 @@ export default function AutomationTopology3D({
                 />
               )}
               <label className="atopo-field">
-                <span>Code</span>
+                <span>{t('code', 'Code')}</span>
                 <input
                   className="form-control"
                   value={selected.code}
@@ -2020,27 +2032,27 @@ export default function AutomationTopology3D({
                 />
               </label>
               <label className="atopo-field">
-                <span>Level</span>
+                <span>{t('level', 'Level')}</span>
                 <Select
-                  ariaLabel="Level"
+                  ariaLabel={t('level', 'Level')}
                   value={selected.levelId}
                   onChange={(v) => patchEquipment(selected.id, { levelId: v })}
                   options={levels.map((l) => ({ value: l.id, label: `${l.number} · ${l.name}` }))}
                 />
               </label>
               <div className="atopo-grid2">
-                <NumField label="Pos X (m)" value={selected.posXM} onChange={(v) => patchEquipment(selected.id, { posXM: v })} />
-                <NumField label="Pos Z (m)" value={selected.posZM} onChange={(v) => patchEquipment(selected.id, { posZM: v })} />
-                <NumField label="Pos Y (m)" value={selected.posYM} onChange={(v) => patchEquipment(selected.id, { posYM: v })} />
-                <NumField label="Rotation (°)" value={selected.rotationDeg} onChange={(v) => patchEquipment(selected.id, { rotationDeg: v })} />
-                <NumField label="Tilt (°)" value={selected.tiltDeg} onChange={(v) => patchEquipment(selected.id, { tiltDeg: v })} />
+                <NumField label={t('posX', 'Pos X (m)')} value={selected.posXM} onChange={(v) => patchEquipment(selected.id, { posXM: v })} />
+                <NumField label={t('posZ', 'Pos Z (m)')} value={selected.posZM} onChange={(v) => patchEquipment(selected.id, { posZM: v })} />
+                <NumField label={t('posY', 'Pos Y (m)')} value={selected.posYM} onChange={(v) => patchEquipment(selected.id, { posYM: v })} />
+                <NumField label={t('rotationDeg', 'Rotation (°)')} value={selected.rotationDeg} onChange={(v) => patchEquipment(selected.id, { rotationDeg: v })} />
+                <NumField label={t('tiltDeg', 'Tilt (°)')} value={selected.tiltDeg} onChange={(v) => patchEquipment(selected.id, { tiltDeg: v })} />
               </div>
               <div className="atopo-grid2">
                 {!hasPath(selected) && (
-                  <NumField label="Length (m)" value={selected.lengthM} onChange={(v) => patchEquipment(selected.id, { lengthM: v })} />
+                  <NumField label={t('lengthM', 'Length (m)')} value={selected.lengthM} onChange={(v) => patchEquipment(selected.id, { lengthM: v })} />
                 )}
-                <NumField label="Width (m)" value={selected.widthM} onChange={(v) => patchEquipment(selected.id, { widthM: v })} />
-                <NumField label="Height (m)" value={selected.heightM} onChange={(v) => patchEquipment(selected.id, { heightM: v })} />
+                <NumField label={t('widthM', 'Width (m)')} value={selected.widthM} onChange={(v) => patchEquipment(selected.id, { widthM: v })} />
+                <NumField label={t('heightM', 'Height (m)')} value={selected.heightM} onChange={(v) => patchEquipment(selected.id, { heightM: v })} />
               </div>
 
               <FunctionPointsPanel
@@ -2072,18 +2084,18 @@ export default function AutomationTopology3D({
               {selectedIsWorkstation && (
                 <label className="atopo-field">
                   <span>
-                    GTP workplace{' '}
+                    {t('gtpWorkplace', 'GTP workplace')}{' '}
                     <InfoTip
-                      text="The goods-to-person workplace this box represents. Connect it to conveyors to model how work reaches it."
+                      text={t('gtpWorkplaceTip', 'The goods-to-person workplace this box represents. Connect it to conveyors to model how work reaches it.')}
                       example="PP1 — Pick Place 1"
                     />
                   </span>
                   <Select
-                    ariaLabel="GTP workplace"
+                    ariaLabel={t('gtpWorkplace', 'GTP workplace')}
                     value={selected.stationId ?? ''}
                     onChange={(v) => patchEquipment(selected.id, { stationId: v || null })}
                     options={[
-                      { value: '', label: '— unlinked —' },
+                      { value: '', label: t('unlinked', '— unlinked —') },
                       ...stations.map((s) => ({ value: s.id, label: s.name ? `${s.code} — ${s.name}` : s.code })),
                     ]}
                   />
@@ -2106,7 +2118,7 @@ export default function AutomationTopology3D({
               )}
 
               <button type="button" className="btn btn-danger btn-sm atopo-delete" onClick={deleteSelected}>
-                Delete equipment
+                {t('deleteEquipment', 'Delete equipment')}
               </button>
             </div>
           )}
@@ -2183,6 +2195,7 @@ function FunctionPointDialog({
   onDelete: (id: string) => void
   onClose: () => void
 }) {
+  const t = useT('topology')
   const active = fpFunctions(fp.functionType)
   // Toggle one function on/off; never let the set go empty.
   const toggle = (t: string) => {
@@ -2205,16 +2218,16 @@ function FunctionPointDialog({
           <h3 style={{ color: functionColorForSet(active) }}>
             {functionShortForSet(active) || fp.functionType}
           </h3>
-          <button type="button" className="atopo-modal-x" onClick={onClose} aria-label="Close">
+          <button type="button" className="atopo-modal-x" onClick={onClose} aria-label={t('close', 'Close')}>
             ×
           </button>
         </div>
 
         <label className="atopo-field">
           <span>
-            Functions{' '}
+            {t('functions', 'Functions')}{' '}
             <InfoTip
-              text="A point can combine functions — e.g. a scan + divert at the same spot. Toggle the ones that apply (at least one)."
+              text={t('functionsTip', 'A point can combine functions, e.g. a scan + divert at the same spot. Toggle the ones that apply (at least one).')}
               example="SCAN + DIV ◀"
             />
           </span>
@@ -2250,22 +2263,22 @@ function FunctionPointDialog({
         </label>
 
         <label className="atopo-field">
-          <span>Name</span>
+          <span>{t('name', 'Name')}</span>
           <input
             className="form-control"
             value={fp.name ?? ''}
-            placeholder="optional"
+            placeholder={t('optional', 'optional')}
             autoFocus
             onChange={(e) => onUpdate(fp.id, { name: e.target.value || null })}
           />
         </label>
 
         <div className="atopo-grid2">
-          <NumField label="Offset (m)" value={fp.offsetM} onChange={(v) => onUpdate(fp.id, { offsetM: v })} />
+          <NumField label={t('offsetM', 'Offset (m)')} value={fp.offsetM} onChange={(v) => onUpdate(fp.id, { offsetM: v })} />
           <label className="atopo-field">
-            <span>Side</span>
+            <span>{t('side', 'Side')}</span>
             <Select
-              ariaLabel="Side"
+              ariaLabel={t('side', 'Side')}
               value={fp.side ?? ''}
               onChange={(v) => onUpdate(fp.id, { side: v || null })}
               options={[
@@ -2279,16 +2292,16 @@ function FunctionPointDialog({
 
         <label className="atopo-field">
           <span>
-            Node code{' '}
+            {t('nodeCode', 'Node code')}{' '}
             <InfoTip
-              text="Optional — maps this point to a conveyor routing node so material-flow routes can reference it."
+              text={t('nodeCodeTip', 'Optional, maps this point to a conveyor routing node so material-flow routes can reference it.')}
               example="DIV-12"
             />
           </span>
           <input
             className="form-control"
             value={fp.nodeCode ?? ''}
-            placeholder="optional"
+            placeholder={t('optional', 'optional')}
             onChange={(e) => onUpdate(fp.id, { nodeCode: e.target.value || null })}
           />
         </label>
@@ -2296,20 +2309,20 @@ function FunctionPointDialog({
         {active.some(isDivertType) && (
           <label className="atopo-field">
             <span>
-              Default direction{' '}
+              {t('defaultDirection', 'Default direction')}{' '}
               <InfoTip
-                text="Where a tote goes at this divert when no route tells it otherwise: Straight keeps it on the main line, Branch sends it down the divert. With None it stops and waits at the divert until a route arrives."
+                text={t('defaultDirectionTip', 'Where a tote goes at this divert when no route tells it otherwise: Straight keeps it on the main line, Branch sends it down the divert. With None it stops and waits at the divert until a route arrives.')}
                 example="Straight"
               />
             </span>
             <Select
-              ariaLabel="Default direction"
+              ariaLabel={t('defaultDirection', 'Default direction')}
               value={fp.defaultExit ?? ''}
               onChange={(v) => onUpdate(fp.id, { defaultExit: v || null })}
               options={[
-                { value: '', label: 'None (stop)' },
-                { value: 'STRAIGHT', label: 'Straight (main line)' },
-                { value: 'BRANCH', label: 'Branch (divert)' },
+                { value: '', label: t('noneStop', 'None (stop)') },
+                { value: 'STRAIGHT', label: t('straightMainLine', 'Straight (main line)') },
+                { value: 'BRANCH', label: t('branchDivert', 'Branch (divert)') },
               ]}
             />
           </label>
@@ -2324,10 +2337,10 @@ function FunctionPointDialog({
               onClose()
             }}
           >
-            Delete
+            {t('delete', 'Delete')}
           </button>
           <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>
-            Done
+            {t('done', 'Done')}
           </button>
         </div>
       </div>
@@ -2378,6 +2391,7 @@ function ConveyorPathTools({
   onRemoveLastSection: () => void
   onClearAnchor: () => void
 }) {
+  const t = useT('topology')
   const path = Array.isArray(eq.path) ? eq.path : []
   const count = path.length
   const sections = effectiveSections(eq)
@@ -2402,18 +2416,23 @@ function ConveyorPathTools({
   return (
     <div className="atopo-pathtools">
       <div className="atopo-pathtools-head">
-        Conveyor sections{' '}
+        {t('conveyorSections', 'Conveyor sections')}{' '}
         <InfoTip
-          text="Draw this conveyor section by section as a directed graph: each section is a one-way run with a travel-direction arrow. Click a waypoint to branch from it — a point with 2+ outgoing sections becomes an automatic decision/divert point."
+          text={t('conveyorSectionsTip', 'Draw this conveyor section by section as a directed graph: each section is a one-way run with a travel-direction arrow. Click a waypoint to branch from it, a point with 2+ outgoing sections becomes an automatic decision/divert point.')}
           example="a main line that diverts at a junction"
         />
       </div>
       <div className="atopo-pathcount">
         {count === 0
-          ? 'No path — rendering as a straight box.'
-          : `${count} point${count === 1 ? '' : 's'} · ${sections.length} section${sections.length === 1 ? '' : 's'}${
-              explicitSections === 0 && count >= 2 ? ' (implicit sequential)' : ''
-            }${decisions.size > 0 ? ` · ${decisions.size} decision point${decisions.size === 1 ? '' : 's'}` : ''}`}
+          ? t('noPathStraightBox', 'No path, rendering as a straight box.')
+          : `${count === 1 ? t('pointOne', '{n} point') : t('pointMany', '{n} points')}`.replace('{n}', String(count)) +
+            ' · ' +
+            `${sections.length === 1 ? t('sectionOne', '{n} section') : t('sectionMany', '{n} sections')}`.replace('{n}', String(sections.length)) +
+            (explicitSections === 0 && count >= 2 ? ' ' + t('implicitSequential', '(implicit sequential)') : '') +
+            (decisions.size > 0
+              ? ' · ' +
+                `${decisions.size === 1 ? t('decisionPointOne', '{n} decision point') : t('decisionPointMany', '{n} decision points')}`.replace('{n}', String(decisions.size))
+              : '')}
       </div>
 
       <button
@@ -2421,19 +2440,19 @@ function ConveyorPathTools({
         className={`btn btn-sm ${drawPath ? 'btn-primary' : 'btn-outline'} atopo-pathbtn`}
         onClick={onToggleDraw}
         disabled={count === 0}
-        title={count === 0 ? 'Seed a path first with “Start from box”.' : undefined}
+        title={count === 0 ? t('seedPathFirst', 'Seed a path first with “Start from box”.') : undefined}
       >
-        {drawPath ? 'Drawing sections… (click to stop)' : 'Draw sections'}
+        {drawPath ? t('drawingSections', 'Drawing sections… (click to stop)') : t('drawSections', 'Draw sections')}
       </button>
 
       {drawPath && (
         <div className="atopo-drawhint">
           {activeFromIdx == null
-            ? 'Click a start point (a point/body on the conveyor, or empty floor), then an end point — the section runs start → end. Keep clicking to chain.'
-            : `Anchored at point ${activeFromIdx + 1}. Click an end point to draw the section ${activeFromIdx + 1} → there; it then becomes the new anchor. Click point ${activeFromIdx + 1} to re-pick.`}
+            ? t('drawHintStart', 'Click a start point (a point/body on the conveyor, or empty floor), then an end point, the section runs start → end. Keep clicking to chain.')
+            : t('drawHintAnchored', 'Anchored at point {n}. Click an end point to draw the section {n} → there; it then becomes the new anchor. Click point {n} to re-pick.').replace(/\{n\}/g, String(activeFromIdx + 1))}
           {activeFromIdx != null && (
             <button type="button" className="atopo-linkbtn" onClick={onClearAnchor}>
-              clear anchor
+              {t('clearAnchor', 'clear anchor')}
             </button>
           )}
         </div>
@@ -2441,7 +2460,7 @@ function ConveyorPathTools({
 
       {count === 0 && (
         <button type="button" className="btn btn-outline btn-sm atopo-pathbtn" onClick={startFromBox}>
-          Start from box
+          {t('startFromBox', 'Start from box')}
         </button>
       )}
 
@@ -2451,9 +2470,9 @@ function ConveyorPathTools({
           checked={!!eq.closed}
           onChange={(e) => onPatch({ closed: e.target.checked })}
         />
-        Closed loop{' '}
+        {t('closedLoop', 'Closed loop')}{' '}
         <InfoTip
-          text="Only affects implicit sequential paths (no explicit sections): when on, the path loops back from the last waypoint to the first."
+          text={t('closedLoopTip', 'Only affects implicit sequential paths (no explicit sections): when on, the path loops back from the last waypoint to the first.')}
           example="a recirculating sorter loop"
         />
       </label>
@@ -2465,7 +2484,7 @@ function ConveyorPathTools({
           onClick={onRemoveLastSection}
           disabled={explicitSections === 0}
         >
-          Remove last section
+          {t('removeLastSection', 'Remove last section')}
         </button>
         <button
           type="button"
@@ -2473,7 +2492,7 @@ function ConveyorPathTools({
           onClick={() => onPatch({ path: null, sections: null })}
           disabled={count === 0}
         >
-          Clear
+          {t('clear', 'Clear')}
         </button>
       </div>
     </div>
@@ -2506,6 +2525,7 @@ function NodeLinksPanel({
   onAdd: (conn: AutomationConnection) => void
   onDelete: (id: string) => void
 }) {
+  const t = useT('topology')
   // Honest feedback after link/unlink (e.g. "explicit link removed; still auto-linked by proximity").
   const [note, setNote] = useState<string | null>(null)
 
@@ -2534,22 +2554,22 @@ function NodeLinksPanel({
   return (
     <div className="atopo-links">
       <div className="atopo-links-head">
-        Connections{' '}
+        {t('connections', 'Connections')}{' '}
         <InfoTip
-          text="Whether each end node of this equipment is linked where it meets another (an ASRS outfeed onto a conveyor infeed). Nodes of different equipment within 1.5 m link automatically when the routing is generated; an explicit link forces one at any distance. A link joins the two systems; it does not set a direction of travel: each conveyor\u2019s own section arrows govern which way totes actually move across the touchpoint."
+          text={t('connectionsTip', 'Whether each end node of this equipment is linked where it meets another (an ASRS outfeed onto a conveyor infeed). Nodes of different equipment within 1.5 m link automatically when the routing is generated; an explicit link forces one at any distance. A link joins the two systems; it does not set a direction of travel: each conveyor\u2019s own section arrows govern which way totes actually move across the touchpoint.')}
           example="OUT stub end ↔ BIN_CONVEYOR-1#0 · 0.3 m · auto"
         />
       </div>
       {focused && (
         <p className="atopo-muted atopo-links-scope">
-          Selected node only ·{' '}
+          {t('selectedNodeOnly', 'Selected node only')} ·{' '}
           <button type="button" className="atopo-linklike" onClick={() => setShowAll(true)}>
-            show all nodes
+            {t('showAllNodes', 'show all nodes')}
           </button>
         </p>
       )}
       {rows.length === 0 ? (
-        <p className="atopo-muted atopo-fps-empty">No routable nodes on this equipment.</p>
+        <p className="atopo-muted atopo-fps-empty">{t('noRoutableNodes', 'No routable nodes on this equipment.')}</p>
       ) : (
         <ul className="atopo-links-list">
           {rows.map((row) => {
@@ -2561,8 +2581,8 @@ function NodeLinksPanel({
                 {row.explicit.map((x) => (
                   <div key={x.connectionId} className="atopo-links-state is-linked">
                     <span>
-                      ↔ {x.other.code} · {x.distM.toFixed(1)} m · explicit
-                      {x.distM <= ADJACENCY_M ? ' (also in auto-link range)' : ''}
+                      ↔ {x.other.code} · {x.distM.toFixed(1)} m · {t('explicit', 'explicit')}
+                      {x.distM <= ADJACENCY_M ? ' ' + t('alsoInAutoRange', '(also in auto-link range)') : ''}
                     </span>
                     <button
                       type="button"
@@ -2571,12 +2591,17 @@ function NodeLinksPanel({
                         onDelete(x.connectionId)
                         setNote(
                           x.distM <= ADJACENCY_M
-                            ? `Explicit link removed, ${row.node.code} and ${x.other.code} are still auto-linked by proximity (${x.distM.toFixed(1)} m).`
-                            : `Explicit link removed, ${row.node.code} is no longer linked to ${x.other.code}.`,
+                            ? t('noteUnlinkedStillAuto', 'Explicit link removed, {a} and {b} are still auto-linked by proximity ({m} m).')
+                                .replace('{a}', row.node.code)
+                                .replace('{b}', x.other.code)
+                                .replace('{m}', x.distM.toFixed(1))
+                            : t('noteUnlinked', 'Explicit link removed, {a} is no longer linked to {b}.')
+                                .replace('{a}', row.node.code)
+                                .replace('{b}', x.other.code),
                         )
                       }}
                     >
-                      Unlink
+                      {t('unlink', 'Unlink')}
                     </button>
                   </div>
                 ))}
@@ -2584,7 +2609,7 @@ function NodeLinksPanel({
                 {row.auto && (
                   <div className="atopo-links-state is-linked">
                     <span>
-                      ↔ {row.auto.other.code} · {row.auto.distM.toFixed(1)} m · auto (proximity)
+                      ↔ {row.auto.other.code} · {row.auto.distM.toFixed(1)} m · {t('autoProximity', 'auto (proximity)')}
                     </span>
                   </div>
                 )}
@@ -2594,20 +2619,21 @@ function NodeLinksPanel({
                   (row.nearest ? (
                     <div className="atopo-links-state is-unlinked">
                       <span>
-                        not linked · nearest {row.nearest.other.code} at{' '}
-                        {row.nearest.distM.toFixed(1)} m
+                        {t('notLinkedNearest', 'not linked · nearest {code} at {m} m')
+                          .replace('{code}', row.nearest.other.code)
+                          .replace('{m}', row.nearest.distM.toFixed(1))}
                       </span>
                     </div>
                   ) : (
                     <div className="atopo-links-state">
-                      <span className="atopo-muted">no other equipment nodes</span>
+                      <span className="atopo-muted">{t('noOtherEquipNodes', 'no other equipment nodes')}</span>
                     </div>
                   ))}
 
                 <Select
-                  ariaLabel={`Link ${row.node.code} to`}
+                  ariaLabel={t('linkNodeTo', 'Link {code} to').replace('{code}', row.node.code)}
                   value=""
-                  placeholder={candidates.length ? 'Link to… (closest first)' : 'No other nodes to link'}
+                  placeholder={candidates.length ? t('linkToClosest', 'Link to… (closest first)') : t('noOtherNodesToLink', 'No other nodes to link')}
                   disabled={candidates.length === 0}
                   onChange={(v) => {
                     const cand = candidates.find(
@@ -2626,7 +2652,10 @@ function NodeLinksPanel({
                       status: 'ACTIVE',
                     })
                     setNote(
-                      `Explicit link added: ${row.node.code} → ${cand.other.code} (${cand.distM.toFixed(1)} m). Save, then Generate routing.`,
+                      t('noteLinkAdded', 'Explicit link added: {a} → {b} ({m} m). Save, then Generate routing.')
+                        .replace('{a}', row.node.code)
+                        .replace('{b}', cand.other.code)
+                        .replace('{m}', cand.distM.toFixed(1)),
                     )
                   }}
                   options={candidates.slice(0, 25).map((c) => ({
@@ -2661,6 +2690,7 @@ function ConnectionsPanel({
   onOpen: (id: string) => void
   onDelete: (id: string) => void
 }) {
+  const t = useT('topology')
   const [open, setOpen] = useState(true)
   return (
     <div className="atopo-conns">
@@ -2670,14 +2700,13 @@ function ConnectionsPanel({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
       >
-        <span>Connections ({connections.length})</span>
+        <span>{t('connectionsCount', 'Connections ({n})').replace('{n}', String(connections.length))}</span>
         <span className="atopo-conns-chevron">{open ? '▾' : '▸'}</span>
       </button>
       {open &&
         (connections.length === 0 ? (
           <p className="atopo-muted atopo-conns-empty">
-            None yet, touching conveyors link automatically; select a piece of equipment to draw
-            explicit node links in its Connections section.
+            {t('connsEmpty', 'None yet, touching conveyors link automatically; select a piece of equipment to draw explicit node links in its Connections section.')}
           </p>
         ) : (
           <ul className="atopo-conns-list">
@@ -2699,12 +2728,12 @@ function ConnectionsPanel({
                     onClick={() => onOpen(c.id)}
                     title={
                       dangling
-                        ? 'One endpoint is missing from this layout, click for details'
-                        : 'Open connection details'
+                        ? t('endpointMissingShort', 'One endpoint is missing from this layout, click for details')
+                        : t('openConnDetails', 'Open connection details')
                     }
                   >
                     {fromLabel} ↔ {toLabel}
-                    {dangling ? <span className="atopo-muted"> · dangling</span> : null}
+                    {dangling ? <span className="atopo-muted"> · {t('dangling', 'dangling')}</span> : null}
                   </button>
                   <button
                     type="button"
@@ -2714,7 +2743,7 @@ function ConnectionsPanel({
                       onDelete(c.id)
                     }}
                   >
-                    Delete
+                    {t('delete', 'Delete')}
                   </button>
                 </li>
               )
@@ -2747,6 +2776,7 @@ function ConnectionDetailDialog({
   onDelete: (id: string) => void
   onClose: () => void
 }) {
+  const t = useT('topology')
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -2792,7 +2822,7 @@ function ConnectionDetailDialog({
     return [
       {
         value: '',
-        label: fallbackNode ? `Auto (${fallbackNode.code})` : 'Auto',
+        label: fallbackNode ? t('autoWith', 'Auto ({code})').replace('{code}', fallbackNode.code) : t('auto', 'Auto'),
       },
       ...nodes.map((n) => ({ value: String(n.index), label: n.code })),
     ]
@@ -2802,8 +2832,8 @@ function ConnectionDetailDialog({
     <div className="atopo-modal-backdrop" onPointerDown={onClose}>
       <div className="atopo-modal glass" onPointerDown={(e) => e.stopPropagation()}>
         <div className="atopo-modal-head">
-          <h3>Connection</h3>
-          <button type="button" className="atopo-modal-x" onClick={onClose} aria-label="Close">
+          <h3>{t('connection', 'Connection')}</h3>
+          <button type="button" className="atopo-modal-x" onClick={onClose} aria-label={t('close', 'Close')}>
             ×
           </button>
         </div>
@@ -2816,47 +2846,46 @@ function ConnectionDetailDialog({
 
         <dl className="atopo-conn-meta">
           <div>
-            <dt>Type</dt>
+            <dt>{t('type', 'Type')}</dt>
             <dd>
               {isWorkstationRole
-                ? 'Workstation role interaction'
+                ? t('typeWorkstationRole', 'Workstation role interaction')
                 : anchored
-                  ? 'Explicit node link (hand-drawn)'
-                  : 'Explicit link (auto-inferred endpoints)'}
+                  ? t('typeExplicitHandDrawn', 'Explicit node link (hand-drawn)')
+                  : t('typeExplicitAuto', 'Explicit link (auto-inferred endpoints)')}
             </dd>
           </div>
           <div>
-            <dt>Distance</dt>
-            <dd>{distM != null ? `${distM.toFixed(2)} m` : 'unknown (endpoint missing)'}</dd>
+            <dt>{t('distance', 'Distance')}</dt>
+            <dd>{distM != null ? `${distM.toFixed(2)} m` : t('unknownEndpointMissing', 'unknown (endpoint missing)')}</dd>
           </div>
           <div>
-            <dt>Status</dt>
+            <dt>{t('status', 'Status')}</dt>
             <dd>{conn.status ?? 'ACTIVE'}</dd>
           </div>
         </dl>
 
         {dangling && (
           <p className="atopo-links-note">
-            One endpoint is missing from this layout, so this link is dangling. It will be dropped on
-            the next Generate routing. Delete it or restore the equipment.
+            {t('danglingNote', 'One endpoint is missing from this layout, so this link is dangling. It will be dropped on the next Generate routing. Delete it or restore the equipment.')}
           </p>
         )}
 
         {!isWorkstationRole && (
           <div className="atopo-grid2">
             <label className="atopo-field">
-              <span>From path point</span>
+              <span>{t('fromPathPoint', 'From path point')}</span>
               <Select
-                ariaLabel="From path point"
+                ariaLabel={t('fromPathPoint', 'From path point')}
                 value={conn.fromPathIndex != null ? String(conn.fromPathIndex) : ''}
                 onChange={(v) => onUpdate(conn.id, { fromPathIndex: v === '' ? null : Number(v) })}
                 options={indexOptions(fromNodes, 'exit')}
               />
             </label>
             <label className="atopo-field">
-              <span>To path point</span>
+              <span>{t('toPathPoint', 'To path point')}</span>
               <Select
-                ariaLabel="To path point"
+                ariaLabel={t('toPathPoint', 'To path point')}
                 value={conn.toPathIndex != null ? String(conn.toPathIndex) : ''}
                 onChange={(v) => onUpdate(conn.id, { toPathIndex: v === '' ? null : Number(v) })}
                 options={indexOptions(toNodes, 'entry')}
@@ -2867,24 +2896,24 @@ function ConnectionDetailDialog({
 
         <label className="atopo-field">
           <span>
-            Label{' '}
+            {t('label', 'Label')}{' '}
             <InfoTip
-              text="Optional human-readable name for this link, shown in the Connections list and the routing graph."
+              text={t('labelTip', 'Optional human-readable name for this link, shown in the Connections list and the routing graph.')}
               example="ASRS outfeed to pick line"
             />
           </span>
           <input
             className="form-control"
             value={conn.label ?? ''}
-            placeholder="optional"
+            placeholder={t('optional', 'optional')}
             onChange={(e) => onUpdate(conn.id, { label: e.target.value || null })}
           />
         </label>
 
         <label className="atopo-field">
-          <span>Status</span>
+          <span>{t('status', 'Status')}</span>
           <Select
-            ariaLabel="Status"
+            ariaLabel={t('status', 'Status')}
             value={conn.status ?? 'ACTIVE'}
             onChange={(v) => onUpdate(conn.id, { status: v })}
             options={[
@@ -2895,7 +2924,7 @@ function ConnectionDetailDialog({
         </label>
 
         <p className="atopo-muted atopo-conn-savehint">
-          Changes apply to the layout in memory; press Save to persist them.
+          {t('savehintMemory', 'Changes apply to the layout in memory; press Save to persist them.')}
         </p>
 
         <div className="atopo-modal-actions">
@@ -2907,10 +2936,10 @@ function ConnectionDetailDialog({
               onClose()
             }}
           >
-            Delete
+            {t('delete', 'Delete')}
           </button>
           <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>
-            Done
+            {t('done', 'Done')}
           </button>
         </div>
       </div>
@@ -2935,6 +2964,7 @@ function FunctionPointsPanel({
   onUpdate: (id: string, patch: Partial<AutomationFunctionPoint>) => void
   onDelete: (id: string) => void
 }) {
+  const t = useT('topology')
   const typeOptions = processTypes && processTypes.length > 0 ? processTypes : [...FUNCTION_TYPES]
   const [functionType, setFunctionType] = useState<string>(typeOptions[0] ?? FUNCTION_TYPES[0])
   const [name, setName] = useState('')
@@ -2968,15 +2998,15 @@ function FunctionPointsPanel({
   return (
     <div className="atopo-fps">
       <div className="atopo-fps-head">
-        Function points{' '}
+        {t('functionPoints', 'Function points')}{' '}
         <InfoTip
-          text="Process points on this equipment — scanners, label applicators, diverts, DWS, query points, wrappers, induct/discharge. Each sits at an offset along the equipment."
+          text={t('functionPointsTip', 'Process points on this equipment, scanners, label applicators, diverts, DWS, query points, wrappers, induct/discharge. Each sits at an offset along the equipment.')}
           example="a scanner 1.5 m in on the left"
         />
       </div>
 
       {points.length === 0 ? (
-        <p className="atopo-muted atopo-fps-empty">None yet.</p>
+        <p className="atopo-muted atopo-fps-empty">{t('noneYet', 'None yet.')}</p>
       ) : (
         <ul className="atopo-fps-list">
           {points.map((fp) => {
@@ -3041,7 +3071,7 @@ function FunctionPointsPanel({
                   className="btn btn-danger btn-sm"
                   onClick={() => onDelete(fp.id)}
                 >
-                  Delete
+                  {t('delete', 'Delete')}
                 </button>
               </li>
             )
@@ -3051,26 +3081,26 @@ function FunctionPointsPanel({
 
       <div className="atopo-fps-form">
         <label className="atopo-field">
-          <span>Function type</span>
+          <span>{t('functionType', 'Function type')}</span>
           <Select
-            ariaLabel="Function type"
+            ariaLabel={t('functionType', 'Function type')}
             value={functionType}
             onChange={setFunctionType}
-            options={typeOptions.map((t) => ({ value: t, label: t }))}
+            options={typeOptions.map((opt) => ({ value: opt, label: opt }))}
           />
         </label>
         <label className="atopo-field">
-          <span>Name</span>
+          <span>{t('name', 'Name')}</span>
           <input
             className="form-control"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="optional"
+            placeholder={t('optional', 'optional')}
           />
         </label>
         <div className="atopo-grid2">
           <label className="atopo-field">
-            <span>Offset (m)</span>
+            <span>{t('offsetM', 'Offset (m)')}</span>
             <input
               className="form-control"
               type="number"
@@ -3080,9 +3110,9 @@ function FunctionPointsPanel({
             />
           </label>
           <label className="atopo-field">
-            <span>Side</span>
+            <span>{t('side', 'Side')}</span>
             <Select
-              ariaLabel="Side"
+              ariaLabel={t('side', 'Side')}
               value={side}
               onChange={setSide}
               options={[
@@ -3095,9 +3125,9 @@ function FunctionPointsPanel({
         </div>
         <label className="atopo-field">
           <span>
-            Node code{' '}
+            {t('nodeCode', 'Node code')}{' '}
             <InfoTip
-              text="Optional — maps this point to a conveyor routing node so material-flow routes can reference it."
+              text={t('nodeCodeTip', 'Optional, maps this point to a conveyor routing node so material-flow routes can reference it.')}
               example="DIV-12"
             />
           </span>
@@ -3105,11 +3135,11 @@ function FunctionPointsPanel({
             className="form-control"
             value={nodeCode}
             onChange={(e) => setNodeCode(e.target.value)}
-            placeholder="optional"
+            placeholder={t('optional', 'optional')}
           />
         </label>
         <button type="button" className="btn btn-outline btn-sm" onClick={add}>
-          + Add function point
+          {t('addFunctionPoint', '+ Add function point')}
         </button>
       </div>
     </div>
@@ -3148,6 +3178,7 @@ function WorkstationConveyorPanel({
   onArmPick: (onPicked: (fpId: string) => void) => void
   onCancelPick: () => void
 }) {
+  const t = useT('topology')
   const [role, setRole] = useState(WORKSTATION_ROLES[0])
   const [pointId, setPointId] = useState('')
 
@@ -3198,14 +3229,14 @@ function WorkstationConveyorPanel({
   return (
     <div className="atopo-areas">
       <div className="atopo-areas-head">
-        Conveyor interactions{' '}
+        {t('conveyorInteractions', 'Conveyor interactions')}{' '}
         <InfoTip
-          text="Link this workplace to specific conveyor function points, each with a role. A pick-place usually has two (a STOCK feed + an ORDER conveyor); a decant station one or none."
+          text={t('conveyorInteractionsTip', 'Link this workplace to specific conveyor function points, each with a role. A pick-place usually has two (a STOCK feed + an ORDER conveyor); a decant station one or none.')}
           example="STOCK · CONV-1 · SCAN @ 3m"
         />
       </div>
       {myConns.length === 0 ? (
-        <p className="atopo-muted atopo-areas-empty">No conveyor interactions yet.</p>
+        <p className="atopo-muted atopo-areas-empty">{t('noConveyorInteractions', 'No conveyor interactions yet.')}</p>
       ) : (
         <ul className="atopo-areas-list">
           {myConns.map((c) => {
@@ -3215,10 +3246,10 @@ function WorkstationConveyorPanel({
                 <span className="atopo-areas-code">
                   <strong>{c.label ?? '—'}</strong>
                   {' · '}
-                  {fp ? fpLabel(fp) : 'point removed'}
+                  {fp ? fpLabel(fp) : t('pointRemoved', 'point removed')}
                 </span>
                 <button type="button" className="btn btn-danger btn-sm" onClick={() => onDelete(c.id)}>
-                  Remove
+                  {t('remove', 'Remove')}
                 </button>
               </li>
             )
@@ -3229,19 +3260,19 @@ function WorkstationConveyorPanel({
           and clipped at the screen edge. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem', marginTop: '.4rem' }}>
         <Select
-          ariaLabel="Interaction role"
+          ariaLabel={t('interactionRole', 'Interaction role')}
           value={role}
           onChange={setRole}
           options={WORKSTATION_ROLES.map((r) => ({ value: r, label: r }))}
         />
         <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
           <Select
-            ariaLabel="Conveyor function point"
+            ariaLabel={t('conveyorFunctionPoint', 'Conveyor function point')}
             value={pointId}
             onChange={setPointId}
             style={{ flex: 1, minWidth: 0 }}
             options={[
-              { value: '', label: fpOptions.length ? 'Pick a conveyor point…' : 'No conveyor points yet' },
+              { value: '', label: fpOptions.length ? t('pickConveyorPoint', 'Pick a conveyor point…') : t('noConveyorPoints', 'No conveyor points yet') },
               ...fpOptions,
             ]}
           />
@@ -3250,11 +3281,11 @@ function WorkstationConveyorPanel({
             className={`btn btn-sm ${pickArmed ? 'btn-primary' : 'btn-outline'}`}
             style={{ whiteSpace: 'nowrap' }}
             disabled={fpOptions.length === 0}
-            title="Pick the conveyor point by clicking its marker in the 3D scene (Esc to cancel)"
+            title={t('pickIn3dTip', 'Pick the conveyor point by clicking its marker in the 3D scene (Esc to cancel)')}
             aria-pressed={pickArmed}
             onClick={() => (pickArmed ? onCancelPick() : onArmPick(setPointId))}
           >
-            {pickArmed ? 'Picking… (Esc)' : 'Pick in 3D'}
+            {pickArmed ? t('picking', 'Picking… (Esc)') : t('pickIn3d', 'Pick in 3D')}
           </button>
         </div>
         {/* The full (often long) label of the chosen point — the Select trigger truncates it. */}
@@ -3264,7 +3295,7 @@ function WorkstationConveyorPanel({
             return fp ? <div className="atopo-fp-picked">{fpLabel(fp)}</div> : null
           })()}
         <button type="button" className="btn btn-outline btn-sm atopo-pathbtn" disabled={!pointId} onClick={add}>
-          + Add interaction
+          {t('addInteraction', '+ Add interaction')}
         </button>
       </div>
     </div>
@@ -3282,6 +3313,7 @@ function StorageAreasPanel({
   // The selected placed equipment's master-data (library) equipment id.
   equipmentId: string | null
 }) {
+  const t = useT('topology')
   const [blocks, setBlocks] = useState<StorageBlock[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -3323,24 +3355,24 @@ function StorageAreasPanel({
   return (
     <div className="atopo-areas">
       <div className="atopo-areas-head">
-        Storage areas{' '}
+        {t('storageAreas', 'Storage areas')}{' '}
         <InfoTip
-          text="Bind master-data storage blocks to this ASRS so stock in those blocks is handled by this system. Saves immediately — independent of the topology Save."
+          text={t('storageAreasTip', "Bind master-data storage blocks to this ASRS so stock in those blocks is handled by this system. Saves immediately, independent of the topology Save.")}
           example="link the AutoStore grid's block"
         />
       </div>
 
       {!equipmentId && (
         <p className="atopo-muted atopo-areas-empty">
-          This placement isn't linked to a master-data equipment, so it can't own a storage area.
+          {t('placementNotLinked', "This placement isn't linked to a master-data equipment, so it can't own a storage area.")}
         </p>
       )}
       {error && <div className="alert alert-danger atopo-areas-error">{error}</div>}
       {loading ? (
-        <p className="atopo-muted atopo-areas-empty">Loading storage blocks…</p>
+        <p className="atopo-muted atopo-areas-empty">{t('loadingStorageBlocks', 'Loading storage blocks…')}</p>
       ) : blocks.length === 0 ? (
         <p className="atopo-muted atopo-areas-empty">
-          No storage blocks — create some in Master data → Storage blocks.
+          {t('noStorageBlocks', 'No storage blocks — create some in Master data → Storage blocks.')}
         </p>
       ) : (
         <ul className="atopo-areas-list">
@@ -3360,7 +3392,7 @@ function StorageAreasPanel({
                   <span className="atopo-muted"> · {b.storageType}</span>
                 </label>
                 {linkedElsewhere && (
-                  <span className="atopo-muted atopo-areas-note">linked to another equipment</span>
+                  <span className="atopo-muted atopo-areas-note">{t('linkedToAnother', 'linked to another equipment')}</span>
                 )}
               </li>
             )

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import DataTable, { type Column } from '../ui/DataTable'
 import Select from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
+import { useT } from '../i18n/useT'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import {
   discoverTopology,
@@ -30,6 +31,7 @@ function fmtPos(v: number | null | undefined): string {
 }
 
 export default function RoutingGraphTables() {
+  const t = useT('topology')
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const [nodes, setNodes] = useState<NodeDto[]>([])
   const [edges, setEdges] = useState<EdgeDto[]>([])
@@ -43,23 +45,29 @@ export default function RoutingGraphTables() {
 
   const load = useCallback(async () => {
     if (!warehouseId) {
-      setStatus('No active warehouse selected')
+      setStatus(t('noActiveWarehouse', 'No active warehouse selected'))
       return
     }
     try {
-      const t = await loadTopology(warehouseId)
-      setNodes(t.nodes)
-      setEdges(t.edges)
-      setLoops(t.loops)
-      setControllers(t.controllers)
+      const topo = await loadTopology(warehouseId)
+      setNodes(topo.nodes)
+      setEdges(topo.edges)
+      setLoops(topo.loops)
+      setControllers(topo.controllers)
       setDiscoveredNodes(new Set())
       setDiscoveredEdges(new Set())
       setDirty(false)
-      setStatus(`Loaded ${t.nodes.length} nodes, ${t.edges.length} edges, ${t.loops.length} loops, ${t.controllers.length} controllers`)
+      setStatus(
+        t('loadedSummary', 'Loaded {nodes} nodes, {edges} edges, {loops} loops, {controllers} controllers')
+          .replace('{nodes}', String(topo.nodes.length))
+          .replace('{edges}', String(topo.edges.length))
+          .replace('{loops}', String(topo.loops.length))
+          .replace('{controllers}', String(topo.controllers.length)),
+      )
     } catch (err) {
       setStatus(String(err))
     }
-  }, [warehouseId])
+  }, [warehouseId, t])
 
   // (Re)load topology for the globally-active warehouse whenever it changes.
   useEffect(() => {
@@ -70,7 +78,7 @@ export default function RoutingGraphTables() {
   // only loops/controllers carry user edits.
   const save = useCallback(async () => {
     if (!warehouseId) {
-      setStatus('No active warehouse selected')
+      setStatus(t('noActiveWarehouse', 'No active warehouse selected'))
       return
     }
     const topology: Topology = { nodes, edges, loops, controllers }
@@ -79,16 +87,16 @@ export default function RoutingGraphTables() {
       setDiscoveredNodes(new Set())
       setDiscoveredEdges(new Set())
       setDirty(false)
-      setStatus('Saved')
+      setStatus(t('saved', 'Saved'))
     } catch (err) {
       setStatus(String(err))
     }
-  }, [warehouseId, nodes, edges, loops, controllers])
+  }, [warehouseId, nodes, edges, loops, controllers, t])
 
   // Learning: pull discovered (observed-but-unconfigured) nodes/edges into the tables to review.
   const runDiscovery = useCallback(async () => {
     if (!warehouseId) {
-      setStatus('No active warehouse selected')
+      setStatus(t('noActiveWarehouse', 'No active warehouse selected'))
       return
     }
     try {
@@ -115,11 +123,15 @@ export default function RoutingGraphTables() {
       setDiscoveredNodes((s) => new Set([...s, ...nodeDtos.map((n) => n.code)]))
       setDiscoveredEdges((s) => new Set([...s, ...newEdges.map((e) => `${e.fromCode} ${e.toCode}`)]))
       if (nodeDtos.length || newEdges.length) setDirty(true)
-      setStatus(`Discovered ${nodeDtos.length} new node(s) and ${newEdges.length} new edge(s); review and Save`)
+      setStatus(
+        t('discoveredSummary', 'Discovered {nodes} new node(s) and {edges} new edge(s); review and Save')
+          .replace('{nodes}', String(nodeDtos.length))
+          .replace('{edges}', String(newEdges.length)),
+      )
     } catch (err) {
       setStatus(String(err))
     }
-  }, [warehouseId, nodes, edges])
+  }, [warehouseId, nodes, edges, t])
 
   // In/out degree per node, for spotting dead-ends (out-degree 0) and orphans at a glance.
   const nodeRows = useMemo<NodeRow[]>(() => {
@@ -149,35 +161,35 @@ export default function RoutingGraphTables() {
   const nodeColumns: Column<NodeRow>[] = [
     {
       key: 'code',
-      header: 'Code',
+      header: t('colCode', 'Code'),
       sortable: true,
       render: (r) => (
         <>
           <span style={{ fontFamily: 'var(--font-mono)' }}>{r.code}</span>
-          {r.discovered && <span className="badge badge-info" style={{ marginLeft: '.5rem' }}>discovered</span>}
+          {r.discovered && <span className="badge badge-info" style={{ marginLeft: '.5rem' }}>{t('discovered', 'discovered')}</span>}
         </>
       ),
     },
-    { key: 'name', header: 'Name', sortable: true, sortValue: (r) => r.name ?? '', render: (r) => r.name ?? <span className="muted">—</span> },
+    { key: 'name', header: t('colName', 'Name'), sortable: true, sortValue: (r) => r.name ?? '', render: (r) => r.name ?? <span className="muted">—</span> },
     {
       key: 'pos',
-      header: 'Position (x, y)',
+      header: t('colPosition', 'Position (x, y)'),
       render: (r) => <span className="muted" style={{ fontFamily: 'var(--font-mono)' }}>{fmtPos(r.posX)}, {fmtPos(r.posY)}</span>,
     },
-    { key: 'loopCode', header: 'Loop', sortable: true, sortValue: (r) => r.loopCode ?? '', render: (r) => r.loopCode ?? <span className="muted">—</span> },
+    { key: 'loopCode', header: t('colLoop', 'Loop'), sortable: true, sortValue: (r) => r.loopCode ?? '', render: (r) => r.loopCode ?? <span className="muted">—</span> },
     {
       key: 'defaultExitCode',
-      header: 'Default exit',
+      header: t('colDefaultExit', 'Default exit'),
       sortable: true,
       sortValue: (r) => r.defaultExitCode ?? '',
       render: (r) =>
         r.defaultExitCode
-          ? <span style={{ fontFamily: 'var(--font-mono)' }} title="Where an unrouted tote goes by default at this divert (set on the divert point in the topology editor)">{r.defaultExitCode}</span>
+          ? <span style={{ fontFamily: 'var(--font-mono)' }} title={t('defaultExitTip', 'Where an unrouted tote goes by default at this divert (set on the divert point in the topology editor)')}>{r.defaultExitCode}</span>
           : <span className="muted">—</span>,
     },
     {
       key: 'controller',
-      header: 'Controller / address',
+      header: t('colControllerAddress', 'Controller / address'),
       sortValue: (r) => r.controllerCode ?? r.hardwareAddress ?? '',
       render: (r) => {
         const ctl = r.controllerCode ? `${r.controllerCode}${r.nodeAddress ? ` @ ${r.nodeAddress}` : ''}` : null
@@ -188,13 +200,13 @@ export default function RoutingGraphTables() {
     },
     {
       key: 'degree',
-      header: 'In / out',
+      header: t('colInOut', 'In / out'),
       align: 'center',
       sortable: true,
       sortValue: (r) => r.outDeg,
       render: (r) => (
         <span style={{ fontFamily: 'var(--font-mono)' }}>
-          {r.inDeg} / {r.outDeg === 0 ? <span className="badge badge-danger" title="No outgoing edge: loads routed here cannot leave (dead end)">0 dead end</span> : r.outDeg}
+          {r.inDeg} / {r.outDeg === 0 ? <span className="badge badge-danger" title={t('deadEndTip', 'No outgoing edge: loads routed here cannot leave (dead end)')}>{t('deadEnd', '0 dead end')}</span> : r.outDeg}
         </span>
       ),
     },
@@ -203,18 +215,18 @@ export default function RoutingGraphTables() {
   const edgeColumns: Column<EdgeRow>[] = [
     {
       key: 'segment',
-      header: 'Segment',
+      header: t('colSegment', 'Segment'),
       sortable: true,
       sortValue: (r) => `${r.fromCode} ${r.toCode}`,
       render: (r) => (
         <span style={{ fontFamily: 'var(--font-mono)' }}>
           {r.fromCode} <span className="muted">→</span> {r.toCode}
-          {r.discovered && <span className="badge badge-info" style={{ marginLeft: '.5rem' }}>discovered</span>}
+          {r.discovered && <span className="badge badge-info" style={{ marginLeft: '.5rem' }}>{t('discovered', 'discovered')}</span>}
         </span>
       ),
     },
-    { key: 'exitCode', header: 'Exit code', sortable: true, render: (r) => <span style={{ fontFamily: 'var(--font-mono)' }}>{r.exitCode}</span> },
-    { key: 'cost', header: 'Cost', align: 'right', sortable: true, sortValue: (r) => r.cost ?? 1, render: (r) => String(r.cost ?? 1) },
+    { key: 'exitCode', header: t('colExitCode', 'Exit code'), sortable: true, render: (r) => <span style={{ fontFamily: 'var(--font-mono)' }}>{r.exitCode}</span> },
+    { key: 'cost', header: t('colCost', 'Cost'), align: 'right', sortable: true, sortValue: (r) => r.cost ?? 1, render: (r) => String(r.cost ?? 1) },
   ]
 
   const markLoops = (l: LoopDto[]) => { setLoops(l); setDirty(true) }
@@ -225,67 +237,72 @@ export default function RoutingGraphTables() {
       <div className="glass card-pad rg-head">
         <div className="rg-head-row">
           <div className="rg-counts">
-            <span className="badge badge-info">{nodes.length} nodes</span>
-            <span className="badge badge-info">{edges.length} edges</span>
-            <span className="badge badge-info">{loops.length} loops</span>
-            <span className="badge badge-info">{controllers.length} controllers</span>
+            <span className="badge badge-info">{t('countNodes', '{n} nodes').replace('{n}', String(nodes.length))}</span>
+            <span className="badge badge-info">{t('countEdges', '{n} edges').replace('{n}', String(edges.length))}</span>
+            <span className="badge badge-info">{t('countLoops', '{n} loops').replace('{n}', String(loops.length))}</span>
+            <span className="badge badge-info">{t('countControllers', '{n} controllers').replace('{n}', String(controllers.length))}</span>
           </div>
           <div className="rg-actions">
-            <button className="btn btn-ghost btn-sm" onClick={load}>Reload</button>
-            <button className="btn btn-ghost btn-sm" onClick={runDiscovery} title="Pull observed-but-unconfigured nodes/edges from learning">
-              Discover
+            <button className="btn btn-ghost btn-sm" onClick={load}>{t('reload', 'Reload')}</button>
+            <button className="btn btn-ghost btn-sm" onClick={runDiscovery} title={t('discoverTip', 'Pull observed-but-unconfigured nodes/edges from learning')}>
+              {t('discover', 'Discover')}
             </button>
-            <button className={`btn btn-sm ${dirty ? 'btn-primary' : 'btn-outline'}`} onClick={save}>Save</button>
+            <button className={`btn btn-sm ${dirty ? 'btn-primary' : 'btn-outline'}`} onClick={save}>{t('save', 'Save')}</button>
           </div>
         </div>
         <p className="rg-note">
-          This graph is generated from the 3D layout (Generate routing), so nodes and edges are
-          read-only here: regenerate in the 3D layout tab after layout changes. Loops and controllers
-          are operator policy and stay editable; Save re-sends the graph unchanged with your edits.
+          {t(
+            'graphNote',
+            'This graph is generated from the 3D layout (Generate routing), so nodes and edges are read-only here: regenerate in the 3D layout tab after layout changes. Loops and controllers are operator policy and stay editable; Save re-sends the graph unchanged with your edits.',
+          )}
         </p>
         {status && <div className="muted rg-status">{status}</div>}
       </div>
 
       <section className="glass card-pad">
-        <h2 className="rg-section-title">Nodes <span className="muted rg-ro">read-only</span></h2>
+        <h2 className="rg-section-title">{t('nodes', 'Nodes')} <span className="muted rg-ro">{t('readOnly', 'read-only')}</span></h2>
         <DataTable
           columns={nodeColumns}
           rows={nodeRows}
           rowKey={(r) => r.code}
           search={(r) => `${r.code} ${r.name ?? ''}`}
-          searchPlaceholder="Filter by node code…"
+          searchPlaceholder={t('filterByNodeCode', 'Filter by node code…')}
           initialSort={{ key: 'code', dir: 'asc' }}
-          empty="No nodes. Generate routing from the 3D layout tab."
+          empty={t('noNodes', 'No nodes. Generate routing from the 3D layout tab.')}
         />
       </section>
 
       <section className="glass card-pad">
-        <h2 className="rg-section-title">Edges <span className="muted rg-ro">read-only</span></h2>
+        <h2 className="rg-section-title">{t('edges', 'Edges')} <span className="muted rg-ro">{t('readOnly', 'read-only')}</span></h2>
         <DataTable
           columns={edgeColumns}
           rows={edgeRows}
           rowKey={(r) => r.id}
           search={(r) => `${r.fromCode} ${r.toCode}`}
-          searchPlaceholder="Filter by node code (either end)…"
+          searchPlaceholder={t('filterByNodeCodeEither', 'Filter by node code (either end)…')}
           initialSort={{ key: 'segment', dir: 'asc' }}
-          empty="No edges. Generate routing from the 3D layout tab."
+          empty={t('noEdges', 'No edges. Generate routing from the 3D layout tab.')}
         />
       </section>
 
       <section className="glass card-pad">
-        <h2 className="rg-section-title">Loops</h2>
+        <h2 className="rg-section-title">{t('loops', 'Loops')}</h2>
         <p className="muted rg-hint">
-          Recirculation loops are operator policy (capacity and overflow behaviour), not projection
-          output, so they remain editable here. Nodes join a loop via their loop code.
+          {t(
+            'loopsHint',
+            'Recirculation loops are operator policy (capacity and overflow behaviour), not projection output, so they remain editable here. Nodes join a loop via their loop code.',
+          )}
         </p>
         <LoopsTable loops={loops} setLoops={markLoops} />
       </section>
 
       <section className="glass card-pad">
-        <h2 className="rg-section-title">Controllers (PLCs)</h2>
+        <h2 className="rg-section-title">{t('controllersPlcs', 'Controllers (PLCs)')}</h2>
         <p className="muted rg-hint">
-          One PLC (IP:port) can host many nodes; a node references its controller via the controller
-          code plus a node-local address. Controllers are also seeded automatically from the listener.
+          {t(
+            'controllersHint',
+            'One PLC (IP:port) can host many nodes; a node references its controller via the controller code plus a node-local address. Controllers are also seeded automatically from the listener.',
+          )}
         </p>
         <ControllersTable controllers={controllers} setControllers={markControllers} />
       </section>
@@ -311,6 +328,7 @@ export default function RoutingGraphTables() {
 // Editable loops table: code, capacity and the when-full policy, with the overflow target shown
 // only for OVERFLOW. Small lists, so a plain app-styled table (no search/sort) keeps editing simple.
 function LoopsTable(props: { loops: LoopDto[]; setLoops: (l: LoopDto[]) => void }) {
+  const t = useT('topology')
   const { loops, setLoops } = props
   const update = (i: number, patch: Partial<LoopDto>) =>
     setLoops(loops.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
@@ -320,17 +338,17 @@ function LoopsTable(props: { loops: LoopDto[]; setLoops: (l: LoopDto[]) => void 
         <table>
           <thead>
             <tr>
-              <th>Code <InfoTip text="Unique identifier for this recirculation loop. Nodes join it via their Loop code field." example="LOOP-A" /></th>
-              <th>Max HUs <InfoTip text="Maximum number of handling units (loads/totes) allowed circulating on this loop before it counts as full." example="10" /></th>
-              <th>When full <InfoTip text="What happens when the loop reaches Max HUs: HOLD stops feeding new loads upstream; OVERFLOW diverts them to the overflow target node." example="OVERFLOW" /></th>
-              <th>Overflow target <InfoTip text="Node code that loads are diverted to when the loop is full and When-full is OVERFLOW." example="N-BUFFER" /></th>
+              <th>{t('loopCode', 'Code')} <InfoTip text={t('loopCodeTip', 'Unique identifier for this recirculation loop. Nodes join it via their Loop code field.')} example="LOOP-A" /></th>
+              <th>{t('maxHus', 'Max HUs')} <InfoTip text={t('maxHusTip', 'Maximum number of handling units (loads/totes) allowed circulating on this loop before it counts as full.')} example="10" /></th>
+              <th>{t('whenFull', 'When full')} <InfoTip text={t('whenFullTip', 'What happens when the loop reaches Max HUs: HOLD stops feeding new loads upstream; OVERFLOW diverts them to the overflow target node.')} example="OVERFLOW" /></th>
+              <th>{t('overflowTarget', 'Overflow target')} <InfoTip text={t('overflowTargetTip', 'Node code that loads are diverted to when the loop is full and When-full is OVERFLOW.')} example="N-BUFFER" /></th>
               <th style={{ width: '1%' }} />
             </tr>
           </thead>
           <tbody>
             {loops.length === 0 && (
               <tr>
-                <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: '1.25rem' }}>No loops defined.</td>
+                <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: '1.25rem' }}>{t('noLoopsDefined', 'No loops defined.')}</td>
               </tr>
             )}
             {loops.map((l, i) => (
@@ -341,7 +359,7 @@ function LoopsTable(props: { loops: LoopDto[]; setLoops: (l: LoopDto[]) => void 
                 </td>
                 <td style={{ width: 160 }}>
                   <Select
-                    ariaLabel="When full"
+                    ariaLabel={t('whenFull', 'When full')}
                     value={l.whenFull}
                     onChange={(v) => update(i, { whenFull: v })}
                     options={[
@@ -356,7 +374,7 @@ function LoopsTable(props: { loops: LoopDto[]; setLoops: (l: LoopDto[]) => void 
                     : <span className="muted">—</span>}
                 </td>
                 <td>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setLoops(loops.filter((_, idx) => idx !== i))}>Remove</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setLoops(loops.filter((_, idx) => idx !== i))}>{t('remove', 'Remove')}</button>
                 </td>
               </tr>
             ))}
@@ -368,7 +386,7 @@ function LoopsTable(props: { loops: LoopDto[]; setLoops: (l: LoopDto[]) => void 
           className="btn btn-outline btn-sm"
           onClick={() => setLoops(loops.concat({ code: 'LOOP', maxHus: 10, whenFull: 'HOLD', overflowTarget: null }))}
         >
-          Add loop
+          {t('addLoop', 'Add loop')}
         </button>
       </div>
     </div>
@@ -377,6 +395,7 @@ function LoopsTable(props: { loops: LoopDto[]; setLoops: (l: LoopDto[]) => void 
 
 // Editable controllers table, replacing the old side-panel cards (same fields: code, name, IP, port).
 function ControllersTable(props: { controllers: ControllerDto[]; setControllers: (c: ControllerDto[]) => void }) {
+  const t = useT('topology')
   const { controllers, setControllers } = props
   const update = (i: number, patch: Partial<ControllerDto>) =>
     setControllers(controllers.map((c, idx) => (idx === i ? { ...c, ...patch } : c)))
@@ -386,17 +405,17 @@ function ControllersTable(props: { controllers: ControllerDto[]; setControllers:
         <table>
           <thead>
             <tr>
-              <th>Code <InfoTip text="Unique identifier for this controller (PLC). Nodes reference it via their controller code." example="PLC-01" /></th>
-              <th>Name <InfoTip text="Optional human-readable name for the controller, for display only." example="Sorter PLC east" /></th>
-              <th>IP address <InfoTip text="Network address the WCS uses to reach this controller's listener." example="192.168.10.21" /></th>
-              <th>Port <InfoTip text="TCP port on the controller for the WCS connection. Leave blank to use the listener's default." example="5001" /></th>
+              <th>{t('ctlCode', 'Code')} <InfoTip text={t('ctlCodeTip', 'Unique identifier for this controller (PLC). Nodes reference it via their controller code.')} example="PLC-01" /></th>
+              <th>{t('ctlName', 'Name')} <InfoTip text={t('ctlNameTip', 'Optional human-readable name for the controller, for display only.')} example="Sorter PLC east" /></th>
+              <th>{t('ctlIpAddress', 'IP address')} <InfoTip text={t('ctlIpAddressTip', "Network address the WCS uses to reach this controller's listener.")} example="192.168.10.21" /></th>
+              <th>{t('ctlPort', 'Port')} <InfoTip text={t('ctlPortTip', "TCP port on the controller for the WCS connection. Leave blank to use the listener's default.")} example="5001" /></th>
               <th style={{ width: '1%' }} />
             </tr>
           </thead>
           <tbody>
             {controllers.length === 0 && (
               <tr>
-                <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: '1.25rem' }}>No controllers defined.</td>
+                <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: '1.25rem' }}>{t('noControllersDefined', 'No controllers defined.')}</td>
               </tr>
             )}
             {controllers.map((c, i) => (
@@ -408,7 +427,7 @@ function ControllersTable(props: { controllers: ControllerDto[]; setControllers:
                   <input className="form-control" inputMode="numeric" value={String(c.port ?? '')} onChange={(e) => update(i, { port: e.target.value ? Number(e.target.value) : null })} />
                 </td>
                 <td>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setControllers(controllers.filter((_, idx) => idx !== i))}>Remove</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setControllers(controllers.filter((_, idx) => idx !== i))}>{t('remove', 'Remove')}</button>
                 </td>
               </tr>
             ))}
@@ -420,7 +439,7 @@ function ControllersTable(props: { controllers: ControllerDto[]; setControllers:
           className="btn btn-outline btn-sm"
           onClick={() => setControllers(controllers.concat({ code: 'PLC', name: null, ipAddress: '', port: null }))}
         >
-          Add controller
+          {t('addController', 'Add controller')}
         </button>
       </div>
     </div>
