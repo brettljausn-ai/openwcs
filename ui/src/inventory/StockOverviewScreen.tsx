@@ -3,6 +3,7 @@ import { useWarehouse } from '../warehouse/WarehouseContext'
 import DataTable from '../ui/DataTable'
 import { Location, Sku, StorageBlock, listLocations, listSkus, listStorageBlocks } from '../masterdata/api'
 import { StockOverviewRow, listStockOverview } from './api'
+import { useT } from '../i18n/useT'
 
 // ---------------------------------------------------------------------------
 // Stock overview — a read-only roll-up of what is currently in stock, by handling
@@ -36,6 +37,7 @@ function qtyNum(v: number | string | null | undefined): number {
 }
 
 export default function StockOverviewScreen() {
+  const t = useT('inventory')
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const [rows, setRows] = useState<StockOverviewRow[]>([])
   const [skus, setSkus] = useState<Sku[]>([])
@@ -103,8 +105,12 @@ export default function StockOverviewScreen() {
           cells: [{ locationId: row.locationId, skuId: row.skuId }],
         }),
       })
-      if (!res.ok) throw new Error((await res.text()) || `Request failed (${res.status})`)
-      setNotice(`Count task created for ${skuCode(row.skuId)} at ${locationCode(row.locationId)}.`)
+      if (!res.ok) throw new Error((await res.text()) || t('errRequestFailed', 'Request failed ({status})').replace('{status}', String(res.status)))
+      setNotice(
+        t('noticeCountTask', 'Count task created for {sku} at {location}.')
+          .replace('{sku}', skuCode(row.skuId))
+          .replace('{location}', locationCode(row.locationId)),
+      )
     } catch (e) {
       setError(errMsg(e))
     } finally {
@@ -115,17 +121,16 @@ export default function StockOverviewScreen() {
   return (
     <div className="app-content">
       <div className="page-head">
-        <span className="eyebrow">Operations</span>
-        <h1>Stock overview</h1>
+        <span className="eyebrow">{t('eyebrow', 'Operations')}</span>
+        <h1>{t('stockTitle', 'Stock overview')}</h1>
         <p>
-          What is currently in stock, by handling unit — quantities and availability. Scoped to the
-          warehouse selected in the top bar.
+          {t('stockSubtitle', 'What is currently in stock, by handling unit — quantities and availability. Scoped to the warehouse selected in the top bar.')}
         </p>
       </div>
 
       {!warehouseId ? (
         <div className="glass card-pad">
-          <div className="alert">Select a warehouse above to view its stock.</div>
+          <div className="alert">{t('selectWarehouseStock', 'Select a warehouse above to view its stock.')}</div>
         </div>
       ) : (
         <div className="glass card-pad so-panel">
@@ -137,41 +142,41 @@ export default function StockOverviewScreen() {
             search={(r) =>
               `${r.huCode ?? ''} ${skuCode(r.skuId)} ${locationCode(r.locationId)} ${areaCode(r.locationId)} ${r.status ?? ''}`
             }
-            searchPlaceholder="Search by HU code / SKU / location…"
+            searchPlaceholder={t('stockSearchPlaceholder', 'Search by HU code / SKU / location…')}
             initialSort={{ key: 'huCode', dir: 'asc' }}
-            empty={loading ? 'Loading…' : 'No stock in this warehouse.'}
+            empty={loading ? t('loading', 'Loading…') : t('noStock', 'No stock in this warehouse.')}
             columns={[
               {
                 key: 'huCode',
-                header: 'HU',
+                header: t('colHu', 'HU'),
                 sortable: true,
                 sortValue: (r) => r.huCode ?? '',
                 render: (r) => (r.huCode ? <code>{r.huCode}</code> : '—'),
               },
               {
                 key: 'area',
-                header: 'Area',
+                header: t('colArea', 'Area'),
                 sortable: true,
                 sortValue: (r) => areaCode(r.locationId),
                 render: (r) => areaCode(r.locationId),
               },
               {
                 key: 'location',
-                header: 'Location',
+                header: t('colLocation', 'Location'),
                 sortable: true,
                 sortValue: (r) => locationCode(r.locationId),
                 render: (r) => locationCode(r.locationId),
               },
               {
                 key: 'sku',
-                header: 'SKU',
+                header: t('colSku', 'SKU'),
                 sortable: true,
                 sortValue: (r) => skuCode(r.skuId),
                 render: (r) => skuCode(r.skuId),
               },
               {
                 key: 'qty',
-                header: 'Qty in stock',
+                header: t('colQtyInStock', 'Qty in stock'),
                 align: 'right',
                 sortable: true,
                 sortValue: (r) => qtyNum(r.qty),
@@ -179,7 +184,7 @@ export default function StockOverviewScreen() {
               },
               {
                 key: 'available',
-                header: 'Qty available',
+                header: t('colQtyAvailable', 'Qty available'),
                 align: 'right',
                 sortable: true,
                 sortValue: (r) => qtyNum(r.available),
@@ -187,7 +192,7 @@ export default function StockOverviewScreen() {
               },
               {
                 key: 'status',
-                header: 'Status',
+                header: t('colStatus', 'Status'),
                 sortable: true,
                 sortValue: (r) => r.status ?? '',
                 render: (r) => <StatusBadge status={r.status} />,
@@ -203,9 +208,9 @@ export default function StockOverviewScreen() {
                       className="btn btn-sm btn-ghost"
                       disabled={!r.locationId || !r.skuId || marking === key}
                       onClick={() => markForCounting(r)}
-                      title="Create a count task (counting order) for this location and SKU"
+                      title={t('markForCountingTitle', 'Create a count task (counting order) for this location and SKU')}
                     >
-                      {marking === key ? 'Adding…' : 'Mark for counting'}
+                      {marking === key ? t('adding', 'Adding…') : t('markForCounting', 'Mark for counting')}
                     </button>
                   )
                 },

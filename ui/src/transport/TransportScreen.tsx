@@ -4,6 +4,7 @@ import { useCatalog, type Catalog } from '../lib/useCatalog'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
+import { useT } from '../i18n/useT'
 import { DeviceTask, HuTraceRow, listDeviceTasks, listHuTrace, listTaskTrace } from './api'
 import { listWorkplaces } from '../gtpops/api'
 
@@ -158,6 +159,7 @@ function formatTime(iso: string): string {
 }
 
 export default function TransportScreen() {
+  const t = useT('transport')
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const catalog = useCatalog(warehouseId)
   const [tasks, setTasks] = useState<DeviceTask[]>([])
@@ -171,6 +173,13 @@ export default function TransportScreen() {
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [stationsById, setStationsById] = useState<Record<string, string>>({})
+
+  // Translated label for a scope option (the SCOPES list carries the English source of truth).
+  const scopeLabel = (value: Scope): string => {
+    const en = SCOPES.find((s) => s.value === value)?.label ?? value
+    return t(`scope_${value.replace(/-/g, '_')}`, en)
+  }
+  const correlationHelp = t('correlationHelp', CORRELATION_HELP)
 
   // GTP stations (workplaces) so a destinationStationId (e.g. an ASRS retrieval to a pick station)
   // shows the station code instead of a UUID.
@@ -274,13 +283,13 @@ export default function TransportScreen() {
     return c
   }, [scoped])
 
-  const tiles: { label: string; value: number; kind: StatusKind }[] = [
-    { label: 'Active', value: counts.active, kind: 'info' },
-    { label: 'Requested', value: counts.REQUESTED, kind: 'warning' },
-    { label: 'Dispatched', value: counts.DISPATCHED, kind: 'info' },
-    { label: 'Completed', value: counts.COMPLETED, kind: 'success' },
-    { label: 'Failed', value: counts.FAILED, kind: 'danger' },
-    { label: 'Total', value: counts.total, kind: 'muted' },
+  const tiles: { key: string; label: string; value: number; kind: StatusKind }[] = [
+    { key: 'active', label: t('tileActive', 'Active'), value: counts.active, kind: 'info' },
+    { key: 'requested', label: t('tileRequested', 'Requested'), value: counts.REQUESTED, kind: 'warning' },
+    { key: 'dispatched', label: t('tileDispatched', 'Dispatched'), value: counts.DISPATCHED, kind: 'info' },
+    { key: 'completed', label: t('tileCompleted', 'Completed'), value: counts.COMPLETED, kind: 'success' },
+    { key: 'failed', label: t('tileFailed', 'Failed'), value: counts.FAILED, kind: 'danger' },
+    { key: 'total', label: t('tileTotal', 'Total'), value: counts.total, kind: 'muted' },
   ]
 
   const tileColor: Record<StatusKind, string> = {
@@ -295,22 +304,22 @@ export default function TransportScreen() {
     <div className="app-content">
       <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
-          <span className="eyebrow">Flow orchestrator</span>
-          <h1>Transport overview</h1>
-          <p>Live device-task / transport view across equipment — origin → destination, route and lifecycle status. Click a transport for its full trace.</p>
+          <span className="eyebrow">{t('eyebrow', 'Flow orchestrator')}</span>
+          <h1>{t('title', 'Transport overview')}</h1>
+          <p>{t('intro', 'Live device-task / transport view across equipment — origin → destination, route and lifecycle status. Click a transport for its full trace.')}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem' }}>
           {lastUpdated && (
             <span className="muted" style={{ fontSize: '.75rem' }}>
-              Updated {lastUpdated.toLocaleTimeString()}
+              {t('updated', 'Updated')} {lastUpdated.toLocaleTimeString()}
             </span>
           )}
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', fontSize: '.85rem' }}>
             <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-            Auto-refresh <InfoTip text={`When on, the task list automatically reloads from the flow orchestrator every ${REFRESH_MS / 1000} seconds; turn off to freeze the view.`} example="on" />
+            {t('autoRefresh', 'Auto-refresh')} <InfoTip text={t('autoRefreshTip', 'When on, the task list automatically reloads from the flow orchestrator every {n} seconds; turn off to freeze the view.').replace('{n}', String(REFRESH_MS / 1000))} example="on" />
           </label>
           <button className="btn btn-outline btn-sm" onClick={refresh} disabled={loading}>
-            {loading ? 'Refreshing…' : 'Refresh'}
+            {loading ? t('refreshing', 'Refreshing…') : t('refresh', 'Refresh')}
           </button>
         </div>
       </div>
@@ -329,32 +338,32 @@ export default function TransportScreen() {
 
       {/* Filters */}
       <div className="glass" style={{ padding: '1rem 1.25rem', marginBottom: '1.25rem', display: 'flex', flexWrap: 'wrap', gap: '.75rem', alignItems: 'flex-end' }}>
-        <Field label={<>Show <InfoTip text="Which transports to list. Opens on 'Open + finished today' — everything still running plus whatever finished today, the live working set. Switch to a single status or 'All recent' to widen the view." example="Open + finished today" /></>}>
+        <Field label={<>{t('show', 'Show')} <InfoTip text={t('showTip', "Which transports to list. Opens on 'Open + finished today' — everything still running plus whatever finished today, the live working set. Switch to a single status or 'All recent' to widen the view.")} example="Open + finished today" /></>}>
           <Select
-            ariaLabel="Show"
+            ariaLabel={t('show', 'Show')}
             value={scope}
             onChange={(v) => setScope(v as Scope)}
             style={{ width: 220 }}
-            options={SCOPES.map((s) => ({ value: s.value, label: s.label }))}
+            options={SCOPES.map((s) => ({ value: s.value, label: scopeLabel(s.value) }))}
           />
         </Field>
-        <Field label={<>Equipment family <InfoTip text="Filter by the type of transport equipment handling the task. Each family maps to its own adapter." example="ASRS" /></>}>
+        <Field label={<>{t('equipmentFamily', 'Equipment family')} <InfoTip text={t('equipmentFamilyTip', 'Filter by the type of transport equipment handling the task. Each family maps to its own adapter.')} example="ASRS" /></>}>
           <Select
-            ariaLabel="Equipment family"
+            ariaLabel={t('equipmentFamily', 'Equipment family')}
             value={family}
             onChange={(v) => setFamily(v)}
-            options={[{ value: '', label: 'All families' }, ...FAMILIES.map((f) => ({ value: f, label: f }))]}
+            options={[{ value: '', label: t('allFamilies', 'All families') }, ...FAMILIES.map((f) => ({ value: f, label: f }))]}
           />
         </Field>
-        <Field label={<>Equipment <InfoTip text="Filter to a single piece of equipment in the active warehouse, picked by its code/name. Choose 'Any equipment' for all." example="CONV-01 — Inbound conveyor" /></>}>
+        <Field label={<>{t('equipment', 'Equipment')} <InfoTip text={t('equipmentTip', "Filter to a single piece of equipment in the active warehouse, picked by its code/name. Choose 'Any equipment' for all.")} example="CONV-01 — Inbound conveyor" /></>}>
           <Select
-            ariaLabel="Equipment"
+            ariaLabel={t('equipment', 'Equipment')}
             value={equipmentId}
             onChange={(v) => setEquipmentId(v)}
-            placeholder="Any equipment"
+            placeholder={t('anyEquipment', 'Any equipment')}
             style={{ width: 280 }}
             options={[
-              { value: '', label: 'Any equipment' },
+              { value: '', label: t('anyEquipment', 'Any equipment') },
               ...equipment.map((e) => ({
                 value: e.id,
                 label: e.code ? (e.name ? `${e.code} — ${e.name}` : e.code) : e.id,
@@ -364,7 +373,7 @@ export default function TransportScreen() {
         </Field>
         {(scope !== DEFAULT_SCOPE || family || equipmentId) && (
           <button className="btn btn-ghost btn-sm" onClick={() => { setScope(DEFAULT_SCOPE); setFamily(''); setEquipmentId('') }}>
-            Reset filters
+            {t('resetFilters', 'Reset filters')}
           </button>
         )}
       </div>
@@ -380,13 +389,13 @@ export default function TransportScreen() {
           search={(t) =>
             `${t.id} ${t.status} ${t.family} ${t.command} ${huCode(t)} ${resolveNode(origin(t))} ${resolveNode(destination(t))} ${catalog.equipmentLabel(t.equipmentId)} ${t.correlationId ?? ''} ${t.detail ?? ''}`
           }
-          searchPlaceholder="Search tasks…"
+          searchPlaceholder={t('searchTasks', 'Search tasks…')}
           initialSort={{ key: 'createdAt', dir: 'desc' }}
-          empty={`No transports${(scope !== DEFAULT_SCOPE || family || equipmentId) ? ' match the current filters' : ' yet'}.`}
+          empty={(scope !== DEFAULT_SCOPE || family || equipmentId) ? t('emptyFiltered', 'No transports match the current filters.') : t('emptyNone', 'No transports yet.')}
           columns={[
             {
               key: 'id',
-              header: 'Task',
+              header: t('colTask', 'Task'),
               sortable: true,
               sortValue: (t) => t.id,
               render: (t) => (
@@ -395,21 +404,21 @@ export default function TransportScreen() {
             },
             {
               key: 'status',
-              header: 'Status',
+              header: t('colStatus', 'Status'),
               sortable: true,
               sortValue: (t) => t.status,
               render: (t) => <span className={badgeClass(t.status)}>{t.status}</span>,
             },
             {
               key: 'family',
-              header: 'Family',
+              header: t('colFamily', 'Family'),
               sortable: true,
               sortValue: (t) => t.family,
               render: (t) => t.family,
             },
             {
               key: 'command',
-              header: 'Command',
+              header: t('colCommand', 'Command'),
               sortable: true,
               sortValue: (t) => t.command,
               render: (t) => (
@@ -418,7 +427,7 @@ export default function TransportScreen() {
             },
             {
               key: 'hu',
-              header: 'HU',
+              header: t('colHu', 'HU'),
               sortable: true,
               sortValue: (t) => huCode(t),
               render: (t) => (
@@ -427,40 +436,40 @@ export default function TransportScreen() {
             },
             {
               key: 'route',
-              header: 'Origin → Destination',
+              header: t('colRoute', 'Origin → Destination'),
               render: (t) => (
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{resolveNode(origin(t))} → {resolveNode(destination(t))}</span>
               ),
             },
             {
               key: 'nextHop',
-              header: 'Next hop',
+              header: t('colNextHop', 'Next hop'),
               render: (t) => (
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.8rem' }}>{resolveNode(nextHop(t))}</span>
               ),
             },
             {
               key: 'equipmentId',
-              header: 'Equipment',
+              header: t('colEquipment', 'Equipment'),
               render: (t) => <span title={t.equipmentId ?? ''}>{catalog.equipmentLabel(t.equipmentId)}</span>,
             },
             {
               key: 'correlationId',
-              header: 'Correlation',
+              header: t('colCorrelation', 'Correlation'),
               render: (t) => (
-                <span style={{ fontFamily: 'var(--font-mono)' }} title={t.correlationId ? `${t.correlationId}\n\n${CORRELATION_HELP}` : CORRELATION_HELP}>{shortId(t.correlationId)}</span>
+                <span style={{ fontFamily: 'var(--font-mono)' }} title={t.correlationId ? `${t.correlationId}\n\n${correlationHelp}` : correlationHelp}>{shortId(t.correlationId)}</span>
               ),
             },
             {
               key: 'detail',
-              header: 'Detail',
+              header: t('colDetail', 'Detail'),
               render: (t) => (
                 <span className="muted" style={{ display: 'inline-block', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }} title={t.detail ?? ''}>{t.detail ?? '—'}</span>
               ),
             },
             {
               key: 'createdAt',
-              header: 'Created',
+              header: t('colCreated', 'Created'),
               sortable: true,
               sortValue: (t) => t.createdAt,
               render: (t) => (
@@ -533,6 +542,7 @@ function TransportTraceDialog({
   equipmentLabel: Catalog['equipmentLabel']
   onClose: () => void
 }) {
+  const t = useT('transport')
   // HU-trace timeline (preferred) and the device-task fallback are mutually exclusive: when the task
   // carries an HU id we render the per-HU timeline, otherwise the byCorrelation device-task list.
   const hu = huId(task)
@@ -620,65 +630,65 @@ function TransportTraceDialog({
       <div className="dialog" style={{ maxWidth: 720, width: '94%', maxHeight: '88vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
           <div>
-            <span className="eyebrow">Transport</span>
+            <span className="eyebrow">{t('transport', 'Transport')}</span>
             <h2 style={{ margin: '.1rem 0 .25rem' }}>
               {task.command} · {task.family}
             </h2>
             <span className={badgeClass(task.status)}>{task.status}</span>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close">✕</button>
+          <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label={t('close', 'Close')}>✕</button>
         </div>
 
         {/* Code-resolved fields */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '.9rem', marginTop: '1.1rem' }}>
-          <Detail label="Task id" value={task.id} />
-          <Detail label="HU" value={huCode(task)} />
-          <Detail label="Origin" value={resolveNode(origin(task))} />
-          <Detail label="Destination" value={resolveNode(destination(task))} />
-          <Detail label="Next hop" value={resolveNode(nextHop(task))} />
-          <Detail label="Equipment" value={equipmentLabel(task.equipmentId)} mono={false} />
-          <Detail label="Actor" value={task.actor || '—'} />
-          <Detail label="Created" value={formatTime(task.createdAt)} mono={false} />
+          <Detail label={t('taskId', 'Task id')} value={task.id} />
+          <Detail label={t('colHu', 'HU')} value={huCode(task)} />
+          <Detail label={t('origin', 'Origin')} value={resolveNode(origin(task))} />
+          <Detail label={t('destination', 'Destination')} value={resolveNode(destination(task))} />
+          <Detail label={t('colNextHop', 'Next hop')} value={resolveNode(nextHop(task))} />
+          <Detail label={t('colEquipment', 'Equipment')} value={equipmentLabel(task.equipmentId)} mono={false} />
+          <Detail label={t('actor', 'Actor')} value={task.actor || '—'} />
+          <Detail label={t('colCreated', 'Created')} value={formatTime(task.createdAt)} mono={false} />
         </div>
 
         {task.detail && (
           <div style={{ marginTop: '1rem' }}>
-            <Detail label="Detail" value={task.detail} mono={false} />
+            <Detail label={t('colDetail', 'Detail')} value={task.detail} mono={false} />
           </div>
         )}
 
         {/* Trace: prefer flow's per-HU transport-trace timeline, fall back to byCorrelation tasks. */}
         <div style={{ marginTop: '1.4rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
-            <h3 style={{ margin: 0 }}>{huTrace ? 'HU timeline' : 'Trace'}</h3>
+            <h3 style={{ margin: 0 }}>{huTrace ? t('huTimeline', 'HU timeline') : t('trace', 'Trace')}</h3>
             <InfoTip
-              text={huTrace ? HU_TRACE_HELP : CORRELATION_HELP}
+              text={huTrace ? t('huTraceHelp', HU_TRACE_HELP) : t('correlationHelp', CORRELATION_HELP)}
               example={huTrace ? 'Requested → Retrieved → Arrived → Queued → Done' : 'Retrieve → Convey → Store'}
             />
             {huTrace && hu ? (
               <span className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.72rem' }}>
-                HU {task.payload && huCode(task) !== '—' ? `${huCode(task)} · ` : ''}{hu}
+                {t('colHu', 'HU')} {task.payload && huCode(task) !== '—' ? `${huCode(task)} · ` : ''}{hu}
               </span>
             ) : (
               task.correlationId && (
                 <span className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.72rem' }}>
-                  correlation {task.correlationId}
+                  {t('correlationLower', 'correlation')} {task.correlationId}
                 </span>
               )
             )}
           </div>
           <p className="muted" style={{ marginTop: '.35rem', fontSize: '.8rem' }}>
             {huTrace
-              ? 'The handling unit’s lifecycle across the induction pipeline, in time order — each row is a recorded transport event.'
+              ? t('huTraceCaption', 'The handling unit’s lifecycle across the induction pipeline, in time order — each row is a recorded transport event.')
               : task.correlationId
-                ? 'Every device task that shares this transport’s correlation id, in dispatch order.'
-                : 'This task has no correlation id, so it stands on its own — no linked steps.'}
+                ? t('correlationCaption', 'Every device task that shares this transport’s correlation id, in dispatch order.')
+                : t('noCorrelationCaption', 'This task has no correlation id, so it stands on its own — no linked steps.')}
           </p>
 
-          {loadingTrace && <p className="muted">Loading trace…</p>}
+          {loadingTrace && <p className="muted">{t('loadingTrace', 'Loading trace…')}</p>}
           {traceError && (
             <div className="alert" style={{ background: 'rgba(255,107,94,.15)', color: '#ff8a80', border: '1px solid rgba(255,107,94,.3)' }}>
-              Couldn’t load the full trace: {traceError}
+              {t('traceLoadFailed', 'Couldn’t load the full trace:')} {traceError}
             </div>
           )}
 
@@ -716,7 +726,7 @@ function TransportTraceDialog({
                       <span className="muted" style={{ fontSize: '.75rem' }}>{row.decision}</span>
                     )}
                     <span className="muted" style={{ fontSize: '.75rem', marginLeft: 'auto', whiteSpace: 'nowrap' }}>{formatTime(row.ts)}</span>
-                    {isCurrent && <span className="muted" style={{ fontSize: '.7rem' }}>(this task)</span>}
+                    {isCurrent && <span className="muted" style={{ fontSize: '.7rem' }}>{t('thisTask', '(this task)')}</span>}
                   </li>
                 )
               })}
@@ -748,7 +758,7 @@ function TransportTraceDialog({
                       {resolveNode(origin(step))} → {resolveNode(destination(step))}
                     </span>
                     <span className="muted" style={{ fontSize: '.75rem', marginLeft: 'auto', whiteSpace: 'nowrap' }}>{formatTime(step.createdAt)}</span>
-                    {isCurrent && <span className="muted" style={{ fontSize: '.7rem' }}>(this task)</span>}
+                    {isCurrent && <span className="muted" style={{ fontSize: '.7rem' }}>{t('thisTask', '(this task)')}</span>}
                   </li>
                 )
               })}
@@ -761,13 +771,13 @@ function TransportTraceDialog({
           <div style={{ marginTop: '1.4rem', display: 'grid', gap: '1rem' }}>
             {payload && (
               <div>
-                <div className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '.3rem' }}>Payload</div>
+                <div className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '.3rem' }}>{t('payload', 'Payload')}</div>
                 <pre style={{ margin: 0, padding: '.7rem .8rem', background: 'rgba(0,0,0,.25)', borderRadius: 8, fontSize: '.75rem', overflow: 'auto' }}>{JSON.stringify(payload, null, 2)}</pre>
               </div>
             )}
             {result && (
               <div>
-                <div className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '.3rem' }}>Result</div>
+                <div className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.62rem', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '.3rem' }}>{t('result', 'Result')}</div>
                 <pre style={{ margin: 0, padding: '.7rem .8rem', background: 'rgba(0,0,0,.25)', borderRadius: 8, fontSize: '.75rem', overflow: 'auto' }}>{JSON.stringify(result, null, 2)}</pre>
               </div>
             )}
@@ -775,7 +785,7 @@ function TransportTraceDialog({
         )}
 
         <div className="dialog-actions" style={{ marginTop: '1.4rem' }}>
-          <button className="btn btn-ghost" onClick={onClose}>Close</button>
+          <button className="btn btn-ghost" onClick={onClose}>{t('close', 'Close')}</button>
         </div>
       </div>
     </div>

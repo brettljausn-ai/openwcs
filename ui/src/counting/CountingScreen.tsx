@@ -4,6 +4,7 @@ import { useDemoMode, seedDemoCountTasks } from '../demo/useDemoMode'
 import { useCatalog, type Catalog } from '../lib/useCatalog'
 import Select from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
+import { useT } from '../i18n/useT'
 
 // Stock counting (cycle counting) — drives the /api/counting service: ad-hoc + scheduled
 // (ABC-cadence) count tasks, a count-capture form (counted qty per line), variance vs the
@@ -216,6 +217,7 @@ function num(v: number | null | undefined): string {
 }
 
 export default function CountingScreen() {
+  const tr = useT('counting')
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const { enabled: demoEnabled } = useDemoMode()
   const catalog = useCatalog(warehouseId)
@@ -240,7 +242,7 @@ export default function CountingScreen() {
 
   const loadTasks = useCallback(async () => {
     if (!warehouseId.trim()) {
-      setError('No warehouse selected.')
+      setError(tr('errNoWarehouse', 'No warehouse selected.'))
       return
     }
     setLoading(true)
@@ -257,7 +259,7 @@ export default function CountingScreen() {
     } finally {
       setLoading(false)
     }
-  }, [warehouseId, statusFilter])
+  }, [warehouseId, statusFilter, tr])
 
   // Reload when the selected warehouse (top bar) or status filter changes.
   useEffect(() => {
@@ -274,7 +276,7 @@ export default function CountingScreen() {
     setError(null)
     try {
       const emitted = await generateDue(warehouseId.trim() || undefined)
-      flash(`ABC sweep emitted ${emitted.length} due task(s).`)
+      flash(tr('flashSweep', 'ABC sweep emitted {count} due task(s).').replace('{count}', String(emitted.length)))
       await loadTasks()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -288,7 +290,7 @@ export default function CountingScreen() {
     setError(null)
     try {
       const res = await seedDemoCountTasks(warehouseId.trim(), 1)
-      flash(`Added ${res.created} demo count task.`)
+      flash(tr('flashAddedDemo', 'Added {count} demo count task.').replace('{count}', String(res.created)))
       await loadTasks()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -301,10 +303,19 @@ export default function CountingScreen() {
     setError(null)
     try {
       const r = await reconcileTask(task.id)
-      const parts = [`${r.approvedLines} approved`, `${r.adjustedLines} adjusted`, `${r.recountLines} for recount`]
+      const parts = [
+        tr('partApproved', '{n} approved').replace('{n}', String(r.approvedLines)),
+        tr('partAdjusted', '{n} adjusted').replace('{n}', String(r.adjustedLines)),
+        tr('partRecount', '{n} for recount').replace('{n}', String(r.recountLines)),
+      ]
       flash(
-        `Reconciled ${short(task.id)} → ${r.status}: ${parts.join(', ')}.` +
-          (r.recountTaskId ? ` Recount task ${short(r.recountTaskId)} spawned.` : ''),
+        tr('flashReconciled', 'Reconciled {id} → {status}: {parts}.')
+          .replace('{id}', short(task.id))
+          .replace('{status}', r.status)
+          .replace('{parts}', parts.join(', ')) +
+          (r.recountTaskId
+            ? ' ' + tr('flashRecountSpawned', 'Recount task {id} spawned.').replace('{id}', short(r.recountTaskId))
+            : ''),
       )
       await loadTasks()
     } catch (e) {
@@ -317,7 +328,7 @@ export default function CountingScreen() {
     setError(null)
     try {
       await deleteTask(task.id)
-      flash(`Deleted count task ${short(task.id)}.`)
+      flash(tr('flashDeleted', 'Deleted count task {id}.').replace('{id}', short(task.id)))
       await loadTasks()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -328,43 +339,41 @@ export default function CountingScreen() {
     <div className="app-content">
       <div className="page-head">
         <div className="eyebrow">openWCS</div>
-        <h1>Stock counting</h1>
+        <h1>{tr('title', 'Stock counting')}</h1>
         <p>
-          Cycle / stock counting — schedule ABC-cadence sweeps and ad-hoc count tasks, capture counted
-          quantities, review variance against the system snapshot, recount out-of-tolerance cells, and
-          reconcile (within tolerance auto-posts a stock adjustment).
+          {tr('subtitle', 'Cycle / stock counting — schedule ABC-cadence sweeps and ad-hoc count tasks, capture counted quantities, review variance against the system snapshot, recount out-of-tolerance cells, and reconcile (within tolerance auto-posts a stock adjustment).')}
         </p>
       </div>
 
       <div className="toolbar">
         <Select
-          ariaLabel="Status"
+          ariaLabel={tr('status', 'Status')}
           style={{ width: 170 }}
           value={statusFilter}
           onChange={(v) => setStatusFilter(v)}
           options={[
-            { value: '', label: 'All statuses' },
+            { value: '', label: tr('allStatuses', 'All statuses') },
             ...TASK_STATUSES.map((s) => ({ value: s, label: s })),
           ]}
         />
         <button className="btn btn-primary" onClick={loadTasks} disabled={loading}>
-          {loading ? 'Loading…' : 'Load'}
+          {loading ? tr('loading', 'Loading…') : tr('load', 'Load')}
         </button>
         <span className="spacer" />
         <button className="btn btn-outline" onClick={() => setScheduleOpen(true)}>
-          New schedule
+          {tr('newSchedule', 'New schedule')}
         </button>
-        <button className="btn btn-ghost" onClick={onGenerate} title="Run the ABC-cadence sweep for due schedules">
-          Run ABC sweep
+        <button className="btn btn-ghost" onClick={onGenerate} title={tr('runSweepTitle', 'Run the ABC-cadence sweep for due schedules')}>
+          {tr('runSweep', 'Run ABC sweep')}
         </button>
         {demoEnabled && (
           <button
             className="btn btn-outline"
             onClick={addDemoCountTask}
             disabled={!warehouseId.trim() || seeding}
-            title="Demo mode: create a sample count task over existing demo stock"
+            title={tr('addDemoTitle', 'Demo mode: create a sample count task over existing demo stock')}
           >
-            {seeding ? 'Adding…' : 'Add count task'}
+            {seeding ? tr('adding', 'Adding…') : tr('addCountTask', 'Add count task')}
           </button>
         )}
       </div>
@@ -383,29 +392,29 @@ export default function CountingScreen() {
 
       <section className="glass card-pad" style={{ marginTop: '1.25rem' }}>
         <h3 style={{ marginTop: 0 }}>
-          Count tasks {tasks.length > 0 && <span className="muted">({tasks.length})</span>}
+          {tr('countTasks', 'Count tasks')} {tasks.length > 0 && <span className="muted">({tasks.length})</span>}
         </h3>
         {tasks.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>
             {warehouseId.trim()
-              ? 'No count tasks for this warehouse / filter.'
-              : 'Load a warehouse to see its count tasks.'}
+              ? tr('noTasks', 'No count tasks for this warehouse / filter.')
+              : tr('loadWarehouse', 'Load a warehouse to see its count tasks.')}
           </p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table>
               <thead>
                 <tr>
-                  <th>Task</th>
-                  <th>Status</th>
-                  <th>Routing</th>
-                  <th>Type</th>
-                  <th>Origin</th>
-                  <th>Scope</th>
-                  <th>Tol.</th>
-                  <th>Assigned</th>
-                  <th>Counted</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  <th>{tr('colTask', 'Task')}</th>
+                  <th>{tr('colStatus', 'Status')}</th>
+                  <th>{tr('colRouting', 'Routing')}</th>
+                  <th>{tr('colType', 'Type')}</th>
+                  <th>{tr('colOrigin', 'Origin')}</th>
+                  <th>{tr('colScope', 'Scope')}</th>
+                  <th>{tr('colTol', 'Tol.')}</th>
+                  <th>{tr('colAssigned', 'Assigned')}</th>
+                  <th>{tr('colCounted', 'Counted')}</th>
+                  <th style={{ textAlign: 'right' }}>{tr('colActions', 'Actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -436,7 +445,7 @@ export default function CountingScreen() {
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {(t.status === 'OPEN' || t.status === 'RECOUNT') && (
                         <button className="btn btn-sm btn-primary" onClick={() => setCaptureTask(t)}>
-                          Capture
+                          {tr('capture', 'Capture')}
                         </button>
                       )}
                       {t.status === 'COUNTED' && (
@@ -445,20 +454,20 @@ export default function CountingScreen() {
                           onClick={() => onReconcile(t)}
                           style={{ marginLeft: 6 }}
                         >
-                          Reconcile
+                          {tr('reconcile', 'Reconcile')}
                         </button>
                       )}
                       <button className="btn btn-sm btn-ghost" onClick={() => setCaptureTask(t)} style={{ marginLeft: 6 }}>
-                        Lines
+                        {tr('lines', 'Lines')}
                       </button>
                       {t.status === 'OPEN' && (
                         <button
                           className="btn btn-sm btn-ghost"
                           onClick={() => setPendingDelete(t)}
                           style={{ marginLeft: 6 }}
-                          title="Delete this count task (only allowed before it is counted)"
+                          title={tr('deleteTitle', 'Delete this count task (only allowed before it is counted)')}
                         >
-                          Delete
+                          {tr('delete', 'Delete')}
                         </button>
                       )}
                     </td>
@@ -472,9 +481,9 @@ export default function CountingScreen() {
 
       {pendingDelete && (
         <ConfirmDialog
-          title="Delete count task"
-          message={`Delete count task ${short(pendingDelete.id)}? This is only allowed before it is counted, and cannot be undone.`}
-          confirmLabel="Delete"
+          title={tr('confirmDeleteTitle', 'Delete count task')}
+          message={tr('confirmDeleteMessage', 'Delete count task {id}? This is only allowed before it is counted, and cannot be undone.').replace('{id}', short(pendingDelete.id))}
+          confirmLabel={tr('delete', 'Delete')}
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => onDelete(pendingDelete)}
         />
@@ -500,7 +509,11 @@ export default function CountingScreen() {
           onClose={() => setScheduleOpen(false)}
           onCreated={async (s) => {
             setScheduleOpen(false)
-            flash(`Schedule "${s.name}" created (every ${s.cadenceDays ?? '—'} day(s)).`)
+            flash(
+              tr('flashScheduleCreated', 'Schedule "{name}" created (every {days} day(s)).')
+                .replace('{name}', s.name)
+                .replace('{days}', String(s.cadenceDays ?? '—')),
+            )
             await loadTasks()
           }}
           onError={(m) => setError(m)}
@@ -511,25 +524,26 @@ export default function CountingScreen() {
 }
 
 function SchedulesPanel({ schedules }: { schedules: CountSchedule[] }) {
+  const tr = useT('counting')
   if (schedules.length === 0) return null
   return (
     <section className="glass card-pad">
       <h3 style={{ marginTop: 0 }}>
-        Count schedules <span className="muted">({schedules.length})</span>
+        {tr('countSchedules', 'Count schedules')} <span className="muted">({schedules.length})</span>
       </h3>
       <div style={{ overflowX: 'auto' }}>
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Status</th>
-              <th>Scope</th>
-              <th>ABC</th>
-              <th>Type</th>
-              <th>Cadence</th>
-              <th>Tol.</th>
-              <th>Last run</th>
-              <th>Next due</th>
+              <th>{tr('colName', 'Name')}</th>
+              <th>{tr('colStatus', 'Status')}</th>
+              <th>{tr('colScope', 'Scope')}</th>
+              <th>{tr('colAbc', 'ABC')}</th>
+              <th>{tr('colType', 'Type')}</th>
+              <th>{tr('colCadence', 'Cadence')}</th>
+              <th>{tr('colTol', 'Tol.')}</th>
+              <th>{tr('colLastRun', 'Last run')}</th>
+              <th>{tr('colNextDue', 'Next due')}</th>
             </tr>
           </thead>
           <tbody>
@@ -573,6 +587,7 @@ function CaptureDialog({
   onDone: (msg?: string) => void
   onError: (m: string) => void
 }) {
+  const tr = useT('counting')
   const [lines, setLines] = useState<CountLine[]>([])
   const [counts, setCounts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
@@ -617,7 +632,7 @@ function CaptureDialog({
       .filter(([, v]) => v.trim() !== '' && !Number.isNaN(Number(v)))
       .map(([countLineId, v]) => ({ countLineId, countedQty: Number(v) }))
     if (entries.length === 0) {
-      setLocalError('Enter at least one counted quantity.')
+      setLocalError(tr('errEnterCount', 'Enter at least one counted quantity.'))
       return
     }
     setBusy(true)
@@ -628,7 +643,11 @@ function CaptureDialog({
         await claimTask(task.id).catch(() => undefined)
       }
       await submitCounts(task.id, entries)
-      onDone(`Submitted ${entries.length} count(s) for task ${short(task.id)} → COUNTED.`)
+      onDone(
+        tr('flashSubmitted', 'Submitted {count} count(s) for task {id} → COUNTED.')
+          .replace('{count}', String(entries.length))
+          .replace('{id}', short(task.id)),
+      )
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setLocalError(msg)
@@ -642,42 +661,42 @@ function CaptureDialog({
     <div className="dialog-backdrop" style={backdrop} onClick={onClose}>
       <div className="dialog" style={{ maxWidth: 880, width: '92%' }} onClick={(e) => e.stopPropagation()}>
         <h2>
-          {editable ? 'Capture count' : reconciled ? 'Reconciled results' : 'Count lines'} · {short(task.id)}{' '}
+          {editable ? tr('captureCount', 'Capture count') : reconciled ? tr('reconciledResults', 'Reconciled results') : tr('countLines', 'Count lines')} · {short(task.id)}{' '}
           <span className={`badge ${taskBadge(task.status)}`} style={{ marginLeft: 8 }}>
             {task.status}
           </span>
         </h2>
         <p className="muted" style={{ marginTop: 0 }}>
           {task.countType === 'BLIND'
-            ? 'Blind count — expected quantity and variance are withheld until reconciled.'
-            : 'Variance count — expected quantity is shown alongside your count.'}
+            ? tr('blindNote', 'Blind count — expected quantity and variance are withheld until reconciled.')
+            : tr('varianceNote', 'Variance count — expected quantity is shown alongside your count.')}
         </p>
 
         {localError && <div className="alert alert-danger">{localError}</div>}
 
         {loading ? (
-          <p className="muted">Loading lines…</p>
+          <p className="muted">{tr('loadingLines', 'Loading lines…')}</p>
         ) : lines.length === 0 ? (
-          <p className="muted">No lines on this task.</p>
+          <p className="muted">{tr('noLinesOnTask', 'No lines on this task.')}</p>
         ) : (
           <div style={{ overflowX: 'auto', maxHeight: '50vh' }}>
             <table>
               <thead>
                 <tr>
-                  <th>Location</th>
-                  <th>SKU</th>
-                  <th>Batch</th>
-                  <th>UoM</th>
-                  {showExpected && <th>Expected</th>}
+                  <th>{tr('colLocation', 'Location')}</th>
+                  <th>{tr('colSku', 'SKU')}</th>
+                  <th>{tr('colBatch', 'Batch')}</th>
+                  <th>{tr('colUom', 'UoM')}</th>
+                  {showExpected && <th>{tr('colExpected', 'Expected')}</th>}
                   <th>
-                    Counted{' '}
+                    {tr('colCountedHeader', 'Counted')}{' '}
                     <InfoTip
-                      text="The physical quantity you actually counted at this location/SKU/batch, in the shown UoM. Compared to the system snapshot to derive variance."
+                      text={tr('countedTip', 'The physical quantity you actually counted at this location/SKU/batch, in the shown UoM. Compared to the system snapshot to derive variance.')}
                       example="48"
                     />
                   </th>
-                  <th>Variance</th>
-                  <th>Status</th>
+                  <th>{tr('colVariance', 'Variance')}</th>
+                  <th>{tr('colStatus', 'Status')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -697,7 +716,7 @@ function CaptureDialog({
                           step="any"
                           value={counts[l.countLineId] ?? ''}
                           onChange={(e) => setCounts({ ...counts, [l.countLineId]: e.target.value })}
-                          placeholder="qty"
+                          placeholder={tr('qtyPlaceholder', 'qty')}
                         />
                       ) : (
                         num(l.countedQty)
@@ -724,11 +743,11 @@ function CaptureDialog({
 
         <div className="dialog-actions">
           <button className="btn btn-ghost" onClick={onClose} disabled={busy}>
-            Close
+            {tr('close', 'Close')}
           </button>
           {editable && (
             <button className="btn btn-primary" onClick={onSubmit} disabled={busy || enteredCount === 0}>
-              {busy ? 'Submitting…' : `Submit counts (${enteredCount})`}
+              {busy ? tr('submitting', 'Submitting…') : tr('submitCounts', 'Submit counts ({count})').replace('{count}', String(enteredCount))}
             </button>
           )}
         </div>
@@ -748,6 +767,7 @@ function ScheduleDialog({
   onCreated: (s: CountSchedule) => void
   onError: (m: string) => void
 }) {
+  const tr = useT('counting')
   const [form, setForm] = useState({
     name: '',
     scopeType: 'ABC_CLASS',
@@ -765,15 +785,15 @@ function ScheduleDialog({
 
   async function onCreate() {
     if (!warehouseId) {
-      setLocalError('Load a warehouse first (the schedule is created for it).')
+      setLocalError(tr('errLoadWarehouseFirst', 'Load a warehouse first (the schedule is created for it).'))
       return
     }
     if (!form.name.trim()) {
-      setLocalError('Name is required.')
+      setLocalError(tr('errNameRequired', 'Name is required.'))
       return
     }
     if (!form.cadenceDays || form.cadenceDays < 1) {
-      setLocalError('Cadence must be at least 1 day.')
+      setLocalError(tr('errCadenceMin', 'Cadence must be at least 1 day.'))
       return
     }
     setBusy(true)
@@ -804,36 +824,36 @@ function ScheduleDialog({
   return (
     <div className="dialog-backdrop" style={backdrop} onClick={onClose}>
       <div className="dialog" style={{ maxWidth: 540, width: '92%' }} onClick={(e) => e.stopPropagation()}>
-        <h2>New count schedule</h2>
+        <h2>{tr('newCountSchedule', 'New count schedule')}</h2>
         <p className="muted" style={{ marginTop: 0 }}>
-          ABC-cadence sweep — emits a count task each time the cadence comes due.
+          {tr('scheduleIntro', 'ABC-cadence sweep — emits a count task each time the cadence comes due.')}
         </p>
 
         {localError && <div className="alert alert-danger">{localError}</div>}
 
         <div style={{ display: 'grid', gap: '.75rem' }}>
           <label style={fieldLabel}>
-            Name{' '}
+            {tr('fieldName', 'Name')}{' '}
             <InfoTip
-              text="A human-readable name for this count schedule, shown in the schedules list. Pick something that identifies its scope and cadence."
+              text={tr('nameTip', 'A human-readable name for this count schedule, shown in the schedules list. Pick something that identifies its scope and cadence.')}
               example="A-class weekly"
             />
             <input
               className="form-control"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="e.g. A-class weekly"
+              placeholder={tr('namePlaceholder', 'e.g. A-class weekly')}
             />
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
             <label style={fieldLabel}>
-              Scope{' '}
+              {tr('fieldScope', 'Scope')}{' '}
               <InfoTip
-                text="What this schedule sweeps: an ABC class, or a specific zone, block, location, or SKU. Non-ABC scopes use the Scope ref below to target an entity."
+                text={tr('scopeTip', 'What this schedule sweeps: an ABC class, or a specific zone, block, location, or SKU. Non-ABC scopes use the Scope ref below to target an entity.')}
                 example="ABC_CLASS"
               />
               <Select
-                ariaLabel="Scope"
+                ariaLabel={tr('fieldScope', 'Scope')}
                 value={form.scopeType}
                 onChange={(v) => setForm({ ...form, scopeType: v })}
                 options={['ABC_CLASS', 'LOCATION', 'SKU', 'ZONE', 'BLOCK'].map((s) => ({
@@ -844,13 +864,13 @@ function ScheduleDialog({
             </label>
             {needsAbc ? (
               <label style={fieldLabel}>
-                ABC class{' '}
+                {tr('fieldAbcClass', 'ABC class')}{' '}
                 <InfoTip
-                  text="Which ABC velocity class to count. A items move fastest and are counted most often; C items are slow movers counted least often."
+                  text={tr('abcClassTip', 'Which ABC velocity class to count. A items move fastest and are counted most often; C items are slow movers counted least often.')}
                   example="A"
                 />
                 <Select
-                  ariaLabel="ABC class"
+                  ariaLabel={tr('fieldAbcClass', 'ABC class')}
                   value={form.abcClass}
                   onChange={(v) => setForm({ ...form, abcClass: v })}
                   options={['A', 'B', 'C'].map((c) => ({ value: c, label: c }))}
@@ -858,38 +878,38 @@ function ScheduleDialog({
               </label>
             ) : (
               <label style={fieldLabel}>
-                Scope ref (UUID){' '}
+                {tr('fieldScopeRef', 'Scope ref (UUID)')}{' '}
                 <InfoTip
-                  text="The UUID of the specific zone, block, location, or SKU to count for the chosen scope. Leave blank to count all entities of that scope type."
+                  text={tr('scopeRefTip', 'The UUID of the specific zone, block, location, or SKU to count for the chosen scope. Leave blank to count all entities of that scope type.')}
                   example="3f2a9c10-7b4e-4d21-9f88-12ab34cd56ef"
                 />
                 <input
                   className="form-control"
                   value={form.scopeRef}
                   onChange={(e) => setForm({ ...form, scopeRef: e.target.value })}
-                  placeholder="blank = all of this scope"
+                  placeholder={tr('scopeRefPlaceholder', 'blank = all of this scope')}
                 />
               </label>
             )}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
             <label style={fieldLabel}>
-              Count type{' '}
+              {tr('fieldCountType', 'Count type')}{' '}
               <InfoTip
-                text="BLIND hides the expected quantity from the counter (more accurate); VARIANCE shows the system quantity alongside the count for quick reconciliation."
+                text={tr('countTypeTip', 'BLIND hides the expected quantity from the counter (more accurate); VARIANCE shows the system quantity alongside the count for quick reconciliation.')}
                 example="VARIANCE"
               />
               <Select
-                ariaLabel="Count type"
+                ariaLabel={tr('fieldCountType', 'Count type')}
                 value={form.countType}
                 onChange={(v) => setForm({ ...form, countType: v })}
                 options={['VARIANCE', 'BLIND'].map((c) => ({ value: c, label: c }))}
               />
             </label>
             <label style={fieldLabel}>
-              Cadence (days){' '}
+              {tr('fieldCadence', 'Cadence (days)')}{' '}
               <InfoTip
-                text="How often (in days) this schedule comes due and emits a new count task. Shorter cadences mean more frequent counts. Must be at least 1."
+                text={tr('cadenceTip', 'How often (in days) this schedule comes due and emits a new count task. Shorter cadences mean more frequent counts. Must be at least 1.')}
                 example="30"
               />
               <input
@@ -903,9 +923,9 @@ function ScheduleDialog({
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
             <label style={fieldLabel}>
-              Tolerance{' '}
+              {tr('fieldTolerance', 'Tolerance')}{' '}
               <InfoTip
-                text="Allowed count-vs-system variance. Lines within tolerance auto-post a stock adjustment on reconcile; out-of-tolerance lines spawn a recount. Blank = exact match required."
+                text={tr('toleranceTip', 'Allowed count-vs-system variance. Lines within tolerance auto-post a stock adjustment on reconcile; out-of-tolerance lines spawn a recount. Blank = exact match required.')}
                 example="2"
               />
               <input
@@ -914,13 +934,13 @@ function ScheduleDialog({
                 step="any"
                 value={form.tolerance}
                 onChange={(e) => setForm({ ...form, tolerance: e.target.value })}
-                placeholder="blank = exact match"
+                placeholder={tr('tolerancePlaceholder', 'blank = exact match')}
               />
             </label>
             <label style={fieldLabel}>
-              Next due (optional){' '}
+              {tr('fieldNextDue', 'Next due (optional)')}{' '}
               <InfoTip
-                text="When this schedule should first come due. Leave blank to start the cadence clock from now; set a date/time to delay the first sweep."
+                text={tr('nextDueTip', 'When this schedule should first come due. Leave blank to start the cadence clock from now; set a date/time to delay the first sweep.')}
                 example="2026-06-15 08:00"
               />
               <input
@@ -935,10 +955,10 @@ function ScheduleDialog({
 
         <div className="dialog-actions">
           <button className="btn btn-ghost" onClick={onClose} disabled={busy}>
-            Cancel
+            {tr('cancel', 'Cancel')}
           </button>
           <button className="btn btn-primary" onClick={onCreate} disabled={busy}>
-            {busy ? 'Creating…' : 'Create schedule'}
+            {busy ? tr('creating', 'Creating…') : tr('createSchedule', 'Create schedule')}
           </button>
         </div>
       </div>
@@ -971,6 +991,7 @@ function ConfirmDialog({
   onConfirm: () => void
   onCancel: () => void
 }) {
+  const tr = useT('counting')
   return (
     <div className="dialog-backdrop" style={backdrop} onClick={onCancel}>
       <div className="dialog" style={{ maxWidth: 460, width: '92%' }} onClick={(e) => e.stopPropagation()}>
@@ -980,7 +1001,7 @@ function ConfirmDialog({
         </p>
         <div className="dialog-actions">
           <button className="btn btn-ghost" onClick={onCancel}>
-            Cancel
+            {tr('cancel', 'Cancel')}
           </button>
           <button className="btn btn-danger" onClick={onConfirm}>
             {confirmLabel}

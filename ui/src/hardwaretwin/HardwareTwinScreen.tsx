@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import Select from '../ui/Select'
+import { useT } from '../i18n/useT'
 import { listDeviceTasks, listHuTrace, type DeviceTask, type HuTraceRow } from '../transport/api'
 import type { AutomationEquipment, AutomationTopology } from '../topology/automationApi'
 import type { EquipmentActivity, ToteView, TwinSnapshot } from './twin'
@@ -54,6 +55,7 @@ function shortId(id?: string | null): string {
 }
 
 export default function HardwareTwinScreen() {
+  const t = useT('twin')
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const [autoRefresh, setAutoRefresh] = useState(true)
   const { topology, lib, snapshot, timelines, clockOffsetMsRef, storedTotes, loading, error, lastUpdated, refresh } = useLiveTwin(
@@ -105,29 +107,31 @@ export default function HardwareTwinScreen() {
         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}
       >
         <div>
-          <span className="eyebrow">Flow orchestrator</span>
-          <h1>Hardware visualisation</h1>
+          <span className="eyebrow">{t('eyebrow', 'Flow orchestrator')}</span>
+          <h1>{t('title', 'Hardware visualisation')}</h1>
           <p>
-            Live 3D view of the automation hardware — equipment activity and handling units moving
-            through the system, derived from the device-task feed.
+            {t(
+              'intro',
+              'Live 3D view of the automation hardware — equipment activity and handling units moving through the system, derived from the device-task feed.',
+            )}
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap' }}>
           {lastUpdated && (
             <span className="muted" style={{ fontSize: '.75rem' }}>
-              Updated {lastUpdated.toLocaleTimeString()}
+              {t('updated', 'Updated')} {lastUpdated.toLocaleTimeString()}
             </span>
           )}
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', fontSize: '.85rem' }}>
             <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} />
-            Labels
+            {t('labels', 'Labels')}
           </label>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', fontSize: '.85rem' }}>
             <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-            Auto-refresh
+            {t('autoRefresh', 'Auto-refresh')}
           </label>
           <button className="btn btn-ghost btn-sm" onClick={refresh} disabled={loading || !topology}>
-            {loading ? 'Refreshing…' : 'Refresh'}
+            {loading ? t('refreshing', 'Refreshing…') : t('refresh', 'Refresh')}
           </button>
         </div>
       </div>
@@ -145,27 +149,27 @@ export default function HardwareTwinScreen() {
         }}
       >
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-          <StatChip label="In transit" value={stats?.inTransit ?? 0} kind="info" />
-          <StatChip label="Queued" value={stats?.queued ?? 0} kind="warning" />
-          <StatChip label="Throughput /min" value={stats?.throughputPerMin ?? 0} kind="success" />
-          <StatChip label="Recirculations" value={stats?.recirculations ?? 0} kind="warning" />
-          <StatChip label="Faults" value={stats?.faults ?? 0} kind={stats && stats.faults > 0 ? 'danger' : 'muted'} />
-          <StatChip label="In storage" value={storedTotes.length} kind="muted" />
+          <StatChip label={t('statInTransit', 'In transit')} value={stats?.inTransit ?? 0} kind="info" />
+          <StatChip label={t('statQueued', 'Queued')} value={stats?.queued ?? 0} kind="warning" />
+          <StatChip label={t('statThroughput', 'Throughput /min')} value={stats?.throughputPerMin ?? 0} kind="success" />
+          <StatChip label={t('statRecirculations', 'Recirculations')} value={stats?.recirculations ?? 0} kind="warning" />
+          <StatChip label={t('statFaults', 'Faults')} value={stats?.faults ?? 0} kind={stats && stats.faults > 0 ? 'danger' : 'muted'} />
+          <StatChip label={t('statInStorage', 'In storage')} value={storedTotes.length} kind="muted" />
         </div>
 
         {levels.length > 1 && (
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '.5rem', fontSize: '.85rem' }}>
             <span className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '.65rem', letterSpacing: '.12em', textTransform: 'uppercase' }}>
-              Level
+              {t('level', 'Level')}
             </span>
             <Select
-              ariaLabel="Level"
+              ariaLabel={t('level', 'Level')}
               value={activeLevelId ?? ''}
               onChange={(v) => setActiveLevelId(v || null)}
               style={{ width: 200 }}
               options={[
-                { value: '', label: 'All levels' },
-                ...levels.map((l) => ({ value: l.id, label: l.name || `Level ${l.number}` })),
+                { value: '', label: t('allLevels', 'All levels') },
+                ...levels.map((l) => ({ value: l.id, label: l.name || `${t('level', 'Level')} ${l.number}` })),
               ]}
             />
           </label>
@@ -173,17 +177,17 @@ export default function HardwareTwinScreen() {
 
         <div style={{ display: 'flex', gap: '.9rem', flexWrap: 'wrap', marginLeft: 'auto', alignItems: 'center' }}>
           {/* Conveyor belts wear their state as a skin (no orb on conveyors). */}
-          <LegendSwatch colour={CONVEYOR_COLOURS.ok} label="Functional" />
-          <LegendSwatch colour={CONVEYOR_COLOURS.jam} label="Jam / heavy traffic" />
-          <LegendSwatch colour={CONVEYOR_COLOURS.fault} label="Stopped / error" />
+          <LegendSwatch colour={CONVEYOR_COLOURS.ok} label={t('legendFunctional', 'Functional')} />
+          <LegendSwatch colour={CONVEYOR_COLOURS.jam} label={t('legendJam', 'Jam / heavy traffic')} />
+          <LegendSwatch colour={CONVEYOR_COLOURS.fault} label={t('legendStopped', 'Stopped / error')} />
           <span className="muted" style={{ opacity: 0.4 }}>|</span>
           {/* Non-conveyor equipment (ASRS, stations) still shows the floating activity orb. */}
-          <LegendSwatch colour={EQUIPMENT_COLOURS.running} label="Running (ASRS / stations)" round />
-          <LegendSwatch colour={EQUIPMENT_COLOURS.faulted} label="Faulted (ASRS / stations)" round />
+          <LegendSwatch colour={EQUIPMENT_COLOURS.running} label={t('legendRunning', 'Running (ASRS / stations)')} round />
+          <LegendSwatch colour={EQUIPMENT_COLOURS.faulted} label={t('legendFaulted', 'Faulted (ASRS / stations)')} round />
           <span className="muted" style={{ opacity: 0.4 }}>|</span>
-          <LegendSwatch colour={TOTE_COLOURS['in-transit']} label="In transit" round />
-          <LegendSwatch colour={TOTE_COLOURS.recirculating} label="Recirculating" round />
-          <LegendSwatch colour={TOTE_COLOURS.queued} label="Queued" round />
+          <LegendSwatch colour={TOTE_COLOURS['in-transit']} label={t('legendInTransit', 'In transit')} round />
+          <LegendSwatch colour={TOTE_COLOURS.recirculating} label={t('legendRecirculating', 'Recirculating')} round />
+          <LegendSwatch colour={TOTE_COLOURS.queued} label={t('legendQueued', 'Queued')} round />
         </div>
       </div>
 
@@ -196,15 +200,15 @@ export default function HardwareTwinScreen() {
       {/* Viewer + detail panel */}
       {!warehouseId ? (
         <div className="glass" style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-dim)' }}>
-          Select a warehouse in the top bar to load its automation hardware.
+          {t('selectWarehouse', 'Select a warehouse in the top bar to load its automation hardware.')}
         </div>
       ) : isEmpty ? (
         <div className="glass" style={{ padding: '2.5rem', textAlign: 'center' }}>
           <div style={{ fontSize: '2.5rem', marginBottom: '.5rem' }}>◳</div>
-          <h2 style={{ marginTop: 0 }}>No automation topology placed yet</h2>
+          <h2 style={{ marginTop: 0 }}>{t('emptyTitle', 'No automation topology placed yet')}</h2>
           <p style={{ color: 'var(--text-dim)', margin: 0 }}>
-            Build one in <strong>Automation topology</strong>, then equipment and handling units will
-            appear here live.
+            {t('emptyBodyPrefix', 'Build one in')} <strong>{t('automationTopology', 'Automation topology')}</strong>
+            {t('emptyBodySuffix', ', then equipment and handling units will appear here live.')}
           </p>
         </div>
       ) : (
@@ -233,7 +237,7 @@ export default function HardwareTwinScreen() {
                       color: 'var(--text-dim)',
                     }}
                   >
-                    Loading 3D scene…
+                    {t('loadingScene', 'Loading 3D scene…')}
                   </div>
                 }
               >
@@ -253,7 +257,7 @@ export default function HardwareTwinScreen() {
                 />
               </Suspense>
             ) : (
-              <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-dim)' }}>Loading topology…</div>
+              <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-dim)' }}>{t('loadingTopology', 'Loading topology…')}</div>
             )}
           </div>
 
@@ -338,13 +342,14 @@ function LegendSwatch({ colour, label, round }: { colour: string; label: string;
 }
 
 function DetailHeader({ eyebrow, title, onClose }: { eyebrow: string; title: string; onClose: () => void }) {
+  const t = useT('twin')
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '.75rem', marginBottom: '.75rem' }}>
       <div>
         <span className="eyebrow">{eyebrow}</span>
         <h3 style={{ margin: '.1rem 0 0' }}>{title}</h3>
       </div>
-      <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close">
+      <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label={t('close', 'Close')}>
         ✕
       </button>
     </div>
@@ -381,6 +386,7 @@ function EquipmentDetail({
   warehouseId: string
   onClose: () => void
 }) {
+  const t = useT('twin')
   const eq: AutomationEquipment | undefined = useMemo(
     () => topology.equipment.find((e) => e.id === placedId),
     [topology, placedId],
@@ -411,24 +417,24 @@ function EquipmentDetail({
 
   return (
     <div>
-      <DetailHeader eyebrow="Equipment" title={eq?.code ?? shortId(placedId)} onClose={onClose} />
-      <Row label="Category" value={eq?.category ?? '—'} />
+      <DetailHeader eyebrow={t('equipment', 'Equipment')} title={eq?.code ?? shortId(placedId)} onClose={onClose} />
+      <Row label={t('category', 'Category')} value={eq?.category ?? '—'} />
       <Row
-        label="State"
+        label={t('state', 'State')}
         value={
           activity ? <span className={eqStateBadge(activity.state)}>{activity.state}</span> : <span className="badge">idle</span>
         }
       />
-      <Row label="Active tasks" value={activity?.activeTasks ?? 0} />
-      <Row label="Last command" value={activity?.lastCommand ?? '—'} />
-      <Row label="Last activity" value={formatTime(activity?.lastTs)} />
+      <Row label={t('activeTasks', 'Active tasks')} value={activity?.activeTasks ?? 0} />
+      <Row label={t('lastCommand', 'Last command')} value={activity?.lastCommand ?? '—'} />
+      <Row label={t('lastActivity', 'Last activity')} value={formatTime(activity?.lastTs)} />
 
-      <h4 style={{ margin: '1rem 0 .4rem', fontSize: '.85rem' }}>Recent device tasks</h4>
-      {!equipmentId && <p className="muted" style={{ fontSize: '.8rem' }}>This placement isn't linked to a master-data equipment.</p>}
+      <h4 style={{ margin: '1rem 0 .4rem', fontSize: '.85rem' }}>{t('recentDeviceTasks', 'Recent device tasks')}</h4>
+      {!equipmentId && <p className="muted" style={{ fontSize: '.8rem' }}>{t('notLinked', "This placement isn't linked to a master-data equipment.")}</p>}
       {err && <p className="badge badge-danger" style={{ fontSize: '.78rem' }}>{err}</p>}
-      {loading && tasks.length === 0 && <p className="muted" style={{ fontSize: '.8rem' }}>Loading tasks…</p>}
+      {loading && tasks.length === 0 && <p className="muted" style={{ fontSize: '.8rem' }}>{t('loadingTasks', 'Loading tasks…')}</p>}
       {equipmentId && !loading && tasks.length === 0 && !err && (
-        <p className="muted" style={{ fontSize: '.8rem' }}>No recent tasks for this equipment.</p>
+        <p className="muted" style={{ fontSize: '.8rem' }}>{t('noRecentTasks', 'No recent tasks for this equipment.')}</p>
       )}
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
         {tasks.map((t) => (
@@ -474,7 +480,8 @@ function ToteDetail({
   warehouseId: string
   onClose: () => void
 }) {
-  const tote = snapshot?.totes.find((t) => t.huId === huId) ?? null
+  const t = useT('twin')
+  const tote = snapshot?.totes.find((tt) => tt.huId === huId) ?? null
   const [trace, setTrace] = useState<HuTraceRow[]>([])
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -494,9 +501,9 @@ function ToteDetail({
 
   return (
     <div>
-      <DetailHeader eyebrow="Handling unit" title={tote?.huCode ?? shortId(huId)} onClose={onClose} />
+      <DetailHeader eyebrow={t('handlingUnit', 'Handling unit')} title={tote?.huCode ?? shortId(huId)} onClose={onClose} />
       <Row
-        label="State"
+        label={t('state', 'State')}
         value={
           tote ? (
             <span
@@ -517,15 +524,15 @@ function ToteDetail({
           )
         }
       />
-      <Row label="Last command" value={tote?.lastCommand ?? '—'} />
-      <Row label="Last seen" value={formatTime(tote?.lastTs)} />
-      <Row label="Correlation" value={shortId(tote?.correlationId)} />
+      <Row label={t('lastCommand', 'Last command')} value={tote?.lastCommand ?? '—'} />
+      <Row label={t('lastSeen', 'Last seen')} value={formatTime(tote?.lastTs)} />
+      <Row label={t('correlation', 'Correlation')} value={shortId(tote?.correlationId)} />
 
-      <h4 style={{ margin: '1rem 0 .4rem', fontSize: '.85rem' }}>Transport trace</h4>
+      <h4 style={{ margin: '1rem 0 .4rem', fontSize: '.85rem' }}>{t('transportTrace', 'Transport trace')}</h4>
       {err && <p className="badge badge-danger" style={{ fontSize: '.78rem' }}>{err}</p>}
-      {loading && trace.length === 0 && <p className="muted" style={{ fontSize: '.8rem' }}>Loading trace…</p>}
+      {loading && trace.length === 0 && <p className="muted" style={{ fontSize: '.8rem' }}>{t('loadingTrace', 'Loading trace…')}</p>}
       {!loading && trace.length === 0 && !err && (
-        <p className="muted" style={{ fontSize: '.8rem' }}>No recorded transport events for this handling unit.</p>
+        <p className="muted" style={{ fontSize: '.8rem' }}>{t('noTraceEvents', 'No recorded transport events for this handling unit.')}</p>
       )}
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
         {trace.map((row, i) => (

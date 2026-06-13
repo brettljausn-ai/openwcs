@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { listLocations, type Location } from '../masterdata/api'
+import { useT } from '../i18n/useT'
 
 // A single-value picker for a master-data location, searchable by CODE (not raw UUID). Stores the
 // location's id in `value` but shows/searches its code. Loads the warehouse's locations once.
@@ -14,6 +15,7 @@ export default function LocationPicker({
   onChange: (id: string) => void
   placeholder?: string
 }) {
+  const t = useT('gtpconfig')
   const [locs, setLocs] = useState<Location[]>([])
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -71,7 +73,7 @@ export default function LocationPicker({
       <input
         className="form-control"
         value={typing ? query : selectedCode}
-        placeholder={placeholder ?? 'Search a location code…'}
+        placeholder={placeholder ?? t('searchLocationCode', 'Search a location code…')}
         onChange={(e) => {
           setTyping(true)
           setQuery(e.target.value)
@@ -95,7 +97,9 @@ export default function LocationPicker({
         >
           {matches.length === 0 ? (
             <li style={{ padding: '.35rem .5rem', color: 'var(--text-dim)', fontSize: '.82rem' }}>
-              {locs.length === 0 ? 'No locations in this warehouse.' : 'No matching code.'}
+              {locs.length === 0
+                ? t('noLocations', 'No locations in this warehouse.')
+                : t('noMatchingCode', 'No matching code.')}
             </li>
           ) : (
             matches.map((l) => (

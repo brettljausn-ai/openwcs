@@ -4,6 +4,7 @@ import Select from '../ui/Select'
 import DatePicker from '../ui/DatePicker'
 import DataTable, { Column } from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
+import { useT } from '../i18n/useT'
 
 // --- Transaction-log event shape (contracts/openapi/txlog.yaml → EventView) ---
 type TxEvent = {
@@ -139,6 +140,7 @@ function dtToMs(v: string): number | null {
 }
 
 export default function StockTxnScreen() {
+  const t = useT('stocktxn')
   const [events, setEvents] = useState<TxEvent[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -189,16 +191,16 @@ export default function StockTxnScreen() {
     setError(null)
     try {
       const res = await fetch(`/api/txlog/events?afterPosition=0&limit=${FETCH_LIMIT}`)
-      if (!res.ok) throw new Error(`Feed request failed (${res.status})`)
+      if (!res.ok) throw new Error(t('errFeed', 'Feed request failed ({status})').replace('{status}', String(res.status)))
       const data: TxEvent[] = await res.json()
       setEvents(Array.isArray(data) ? data : [])
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load transactions')
+      setError(e instanceof Error ? e.message : t('errLoad', 'Failed to load transactions'))
       setEvents([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     void load()
@@ -254,7 +256,7 @@ export default function StockTxnScreen() {
   const columns: Column<{ e: TxEvent; d: ReturnType<typeof decode> }>[] = [
     {
       key: 'time',
-      header: 'Time',
+      header: t('colTime', 'Time'),
       sortable: true,
       sortValue: ({ e }) => e.position ?? new Date(e.occurredAt).getTime(),
       render: ({ e }) => (
@@ -265,14 +267,14 @@ export default function StockTxnScreen() {
     },
     {
       key: 'type',
-      header: 'Type',
+      header: t('colType', 'Type'),
       sortable: true,
       sortValue: ({ e }) => e.eventType,
       render: ({ e }) => <span className={`badge ${typeBadgeClass(e.eventType)}`}>{e.eventType}</span>,
     },
     {
       key: 'sku',
-      header: 'SKU',
+      header: t('colSku', 'SKU'),
       render: ({ d }) => (
         <span title={d.sku ?? undefined} style={{ fontFamily: 'var(--font-mono)' }}>
           {codeFor(d.sku)}
@@ -281,17 +283,17 @@ export default function StockTxnScreen() {
     },
     {
       key: 'from',
-      header: 'From',
+      header: t('colFrom', 'From'),
       render: ({ d }) => <span title={d.from ?? undefined}>{locFor(d.from)}</span>,
     },
     {
       key: 'to',
-      header: 'To',
+      header: t('colTo', 'To'),
       render: ({ d }) => <span title={d.to ?? undefined}>{locFor(d.to)}</span>,
     },
     {
       key: 'qty',
-      header: 'Qty Δ',
+      header: t('colQtyDelta', 'Qty Δ'),
       align: 'right',
       render: ({ d }) => {
         const delta = d.delta
@@ -304,12 +306,12 @@ export default function StockTxnScreen() {
     },
     {
       key: 'actor',
-      header: 'Actor',
+      header: t('colActor', 'Actor'),
       render: ({ e }) => <span title={e.actor ?? undefined}>{e.actor ?? '—'}</span>,
     },
     {
       key: 'ref',
-      header: 'Ref',
+      header: t('colRef', 'Ref'),
       render: ({ e }) => {
         const ref = e.correlationId ?? e.streamId
         return (
@@ -325,10 +327,9 @@ export default function StockTxnScreen() {
     <div className="app-content">
       <div className="page-head">
         <div className="eyebrow">openWCS</div>
-        <h1>Stock transactions</h1>
+        <h1>{t('title', 'Stock transactions')}</h1>
         <p>
-          Event-sourced movement log from the immutable transaction log. Filter by SKU,
-          location, type or time range, and expand any row to inspect the raw event.
+          {t('subtitle', 'Event-sourced movement log from the immutable transaction log. Filter by SKU, location, type or time range, and expand any row to inspect the raw event.')}
         </p>
       </div>
 
@@ -342,55 +343,57 @@ export default function StockTxnScreen() {
           }}
         >
           <label style={{ display: 'block' }}>
-            <span className="muted" style={{ fontSize: '.75rem' }}>SKU <InfoTip text="Show only movements for SKUs whose code or id contains this text (case-insensitive, substring match)." example="WIDGET-001" /></span>
+            <span className="muted" style={{ fontSize: '.75rem' }}>{t('filterSku', 'SKU')} <InfoTip text={t('filterSkuTip', 'Show only movements for SKUs whose code or id contains this text (case-insensitive, substring match).')} example="WIDGET-001" /></span>
             <input
               className="form-control"
-              placeholder="SKU code contains…"
+              placeholder={t('filterSkuPlaceholder', 'SKU code contains…')}
               value={fSku}
               onChange={(ev) => setFSku(ev.target.value)}
             />
           </label>
           <label style={{ display: 'block' }}>
-            <span className="muted" style={{ fontSize: '.75rem' }}>Location <InfoTip text="Show only movements whose source (From) or destination (To) location contains this text (case-insensitive)." example="A-01-02" /></span>
+            <span className="muted" style={{ fontSize: '.75rem' }}>{t('filterLocation', 'Location')} <InfoTip text={t('filterLocationTip', 'Show only movements whose source (From) or destination (To) location contains this text (case-insensitive).')} example="A-01-02" /></span>
             <input
               className="form-control"
-              placeholder="From / to location…"
+              placeholder={t('filterLocationPlaceholder', 'From / to location…')}
               value={fLocation}
               onChange={(ev) => setFLocation(ev.target.value)}
             />
           </label>
           <label style={{ display: 'block' }}>
-            <span className="muted" style={{ fontSize: '.75rem' }}>Type <InfoTip text="Limit the log to a single stock event type. Choose 'All types' to include every movement." example="GoodsReceived" /></span>
+            <span className="muted" style={{ fontSize: '.75rem' }}>{t('filterType', 'Type')} <InfoTip text={t('filterTypeTip', "Limit the log to a single stock event type. Choose 'All types' to include every movement.")} example="GoodsReceived" /></span>
             <Select
               value={fType}
               onChange={(v) => setFType(v)}
-              ariaLabel="Type"
+              ariaLabel={t('filterType', 'Type')}
               options={[
-                { value: '', label: 'All types' },
-                ...STOCK_TYPES.map((t) => ({ value: t, label: t })),
+                { value: '', label: t('allTypes', 'All types') },
+                ...STOCK_TYPES.map((tt) => ({ value: tt, label: tt })),
               ]}
             />
           </label>
           <label style={{ display: 'block' }}>
-            <span className="muted" style={{ fontSize: '.75rem' }}>From <InfoTip text="Earliest event time to include. Events that occurred before this date/time are hidden. Leave blank for no lower bound." example="2026-06-01 08:00" /></span>
-            <DatePicker withTime value={fFrom} onChange={setFFrom} ariaLabel="From" placeholder="Any start" />
+            <span className="muted" style={{ fontSize: '.75rem' }}>{t('filterFrom', 'From')} <InfoTip text={t('filterFromTip', 'Earliest event time to include. Events that occurred before this date/time are hidden. Leave blank for no lower bound.')} example="2026-06-01 08:00" /></span>
+            <DatePicker withTime value={fFrom} onChange={setFFrom} ariaLabel={t('filterFrom', 'From')} placeholder={t('anyStart', 'Any start')} />
           </label>
           <label style={{ display: 'block' }}>
-            <span className="muted" style={{ fontSize: '.75rem' }}>To <InfoTip text="Latest event time to include. Events that occurred after this date/time are hidden. Leave blank for no upper bound." example="2026-06-04 18:00" /></span>
-            <DatePicker withTime value={fTo} onChange={setFTo} ariaLabel="To" placeholder="Any end" />
+            <span className="muted" style={{ fontSize: '.75rem' }}>{t('filterTo', 'To')} <InfoTip text={t('filterToTip', 'Latest event time to include. Events that occurred after this date/time are hidden. Leave blank for no upper bound.')} example="2026-06-04 18:00" /></span>
+            <DatePicker withTime value={fTo} onChange={setFTo} ariaLabel={t('filterTo', 'To')} placeholder={t('anyEnd', 'Any end')} />
           </label>
         </div>
         <div className="toolbar" style={{ marginTop: '1rem', marginBottom: 0 }}>
           <span className="muted" style={{ fontSize: '.8125rem' }}>
             {loading
-              ? 'Loading…'
-              : `${filtered.length} transaction${filtered.length === 1 ? '' : 's'}` +
-                (hasFilters ? ` (of ${decorated.length})` : '')}
+              ? t('loading', 'Loading…')
+              : (filtered.length === 1
+                  ? t('countOne', '{n} transaction').replace('{n}', String(filtered.length))
+                  : t('countMany', '{n} transactions').replace('{n}', String(filtered.length))) +
+                (hasFilters ? ' ' + t('countOf', '(of {total})').replace('{total}', String(decorated.length)) : '')}
           </span>
           <span className="spacer" />
           {hasFilters && (
             <button type="button" className="btn btn-ghost btn-sm" onClick={clearFilters}>
-              Clear filters
+              {t('clearFilters', 'Clear filters')}
             </button>
           )}
           <button
@@ -399,7 +402,7 @@ export default function StockTxnScreen() {
             onClick={() => void load()}
             disabled={loading}
           >
-            Refresh
+            {t('refresh', 'Refresh')}
           </button>
         </div>
       </div>
@@ -417,7 +420,7 @@ export default function StockTxnScreen() {
           rowKey={(row) => row.e.eventId}
           pageSize={25}
           initialSort={{ key: 'time', dir: 'desc' }}
-          empty={hasFilters ? 'No transactions match the filters.' : 'No transactions recorded yet.'}
+          empty={hasFilters ? t('emptyFiltered', 'No transactions match the filters.') : t('emptyNone', 'No transactions recorded yet.')}
           renderExpanded={({ e }) => (
             <>
               <div
@@ -428,17 +431,17 @@ export default function StockTxnScreen() {
                   marginBottom: '.75rem',
                 }}
               >
-                <Meta label="Event id" value={e.eventId} />
-                <Meta label="Stream id" value={e.streamId} />
-                <Meta label="Seq" value={String(e.seq)} />
-                <Meta label="Position" value={e.position != null ? String(e.position) : '—'} />
-                <Meta label="Correlation id" value={e.correlationId ?? '—'} />
-                <Meta label="Payload version" value={String(e.payloadVersion)} />
-                <Meta label="Occurred at" value={fmtTime(e.occurredAt)} />
-                <Meta label="Recorded at" value={fmtTime(e.recordedAt)} />
+                <Meta label={t('metaEventId', 'Event id')} value={e.eventId} />
+                <Meta label={t('metaStreamId', 'Stream id')} value={e.streamId} />
+                <Meta label={t('metaSeq', 'Seq')} value={String(e.seq)} />
+                <Meta label={t('metaPosition', 'Position')} value={e.position != null ? String(e.position) : '—'} />
+                <Meta label={t('metaCorrelationId', 'Correlation id')} value={e.correlationId ?? '—'} />
+                <Meta label={t('metaPayloadVersion', 'Payload version')} value={String(e.payloadVersion)} />
+                <Meta label={t('metaOccurredAt', 'Occurred at')} value={fmtTime(e.occurredAt)} />
+                <Meta label={t('metaRecordedAt', 'Recorded at')} value={fmtTime(e.recordedAt)} />
               </div>
               <div className="muted" style={{ fontSize: '.7rem', fontFamily: 'var(--font-mono)', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: '.35rem' }}>
-                Raw payload
+                {t('rawPayload', 'Raw payload')}
               </div>
               <pre
                 style={{
