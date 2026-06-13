@@ -157,6 +157,10 @@ export interface TwinLiveInputs {
    *  flow's induction queue). When provided, "queued" is never inferred from stale completed CONVEY
    *  tasks — an HU whose work is DONE simply stops being shown as queued. */
   queuedByStation?: Map<string, Array<{ huId: string; huCode?: string | null }>>
+  /** In-transit HUs for which the backend "visu master" supplied a resolved path (huId set). Their
+   *  position comes from that path's timeline, so the tote view is kept even when this client has no
+   *  local scan or strict equipment anchor for it. */
+  pathHuIds?: Set<string>
 }
 
 // ----------------------------------------------------------------------------------------------------
@@ -467,7 +471,8 @@ export function deriveTwin(
       continue
     }
 
-    if (!anchorPlacedId && !scan) continue // no observed position — hide rather than invent
+    // No local position, but keep the tote when the backend path drives its motion (in-transit).
+    if (!anchorPlacedId && !scan && !live?.pathHuIds?.has(hu)) continue // else hide rather than invent
 
     totes.push({
       huId: hu,

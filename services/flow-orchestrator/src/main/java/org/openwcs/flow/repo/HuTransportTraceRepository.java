@@ -17,6 +17,11 @@ public interface HuTransportTraceRepository extends JpaRepository<HuTransportTra
     /** An HU's transport timeline scoped to a warehouse, ts ASC. */
     List<HuTransportTrace> findByWarehouseIdAndHuIdOrderByTsAsc(UUID warehouseId, UUID huId);
 
+    /** An HU's rows of one event type from {@code ts} onward, ts ASC — the current transit leg's
+     *  SCANNED waypoints for the live twin (bounded by the running CONVEY task's start time). */
+    List<HuTransportTrace> findByWarehouseIdAndHuIdAndEventAndTsGreaterThanEqualOrderByTsAsc(
+            UUID warehouseId, UUID huId, String event, java.time.Instant ts);
+
     /** All trace rows for a warehouse (used by the demo full-reset clear). */
     List<HuTransportTrace> findByWarehouseId(UUID warehouseId);
 
