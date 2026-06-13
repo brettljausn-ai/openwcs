@@ -37,12 +37,16 @@ func initConfigFromEnv() {
 	if n, ok := envInt("OPENWCS_EMULATOR_RECIRC_EVERY"); ok && n >= 0 {
 		recircEvery.Store(n)
 	}
+	asrsHandoverMs.Store(defaultAsrsHandoverMs)
+	if n, ok := envInt("OPENWCS_EMULATOR_ASRS_HANDOVER_MS"); ok && n >= 0 {
+		asrsHandoverMs.Store(n)
+	}
 	setSpeedMps(defaultSpeedMps)
 	if f, ok := envFloat("OPENWCS_EMULATOR_SPEED_MPS"); ok && f > 0 {
 		setSpeedMps(f)
 	}
-	log.Printf("%s: config seeded from env: latencyOverrideMs=%d (-1 = per-command defaults), faultEvery=%d (0 = no fault injection), recircEvery=%d (0 = no forced recirculation), speedMps=%.2f",
-		serviceName, latencyOverrideMs.Load(), faultEvery.Load(), recircEvery.Load(), speedMps())
+	log.Printf("%s: config seeded from env: latencyOverrideMs=%d (-1 = per-command defaults), faultEvery=%d (0 = no fault injection), recircEvery=%d (0 = no forced recirculation), asrsHandoverMs=%d, speedMps=%.2f",
+		serviceName, latencyOverrideMs.Load(), faultEvery.Load(), recircEvery.Load(), asrsHandoverMs.Load(), speedMps())
 }
 
 func envInt(key string) (int64, bool) {
@@ -74,6 +78,7 @@ type configView struct {
 	LatencyOverrideMs int64   `json:"latencyOverrideMs"`
 	FaultEvery        int64   `json:"faultEvery"`
 	RecircEvery       int64   `json:"recircEvery"`
+	AsrsHandoverMs    int64   `json:"asrsHandoverMs"`
 	SpeedMps          float64 `json:"speedMps"`
 }
 
@@ -88,6 +93,7 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 			LatencyOverrideMs *int64   `json:"latencyOverrideMs"`
 			FaultEvery        *int64   `json:"faultEvery"`
 			RecircEvery       *int64   `json:"recircEvery"`
+			AsrsHandoverMs    *int64   `json:"asrsHandoverMs"`
 			SpeedMps          *float64 `json:"speedMps"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
@@ -115,6 +121,12 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 					serviceName, old, *in.RecircEvery)
 			}
 		}
+		if in.AsrsHandoverMs != nil && *in.AsrsHandoverMs >= 0 {
+			if old := asrsHandoverMs.Swap(*in.AsrsHandoverMs); old != *in.AsrsHandoverMs {
+				log.Printf("%s: config change via /config: asrsHandoverMs %d -> %d (min gap between consecutive ASRS tote deliveries; one tote at a time through the shuttle/lift/handover)",
+					serviceName, old, *in.AsrsHandoverMs)
+			}
+		}
 		if in.SpeedMps != nil && *in.SpeedMps > 0 {
 			if old := speedMps(); old != *in.SpeedMps {
 				setSpeedMps(*in.SpeedMps)
@@ -134,6 +146,7 @@ func writeConfig(w http.ResponseWriter) {
 		LatencyOverrideMs: latencyOverrideMs.Load(),
 		FaultEvery:        faultEvery.Load(),
 		RecircEvery:       recircEvery.Load(),
+		AsrsHandoverMs:    asrsHandoverMs.Load(),
 		SpeedMps:          speedMps(),
 	})
 }
