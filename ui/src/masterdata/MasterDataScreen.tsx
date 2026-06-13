@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext'
 import Select from '../ui/Select'
 import DataTable from '../ui/DataTable'
 import InfoTip from '../ui/InfoTip'
+import { useT } from '../i18n/useT'
 import { checkOccupancy, countActiveHandlingUnits } from '../inventory/api'
 import {
   Barcode,
@@ -65,17 +66,18 @@ type EntityKey =
   | 'handling-unit-types'
   | 'label-templates'
 
-const ENTITIES: { key: EntityKey; label: string; scoped: boolean }[] = [
-  { key: 'warehouses', label: 'Warehouses', scoped: false },
-  { key: 'skus', label: 'SKUs', scoped: false },
-  { key: 'storage-blocks', label: 'Storage blocks', scoped: true },
-  { key: 'locations', label: 'Locations', scoped: true },
-  { key: 'equipment', label: 'Equipment', scoped: true },
-  { key: 'handling-unit-types', label: 'Handling unit types', scoped: false },
-  { key: 'label-templates', label: 'Label templates', scoped: false },
+const ENTITIES: { key: EntityKey; labelKey: string; label: string; scoped: boolean }[] = [
+  { key: 'warehouses', labelKey: 'entWarehouses', label: 'Warehouses', scoped: false },
+  { key: 'skus', labelKey: 'entSkus', label: 'SKUs', scoped: false },
+  { key: 'storage-blocks', labelKey: 'entStorageBlocks', label: 'Storage blocks', scoped: true },
+  { key: 'locations', labelKey: 'entLocations', label: 'Locations', scoped: true },
+  { key: 'equipment', labelKey: 'entEquipment', label: 'Equipment', scoped: true },
+  { key: 'handling-unit-types', labelKey: 'entHuTypes', label: 'Handling unit types', scoped: false },
+  { key: 'label-templates', labelKey: 'entLabelTemplates', label: 'Label templates', scoped: false },
 ]
 
 export default function MasterDataScreen() {
+  const t = useT('masterdata')
   const { currentWarehouseId: warehouseId } = useWarehouse()
   // The active entity is the last segment of /master-data/<entity> — each catalog is its own route.
   const { pathname } = useLocation()
@@ -102,14 +104,14 @@ export default function MasterDataScreen() {
   return (
     <div className="app-content">
       <div className="page-head">
-        <span className="eyebrow">Master data</span>
-        <h1>{active.label}</h1>
+        <span className="eyebrow">{t('eyebrow', 'Master data')}</span>
+        <h1>{t(active.labelKey, active.label)}</h1>
         <p>
           {active.scoped
-            ? 'Scoped to the warehouse selected in the top bar.'
+            ? t('scopedNote', 'Scoped to the warehouse selected in the top bar.')
             : entity === 'skus'
-              ? 'SKUs, with their units of measure and barcodes, are owned by the host system and shown read-only.'
-              : 'Manage this master-data catalog.'}
+              ? t('skusNote', 'SKUs, with their units of measure and barcodes, are owned by the host system and shown read-only.')
+              : t('manageCatalog', 'Manage this master-data catalog.')}
         </p>
       </div>
 
@@ -193,12 +195,13 @@ function Field({
 }
 
 function Toolbar({ onAdd, label, children }: { onAdd: () => void; label: string; children?: React.ReactNode }) {
+  const t = useT('masterdata')
   return (
     <div className="toolbar">
       {children}
       <div className="spacer" />
       <button className="btn btn-primary btn-sm" onClick={onAdd}>
-        + New {label}
+        {t('newPrefix', '+ New')} {label}
       </button>
     </div>
   )
@@ -232,6 +235,7 @@ function EditDialog<T>({
   canSave?: boolean
   wide?: boolean
 }) {
+  const t = useT('masterdata')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function save() {
@@ -252,10 +256,10 @@ function EditDialog<T>({
       <div className={`md-form${wide ? ' md-form-2col' : ''}`}>{children}</div>
       <div className="dialog-actions">
         <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}>
-          Cancel
+          {t('cancel', 'Cancel')}
         </button>
         <button className="btn btn-primary btn-sm" onClick={save} disabled={saving || !canSave}>
-          {saving ? <span className="spin" /> : 'Save'}
+          {saving ? <span className="spin" /> : t('save', 'Save')}
         </button>
       </div>
     </Dialog>
@@ -271,6 +275,7 @@ function ConfirmDelete({
   onConfirm: () => Promise<void>
   onClose: () => void
 }) {
+  const t = useT('masterdata')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function go() {
@@ -285,17 +290,17 @@ function ConfirmDelete({
     }
   }
   return (
-    <Dialog title="Confirm delete" onClose={onClose}>
+    <Dialog title={t('confirmDelete', 'Confirm delete')} onClose={onClose}>
       {error && <div className="alert alert-danger">{error}</div>}
       <p>
-        Archive <strong>{name}</strong>? It will be marked <code>ARCHIVED</code>.
+        {t('archiveQ', 'Archive')} <strong>{name}</strong>? {t('willBeMarked', 'It will be marked')} <code>ARCHIVED</code>.
       </p>
       <div className="dialog-actions">
         <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={busy}>
-          Cancel
+          {t('cancel', 'Cancel')}
         </button>
         <button className="btn btn-danger btn-sm" onClick={go} disabled={busy}>
-          {busy ? <span className="spin" /> : 'Archive'}
+          {busy ? <span className="spin" /> : t('archive', 'Archive')}
         </button>
       </div>
     </Dialog>
@@ -311,12 +316,13 @@ function num(v: string): number | null {
 const STATUS_OPTIONS = ['ACTIVE', 'INACTIVE', 'ARCHIVED']
 
 function StatusSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const t = useT('masterdata')
   return (
     <Select
       value={value}
       onChange={onChange}
       options={STATUS_OPTIONS.map((s) => ({ value: s, label: s }))}
-      ariaLabel="Status"
+      ariaLabel={t('status', 'Status')}
     />
   )
 }
@@ -326,6 +332,7 @@ function StatusSelect({ value, onChange }: { value: string; onChange: (v: string
 // =========================================================================
 
 function WarehousesTab({ onWarehousesChanged }: { onWarehousesChanged: () => void }) {
+  const t = useT('masterdata')
   const [rows, setRows] = useState<Warehouse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -351,30 +358,30 @@ function WarehousesTab({ onWarehousesChanged }: { onWarehousesChanged: () => voi
 
   return (
     <div className="glass card-pad md-panel">
-      <Toolbar label="warehouse" onAdd={() => setEditing(blank)} />
+      <Toolbar label={t('lblWarehouse', 'warehouse')} onAdd={() => setEditing(blank)} />
       {error && <div className="alert alert-danger">{error}</div>}
       <DataTable
         rows={rows}
         rowKey={(w) => w.id ?? w.code}
         search={(w) => `${w.code} ${w.name} ${w.timezone} ${w.status}`}
-        searchPlaceholder="Search warehouses…"
+        searchPlaceholder={t('searchWarehouses', 'Search warehouses…')}
         initialSort={{ key: 'code', dir: 'asc' }}
-        empty={loading ? 'Loading…' : 'No warehouses yet.'}
+        empty={loading ? t('loading', 'Loading…') : t('noWarehouses', 'No warehouses yet.')}
         columns={[
-          { key: 'code', header: 'Code', sortable: true, sortValue: (w) => w.code ?? '', render: (w) => w.code },
-          { key: 'name', header: 'Name', sortable: true, sortValue: (w) => w.name ?? '', render: (w) => w.name },
-          { key: 'timezone', header: 'Timezone', sortable: true, sortValue: (w) => w.timezone ?? '', render: (w) => w.timezone },
-          { key: 'status', header: 'Status', sortable: true, sortValue: (w) => w.status ?? '', render: (w) => <StatusBadge status={w.status} /> },
+          { key: 'code', header: t('colCode', 'Code'), sortable: true, sortValue: (w) => w.code ?? '', render: (w) => w.code },
+          { key: 'name', header: t('colName', 'Name'), sortable: true, sortValue: (w) => w.name ?? '', render: (w) => w.name },
+          { key: 'timezone', header: t('colTimezone', 'Timezone'), sortable: true, sortValue: (w) => w.timezone ?? '', render: (w) => w.timezone },
+          { key: 'status', header: t('colStatus', 'Status'), sortable: true, sortValue: (w) => w.status ?? '', render: (w) => <StatusBadge status={w.status} /> },
           {
             key: 'actions',
             header: '',
             render: (w) => (
               <div className="md-row-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(w)}>
-                  Edit
+                  {t('edit', 'Edit')}
                 </button>
                 <button className="btn btn-danger btn-sm" onClick={() => setDeleting(w)}>
-                  Delete
+                  {t('delete', 'Delete')}
                 </button>
               </div>
             ),
@@ -423,11 +430,12 @@ function WarehouseDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const t = useT('masterdata')
   const [d, setD] = useState<Warehouse>(initial)
   const valid = d.code.trim() !== '' && d.name.trim() !== '' && d.timezone.trim() !== ''
   return (
     <EditDialog
-      title={initial.id ? 'Edit warehouse' : 'New warehouse'}
+      title={initial.id ? t('editWarehouse', 'Edit warehouse') : t('newWarehouse', 'New warehouse')}
       draft={d}
       canSave={valid}
       wide
@@ -438,40 +446,40 @@ function WarehouseDialog({
         onSaved()
       }}
     >
-      <Field label={<>Code <InfoTip text="Short unique identifier for this warehouse; fixed once saved." example="DC-01" /></>} required>
+      <Field label={<>{t('fldCode', 'Code')} <InfoTip text={t('tipWhCode', 'Short unique identifier for this warehouse; fixed once saved.')} example="DC-01" /></>} required>
         <input
           className="form-control"
           value={d.code}
           readOnly={!!initial.id}
-          title={initial.id ? 'Code is fixed once set' : undefined}
+          title={initial.id ? t('codeFixed', 'Code is fixed once set') : undefined}
           onChange={(e) => setD({ ...d, code: e.target.value })}
         />
       </Field>
-      <Field label={<>Name <InfoTip text="Human-readable name of the warehouse site." example="Vienna Distribution Centre" /></>} required>
+      <Field label={<>{t('fldName', 'Name')} <InfoTip text={t('tipWhName', 'Human-readable name of the warehouse site.')} example="Vienna Distribution Centre" /></>} required>
         <input className="form-control" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
       </Field>
-      <Field label={<>Timezone <InfoTip text="Local timezone of the site, used for timestamps and operational reporting." example="UTC+1" /></>} required>
-        <Select ariaLabel="Timezone" value={d.timezone} onChange={(v) => setD({ ...d, timezone: v })} options={TZ_OPTIONS} />
+      <Field label={<>{t('fldTimezone', 'Timezone')} <InfoTip text={t('tipWhTimezone', 'Local timezone of the site, used for timestamps and operational reporting.')} example="UTC+1" /></>} required>
+        <Select ariaLabel={t('fldTimezone', 'Timezone')} value={d.timezone} onChange={(v) => setD({ ...d, timezone: v })} options={TZ_OPTIONS} />
       </Field>
-      <Field label={<>Address line 1 <InfoTip text="Street and number of the warehouse address." example="Industriestrasse 12" /></>}>
+      <Field label={<>{t('fldAddress1', 'Address line 1')} <InfoTip text={t('tipWhAddr1', 'Street and number of the warehouse address.')} example="Industriestrasse 12" /></>}>
         <input className="form-control" value={d.addressLine1 ?? ''} onChange={(e) => setD({ ...d, addressLine1: e.target.value })} />
       </Field>
-      <Field label={<>Address line 2 <InfoTip text="Optional second address line (building, unit, dock)." example="Building C, Gate 4" /></>}>
+      <Field label={<>{t('fldAddress2', 'Address line 2')} <InfoTip text={t('tipWhAddr2', 'Optional second address line (building, unit, dock).')} example="Building C, Gate 4" /></>}>
         <input className="form-control" value={d.addressLine2 ?? ''} onChange={(e) => setD({ ...d, addressLine2: e.target.value })} />
       </Field>
-      <Field label={<>City <InfoTip text="City the warehouse is located in." example="Vienna" /></>}>
+      <Field label={<>{t('fldCity', 'City')} <InfoTip text={t('tipWhCity', 'City the warehouse is located in.')} example="Vienna" /></>}>
         <input className="form-control" value={d.city ?? ''} onChange={(e) => setD({ ...d, city: e.target.value })} />
       </Field>
-      <Field label={<>Region / State <InfoTip text="State, province or region of the site." example="Lower Austria" /></>}>
+      <Field label={<>{t('fldRegion', 'Region / State')} <InfoTip text={t('tipWhRegion', 'State, province or region of the site.')} example="Lower Austria" /></>}>
         <input className="form-control" value={d.region ?? ''} onChange={(e) => setD({ ...d, region: e.target.value })} />
       </Field>
-      <Field label={<>Postal code <InfoTip text="Postal / ZIP code of the address." example="1010" /></>}>
+      <Field label={<>{t('fldPostalCode', 'Postal code')} <InfoTip text={t('tipWhPostal', 'Postal / ZIP code of the address.')} example="1010" /></>}>
         <input className="form-control" value={d.postalCode ?? ''} onChange={(e) => setD({ ...d, postalCode: e.target.value })} />
       </Field>
-      <Field label={<>Country <InfoTip text="Country the warehouse is in." example="Austria" /></>}>
+      <Field label={<>{t('fldCountry', 'Country')} <InfoTip text={t('tipWhCountry', 'Country the warehouse is in.')} example="Austria" /></>}>
         <input className="form-control" value={d.country ?? ''} onChange={(e) => setD({ ...d, country: e.target.value })} />
       </Field>
-      <Field label={<>Status <InfoTip text="Lifecycle state: ACTIVE is in use, INACTIVE is paused, ARCHIVED is retired." example="ACTIVE" /></>}>
+      <Field label={<>{t('fldStatus', 'Status')} <InfoTip text={t('tipStatusFull', 'Lifecycle state: ACTIVE is in use, INACTIVE is paused, ARCHIVED is retired.')} example="ACTIVE" /></>}>
         <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
       </Field>
     </EditDialog>
@@ -487,16 +495,17 @@ function WarehouseDialog({
 // =========================================================================
 
 function HostManagedNote() {
+  const t = useT('masterdata')
   return (
     <div className="alert md-host-note">
-      <span className="badge badge-warning">Host-managed</span>
-      Managed by the host system — read-only in the WCS. SKUs, units of measure and barcodes are kept in sync from the
-      host and cannot be created, edited or deleted here.
+      <span className="badge badge-warning">{t('hostManaged', 'Host-managed')}</span>
+      {t('hostManagedNote', 'Managed by the host system, read-only in the WCS. SKUs, units of measure and barcodes are kept in sync from the host and cannot be created, edited or deleted here.')}
     </div>
   )
 }
 
 function SkusTab() {
+  const t = useT('masterdata')
   const [rows, setRows] = useState<Sku[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -525,13 +534,13 @@ function SkusTab() {
         <input
           className="form-control"
           style={{ maxWidth: 240 }}
-          placeholder="Search code / description / barcode…"
+          placeholder={t('searchSkuDescBarcode', 'Search code / description / barcode…')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && load(search)}
         />
         <button className="btn btn-ghost btn-sm" onClick={() => load(search)}>
-          Search
+          {t('searchBtn', 'Search')}
         </button>
         <div className="spacer" />
       </div>
@@ -540,36 +549,36 @@ function SkusTab() {
         rows={rows}
         rowKey={(s) => s.id ?? s.code}
         search={(s) => `${s.code} ${s.description ?? ''} ${s.ownerClient ?? ''} ${s.status ?? ''}`}
-        searchPlaceholder="Filter loaded SKUs…"
+        searchPlaceholder={t('filterLoadedSkus', 'Filter loaded SKUs…')}
         initialSort={{ key: 'code', dir: 'asc' }}
-        empty={loading ? 'Loading…' : 'No SKUs found.'}
+        empty={loading ? t('loading', 'Loading…') : t('noSkus', 'No SKUs found.')}
         columns={[
-          { key: 'code', header: 'Code', sortable: true, sortValue: (s) => s.code ?? '', render: (s) => s.code },
+          { key: 'code', header: t('colCode', 'Code'), sortable: true, sortValue: (s) => s.code ?? '', render: (s) => s.code },
           {
             key: 'description',
-            header: 'Description',
+            header: t('colDescription', 'Description'),
             sortable: true,
             sortValue: (s) => s.description ?? '',
             render: (s) => s.description || '—',
           },
           {
             key: 'ownerClient',
-            header: 'Owner',
+            header: t('colOwner', 'Owner'),
             sortable: true,
             sortValue: (s) => s.ownerClient ?? '',
             render: (s) => s.ownerClient || '—',
           },
           {
             key: 'tracking',
-            header: 'Tracking',
+            header: t('colTracking', 'Tracking'),
             render: (s) =>
-              [s.batchTracked && 'Batch', s.serialTracked && 'Serial', s.dateTracked && 'Date']
+              [s.batchTracked && t('trkBatch', 'Batch'), s.serialTracked && t('trkSerial', 'Serial'), s.dateTracked && t('trkDate', 'Date')]
                 .filter(Boolean)
                 .join(', ') || '—',
           },
           {
             key: 'status',
-            header: 'Status',
+            header: t('colStatus', 'Status'),
             sortable: true,
             sortValue: (s) => s.status ?? '',
             render: (s) => <StatusBadge status={s.status} />,
@@ -580,7 +589,7 @@ function SkusTab() {
             render: (s) => (
               <div className="md-row-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => setViewing(s)}>
-                  View
+                  {t('view', 'View')}
                 </button>
               </div>
             ),
@@ -595,6 +604,7 @@ function SkusTab() {
 
 /** Read-only SKU detail, including its host-owned units of measure and barcodes. */
 function SkuDetailDialog({ sku, onClose }: { sku: Sku; onClose: () => void }) {
+  const t = useT('masterdata')
   const [uoms, setUoms] = useState<UnitOfMeasure[] | null>(null)
   const [barcodes, setBarcodes] = useState<Barcode[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -620,43 +630,43 @@ function SkuDetailDialog({ sku, onClose }: { sku: Sku; onClose: () => void }) {
   }, [sku.id])
 
   const tracking =
-    [sku.batchTracked && 'Batch', sku.serialTracked && 'Serial', sku.dateTracked && 'Date']
+    [sku.batchTracked && t('trkBatch', 'Batch'), sku.serialTracked && t('trkSerial', 'Serial'), sku.dateTracked && t('trkDate', 'Date')]
       .filter(Boolean)
-      .join(', ') || 'None'
+      .join(', ') || t('trkNone', 'None')
 
   return (
     <Dialog title={`SKU ${sku.code}`} onClose={onClose} size="lg">
       <HostManagedNote />
       {error && <div className="alert alert-danger">{error}</div>}
       <div className="md-detail">
-        <ReadField label="Code" value={sku.code} />
-        <ReadField label="Description" value={sku.description || '—'} />
-        <ReadField label="Owner client" value={sku.ownerClient || '—'} />
-        <ReadField label="Tracking" value={tracking} />
-        <ReadField label="Status" value={<StatusBadge status={sku.status} />} />
+        <ReadField label={t('colCode', 'Code')} value={sku.code} />
+        <ReadField label={t('colDescription', 'Description')} value={sku.description || '—'} />
+        <ReadField label={t('ownerClient', 'Owner client')} value={sku.ownerClient || '—'} />
+        <ReadField label={t('colTracking', 'Tracking')} value={tracking} />
+        <ReadField label={t('colStatus', 'Status')} value={<StatusBadge status={sku.status} />} />
       </div>
 
-      <h3 className="md-subhead">Units of measure</h3>
+      <h3 className="md-subhead">{t('unitsOfMeasure', 'Units of measure')}</h3>
       <table>
         <thead>
           <tr>
-            <th>Code</th>
-            <th>Base</th>
-            <th>Qty in parent</th>
-            <th>L×W×H (mm)</th>
-            <th>Weight (g)</th>
+            <th>{t('colCode', 'Code')}</th>
+            <th>{t('colBase', 'Base')}</th>
+            <th>{t('colQtyInParent', 'Qty in parent')}</th>
+            <th>{t('colLwhMm', 'L×W×H (mm)')}</th>
+            <th>{t('colWeightG', 'Weight (g)')}</th>
           </tr>
         </thead>
         <tbody>
           {uoms === null ? (
-            <Empty text="Loading…" />
+            <Empty text={t('loading', 'Loading…')} />
           ) : uoms.length === 0 ? (
-            <Empty text="No units of measure." />
+            <Empty text={t('noUoms', 'No units of measure.')} />
           ) : (
             uoms.map((u) => (
               <tr key={u.id}>
                 <td>{u.code}</td>
-                <td>{u.baseUnit ? 'Yes' : 'No'}</td>
+                <td>{u.baseUnit ? t('yes', 'Yes') : t('no', 'No')}</td>
                 <td>{u.qtyInParent ?? '—'}</td>
                 <td>{[u.lengthMm, u.widthMm, u.heightMm].map((v) => v ?? '·').join(' × ')}</td>
                 <td>{u.weightG ?? '—'}</td>
@@ -666,19 +676,19 @@ function SkuDetailDialog({ sku, onClose }: { sku: Sku; onClose: () => void }) {
         </tbody>
       </table>
 
-      <h3 className="md-subhead">Barcodes</h3>
+      <h3 className="md-subhead">{t('barcodes', 'Barcodes')}</h3>
       <table>
         <thead>
           <tr>
-            <th>Value</th>
-            <th>UoM</th>
+            <th>{t('colValue', 'Value')}</th>
+            <th>{t('colUom', 'UoM')}</th>
           </tr>
         </thead>
         <tbody>
           {barcodes === null ? (
-            <Empty text="Loading…" />
+            <Empty text={t('loading', 'Loading…')} />
           ) : barcodes.length === 0 ? (
-            <Empty text="No barcodes." />
+            <Empty text={t('noBarcodes', 'No barcodes.')} />
           ) : (
             barcodes.map((b) => {
               const uomCode = uoms?.find((u) => u.id === b.uomId)?.code
@@ -697,7 +707,7 @@ function SkuDetailDialog({ sku, onClose }: { sku: Sku; onClose: () => void }) {
 
       <div className="dialog-actions">
         <button className="btn btn-ghost btn-sm" onClick={onClose}>
-          Close
+          {t('close', 'Close')}
         </button>
       </div>
     </Dialog>
@@ -755,6 +765,7 @@ function AllowedHuTypesPicker({
   value: string[]
   onChange: (next: string[]) => void
 }) {
+  const tr = useT('masterdata')
   const [types, setTypes] = useState<HandlingUnitType[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -777,8 +788,8 @@ function AllowedHuTypesPicker({
   }
 
   if (error) return <div className="alert alert-danger">{error}</div>
-  if (types === null) return <span className="muted">Loading handling unit types…</span>
-  if (types.length === 0) return <span className="muted">No active handling unit types defined.</span>
+  if (types === null) return <span className="muted">{tr('loadingHuTypes', 'Loading handling unit types…')}</span>
+  if (types.length === 0) return <span className="muted">{tr('noActiveHuTypes', 'No active handling unit types defined.')}</span>
 
   return (
     <div className="md-chips">
@@ -804,8 +815,9 @@ function AllowedHuTypesPicker({
 }
 
 function ScopeNotice({ warehouseId }: { warehouseId: string }) {
+  const t = useT('masterdata')
   if (warehouseId) return null
-  return <div className="alert">Select a warehouse above to manage this entity.</div>
+  return <div className="alert">{t('selectWhToManage', 'Select a warehouse above to manage this entity.')}</div>
 }
 
 function StorageBlocksTab({
@@ -815,6 +827,7 @@ function StorageBlocksTab({
   warehouseId: string
   warehouseName: (id?: string | null) => string
 }) {
+  const t = useT('masterdata')
   const { roles } = useAuth()
   const isAdmin = roles.includes('ADMIN')
   const [rows, setRows] = useState<StorageBlock[]>([])
@@ -888,14 +901,12 @@ function StorageBlocksTab({
         const { stockRows, handlingUnits } = await checkOccupancy(ids)
         if (stockRows > 0 || handlingUnits > 0) {
           setError(
-            `Cannot delete — ${stockRows} stock row${stockRows === 1 ? '' : 's'} and ${handlingUnits} handling unit${
-              handlingUnits === 1 ? '' : 's'
-            } occupy this block's locations.`,
+            `${t('cannotDelete', 'Cannot delete:')} ${stockRows} ${t('stockRowsWord', 'stock rows')} ${t('andWord', 'and')} ${handlingUnits} ${t('handlingUnitsWord', 'handling units')} ${t('occupyLocations', "occupy this block's locations.")}`,
           )
           return
         }
       }
-      if (!window.confirm(`Delete block ${b.code} and its ${ids.length} location${ids.length === 1 ? '' : 's'}?`)) {
+      if (!window.confirm(`${t('deleteBlockPre', 'Delete block')} ${b.code} ${t('andItsWord', 'and its')} ${ids.length} ${t('locationsWord', 'locations')}?`)) {
         return
       }
       await deleteStorageBlock(b.id)
@@ -921,13 +932,13 @@ function StorageBlocksTab({
 
   return (
     <div className="glass card-pad md-panel">
-      <Toolbar label="storage block" onAdd={() => setEditing(blank)}>
+      <Toolbar label={t('lblStorageBlock', 'storage block')} onAdd={() => setEditing(blank)}>
         <button className="btn btn-ghost btn-sm" onClick={() => setGuided(true)}>
-          Guided builder
+          {t('guidedBuilder', 'Guided builder')}
         </button>
         <label className="md-check">
           <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
-          Show archived
+          {t('showArchived', 'Show archived')}
         </label>
       </Toolbar>
       {error && <div className="alert alert-danger">{error}</div>}
@@ -936,40 +947,40 @@ function StorageBlocksTab({
         rowKey={(b) => b.id ?? b.code}
         rowClassName={(b) => (isArchived(b) ? 'md-row-archived' : '')}
         search={(b) => `${b.code} ${b.storageType} ${b.slottingGranularity} ${(b.allowedHuTypes ?? []).join(' ')} ${b.status ?? ''}`}
-        searchPlaceholder="Search storage blocks…"
+        searchPlaceholder={t('searchStorageBlocks', 'Search storage blocks…')}
         initialSort={{ key: 'code', dir: 'asc' }}
-        empty={loading ? 'Loading…' : 'No storage blocks for this warehouse.'}
+        empty={loading ? t('loading', 'Loading…') : t('noStorageBlocksWh', 'No storage blocks for this warehouse.')}
         columns={[
-          { key: 'code', header: 'Code', sortable: true, sortValue: (b) => b.code ?? '', render: (b) => b.code },
+          { key: 'code', header: t('colCode', 'Code'), sortable: true, sortValue: (b) => b.code ?? '', render: (b) => b.code },
           {
             key: 'storageType',
-            header: 'Storage type',
+            header: t('colStorageType', 'Storage type'),
             sortable: true,
             sortValue: (b) => b.storageType ?? '',
             render: (b) => b.storageType,
           },
           {
             key: 'slottingGranularity',
-            header: 'Granularity',
+            header: t('colGranularity', 'Granularity'),
             sortable: true,
             sortValue: (b) => b.slottingGranularity ?? '',
             render: (b) => b.slottingGranularity,
           },
           {
             key: 'gtp',
-            header: 'GTP',
+            header: t('colGtp', 'GTP'),
             sortable: true,
             sortValue: (b) => (b.gtp ? 1 : 0),
-            render: (b) => (b.gtp ? 'Yes' : 'No'),
+            render: (b) => (b.gtp ? t('yes', 'Yes') : t('no', 'No')),
           },
           {
             key: 'allowedHuTypes',
-            header: 'Allowed HU types',
-            render: (b) => (b.allowedHuTypes && b.allowedHuTypes.length ? b.allowedHuTypes.join(', ') : 'Any'),
+            header: t('colAllowedHuTypes', 'Allowed HU types'),
+            render: (b) => (b.allowedHuTypes && b.allowedHuTypes.length ? b.allowedHuTypes.join(', ') : t('any', 'Any')),
           },
           {
             key: 'status',
-            header: 'Status',
+            header: t('colStatus', 'Status'),
             sortable: true,
             sortValue: (b) => b.status ?? '',
             render: (b) => <StatusBadge status={b.status} />,
@@ -980,21 +991,21 @@ function StorageBlocksTab({
             render: (b) => (
               <div className="md-row-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(b)}>
-                  Edit
+                  {t('edit', 'Edit')}
                 </button>
                 {isAdmin && (
                   <>
                     {isArchived(b) ? (
                       <button className="btn btn-ghost btn-sm" disabled={busyId === b.id} onClick={() => restore(b)}>
-                        {busyId === b.id ? <span className="spin" /> : 'Restore'}
+                        {busyId === b.id ? <span className="spin" /> : t('restore', 'Restore')}
                       </button>
                     ) : (
                       <button className="btn btn-ghost btn-sm" disabled={busyId === b.id} onClick={() => archive(b)}>
-                        {busyId === b.id ? <span className="spin" /> : 'Archive'}
+                        {busyId === b.id ? <span className="spin" /> : t('archive', 'Archive')}
                       </button>
                     )}
                     <button className="btn btn-danger btn-sm" disabled={busyId === b.id} onClick={() => remove(b)}>
-                      {busyId === b.id ? <span className="spin" /> : 'Delete'}
+                      {busyId === b.id ? <span className="spin" /> : t('delete', 'Delete')}
                     </button>
                   </>
                 )}
@@ -1004,8 +1015,7 @@ function StorageBlocksTab({
         ]}
       />
       <p className="muted" style={{ fontSize: '.8rem', marginTop: '.75rem' }}>
-        Warehouse: {warehouseName(warehouseId)}. A block can only be deleted when its locations hold no stock or
-        handling units.
+        {t('warehouseLabel', 'Warehouse:')} {warehouseName(warehouseId)}. {t('blockDeleteNote', 'A block can only be deleted when its locations hold no stock or handling units.')}
       </p>
 
       {editing && (
@@ -1038,6 +1048,7 @@ function StorageBlockDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const t = useT('masterdata')
   const [d, setD] = useState<StorageBlock>(initial)
   // Equipment options for the optional FK link (the device that serves this block).
   const [equipment, setEquipment] = useState<Equipment[]>([])
@@ -1056,7 +1067,7 @@ function StorageBlockDialog({
     }
   }, [initial.warehouseId])
   const equipmentOptions = [
-    { value: '', label: '— none —' },
+    { value: '', label: t('optNone', '— none —') },
     ...equipment.map((e) => ({
       value: e.id ?? '',
       label: `${e.subtype ? `${e.type}/${e.subtype}` : e.type ?? e.family} · ${[e.vendor, e.model]
@@ -1067,7 +1078,7 @@ function StorageBlockDialog({
   const valid = d.code.trim() !== '' && d.storageType.trim() !== ''
   return (
     <EditDialog
-      title={initial.id ? 'Edit storage block' : 'New storage block'}
+      title={initial.id ? t('editStorageBlock', 'Edit storage block') : t('newStorageBlock', 'New storage block')}
       draft={d}
       canSave={valid}
       onClose={onClose}
@@ -1078,51 +1089,51 @@ function StorageBlockDialog({
         onSaved()
       }}
     >
-      <Field label={<>Code <InfoTip text="Unique code for this storage block within the warehouse." example="ASRS-A01" /></>} required>
+      <Field label={<>{t('fldCode', 'Code')} <InfoTip text={t('tipBlockCode', 'Unique code for this storage block within the warehouse.')} example="ASRS-A01" /></>} required>
         <input className="form-control" value={d.code} onChange={(e) => setD({ ...d, code: e.target.value })} />
       </Field>
-      <Field label={<>Storage type <InfoTip text="The kind of storage/automation this block represents; drives slotting and GTP behaviour." example="SHUTTLE_ASRS" /></>} required>
+      <Field label={<>{t('fldStorageType', 'Storage type')} <InfoTip text={t('tipStorageType', 'The kind of storage/automation this block represents; drives slotting and GTP behaviour.')} example="SHUTTLE_ASRS" /></>} required>
         <Select
           value={d.storageType}
           onChange={(val) => setD({ ...d, storageType: val, gtp: derivedGtp(val, d.gtp) })}
-          options={STORAGE_TYPES.map((t) => ({ value: t, label: t }))}
-          ariaLabel="Storage type"
+          options={STORAGE_TYPES.map((st) => ({ value: st, label: st }))}
+          ariaLabel={t('fldStorageType', 'Storage type')}
         />
       </Field>
-      <Field label={<>Slotting granularity <InfoTip text="BLOCK = WCS slots to the pool and the system holds the exact bin; LOCATION = one fixed SKU per location." example="BLOCK" /></>}>
+      <Field label={<>{t('fldSlottingGranularity', 'Slotting granularity')} <InfoTip text={t('tipSlottingGranularity', 'BLOCK = WCS slots to the pool and the system holds the exact bin; LOCATION = one fixed SKU per location.')} example="BLOCK" /></>}>
         <Select
           value={d.slottingGranularity}
           onChange={(val) => setD({ ...d, slottingGranularity: val })}
           options={GRANULARITIES.map((g) => ({ value: g, label: g }))}
-          ariaLabel="Slotting granularity"
+          ariaLabel={t('fldSlottingGranularity', 'Slotting granularity')}
         />
       </Field>
       {isGtpEditable(d.storageType) ? (
         <label className="md-check">
           <input type="checkbox" checked={d.gtp} onChange={(e) => setD({ ...d, gtp: e.target.checked })} />
-          Goods-to-person (GTP) — picked at a manned station{' '}
-          <InfoTip text="When on, stock from this block is picked at a manned goods-to-person station rather than in the aisle." example="on for a manual GTP pick block" />
+          {t('gtpMannedStation', 'Goods-to-person (GTP), picked at a manned station')}{' '}
+          <InfoTip text={t('tipGtpManned', 'When on, stock from this block is picked at a manned goods-to-person station rather than in the aisle.')} example="on for a manual GTP pick block" />
         </label>
       ) : GTP_AUTOMATED.includes(d.storageType) ? (
         <p className="md-explain" style={{ margin: '.15rem 0 0', fontSize: '.78rem', lineHeight: 1.4 }}>
-          Goods-to-person — implied by {d.storageType}.
+          {t('gtpImpliedBy', 'Goods-to-person, implied by')} {d.storageType}.
         </p>
       ) : null}
-      <Field label={<>Allowed HU types (blank = any) <InfoTip text="Restrict which handling-unit types may be stored in this block. Leave none selected to allow any." example="TOTE for an automated tote aisle" /></>}>
+      <Field label={<>{t('fldAllowedHuTypes', 'Allowed HU types (blank = any)')} <InfoTip text={t('tipAllowedHuTypes', 'Restrict which handling-unit types may be stored in this block. Leave none selected to allow any.')} example="TOTE for an automated tote aisle" /></>}>
         <AllowedHuTypesPicker
           value={d.allowedHuTypes ?? []}
           onChange={(next) => setD({ ...d, allowedHuTypes: next })}
         />
       </Field>
-      <Field label={<>Equipment <InfoTip text="The equipment that serves this storage area, e.g. the ASRS aisle." example="ASRS Shuttle A" /></>}>
+      <Field label={<>{t('fldEquipment', 'Equipment')} <InfoTip text={t('tipBlockEquipment', 'The equipment that serves this storage area, e.g. the ASRS aisle.')} example="ASRS Shuttle A" /></>}>
         <Select
           value={d.equipmentId ?? ''}
           onChange={(val) => setD({ ...d, equipmentId: val === '' ? null : val })}
           options={equipmentOptions}
-          ariaLabel="Equipment"
+          ariaLabel={t('fldEquipment', 'Equipment')}
         />
       </Field>
-      <Field label={<>Status <InfoTip text="Lifecycle state: ACTIVE is in use, INACTIVE is paused, ARCHIVED is retired." example="ACTIVE" /></>}>
+      <Field label={<>{t('fldStatus', 'Status')} <InfoTip text={t('tipStatusFull', 'Lifecycle state: ACTIVE is in use, INACTIVE is paused, ARCHIVED is retired.')} example="ACTIVE" /></>}>
         <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
       </Field>
     </EditDialog>
@@ -1158,6 +1169,9 @@ function GuidedBlockBuilder({
   onClose: () => void
   onCompleted: () => void
 }) {
+  const t = useT('masterdata')
+  const storageTypeDesc = (type: string): string =>
+    t(`storageTypeDesc_${type}`, STORAGE_TYPE_DESCRIPTIONS[type] ?? '')
   type Step = 'block' | 'confirm' | 'locations'
   const [step, setStep] = useState<Step>('block')
   const [busy, setBusy] = useState(false)
@@ -1265,7 +1279,7 @@ function GuidedBlockBuilder({
     try {
       const list = buildLocations()
       const saved = await bulkCreateLocations(list)
-      setInfo(`Created ${saved.length} location${saved.length === 1 ? '' : 's'}.`)
+      setInfo(`${t('createdWord', 'Created')} ${saved.length} ${t('locationsWord', 'locations')}.`)
       setConfirmBig(false)
     } catch (e) {
       setError(errMsg(e))
@@ -1275,16 +1289,16 @@ function GuidedBlockBuilder({
   }
 
   return (
-    <Dialog title="Guided storage-block builder" onClose={onClose} size="lg">
+    <Dialog title={t('guidedBuilderTitle', 'Guided storage-block builder')} onClose={onClose} size="lg">
       {error && <div className="alert alert-danger">{error}</div>}
 
       {step === 'block' && (
         <>
           <p className="muted" style={{ marginTop: 0 }}>
-            Step 1 of 3 — describe the storage block.
+            {t('step1of3', 'Step 1 of 3: describe the storage block.')}
           </p>
           <div className="md-form">
-            <Field label={<>Code <InfoTip text="Unique code for this storage block / aisle within the warehouse." example="ASRS-A01" /></>} required>
+            <Field label={<>{t('fldCode', 'Code')} <InfoTip text={t('tipGuidedBlockCode', 'Unique code for this storage block / aisle within the warehouse.')} example="ASRS-A01" /></>} required>
               <input
                 className="form-control"
                 value={block.code}
@@ -1292,22 +1306,22 @@ function GuidedBlockBuilder({
                 onChange={(e) => setBlock({ ...block, code: e.target.value })}
               />
               <GuidedExplain>
-                Unique code for this block/aisle. e.g. <code>ASRS-A01</code>, <code>PICK-FAST</code>,{' '}
+                {t('explainBlockCode', 'Unique code for this block/aisle. e.g.')} <code>ASRS-A01</code>, <code>PICK-FAST</code>,{' '}
                 <code>RESERVE-1</code>.
               </GuidedExplain>
             </Field>
 
-            <Field label={<>Storage type <InfoTip text="The kind of storage/automation this block represents; drives slotting and goods-to-person behaviour." example="SHUTTLE_ASRS" /></>} required>
+            <Field label={<>{t('fldStorageType', 'Storage type')} <InfoTip text={t('tipGuidedStorageType', 'The kind of storage/automation this block represents; drives slotting and goods-to-person behaviour.')} example="SHUTTLE_ASRS" /></>} required>
               <Select
                 value={block.storageType}
                 onChange={setStorageType}
-                options={STORAGE_TYPES.map((t) => ({ value: t, label: t }))}
-                ariaLabel="Storage type"
+                options={STORAGE_TYPES.map((st) => ({ value: st, label: st }))}
+                ariaLabel={t('fldStorageType', 'Storage type')}
               />
-              <GuidedExplain>{STORAGE_TYPE_DESCRIPTIONS[block.storageType]}</GuidedExplain>
+              <GuidedExplain>{storageTypeDesc(block.storageType)}</GuidedExplain>
             </Field>
 
-            <Field label={<>Slotting granularity <InfoTip text="BLOCK = automated pool, system holds the exact bin; LOCATION = fixed pick face, one SKU per location." example="BLOCK" /></>}>
+            <Field label={<>{t('fldSlottingGranularity', 'Slotting granularity')} <InfoTip text={t('tipGuidedGranularity', 'BLOCK = automated pool, system holds the exact bin; LOCATION = fixed pick face, one SKU per location.')} example="BLOCK" /></>}>
               <Select
                 value={block.slottingGranularity}
                 onChange={(val) => {
@@ -1315,59 +1329,56 @@ function GuidedBlockBuilder({
                   setBlock({ ...block, slottingGranularity: val })
                 }}
                 options={GRANULARITIES.map((g) => ({ value: g, label: g }))}
-                ariaLabel="Slotting granularity"
+                ariaLabel={t('fldSlottingGranularity', 'Slotting granularity')}
               />
               <GuidedExplain>
-                <strong>BLOCK</strong> = automated pool: the WCS slots a SKU to the block and the system holds the exact
-                bin. <strong>LOCATION</strong> = fixed pick face: one SKU per location. Defaults to LOCATION for manual
-                pick, otherwise BLOCK.
+                {t('explainGranularity', 'BLOCK = automated pool: the WCS slots a SKU to the block and the system holds the exact bin. LOCATION = fixed pick face: one SKU per location. Defaults to LOCATION for manual pick, otherwise BLOCK.')}
               </GuidedExplain>
             </Field>
 
             {isGtpEditable(block.storageType) ? (
-              <Field label={<>Goods-to-person (GTP) <InfoTip text="When on, stock from this block is picked at a manned station rather than walked to in the aisle." example="on for a manual GTP pick block" /></>}>
+              <Field label={<>{t('gtpLabel', 'Goods-to-person (GTP)')} <InfoTip text={t('tipGuidedGtp', 'When on, stock from this block is picked at a manned station rather than walked to in the aisle.')} example="on for a manual GTP pick block" /></>}>
                 <label className="md-check">
                   <input
                     type="checkbox"
                     checked={block.gtp}
                     onChange={(e) => setBlock({ ...block, gtp: e.target.checked })}
                   />
-                  Picked at a manned station
+                  {t('pickedAtMannedStation', 'Picked at a manned station')}
                 </label>
-                <GuidedExplain>Stock is picked at a manned station, not in the aisle.</GuidedExplain>
+                <GuidedExplain>{t('explainGtpManned', 'Stock is picked at a manned station, not in the aisle.')}</GuidedExplain>
               </Field>
             ) : GTP_AUTOMATED.includes(block.storageType) ? (
-              <Field label="Goods-to-person (GTP)">
-                <GuidedExplain>Goods-to-person — implied by {block.storageType}.</GuidedExplain>
+              <Field label={t('gtpLabel', 'Goods-to-person (GTP)')}>
+                <GuidedExplain>{t('gtpImpliedBy', 'Goods-to-person, implied by')} {block.storageType}.</GuidedExplain>
               </Field>
             ) : null}
 
-            <Field label={<>Allowed HU types (blank = any) <InfoTip text="Restrict which handling-unit types may be stored in this block. Select none to allow any." example="TOTE for an automated tote aisle" /></>}>
+            <Field label={<>{t('fldAllowedHuTypes', 'Allowed HU types (blank = any)')} <InfoTip text={t('tipGuidedAllowedHu', 'Restrict which handling-unit types may be stored in this block. Select none to allow any.')} example="TOTE for an automated tote aisle" /></>}>
               <AllowedHuTypesPicker
                 value={block.allowedHuTypes ?? []}
                 onChange={(next) => setBlock({ ...block, allowedHuTypes: next })}
               />
               <GuidedExplain>
-                Which handling units may be stored here, e.g. TOTE for an automated tote aisle. Pallets are
-                non-automation. Leave blank to allow any.
+                {t('explainAllowedHu', 'Which handling units may be stored here, e.g. TOTE for an automated tote aisle. Pallets are non-automation. Leave blank to allow any.')}
               </GuidedExplain>
             </Field>
 
-            <Field label={<>Status <InfoTip text="Lifecycle state of the new block: ACTIVE is in use, INACTIVE is paused." example="ACTIVE" /></>}>
+            <Field label={<>{t('fldStatus', 'Status')} <InfoTip text={t('tipGuidedStatus', 'Lifecycle state of the new block: ACTIVE is in use, INACTIVE is paused.')} example="ACTIVE" /></>}>
               <Select
                 value={block.status}
                 onChange={(v) => setBlock({ ...block, status: v })}
                 options={['ACTIVE', 'INACTIVE'].map((s) => ({ value: s, label: s }))}
-                ariaLabel="Status"
+                ariaLabel={t('fldStatus', 'Status')}
               />
             </Field>
           </div>
           <div className="dialog-actions">
             <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={busy}>
-              Cancel
+              {t('cancel', 'Cancel')}
             </button>
             <button className="btn btn-primary btn-sm" onClick={createBlock} disabled={busy || !blockValid}>
-              {busy ? <span className="spin" /> : 'Create block'}
+              {busy ? <span className="spin" /> : t('createBlock', 'Create block')}
             </button>
           </div>
         </>
@@ -1376,14 +1387,14 @@ function GuidedBlockBuilder({
       {step === 'confirm' && created && (
         <>
           <p style={{ fontSize: '1rem' }}>
-            ✓ Block <strong>{created.code}</strong> created. Build its locations now?
+            ✓ {t('blockWord', 'Block')} <strong>{created.code}</strong> {t('createdBuildNow', 'created. Build its locations now?')}
           </p>
           <div className="dialog-actions">
             <button className="btn btn-ghost btn-sm" onClick={onCompleted}>
-              Done
+              {t('done', 'Done')}
             </button>
             <button className="btn btn-primary btn-sm" onClick={() => setStep('locations')}>
-              Yes, add locations
+              {t('yesAddLocations', 'Yes, add locations')}
             </button>
           </div>
         </>
@@ -1392,11 +1403,11 @@ function GuidedBlockBuilder({
       {step === 'locations' && created && (
         <>
           <p className="muted" style={{ marginTop: 0 }}>
-            Step 3 of 3 — generate locations for block <strong>{created.code}</strong>.
+            {t('step3of3', 'Step 3 of 3: generate locations for block')} <strong>{created.code}</strong>.
           </p>
           {info && <div className="alert alert-success">{info}</div>}
           <div className="md-form">
-            <Field label={<>Aisle <InfoTip text="Aisle identifier; becomes part of every generated location code." example="A01" /></>}>
+            <Field label={<>{t('fldAisle', 'Aisle')} <InfoTip text={t('tipAisle', 'Aisle identifier; becomes part of every generated location code.')} example="A01" /></>}>
               <input
                 className="form-control"
                 value={aisle}
@@ -1407,10 +1418,10 @@ function GuidedBlockBuilder({
                   setConfirmBig(false)
                 }}
               />
-              <GuidedExplain>The aisle identifier, e.g. <code>A01</code>.</GuidedExplain>
+              <GuidedExplain>{t('explainAisle', 'The aisle identifier, e.g.')} <code>A01</code>.</GuidedExplain>
             </Field>
             <div className="md-grid-2">
-              <Field label={<>Rack levels <InfoTip text="Number of vertical tiers in the rack; generates L01..Lnn." example="10" /></>}>
+              <Field label={<>{t('fldRackLevels', 'Rack levels')} <InfoTip text={t('tipRackLevels', 'Number of vertical tiers in the rack; generates L01..Lnn.')} example="10" /></>}>
                 <input
                   className="form-control"
                   type="number"
@@ -1422,10 +1433,10 @@ function GuidedBlockBuilder({
                   }}
                 />
                 <GuidedExplain>
-                  Tiers high, e.g. <code>10</code> → L01..L10.
+                  {t('explainRackLevels', 'Tiers high, e.g.')} <code>10</code> → L01..L10.
                 </GuidedExplain>
               </Field>
-              <Field label={<>Positions per level <InfoTip text="Number of bin positions along the aisle on each level; generates P01..Pnn." example="40" /></>}>
+              <Field label={<>{t('fldPositionsPerLevel', 'Positions per level')} <InfoTip text={t('tipPositions', 'Number of bin positions along the aisle on each level; generates P01..Pnn.')} example="40" /></>}>
                 <input
                   className="form-control"
                   type="number"
@@ -1437,11 +1448,11 @@ function GuidedBlockBuilder({
                   }}
                 />
                 <GuidedExplain>
-                  Bins along the aisle, e.g. <code>40</code> → P01..P40.
+                  {t('explainPositions', 'Bins along the aisle, e.g.')} <code>40</code> → P01..P40.
                 </GuidedExplain>
               </Field>
             </div>
-            <Field label={<>Lane depth <InfoTip text="How many handling units deep each lane is: 1 = single-deep, 2 = double-deep, more for shuttle/satellite lanes." example="2" /></>}>
+            <Field label={<>{t('fldLaneDepth', 'Lane depth')} <InfoTip text={t('tipLaneDepthGuided', 'How many handling units deep each lane is: 1 = single-deep, 2 = double-deep, more for shuttle/satellite lanes.')} example="2" /></>}>
               <input
                 className="form-control"
                 type="number"
@@ -1453,11 +1464,10 @@ function GuidedBlockBuilder({
                 }}
               />
               <GuidedExplain>
-                How many handling units deep each lane is — 1 = single-deep, 2 = double-deep, more for
-                shuttle/satellite lanes. e.g. <code>2</code>.
+                {t('explainLaneDepth', 'How many handling units deep each lane is: 1 = single-deep, 2 = double-deep, more for shuttle/satellite lanes. e.g.')} <code>2</code>.
               </GuidedExplain>
             </Field>
-            <Field label={<>Sides <InfoTip text="Generate locations for one or both sides of the aisle; sets each location's LEFT/RIGHT side." example="Both" /></>}>
+            <Field label={<>{t('fldSides', 'Sides')} <InfoTip text={t('tipSides', "Generate locations for one or both sides of the aisle; sets each location's LEFT/RIGHT side.")} example="Both" /></>}>
               <Select
                 value={side}
                 onChange={(v) => {
@@ -1465,57 +1475,56 @@ function GuidedBlockBuilder({
                   setConfirmBig(false)
                 }}
                 options={[
-                  { value: 'BOTH', label: 'Both' },
-                  { value: 'LEFT', label: 'Left' },
-                  { value: 'RIGHT', label: 'Right' },
+                  { value: 'BOTH', label: t('sideBoth', 'Both') },
+                  { value: 'LEFT', label: t('sideLeft', 'Left') },
+                  { value: 'RIGHT', label: t('sideRight', 'Right') },
                 ]}
-                ariaLabel="Sides"
+                ariaLabel={t('fldSides', 'Sides')}
               />
-              <GuidedExplain>Generate one or both sides of the aisle.</GuidedExplain>
+              <GuidedExplain>{t('explainSides', 'Generate one or both sides of the aisle.')}</GuidedExplain>
             </Field>
             <div className="md-grid-2">
-              <Field label={<>Location type <InfoTip text="Physical kind of each generated location; ASRS slots/bins for automation, shelves/pallets for manual." example="ASRS_SLOT" /></>}>
+              <Field label={<>{t('fldLocationType', 'Location type')} <InfoTip text={t('tipLocTypeGuided', 'Physical kind of each generated location; ASRS slots/bins for automation, shelves/pallets for manual.')} example="ASRS_SLOT" /></>}>
                 <Select
                   value={locType}
                   onChange={setLocType}
-                  options={LOCATION_TYPES.map((t) => ({ value: t, label: t }))}
-                  ariaLabel="Location type"
+                  options={LOCATION_TYPES.map((lt) => ({ value: lt, label: lt }))}
+                  ariaLabel={t('fldLocationType', 'Location type')}
                 />
               </Field>
-              <Field label={<>Purpose <InfoTip text="What the generated locations are used for in the flow (storage, picking, staging, etc.)." example="STORAGE" /></>}>
+              <Field label={<>{t('fldPurpose', 'Purpose')} <InfoTip text={t('tipPurposeGuided', 'What the generated locations are used for in the flow (storage, picking, staging, etc.).')} example="STORAGE" /></>}>
                 <Select
                   value={purpose}
                   onChange={setPurpose}
                   options={PURPOSES.map((p) => ({ value: p, label: p }))}
-                  ariaLabel="Purpose"
+                  ariaLabel={t('fldPurpose', 'Purpose')}
                 />
               </Field>
             </div>
 
             <div className="md-preview">
               <div>
-                Code pattern:{' '}
+                {t('codePattern', 'Code pattern:')}{' '}
                 <code>{`${blockCode}-${aisle || 'A01'}-L{level}-P{pos}-{side}`}</code>
               </div>
               <div>
-                Example: <code>{previewCode}</code>
+                {t('exampleLabel', 'Example:')} <code>{previewCode}</code>
               </div>
               <div>
-                Total locations: <strong>{total.toLocaleString()}</strong> ({levels} × {positions} ×{' '}
+                {t('totalLocations', 'Total locations:')} <strong>{total.toLocaleString()}</strong> ({levels} × {positions} ×{' '}
                 {sideCodes.length})
               </div>
             </div>
 
             {tooBig && (
               <div className="alert alert-warning">
-                That is {total.toLocaleString()} locations (over 2,000). Please confirm you really want to generate this
-                many.
+                {t('tooBigPre', 'That is')} {total.toLocaleString()} {t('tooBigPost', 'locations (over 2,000). Please confirm you really want to generate this many.')}
               </div>
             )}
           </div>
           <div className="dialog-actions">
             <button className="btn btn-ghost btn-sm" onClick={onCompleted} disabled={busy}>
-              Done
+              {t('done', 'Done')}
             </button>
             {info ? (
               <button
@@ -1526,16 +1535,16 @@ function GuidedBlockBuilder({
                   setConfirmBig(false)
                 }}
               >
-                Add another aisle
+                {t('addAnotherAisle', 'Add another aisle')}
               </button>
             ) : null}
             <button className="btn btn-primary btn-sm" onClick={generate} disabled={busy || genInvalid}>
               {busy ? (
                 <span className="spin" />
               ) : tooBig && confirmBig ? (
-                `Generate ${total.toLocaleString()}`
+                `${t('generateWord', 'Generate')} ${total.toLocaleString()}`
               ) : (
-                'Generate'
+                t('generate', 'Generate')
               )}
             </button>
           </div>
@@ -1581,6 +1590,7 @@ function LocationsTab({
   warehouses: Warehouse[]
   warehouseName: (id?: string | null) => string
 }) {
+  const t = useT('masterdata')
   const [rows, setRows] = useState<Location[]>([])
   const [blocks, setBlocks] = useState<StorageBlock[]>([])
   const [loading, setLoading] = useState(false)
@@ -1626,67 +1636,67 @@ function LocationsTab({
 
   return (
     <div className="glass card-pad md-panel">
-      <Toolbar label="location" onAdd={() => setEditing(blank)} />
+      <Toolbar label={t('lblLocation', 'location')} onAdd={() => setEditing(blank)} />
       {error && <div className="alert alert-danger">{error}</div>}
       <DataTable
         rows={rows}
         rowKey={(l) => l.id ?? l.code}
         search={(l) => `${l.code} ${l.locationType} ${l.purpose} ${blockCode(l.blockId)} ${l.aisle ?? ''} ${l.side ?? ''} ${l.status ?? ''}`}
-        searchPlaceholder="Search locations…"
+        searchPlaceholder={t('searchLocations', 'Search locations…')}
         initialSort={{ key: 'code', dir: 'asc' }}
-        empty={loading ? 'Loading…' : 'No locations for this warehouse.'}
+        empty={loading ? t('loading', 'Loading…') : t('noLocations', 'No locations for this warehouse.')}
         columns={[
-          { key: 'code', header: 'Code', sortable: true, sortValue: (l) => l.code ?? '', render: (l) => l.code },
+          { key: 'code', header: t('colCode', 'Code'), sortable: true, sortValue: (l) => l.code ?? '', render: (l) => l.code },
           {
             key: 'locationType',
-            header: 'Type',
+            header: t('colType', 'Type'),
             sortable: true,
             sortValue: (l) => l.locationType ?? '',
             render: (l) => l.locationType,
           },
           {
             key: 'purpose',
-            header: 'Purpose',
+            header: t('colPurpose', 'Purpose'),
             sortable: true,
             sortValue: (l) => l.purpose ?? '',
             render: (l) => l.purpose,
           },
           {
             key: 'block',
-            header: 'Block',
+            header: t('colBlock', 'Block'),
             sortable: true,
             sortValue: (l) => blockCode(l.blockId),
             render: (l) => blockCode(l.blockId),
           },
           {
             key: 'aisle',
-            header: 'Aisle',
+            header: t('colAisle', 'Aisle'),
             sortable: true,
             sortValue: (l) => l.aisle ?? '',
             render: (l) => l.aisle || '—',
           },
           {
             key: 'side',
-            header: 'Side',
+            header: t('colSide', 'Side'),
             sortable: true,
             sortValue: (l) => l.side ?? '',
             render: (l) => l.side || '—',
           },
           {
             key: 'pos',
-            header: 'X/Y/Z',
+            header: t('colXyz', 'X/Y/Z'),
             render: (l) => [l.posX, l.posY, l.posZ].map((v) => v ?? '·').join('/'),
           },
           {
             key: 'distanceToExit',
-            header: 'Dist→exit',
+            header: t('colDistExit', 'Dist→exit'),
             sortable: true,
             sortValue: (l) => l.distanceToExit ?? 0,
             render: (l) => l.distanceToExit ?? '—',
           },
           {
             key: 'status',
-            header: 'Status',
+            header: t('colStatus', 'Status'),
             sortable: true,
             sortValue: (l) => l.status ?? '',
             render: (l) => <StatusBadge status={l.status} />,
@@ -1697,10 +1707,10 @@ function LocationsTab({
             render: (l) => (
               <div className="md-row-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(l)}>
-                  Edit
+                  {t('edit', 'Edit')}
                 </button>
                 <button className="btn btn-danger btn-sm" onClick={() => setDeleting(l)}>
-                  Delete
+                  {t('delete', 'Delete')}
                 </button>
               </div>
             ),
@@ -1708,7 +1718,7 @@ function LocationsTab({
         ]}
       />
       <p className="muted" style={{ fontSize: '.8rem', marginTop: '.75rem' }}>
-        Warehouse: {warehouseName(warehouseId)}.
+        {t('warehouseLabel', 'Warehouse:')} {warehouseName(warehouseId)}.
       </p>
 
       {editing && (
@@ -1744,11 +1754,12 @@ function LocationDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const t = useT('masterdata')
   const [d, setD] = useState<Location>(initial)
   const valid = d.code.trim() !== '' && d.locationType.trim() !== '' && d.purpose.trim() !== ''
   return (
     <EditDialog
-      title={initial.id ? 'Edit location' : 'New location'}
+      title={initial.id ? t('editLocation', 'Edit location') : t('newLocation', 'New location')}
       draft={d}
       canSave={valid}
       onClose={onClose}
@@ -1758,47 +1769,47 @@ function LocationDialog({
         onSaved()
       }}
     >
-      <Field label={<>Code <InfoTip text="Unique code identifying this individual location within the warehouse." example="ASRS-A01-L03-P12-L" /></>} required>
+      <Field label={<>{t('fldCode', 'Code')} <InfoTip text={t('tipLocCode', 'Unique code identifying this individual location within the warehouse.')} example="ASRS-A01-L03-P12-L" /></>} required>
         <input className="form-control" value={d.code} onChange={(e) => setD({ ...d, code: e.target.value })} />
       </Field>
       <div className="md-grid-2">
-        <Field label={<>Location type <InfoTip text="Physical kind of location; drives how it can be used and which devices serve it." example="ASRS_SLOT" /></>} required>
+        <Field label={<>{t('fldLocationType', 'Location type')} <InfoTip text={t('tipLocType', 'Physical kind of location; drives how it can be used and which devices serve it.')} example="ASRS_SLOT" /></>} required>
           <Select
             value={d.locationType}
             onChange={(val) => setD({ ...d, locationType: val })}
-            options={LOCATION_TYPES.map((t) => ({ value: t, label: t }))}
-            ariaLabel="Location type"
+            options={LOCATION_TYPES.map((lt) => ({ value: lt, label: lt }))}
+            ariaLabel={t('fldLocationType', 'Location type')}
           />
         </Field>
-        <Field label={<>Purpose <InfoTip text="What this location is used for in the flow (storage, picking, staging, etc.)." example="STORAGE" /></>} required>
+        <Field label={<>{t('fldPurpose', 'Purpose')} <InfoTip text={t('tipPurpose', 'What this location is used for in the flow (storage, picking, staging, etc.).')} example="STORAGE" /></>} required>
           <Select
             value={d.purpose}
             onChange={(val) => setD({ ...d, purpose: val })}
             options={PURPOSES.map((p) => ({ value: p, label: p }))}
-            ariaLabel="Purpose"
+            ariaLabel={t('fldPurpose', 'Purpose')}
           />
         </Field>
       </div>
-      <Field label={<>Storage block <InfoTip text="The storage block this location belongs to; leave as None for a standalone location." example="ASRS-A01 (SHUTTLE_ASRS)" /></>}>
+      <Field label={<>{t('fldStorageBlock', 'Storage block')} <InfoTip text={t('tipLocStorageBlock', 'The storage block this location belongs to; leave as None for a standalone location.')} example="ASRS-A01 (SHUTTLE_ASRS)" /></>}>
         <Select
           value={d.blockId ?? ''}
           onChange={(val) => setD({ ...d, blockId: val || null })}
           options={[
-            { value: '', label: '— None —' },
+            { value: '', label: t('optNoneCap', '— None —') },
             ...blocks.map((b) => ({ value: b.id ?? '', label: `${b.code} (${b.storageType})` })),
           ]}
-          ariaLabel="Storage block"
+          ariaLabel={t('fldStorageBlock', 'Storage block')}
         />
       </Field>
       <div className="md-grid-2">
-        <Field label={<>Aisle <InfoTip text="Aisle this location sits in; used for routing and grouping." example="A01" /></>}>
+        <Field label={<>{t('fldAisle', 'Aisle')} <InfoTip text={t('tipLocAisle', 'Aisle this location sits in; used for routing and grouping.')} example="A01" /></>}>
           <input
             className="form-control"
             value={d.aisle ?? ''}
             onChange={(e) => setD({ ...d, aisle: e.target.value || null })}
           />
         </Field>
-        <Field label={<>Side <InfoTip text="Which side of the aisle the location is on." example="LEFT" /></>}>
+        <Field label={<>{t('fldSide', 'Side')} <InfoTip text={t('tipLocSide', 'Which side of the aisle the location is on.')} example="LEFT" /></>}>
           <input
             className="form-control"
             value={d.side ?? ''}
@@ -1808,7 +1819,7 @@ function LocationDialog({
         </Field>
       </div>
       <div className="md-grid-3">
-        <Field label={<>Pos X <InfoTip text="Horizontal position along the aisle (column/bay index)." example="12" /></>}>
+        <Field label={<>{t('fldPosX', 'Pos X')} <InfoTip text={t('tipPosX', 'Horizontal position along the aisle (column/bay index).')} example="12" /></>}>
           <input
             className="form-control"
             type="number"
@@ -1816,7 +1827,7 @@ function LocationDialog({
             onChange={(e) => setD({ ...d, posX: num(e.target.value) })}
           />
         </Field>
-        <Field label={<>Pos Y <InfoTip text="Vertical position / rack level index." example="3" /></>}>
+        <Field label={<>{t('fldPosY', 'Pos Y')} <InfoTip text={t('tipPosY', 'Vertical position / rack level index.')} example="3" /></>}>
           <input
             className="form-control"
             type="number"
@@ -1824,7 +1835,7 @@ function LocationDialog({
             onChange={(e) => setD({ ...d, posY: num(e.target.value) })}
           />
         </Field>
-        <Field label={<>Pos Z <InfoTip text="Depth position into the lane (for multi-deep storage)." example="1" /></>}>
+        <Field label={<>{t('fldPosZ', 'Pos Z')} <InfoTip text={t('tipPosZ', 'Depth position into the lane (for multi-deep storage).')} example="1" /></>}>
           <input
             className="form-control"
             type="number"
@@ -1834,7 +1845,7 @@ function LocationDialog({
         </Field>
       </div>
       <div className="md-grid-2">
-        <Field label={<>Distance to exit <InfoTip text="Relative travel distance from this location to the aisle exit; used to prioritise faster locations during slotting." example="45" /></>}>
+        <Field label={<>{t('fldDistanceToExit', 'Distance to exit')} <InfoTip text={t('tipDistanceToExit', 'Relative travel distance from this location to the aisle exit; used to prioritise faster locations during slotting.')} example="45" /></>}>
           <input
             className="form-control"
             type="number"
@@ -1842,14 +1853,14 @@ function LocationDialog({
             onChange={(e) => setD({ ...d, distanceToExit: num(e.target.value) })}
           />
         </Field>
-        <Field label={<>Hardware address <InfoTip text="Controller / device address for this location (e.g. an ASRS bin address). Optional — can be filled in later." example="A01.R02.L05.D1" /></>}>
+        <Field label={<>{t('fldHardwareAddress', 'Hardware address')} <InfoTip text={t('tipHardwareAddress', 'Controller / device address for this location (e.g. an ASRS bin address). Optional, can be filled in later.')} example="A01.R02.L05.D1" /></>}>
           <input
             className="form-control"
             value={d.hardwareAddress ?? ''}
             onChange={(e) => setD({ ...d, hardwareAddress: e.target.value || null })}
           />
         </Field>
-        <Field label={<>Lane depth <InfoTip text="How many handling units deep this location's lane is: 1 = single-deep, 2 = double-deep." example="2" /></>}>
+        <Field label={<>{t('fldLaneDepth', 'Lane depth')} <InfoTip text={t('tipLocLaneDepth', "How many handling units deep this location's lane is: 1 = single-deep, 2 = double-deep.")} example="2" /></>}>
           <input
             className="form-control"
             type="number"
@@ -1864,10 +1875,10 @@ function LocationDialog({
           checked={d.mixedAllowed}
           onChange={(e) => setD({ ...d, mixedAllowed: e.target.checked })}
         />
-        Mixed SKUs allowed{' '}
-        <InfoTip text="When on, this location may hold more than one SKU at a time; off restricts it to a single SKU." example="off for a fixed pick face" />
+        {t('mixedSkusAllowed', 'Mixed SKUs allowed')}{' '}
+        <InfoTip text={t('tipMixedSkus', 'When on, this location may hold more than one SKU at a time; off restricts it to a single SKU.')} example="off for a fixed pick face" />
       </label>
-      <Field label={<>Status <InfoTip text="Lifecycle state: ACTIVE is in use, INACTIVE is blocked, ARCHIVED is retired." example="ACTIVE" /></>}>
+      <Field label={<>{t('fldStatus', 'Status')} <InfoTip text={t('tipStatusLocation', 'Lifecycle state: ACTIVE is in use, INACTIVE is blocked, ARCHIVED is retired.')} example="ACTIVE" /></>}>
         <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
       </Field>
     </EditDialog>
@@ -2013,9 +2024,10 @@ function StorageAreasPicker({
   selected: Set<string>
   onToggle: (id: string) => void
 }) {
+  const t = useT('masterdata')
   if (error) return <div className="alert alert-danger">{error}</div>
-  if (loading) return <span className="muted">Loading storage blocks…</span>
-  if (blocks.length === 0) return <span className="muted">No storage blocks in this warehouse.</span>
+  if (loading) return <span className="muted">{t('loadingStorageBlocks', 'Loading storage blocks…')}</span>
+  if (blocks.length === 0) return <span className="muted">{t('noStorageBlocksWhShort', 'No storage blocks in this warehouse.')}</span>
   return (
     <div className="md-chips">
       {blocks.map((b) => {
@@ -2046,6 +2058,7 @@ function EquipmentTab({
   warehouseId: string
   warehouseName: (id?: string | null) => string
 }) {
+  const t = useT('masterdata')
   const [rows, setRows] = useState<Equipment[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -2089,7 +2102,7 @@ function EquipmentTab({
 
   return (
     <div className="glass card-pad md-panel">
-      <Toolbar label="equipment" onAdd={() => setEditing(blank)} />
+      <Toolbar label={t('lblEquipment', 'equipment')} onAdd={() => setEditing(blank)} />
       {error && <div className="alert alert-danger">{error}</div>}
       <DataTable
         rows={rows}
@@ -2099,13 +2112,13 @@ function EquipmentTab({
             e.model ?? ''
           } ${e.adapterEndpoint ?? ''} ${(e.processTypes ?? []).join(' ')} ${e.status ?? ''}`
         }
-        searchPlaceholder="Search equipment…"
+        searchPlaceholder={t('searchEquipment', 'Search equipment…')}
         initialSort={{ key: 'type', dir: 'asc' }}
-        empty={loading ? 'Loading…' : 'No equipment for this warehouse.'}
+        empty={loading ? t('loading', 'Loading…') : t('noEquipment', 'No equipment for this warehouse.')}
         columns={[
           {
             key: 'type',
-            header: 'Type',
+            header: t('colType', 'Type'),
             sortable: true,
             // Legacy rows without a type fall back to the routing family.
             sortValue: (e) => equipmentTypeLabel(e.type) ?? e.family ?? '',
@@ -2116,28 +2129,28 @@ function EquipmentTab({
           },
           {
             key: 'vendor',
-            header: 'Vendor',
+            header: t('colVendor', 'Vendor'),
             sortable: true,
             sortValue: (e) => e.vendor ?? '',
             render: (e) => e.vendor || '—',
           },
           {
             key: 'model',
-            header: 'Model',
+            header: t('colModel', 'Model'),
             sortable: true,
             sortValue: (e) => e.model ?? '',
             render: (e) => e.model || '—',
           },
           {
             key: 'adapterEndpoint',
-            header: 'Adapter endpoint',
+            header: t('colAdapterEndpoint', 'Adapter endpoint'),
             sortable: true,
             sortValue: (e) => e.adapterEndpoint ?? '',
             render: (e) => e.adapterEndpoint || '—',
           },
           {
             key: 'status',
-            header: 'Status',
+            header: t('colStatus', 'Status'),
             sortable: true,
             sortValue: (e) => e.status ?? '',
             render: (e) => <StatusBadge status={e.status} />,
@@ -2148,7 +2161,7 @@ function EquipmentTab({
             render: (e) => (
               <div className="md-row-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(e)}>
-                  Edit
+                  {t('edit', 'Edit')}
                 </button>
               </div>
             ),
@@ -2156,7 +2169,7 @@ function EquipmentTab({
         ]}
       />
       <p className="muted" style={{ fontSize: '.8rem', marginTop: '.75rem' }}>
-        Warehouse: {warehouseName(warehouseId)}. Equipment has no archive endpoint; set status to ARCHIVED via Edit.
+        {t('warehouseLabel', 'Warehouse:')} {warehouseName(warehouseId)}. {t('equipmentArchiveNote', 'Equipment has no archive endpoint; set status to ARCHIVED via Edit.')}
       </p>
 
       {editing && (
@@ -2175,6 +2188,9 @@ function EquipmentDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const t = useT('masterdata')
+  // Translated option labels for the Type select and the descriptive process types.
+  const equipmentTypeOptions = EQUIPMENT_TYPES.map((o) => ({ value: o.value, label: t(`eqType_${o.value}`, o.label) }))
   // Derive a sensible Type for legacy rows that only have a routing family.
   const [d, setD] = useState<Equipment>(() => {
     const type = initial.type ?? (initial.family === 'CONVEYOR' ? 'BIN_CONVEYOR' : 'ASRS')
@@ -2237,7 +2253,7 @@ function EquipmentDialog({
 
   return (
     <EditDialog
-      title={initial.id ? 'Edit equipment' : 'New equipment'}
+      title={initial.id ? t('editEquipment', 'Edit equipment') : t('newEquipment', 'New equipment')}
       draft={d}
       canSave={valid}
       wide
@@ -2270,9 +2286,9 @@ function EquipmentDialog({
       <Field
         label={
           <>
-            Type{' '}
+            {t('fldType', 'Type')}{' '}
             <InfoTip
-              text="What kind of automation this device is. Drives the editor below and the routing family. e.g. a bin conveyor segment, an ASRS aisle or a sorter."
+              text={t('tipEqType', 'What kind of automation this device is. Drives the editor below and the routing family. e.g. a bin conveyor segment, an ASRS aisle or a sorter.')}
               example="Bin conveyor"
             />
           </>
@@ -2282,8 +2298,8 @@ function EquipmentDialog({
         <Select
           value={d.type ?? ''}
           onChange={changeType}
-          options={EQUIPMENT_TYPES}
-          ariaLabel="Type"
+          options={equipmentTypeOptions}
+          ariaLabel={t('fldType', 'Type')}
         />
       </Field>
 
@@ -2291,9 +2307,9 @@ function EquipmentDialog({
         <Field
           label={
             <>
-              Subtype{' '}
+              {t('fldSubtype', 'Subtype')}{' '}
               <InfoTip
-                text="The specific technology within the type. ASRS: SHUTTLE, CRANE, AMR or CUBE (AutoStore). SORTER: CROSSBELT, TILTTRAY or SHOE."
+                text={t('tipSubtype', 'The specific technology within the type. ASRS: SHUTTLE, CRANE, AMR or CUBE (AutoStore). SORTER: CROSSBELT, TILTTRAY or SHOE.')}
                 example="SHUTTLE"
               />
             </>
@@ -2304,7 +2320,7 @@ function EquipmentDialog({
             value={d.subtype ?? ''}
             onChange={changeSubtype}
             options={subtypeOptions}
-            ariaLabel="Subtype"
+            ariaLabel={t('fldSubtype', 'Subtype')}
           />
         </Field>
       )}
@@ -2312,9 +2328,9 @@ function EquipmentDialog({
       <Field
         label={
           <>
-            Routing family{' '}
+            {t('fldRoutingFamily', 'Routing family')}{' '}
             <InfoTip
-              text="Derived automatically from Type/Subtype; it drives routing and which device adapter is used. ASRS+CUBE → AUTOSTORE, ASRS+AMR → AMR, conveyors/sorters → CONVEYOR."
+              text={t('tipRoutingFamily', 'Derived automatically from Type/Subtype; it drives routing and which device adapter is used. ASRS+CUBE produces AUTOSTORE, ASRS+AMR produces AMR, conveyors/sorters produce CONVEYOR.')}
               example="CONVEYOR"
             />
           </>
@@ -2326,9 +2342,9 @@ function EquipmentDialog({
       <Field
         label={
           <>
-            Default size — width (m){' '}
+            {t('fldDefaultWidth', 'Default size, width (m)')}{' '}
             <InfoTip
-              text="Default footprint width in metres, used when this equipment is first placed in the automation topology."
+              text={t('tipDefaultWidth', 'Default footprint width in metres, used when this equipment is first placed in the automation topology.')}
               example="0.6"
             />
           </>
@@ -2345,9 +2361,9 @@ function EquipmentDialog({
       <Field
         label={
           <>
-            Default size — height (m){' '}
+            {t('fldDefaultHeight', 'Default size, height (m)')}{' '}
             <InfoTip
-              text="Default height in metres (deck / pick height), used when placed in the automation topology."
+              text={t('tipDefaultHeight', 'Default height in metres (deck / pick height), used when placed in the automation topology.')}
               example="0.9"
             />
           </>
@@ -2364,9 +2380,9 @@ function EquipmentDialog({
       <Field
         label={
           <>
-            Default size — length (m){' '}
+            {t('fldDefaultLength', 'Default size, length (m)')}{' '}
             <InfoTip
-              text="Default length in metres. For conveyors the real length is set later when the segment is placed/sized in the automation topology."
+              text={t('tipDefaultLength', 'Default length in metres. For conveyors the real length is set later when the segment is placed/sized in the automation topology.')}
               example="2.0"
             />
           </>
@@ -2381,7 +2397,7 @@ function EquipmentDialog({
         />
         {isConveyor && (
           <p className="md-explain" style={{ margin: '.15rem 0 0', fontSize: '.78rem', lineHeight: 1.4 }}>
-            For conveyors the length is set later when the segment is placed in the automation topology.
+            {t('conveyorLengthNote', 'For conveyors the length is set later when the segment is placed in the automation topology.')}
           </p>
         )}
       </Field>
@@ -2390,9 +2406,9 @@ function EquipmentDialog({
         <Field
           label={
             <>
-              Process types{' '}
+              {t('fldProcessTypes', 'Process types')}{' '}
               <InfoTip
-                text="In-line processing this conveyor/sorter performs. e.g. DIVERT_LEFT to push HUs off to the left, DWS to capture dimensions/weight, QUERY_POINT to hold an HU until released. Leave none selected for plain transport."
+                text={t('tipProcessTypes', 'In-line processing this conveyor/sorter performs. e.g. DIVERT_LEFT to push HUs off to the left, DWS to capture dimensions/weight, QUERY_POINT to hold an HU until released. Leave none selected for plain transport.')}
                 example="DIVERT_LEFT"
               />
             </>
@@ -2409,9 +2425,9 @@ function EquipmentDialog({
         <Field
           label={
             <>
-              Storage areas{' '}
+              {t('fldStorageAreas', 'Storage areas')}{' '}
               <InfoTip
-                text="Storage areas (blocks) served by this ASRS — links them via the block's equipment."
+                text={t('tipStorageAreas', "Storage areas (blocks) served by this ASRS, links them via the block's equipment.")}
                 example="ASRS-A01, ASRS-A02"
               />
             </>
@@ -2427,21 +2443,21 @@ function EquipmentDialog({
         </Field>
       )}
 
-      <Field label={<>Vendor <InfoTip text="Manufacturer or supplier of the equipment." example="Dematic" /></>}>
+      <Field label={<>{t('fldVendor', 'Vendor')} <InfoTip text={t('tipVendor', 'Manufacturer or supplier of the equipment.')} example="Dematic" /></>}>
         <input
           className="form-control"
           value={d.vendor ?? ''}
           onChange={(e) => setD({ ...d, vendor: e.target.value })}
         />
       </Field>
-      <Field label={<>Model <InfoTip text="Vendor's model name or number for this equipment." example="Multishuttle 2" /></>}>
+      <Field label={<>{t('fldModel', 'Model')} <InfoTip text={t('tipModel', "Vendor's model name or number for this equipment.")} example="Multishuttle 2" /></>}>
         <input
           className="form-control"
           value={d.model ?? ''}
           onChange={(e) => setD({ ...d, model: e.target.value })}
         />
       </Field>
-      <Field label={<>Adapter endpoint <InfoTip text="URL the WCS device adapter uses to talk to this equipment's controller." example="http://device-adapter:8080" /></>}>
+      <Field label={<>{t('fldAdapterEndpoint', 'Adapter endpoint')} <InfoTip text={t('tipAdapterEndpoint', "URL the WCS device adapter uses to talk to this equipment's controller.")} example="http://device-adapter:8080" /></>}>
         <input
           className="form-control"
           value={d.adapterEndpoint ?? ''}
@@ -2449,7 +2465,7 @@ function EquipmentDialog({
           onChange={(e) => setD({ ...d, adapterEndpoint: e.target.value })}
         />
       </Field>
-      <Field label={<>Status <InfoTip text="Lifecycle state: ACTIVE is online, INACTIVE is offline, ARCHIVED is retired." example="ACTIVE" /></>}>
+      <Field label={<>{t('fldStatus', 'Status')} <InfoTip text={t('tipStatusEquipment', 'Lifecycle state: ACTIVE is online, INACTIVE is offline, ARCHIVED is retired.')} example="ACTIVE" /></>}>
         <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
       </Field>
     </EditDialog>
@@ -2461,6 +2477,7 @@ function EquipmentDialog({
 // =========================================================================
 
 function HandlingUnitTypesTab() {
+  const t = useT('masterdata')
   const { roles } = useAuth()
   const isAdmin = roles.includes('ADMIN')
   const [rows, setRows] = useState<HandlingUnitType[]>([])
@@ -2497,7 +2514,7 @@ function HandlingUnitTypesTab() {
     try {
       const active = await countActiveHandlingUnits(h.id)
       if (active > 0) {
-        setError(`Cannot archive — ${active} active handling unit${active === 1 ? '' : 's'} still use this type.`)
+        setError(`${t('cannotArchive', 'Cannot archive:')} ${active} ${t('activeHuUseType', 'active handling unit(s) still use this type.')}`)
         return
       }
       await archiveHandlingUnitType(h.id)
@@ -2534,14 +2551,14 @@ function HandlingUnitTypesTab() {
 
   return (
     <div className="glass card-pad md-panel">
-      <Toolbar label="handling unit type" onAdd={() => setEditing(blank)}>
+      <Toolbar label={t('lblHuType', 'handling unit type')} onAdd={() => setEditing(blank)}>
         <label className="md-check">
           <input
             type="checkbox"
             checked={showArchived}
             onChange={(e) => setShowArchived(e.target.checked)}
           />
-          Show archived
+          {t('showArchived', 'Show archived')}
         </label>
       </Toolbar>
       {error && <div className="alert alert-danger">{error}</div>}
@@ -2550,54 +2567,54 @@ function HandlingUnitTypesTab() {
         rowKey={(h) => h.id ?? h.name}
         rowClassName={(h) => (isArchived(h) ? 'md-row-archived' : '')}
         search={(h) => `${h.name} ${h.status ?? ''}`}
-        searchPlaceholder="Search handling unit types…"
+        searchPlaceholder={t('searchHuTypes', 'Search handling unit types…')}
         initialSort={{ key: 'name', dir: 'asc' }}
-        empty={loading ? 'Loading…' : 'No handling unit types yet.'}
+        empty={loading ? t('loading', 'Loading…') : t('noHuTypes', 'No handling unit types yet.')}
         columns={[
-          { key: 'name', header: 'Name', sortable: true, sortValue: (h) => h.name ?? '', render: (h) => h.name },
+          { key: 'name', header: t('colName', 'Name'), sortable: true, sortValue: (h) => h.name ?? '', render: (h) => h.name },
           {
             key: 'dimensions',
-            header: 'Dimensions',
+            header: t('colDimensions', 'Dimensions'),
             render: (h) => `${h.lengthMm ?? '·'}×${h.widthMm ?? '·'}×${h.heightMm ?? '·'} mm`,
           },
           {
             key: 'weightLimitG',
-            header: 'Weight limit',
+            header: t('colWeightLimit', 'Weight limit'),
             sortable: true,
             sortValue: (h) => h.weightLimitG ?? 0,
             render: (h) => (h.weightLimitG != null ? `${h.weightLimitG} g` : '—'),
           },
           {
             key: 'nestable',
-            header: 'Nestable',
+            header: t('colNestable', 'Nestable'),
             sortable: true,
             sortValue: (h) => (h.nestable ? 1 : 0),
-            render: (h) => (h.nestable ? 'Yes' : 'No'),
+            render: (h) => (h.nestable ? t('yes', 'Yes') : t('no', 'No')),
           },
           {
             key: 'compartments',
-            header: 'Compartments',
+            header: t('colCompartments', 'Compartments'),
             sortable: true,
             sortValue: (h) => h.compartments ?? 0,
             render: (h) => h.compartments,
           },
           {
             key: 'storableInAutomation',
-            header: 'Automation',
+            header: t('colAutomation', 'Automation'),
             sortable: true,
             sortValue: (h) => (h.storableInAutomation ? 1 : 0),
-            render: (h) => (h.storableInAutomation ? 'Yes' : 'No'),
+            render: (h) => (h.storableInAutomation ? t('yes', 'Yes') : t('no', 'No')),
           },
           {
             key: 'transportableOnConveyor',
-            header: 'Conveyor',
+            header: t('colConveyor', 'Conveyor'),
             sortable: true,
             sortValue: (h) => (h.transportableOnConveyor ? 1 : 0),
-            render: (h) => (h.transportableOnConveyor ? 'Yes' : 'No'),
+            render: (h) => (h.transportableOnConveyor ? t('yes', 'Yes') : t('no', 'No')),
           },
           {
             key: 'status',
-            header: 'Status',
+            header: t('colStatus', 'Status'),
             sortable: true,
             sortValue: (h) => h.status ?? 'ACTIVE',
             render: (h) => <StatusBadge status={h.status ?? 'ACTIVE'} />,
@@ -2608,7 +2625,7 @@ function HandlingUnitTypesTab() {
             render: (h) => (
               <div className="md-row-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(h)}>
-                  Edit
+                  {t('edit', 'Edit')}
                 </button>
                 {isAdmin &&
                   (isArchived(h) ? (
@@ -2617,7 +2634,7 @@ function HandlingUnitTypesTab() {
                       disabled={busyId === h.id}
                       onClick={() => restore(h)}
                     >
-                      {busyId === h.id ? <span className="spin" /> : 'Restore'}
+                      {busyId === h.id ? <span className="spin" /> : t('restore', 'Restore')}
                     </button>
                   ) : (
                     <button
@@ -2625,7 +2642,7 @@ function HandlingUnitTypesTab() {
                       disabled={busyId === h.id}
                       onClick={() => archive(h)}
                     >
-                      {busyId === h.id ? <span className="spin" /> : 'Archive'}
+                      {busyId === h.id ? <span className="spin" /> : t('archive', 'Archive')}
                     </button>
                   ))}
               </div>
@@ -2650,11 +2667,12 @@ function HandlingUnitTypeDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const t = useT('masterdata')
   const [d, setD] = useState<HandlingUnitType>(initial)
   const valid = d.name.trim() !== '' && d.compartments >= 1 && d.compartments <= 8
   return (
     <EditDialog
-      title={initial.id ? 'Edit handling unit type' : 'New handling unit type'}
+      title={initial.id ? t('editHuType', 'Edit handling unit type') : t('newHuType', 'New handling unit type')}
       draft={d}
       canSave={valid}
       onClose={onClose}
@@ -2664,11 +2682,11 @@ function HandlingUnitTypeDialog({
         onSaved()
       }}
     >
-      <Field label={<>Name <InfoTip text="Unique name of this handling-unit type (carrier/container kind)." example="TOTE" /></>} required>
+      <Field label={<>{t('fldName', 'Name')} <InfoTip text={t('tipHuName', 'Unique name of this handling-unit type (carrier/container kind).')} example="TOTE" /></>} required>
         <input className="form-control" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
       </Field>
       <div className="md-grid-3">
-        <Field label={<>Length (mm) <InfoTip text="External length of the handling unit in millimetres." example="600" /></>}>
+        <Field label={<>{t('fldLengthMm', 'Length (mm)')} <InfoTip text={t('tipHuLength', 'External length of the handling unit in millimetres.')} example="600" /></>}>
           <input
             className="form-control"
             type="number"
@@ -2676,7 +2694,7 @@ function HandlingUnitTypeDialog({
             onChange={(e) => setD({ ...d, lengthMm: num(e.target.value) ?? undefined })}
           />
         </Field>
-        <Field label={<>Width (mm) <InfoTip text="External width of the handling unit in millimetres." example="400" /></>}>
+        <Field label={<>{t('fldWidthMm', 'Width (mm)')} <InfoTip text={t('tipHuWidth', 'External width of the handling unit in millimetres.')} example="400" /></>}>
           <input
             className="form-control"
             type="number"
@@ -2684,7 +2702,7 @@ function HandlingUnitTypeDialog({
             onChange={(e) => setD({ ...d, widthMm: num(e.target.value) ?? undefined })}
           />
         </Field>
-        <Field label={<>Height (mm) <InfoTip text="External height of the handling unit in millimetres." example="320" /></>}>
+        <Field label={<>{t('fldHeightMm', 'Height (mm)')} <InfoTip text={t('tipHuHeight', 'External height of the handling unit in millimetres.')} example="320" /></>}>
           <input
             className="form-control"
             type="number"
@@ -2694,7 +2712,7 @@ function HandlingUnitTypeDialog({
         </Field>
       </div>
       <div className="md-grid-2">
-        <Field label={<>Weight limit (g) <InfoTip text="Maximum gross weight this handling unit may carry, in grams." example="30000" /></>}>
+        <Field label={<>{t('fldWeightLimit', 'Weight limit (g)')} <InfoTip text={t('tipWeightLimit', 'Maximum gross weight this handling unit may carry, in grams.')} example="30000" /></>}>
           <input
             className="form-control"
             type="number"
@@ -2702,7 +2720,7 @@ function HandlingUnitTypeDialog({
             onChange={(e) => setD({ ...d, weightLimitG: num(e.target.value) ?? undefined })}
           />
         </Field>
-        <Field label={<>Compartments (1–8) <InfoTip text="Number of separate compartments/cells the handling unit is divided into." example="4" /></>}>
+        <Field label={<>{t('fldCompartments', 'Compartments (1–8)')} <InfoTip text={t('tipCompartments', 'Number of separate compartments/cells the handling unit is divided into.')} example="4" /></>}>
           <input
             className="form-control"
             type="number"
@@ -2716,8 +2734,8 @@ function HandlingUnitTypeDialog({
       <div className="md-checks">
         <label className="md-check">
           <input type="checkbox" checked={d.nestable} onChange={(e) => setD({ ...d, nestable: e.target.checked })} />
-          Nestable{' '}
-          <InfoTip text="When on, empty units of this type can stack inside each other to save space." example="on for stackable totes" />
+          {t('nestable', 'Nestable')}{' '}
+          <InfoTip text={t('tipNestable', 'When on, empty units of this type can stack inside each other to save space.')} example="on for stackable totes" />
         </label>
         <label className="md-check">
           <input
@@ -2725,8 +2743,8 @@ function HandlingUnitTypeDialog({
             checked={d.storableInAutomation}
             onChange={(e) => setD({ ...d, storableInAutomation: e.target.checked })}
           />
-          Storable in automation{' '}
-          <InfoTip text="When on, this type may be stored inside automated systems (ASRS, AutoStore, shuttle grids)." example="on for a tote, off for a pallet" />
+          {t('storableInAutomation', 'Storable in automation')}{' '}
+          <InfoTip text={t('tipStorableInAutomation', 'When on, this type may be stored inside automated systems (ASRS, AutoStore, shuttle grids).')} example="on for a tote, off for a pallet" />
         </label>
         <label className="md-check">
           <input
@@ -2734,8 +2752,8 @@ function HandlingUnitTypeDialog({
             checked={d.transportableOnConveyor}
             onChange={(e) => setD({ ...d, transportableOnConveyor: e.target.checked })}
           />
-          Transportable on conveyor{' '}
-          <InfoTip text="When on, this type can be moved on the conveyor network." example="on for a tote or carton" />
+          {t('transportableOnConveyor', 'Transportable on conveyor')}{' '}
+          <InfoTip text={t('tipTransportableOnConveyor', 'When on, this type can be moved on the conveyor network.')} example="on for a tote or carton" />
         </label>
       </div>
     </EditDialog>
@@ -2747,6 +2765,7 @@ function HandlingUnitTypeDialog({
 // =========================================================================
 
 function LabelTemplatesTab() {
+  const t = useT('masterdata')
   const [rows, setRows] = useState<LabelTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -2780,60 +2799,60 @@ function LabelTemplatesTab() {
 
   return (
     <div className="glass card-pad md-panel">
-      <Toolbar label="template" onAdd={() => setEditing(blank)} />
+      <Toolbar label={t('lblTemplate', 'template')} onAdd={() => setEditing(blank)} />
       {error && <div className="alert alert-danger">{error}</div>}
       <DataTable
         rows={rows}
-        rowKey={(t) => t.id ?? t.code}
-        search={(t) => `${t.code} ${t.name ?? ''} ${t.status ?? ''}`}
-        searchPlaceholder="Search label templates…"
+        rowKey={(lt) => lt.id ?? lt.code}
+        search={(lt) => `${lt.code} ${lt.name ?? ''} ${lt.status ?? ''}`}
+        searchPlaceholder={t('searchLabelTemplates', 'Search label templates…')}
         initialSort={{ key: 'code', dir: 'asc' }}
-        empty={loading ? 'Loading…' : 'No label templates yet.'}
+        empty={loading ? t('loading', 'Loading…') : t('noLabelTemplates', 'No label templates yet.')}
         columns={[
-          { key: 'code', header: 'Code', sortable: true, sortValue: (t) => t.code ?? '', render: (t) => t.code },
+          { key: 'code', header: t('colCode', 'Code'), sortable: true, sortValue: (lt) => lt.code ?? '', render: (lt) => lt.code },
           {
             key: 'name',
-            header: 'Name',
+            header: t('colName', 'Name'),
             sortable: true,
-            sortValue: (t) => t.name ?? '',
-            render: (t) => t.name || '—',
+            sortValue: (lt) => lt.name ?? '',
+            render: (lt) => lt.name || '—',
           },
           {
             key: 'size',
-            header: 'Size (mm)',
-            render: (t) => `${t.widthMm} × ${t.heightMm}`,
+            header: t('colSizeMm', 'Size (mm)'),
+            render: (lt) => `${lt.widthMm} × ${lt.heightMm}`,
           },
           {
             key: 'dpi',
-            header: 'DPI',
+            header: t('colDpi', 'DPI'),
             sortable: true,
-            sortValue: (t) => t.dpi ?? 0,
-            render: (t) => t.dpi,
+            sortValue: (lt) => lt.dpi ?? 0,
+            render: (lt) => lt.dpi,
           },
           {
             key: 'elements',
-            header: 'Elements',
+            header: t('colElements', 'Elements'),
             sortable: true,
-            sortValue: (t) => t.elements?.length ?? 0,
-            render: (t) => t.elements?.length ?? 0,
+            sortValue: (lt) => lt.elements?.length ?? 0,
+            render: (lt) => lt.elements?.length ?? 0,
           },
           {
             key: 'status',
-            header: 'Status',
+            header: t('colStatus', 'Status'),
             sortable: true,
-            sortValue: (t) => t.status ?? '',
-            render: (t) => <StatusBadge status={t.status} />,
+            sortValue: (lt) => lt.status ?? '',
+            render: (lt) => <StatusBadge status={lt.status} />,
           },
           {
             key: 'actions',
             header: '',
-            render: (t) => (
+            render: (lt) => (
               <div className="md-row-actions">
-                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(t)}>
-                  Edit
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(lt)}>
+                  {t('edit', 'Edit')}
                 </button>
-                <button className="btn btn-danger btn-sm" onClick={() => setDeleting(t)}>
-                  Delete
+                <button className="btn btn-danger btn-sm" onClick={() => setDeleting(lt)}>
+                  {t('delete', 'Delete')}
                 </button>
               </div>
             ),
@@ -2867,24 +2886,25 @@ function LabelTemplateDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const t = useT('masterdata')
   const [d, setD] = useState<LabelTemplate>(initial)
   const valid = d.code.trim() !== '' && d.widthMm > 0 && d.heightMm > 0 && d.dpi > 0
   return (
     <EditDialog
-      title={initial.id ? 'Edit label template' : 'New label template'}
+      title={initial.id ? t('editLabelTemplate', 'Edit label template') : t('newLabelTemplate', 'New label template')}
       draft={d}
       canSave={valid}
       onClose={onClose}
-      onSave={async (t) => {
-        if (t.id) await updateLabelTemplate(t.id, t)
-        else await createLabelTemplate(t)
+      onSave={async (lt) => {
+        if (lt.id) await updateLabelTemplate(lt.id, lt)
+        else await createLabelTemplate(lt)
         onSaved()
       }}
     >
-      <Field label={<>Code <InfoTip text="Unique code identifying this label template." example="HU-LABEL-100x150" /></>} required>
+      <Field label={<>{t('fldCode', 'Code')} <InfoTip text={t('tipLtCode', 'Unique code identifying this label template.')} example="HU-LABEL-100x150" /></>} required>
         <input className="form-control" value={d.code} onChange={(e) => setD({ ...d, code: e.target.value })} />
       </Field>
-      <Field label={<>Name <InfoTip text="Human-readable name for the label template." example="Tote label 100×150" /></>}>
+      <Field label={<>{t('fldName', 'Name')} <InfoTip text={t('tipLtName', 'Human-readable name for the label template.')} example="Tote label 100×150" /></>}>
         <input
           className="form-control"
           value={d.name ?? ''}
@@ -2892,7 +2912,7 @@ function LabelTemplateDialog({
         />
       </Field>
       <div className="md-grid-3">
-        <Field label={<>Width (mm) <InfoTip text="Printed label width in millimetres." example="100" /></>} required>
+        <Field label={<>{t('fldWidthMm', 'Width (mm)')} <InfoTip text={t('tipLtWidth', 'Printed label width in millimetres.')} example="100" /></>} required>
           <input
             className="form-control"
             type="number"
@@ -2900,7 +2920,7 @@ function LabelTemplateDialog({
             onChange={(e) => setD({ ...d, widthMm: num(e.target.value) ?? 0 })}
           />
         </Field>
-        <Field label={<>Height (mm) <InfoTip text="Printed label height in millimetres." example="150" /></>} required>
+        <Field label={<>{t('fldHeightMm', 'Height (mm)')} <InfoTip text={t('tipLtHeight', 'Printed label height in millimetres.')} example="150" /></>} required>
           <input
             className="form-control"
             type="number"
@@ -2908,7 +2928,7 @@ function LabelTemplateDialog({
             onChange={(e) => setD({ ...d, heightMm: num(e.target.value) ?? 0 })}
           />
         </Field>
-        <Field label={<>DPI <InfoTip text="Printer resolution in dots per inch the template is designed for." example="203" /></>} required>
+        <Field label={<>{t('fldDpi', 'DPI')} <InfoTip text={t('tipDpi', 'Printer resolution in dots per inch the template is designed for.')} example="203" /></>} required>
           <input
             className="form-control"
             type="number"
@@ -2918,10 +2938,9 @@ function LabelTemplateDialog({
         </Field>
       </div>
       <p className="muted" style={{ fontSize: '.8rem' }}>
-        {d.elements?.length ?? 0} element(s). The visual element designer lives in a future iteration; element data is
-        preserved on save.
+        {d.elements?.length ?? 0} {t('elementsSuffix', 'element(s). The visual element designer lives in a future iteration; element data is preserved on save.')}
       </p>
-      <Field label={<>Status <InfoTip text="Lifecycle state: ACTIVE is selectable for printing, INACTIVE is hidden, ARCHIVED is retired." example="ACTIVE" /></>}>
+      <Field label={<>{t('fldStatus', 'Status')} <InfoTip text={t('tipStatusLabel', 'Lifecycle state: ACTIVE is selectable for printing, INACTIVE is hidden, ARCHIVED is retired.')} example="ACTIVE" /></>}>
         <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
       </Field>
     </EditDialog>
