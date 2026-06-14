@@ -1,7 +1,6 @@
 package org.openwcs.iam.api;
 
 import java.util.Map;
-import java.util.Set;
 import org.openwcs.common.security.AccessControl;
 import org.openwcs.iam.service.ScreenAccessService;
 import org.slf4j.Logger;
@@ -49,14 +48,15 @@ public class ScreenAccessController {
     }
 
     /**
-     * The set of screen keys the current user (forwarded {@code X-Auth-User}/{@code X-Auth-Roles})
-     * can access by override. Only overridden screens are reported; non-overridden screens use the
-     * UI defaults and are resolved client-side.
+     * The current user's effective access level per <em>overridden</em> screen (forwarded
+     * {@code X-Auth-User}/{@code X-Auth-Roles}), keyed by screen key with {@code "read"}/{@code "write"}.
+     * Screens where the user resolves to OFF are omitted; non-overridden screens use the UI defaults
+     * and are resolved client-side.
      */
     @GetMapping("/me")
-    public Set<String> mine(
+    public Map<String, String> mine(
             @RequestHeader(value = "X-Auth-User", required = false) String username,
             @RequestHeader(value = "X-Auth-Roles", required = false) String rolesHeader) {
-        return service.accessibleKeys(AccessControl.parseRoles(rolesHeader), username);
+        return service.effectiveLevels(AccessControl.parseRoles(rolesHeader), username);
     }
 }
