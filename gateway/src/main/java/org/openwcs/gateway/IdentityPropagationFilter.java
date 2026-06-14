@@ -32,6 +32,11 @@ import reactor.core.publisher.Mono;
  * the user's allowed set is rejected with 403. Admins are never scoped. Writes that carry the
  * warehouse only in a JSON body are out of scope here and are guarded per-endpoint downstream via
  * the forwarded {@code X-Auth-Warehouses} header (follow-up).
+ *
+ * <p>And it enforces read-vs-write screen access (build.md §4.8): a non-admin write
+ * ({@code POST/PUT/PATCH/DELETE}) to an API path owned by a screen (see {@link ScreenWriteCatalog})
+ * is rejected with 403 unless the user's effective level on that screen is WRITE. Reads always
+ * pass, unmapped write paths pass (fail-open), and an IAM blip skips the check (fail-open).
  */
 @Component
 public class IdentityPropagationFilter implements GlobalFilter, Ordered {
@@ -42,10 +47,19 @@ public class IdentityPropagationFilter implements GlobalFilter, Ordered {
     static final String ROLES_HEADER = "X-Auth-Roles";
     static final String WAREHOUSES_HEADER = "X-Auth-Warehouses";
 
-    private final WarehouseAccessResolver warehouses;
+    private static final Set<String> WRITE_METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
 
-    public IdentityPropagationFilter(WarehouseAccessResolver warehouses) {
+    private final WarehouseAccessResolver warehouses;
+    private final ScreenAccessResolver screenAccess;
+    private final ScreenWriteCatalog screenCatalog;
+
+    public IdentityPropagationFilter(
+            WarehouseAccessResolver warehouses,
+            ScreenAccessResolver screenAccess,
+            ScreenWriteCatalog screenCatalog) {
         this.warehouses = warehouses;
+        this.screenAccess = screenAccess;
+        this.screenCatalog = screenCatalog;
     }
 
     @Override
@@ -72,11 +86,47 @@ public class IdentityPropagationFilter implements GlobalFilter, Ordered {
         final String username = name != null ? name : jwt.getSubject();
         final List<String> roles = realmRoles(jwt);
 
-        // Admins are never warehouse-scoped — forward identity, no resolution/enforcement.
+        // Admins are never scoped (warehouse or screen) — forward identity, no enforcement.
         if (roles.contains("ADMIN")) {
             return forward(exchange, chain, withIdentity(stripped, username, roles, null));
         }
 
+        return screenWriteAllowed(exchange, roles, username).flatMap(writeAllowed -> {
+            if (!writeAllowed) {
+                log.warn("screen-write denied: user {} attempted {} {} without write access on the owning screen; returning 403",
+                        username, exchange.getRequest().getMethod(), exchange.getRequest().getPath().value());
+                exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
+                return exchange.getResponse().setComplete();
+            }
+            return enforceWarehouseScope(exchange, chain, stripped, username, roles);
+        });
+    }
+
+    /**
+     * Whether this request is permitted by read-vs-write screen access: true for reads, for writes
+     * to unmapped paths, and when IAM is unreachable (fail-open); false only for a write to a
+     * screen-owned path where the user's effective level is below WRITE.
+     */
+    private Mono<Boolean> screenWriteAllowed(ServerWebExchange exchange, List<String> roles, String username) {
+        if (!WRITE_METHODS.contains(exchange.getRequest().getMethod().name())) {
+            return Mono.just(true);
+        }
+        String screen = screenCatalog.screenForPath(exchange.getRequest().getPath().value());
+        if (screen == null) {
+            return Mono.just(true);
+        }
+        return screenAccess.overrides().map(opt -> {
+            if (opt.isEmpty()) {
+                return true; // IAM unavailable — fail open
+            }
+            return screenCatalog.effectiveLevel(screen, roles, username, opt.get())
+                    == ScreenWriteCatalog.Level.WRITE;
+        });
+    }
+
+    private Mono<Void> enforceWarehouseScope(
+            ServerWebExchange exchange, GatewayFilterChain chain, ServerHttpRequest stripped,
+            String username, List<String> roles) {
         return warehouses.allowedFor(username).flatMap(allowed -> {
             if (allowed.isEmpty()) {
                 // Could not resolve (IAM unavailable) — fail open, forward without a warehouse header.
