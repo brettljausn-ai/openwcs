@@ -17,7 +17,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Boots IAM against PostgreSQL 16 (Flyway creates the screen_access store). Verifies the
- * full-map replace semantics, empty-entry pruning, and per-user accessible-key resolution.
+ * full-map replace semantics, empty-entry pruning, and per-user effective-level resolution
+ * (off / read / write).
  */
 @SpringBootTest
 @Testcontainers
@@ -36,27 +37,33 @@ class ScreenAccessServiceTest {
     @Autowired
     ScreenAccessService screenAccess;
 
+    private static ScreenAccessView view(Map<String, String> roles, Map<String, String> users) {
+        return new ScreenAccessView(roles, users);
+    }
+
     @Test
-    void replaceStoresAndReturnsOverrides() {
+    void replaceStoresAndReturnsOverridesWithLevels() {
         screenAccess.replaceAll(Map.of(
-                "transport", new ScreenAccessView(List.of("SUPERVISOR"), List.of("alice")),
-                "settings", new ScreenAccessView(List.of("ADMIN"), List.of())));
+                "transport", view(Map.of("SUPERVISOR", "write", "VIEWER", "read"), Map.of("alice", "read")),
+                "settings", view(Map.of("ADMIN", "write"), Map.of())));
 
         Map<String, ScreenAccessView> overrides = screenAccess.overrides();
         assertThat(overrides).containsKeys("transport", "settings");
-        assertThat(overrides.get("transport").roles()).containsExactly("SUPERVISOR");
-        assertThat(overrides.get("transport").users()).containsExactly("alice");
+        assertThat(overrides.get("transport").roles())
+                .containsEntry("SUPERVISOR", "write")
+                .containsEntry("VIEWER", "read");
+        assertThat(overrides.get("transport").users()).containsEntry("alice", "read");
     }
 
     @Test
     void replaceIsAFullReplacementAndPrunesEmptyEntries() {
-        screenAccess.replaceAll(Map.of("topology", new ScreenAccessView(List.of("ADMIN"), List.of())));
+        screenAccess.replaceAll(Map.of("topology", view(Map.of("ADMIN", "write"), Map.of())));
         assertThat(screenAccess.overrides()).containsKey("topology");
 
         // A subsequent replace without "topology", plus an empty entry that must be dropped.
         screenAccess.replaceAll(Map.of(
-                "slotting", new ScreenAccessView(List.of("SUPERVISOR"), List.of()),
-                "processes", new ScreenAccessView(List.of(), List.of())));
+                "slotting", view(Map.of("SUPERVISOR", "write"), Map.of()),
+                "processes", view(Map.of(), Map.of())));
 
         Map<String, ScreenAccessView> overrides = screenAccess.overrides();
         assertThat(overrides).containsKey("slotting");
@@ -64,17 +71,34 @@ class ScreenAccessServiceTest {
     }
 
     @Test
-    void accessibleKeysResolvePerUserWithAdminBypass() {
+    void offLevelEntriesAreDropped() {
+        // "off"/unknown levels are not OFF rows — they are simply not stored.
         screenAccess.replaceAll(Map.of(
-                "transport", new ScreenAccessView(List.of("SUPERVISOR"), List.of("bob")),
-                "settings", new ScreenAccessView(List.of("ADMIN"), List.of())));
+                "transport", view(Map.of("SUPERVISOR", "write", "OPERATOR", "off"), Map.of())));
+        assertThat(screenAccess.overrides().get("transport").roles())
+                .containsOnlyKeys("SUPERVISOR");
+    }
 
-        assertThat(screenAccess.accessibleKeys(List.of("SUPERVISOR"), "carol"))
-                .containsExactly("transport");
-        assertThat(screenAccess.accessibleKeys(List.of("OPERATOR"), "bob"))
-                .containsExactly("transport"); // via user allow-list
-        assertThat(screenAccess.accessibleKeys(List.of("ADMIN"), "admin"))
-                .containsExactlyInAnyOrder("transport", "settings"); // admin bypass
-        assertThat(screenAccess.accessibleKeys(List.of("VIEWER"), "nobody")).isEmpty();
+    @Test
+    void effectiveLevelsResolvePerUserTakingTheStrongest() {
+        screenAccess.replaceAll(Map.of(
+                "transport", view(Map.of("SUPERVISOR", "write", "VIEWER", "read"), Map.of("bob", "read")),
+                "settings", view(Map.of("ADMIN", "write"), Map.of())));
+
+        // A supervisor gets write on transport; nothing on settings (no matching role).
+        assertThat(screenAccess.effectiveLevels(List.of("SUPERVISOR"), "carol"))
+                .containsEntry("transport", "write")
+                .doesNotContainKey("settings");
+        // A viewer gets read on transport.
+        assertThat(screenAccess.effectiveLevels(List.of("VIEWER"), "dave"))
+                .containsEntry("transport", "read");
+        // bob's per-user read plus a viewer role's read = read; a writing role would win if present.
+        assertThat(screenAccess.effectiveLevels(List.of("OPERATOR"), "bob"))
+                .containsEntry("transport", "read");
+        // Strongest wins: a user listed read but also holding a write role gets write.
+        assertThat(screenAccess.effectiveLevels(List.of("SUPERVISOR"), "bob"))
+                .containsEntry("transport", "write");
+        // No match anywhere → empty.
+        assertThat(screenAccess.effectiveLevels(List.of("OPERATOR"), "nobody")).isEmpty();
     }
 }

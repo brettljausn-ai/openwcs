@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import { useAuth } from '../auth/AuthContext'
 import Select from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
 import { useT } from '../i18n/useT'
@@ -22,7 +23,10 @@ const cell: React.CSSProperties = { padding: '4px 8px', borderBottom: '1px solid
 const input: React.CSSProperties = { padding: '4px 6px', width: 120 }
 
 export default function SlottingScreen() {
+  const t = useT('slotting')
   const { currentWarehouseId: warehouseId } = useWarehouse()
+  const { writeAllowed } = useAuth()
+  const canWrite = writeAllowed('slotting')
   const [pickSlots, setPickSlots] = useState<PickSlot[]>([])
   const [profiles, setProfiles] = useState<StorageProfile[]>([])
   const [blocks, setBlocks] = useState<StorageBlock[]>([])
@@ -58,13 +62,20 @@ export default function SlottingScreen() {
         </div>
       )}
 
-      <PickFaces warehouseId={warehouseId} slots={pickSlots} onChange={refresh} />
-      <BlockSlotting warehouseId={warehouseId} profiles={profiles} blocks={blocks} onChange={refresh} />
+      {!canWrite && (
+        <div className="alert" role="status" style={{ marginBottom: 16 }}>
+          <span className="badge badge-info">{t('viewOnly', 'View only')}</span>{' '}
+          {t('viewOnlyNote', 'You have read access to slotting. Editing is disabled.')}
+        </div>
+      )}
+
+      <PickFaces warehouseId={warehouseId} slots={pickSlots} onChange={refresh} canWrite={canWrite} />
+      <BlockSlotting warehouseId={warehouseId} profiles={profiles} blocks={blocks} onChange={refresh} canWrite={canWrite} />
     </div>
   )
 }
 
-function PickFaces({ warehouseId, slots, onChange }: { warehouseId: string; slots: PickSlot[]; onChange: () => void }) {
+function PickFaces({ warehouseId, slots, onChange, canWrite }: { warehouseId: string; slots: PickSlot[]; onChange: () => void; canWrite: boolean }) {
   const t = useT('slotting')
   const [form, setForm] = useState({ locationId: '', skuId: '', uomId: '', minQty: 0, maxQty: 0, directToPick: false })
 
@@ -95,7 +106,7 @@ function PickFaces({ warehouseId, slots, onChange }: { warehouseId: string; slot
             <tr key={s.id}>
               <td style={cell}>{s.locationId}</td><td style={cell}>{s.skuId}</td><td style={cell}>{s.uomId}</td>
               <td style={cell}>{s.minQty}</td><td style={cell}>{s.maxQty}</td><td style={cell}>{s.directToPick ? '✓' : ''}</td>
-              <td style={cell}><button onClick={async () => { await deletePickSlot(s.id!); onChange() }}>✕</button></td>
+              <td style={cell}>{canWrite && <button onClick={async () => { await deletePickSlot(s.id!); onChange() }}>✕</button>}</td>
             </tr>
           ))}
         </tbody>
@@ -107,15 +118,15 @@ function PickFaces({ warehouseId, slots, onChange }: { warehouseId: string; slot
         <input style={{ ...input, width: 60 }} type="number" placeholder={t('phMin', 'min')} value={form.minQty} onChange={(e) => setForm({ ...form, minQty: Number(e.target.value) })} />
         <input style={{ ...input, width: 60 }} type="number" placeholder={t('phMax', 'max')} value={form.maxQty} onChange={(e) => setForm({ ...form, maxQty: Number(e.target.value) })} />
         <label style={{ fontSize: 13 }}><input type="checkbox" checked={form.directToPick} onChange={(e) => setForm({ ...form, directToPick: e.target.checked })} /> {t('directToPick', 'direct-to-pick')} <InfoTip text={t('tipDirect', 'When on, inbound stock for this SKU can be put away straight to the pick face instead of to reserve storage.')} example="on" /></label>
-        <button onClick={add} disabled={!warehouseId || !form.locationId || !form.skuId || !form.uomId}>{t('addPickFace', 'Add pick face')}</button>
+        {canWrite && <button onClick={add} disabled={!warehouseId || !form.locationId || !form.skuId || !form.uomId}>{t('addPickFace', 'Add pick face')}</button>}
       </div>
     </section>
   )
 }
 
 function BlockSlotting({
-  warehouseId, profiles, blocks, onChange,
-}: { warehouseId: string; profiles: StorageProfile[]; blocks: StorageBlock[]; onChange: () => void }) {
+  warehouseId, profiles, blocks, onChange, canWrite,
+}: { warehouseId: string; profiles: StorageProfile[]; blocks: StorageBlock[]; onChange: () => void; canWrite: boolean }) {
   const t = useT('slotting')
   const [form, setForm] = useState({ skuId: '', blockId: '', velocityClass: 'B', consolidate: true, minAisles: 1, maxAislePct: 0.5 })
 
@@ -151,7 +162,7 @@ function BlockSlotting({
             <tr key={p.id}>
               <td style={cell}>{p.skuId}</td><td style={cell}>{blockLabel(p.blockId)}</td><td style={cell}>{p.velocityClass}</td>
               <td style={cell}>{p.consolidate ? '✓' : ''}</td><td style={cell}>{p.minAisles}</td><td style={cell}>{p.maxAislePct}</td>
-              <td style={cell}><button onClick={async () => { await deleteStorageProfile(p.id!); onChange() }}>✕</button></td>
+              <td style={cell}>{canWrite && <button onClick={async () => { await deleteStorageProfile(p.id!); onChange() }}>✕</button>}</td>
             </tr>
           ))}
         </tbody>
@@ -179,7 +190,7 @@ function BlockSlotting({
         <label style={{ fontSize: 13 }}><input type="checkbox" checked={form.consolidate} onChange={(e) => setForm({ ...form, consolidate: e.target.checked })} /> {t('consolidate', 'consolidate')} <InfoTip text={t('tipConsolidate', 'When on, the engine prefers placing the same SKU together (fewer, denser locations) rather than spreading it out.')} example="on" /></label>
         <input style={{ ...input, width: 70 }} type="number" placeholder={t('phMinAisles', 'min aisles')} value={form.minAisles} onChange={(e) => setForm({ ...form, minAisles: Number(e.target.value) })} />
         <input style={{ ...input, width: 80 }} type="number" step="0.1" placeholder={t('phMaxAislePct', 'max aisle %')} value={form.maxAislePct} onChange={(e) => setForm({ ...form, maxAislePct: Number(e.target.value) })} />
-        <button onClick={add} disabled={!warehouseId || !form.skuId || !form.blockId}>{t('addBlockSlotting', 'Add block slotting')}</button>
+        {canWrite && <button onClick={add} disabled={!warehouseId || !form.skuId || !form.blockId}>{t('addBlockSlotting', 'Add block slotting')}</button>}
       </div>
     </section>
   )

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react'
 import { passwordGrant, decodeJwt, refreshTokenGrant } from '../lib/keycloak'
 import { configureAuth, installAuthFetch } from '../lib/authFetch'
-import { AccessOverrides, ScreenDef, accessibleScreens, canAccess } from './screens'
+import { AccessLevel, AccessOverrides, ScreenDef, SCREENS, accessLevel, accessibleScreens, canAccess, canWrite } from './screens'
 
 const STORAGE_KEY = 'openwcs.auth'
 
@@ -21,6 +21,12 @@ interface AuthContextValue {
   login: (username: string, password: string) => Promise<void>
   logout: () => void
   can: (screen: ScreenDef) => boolean
+  /** Effective access level on a screen: 'write' | 'read' | null. */
+  level: (screen: ScreenDef) => AccessLevel | null
+  /** Whether the user may perform writes on a screen (true for WRITE, false for READ/OFF). */
+  canWrite: (screen: ScreenDef) => boolean
+  /** Convenience for screens that only know their own catalog key: may they write? */
+  writeAllowed: (screenKey: string) => boolean
   myScreens: () => ScreenDef[]
 }
 
@@ -131,6 +137,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(null)
       },
       can: (screen) => canAccess(screen, { roles, username, overrides }),
+      level: (screen) => accessLevel(screen, { roles, username, overrides }),
+      canWrite: (screen) => canWrite(screen, { roles, username, overrides }),
+      writeAllowed: (screenKey) => {
+        const screen = SCREENS.find((s) => s.key === screenKey)
+        return screen ? canWrite(screen, { roles, username, overrides }) : true
+      },
       myScreens: () => accessibleScreens({ roles, username, overrides }),
     }
   }, [session, overrides])

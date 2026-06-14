@@ -117,6 +117,8 @@ async function readError(res: Response): Promise<string> {
 export default function OutboundScreen() {
   const t = useT('outbound')
   const { currentWarehouseId: warehouseId } = useWarehouse()
+  const { writeAllowed } = useAuth()
+  const canWrite = writeAllowed('outbound')
   const { enabled: demoEnabled } = useDemoMode()
   const catalog = useCatalog(warehouseId)
   const [statusFilter, setStatusFilter] = useState<string>('')
@@ -194,7 +196,7 @@ export default function OutboundScreen() {
           <span className="muted" style={{ fontSize: '.82rem' }}>
             {t('hostOwnedNote', 'Outbound orders are owned by the host system — released & fulfilled here, not created.')}
           </span>
-          {demoEnabled && (
+          {demoEnabled && canWrite && (
             <button
               className="btn btn-outline"
               onClick={addDemoOrders}
@@ -287,7 +289,8 @@ function OrderDetail({ orderId, onClose, onChanged, skuCache, locationCode }: {
   locationCode: (id?: string | null) => string
 }) {
   const t = useT('outbound')
-  const { roles } = useAuth()
+  const { roles, writeAllowed } = useAuth()
+  const canWrite = writeAllowed('outbound')
   const [order, setOrder] = useState<Order | null>(null)
   const [alloc, setAlloc] = useState<Allocation | null>(null)
   const [loading, setLoading] = useState(true)
@@ -359,12 +362,13 @@ function OrderDetail({ orderId, onClose, onChanged, skuCache, locationCode }: {
 
   const status = order?.status
   const supervisor = roles.includes('ADMIN') || roles.includes('SUPERVISOR')
-  const canRelease = status === 'CREATED'
-  const canAllocate = status === 'RELEASED' || status === 'PARTIALLY_ALLOCATED' || status === 'NOT_FULFILLABLE'
+  // All order actions are writes — a read-only user (canWrite=false) sees none of them.
+  const canRelease = canWrite && status === 'CREATED'
+  const canAllocate = canWrite && (status === 'RELEASED' || status === 'PARTIALLY_ALLOCATED' || status === 'NOT_FULFILLABLE')
   // Short allocate and release: a supervisor decision on an order that came back short.
-  const canReleaseShort = status === 'NOT_FULFILLABLE' && supervisor
-  const canShip = status === 'ALLOCATED' || status === 'PARTIALLY_ALLOCATED'
-  const canCancel = status && !['SHIPPED', 'CANCELLED'].includes(status)
+  const canReleaseShort = canWrite && status === 'NOT_FULFILLABLE' && supervisor
+  const canShip = canWrite && (status === 'ALLOCATED' || status === 'PARTIALLY_ALLOCATED')
+  const canCancel = canWrite && status && !['SHIPPED', 'CANCELLED'].includes(status)
   const shortLines = (alloc?.lines || []).filter((l) => l.status === 'SHORT')
 
   return (

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import { useWarehouse } from '../warehouse/WarehouseContext'
@@ -76,12 +76,20 @@ const ENTITIES: { key: EntityKey; labelKey: string; label: string; scoped: boole
   { key: 'label-templates', labelKey: 'entLabelTemplates', label: 'Label templates', scoped: false },
 ]
 
+// Whether the signed-in user may write on the current master-data catalog. The shared write
+// affordances (Toolbar "+ New", EditDialog Save, ConfirmDelete, inline Delete/Archive) read this
+// so a READ-level user gets a view-only screen. The gateway independently enforces the writes.
+const MdWriteContext = createContext(true)
+const useMdWrite = () => useContext(MdWriteContext)
+
 export default function MasterDataScreen() {
   const t = useT('masterdata')
   const { currentWarehouseId: warehouseId } = useWarehouse()
+  const { writeAllowed } = useAuth()
   // The active entity is the last segment of /master-data/<entity> — each catalog is its own route.
   const { pathname } = useLocation()
   const entity: EntityKey = ENTITIES.find((e) => e.key === pathname.split('/')[2])?.key ?? 'warehouses'
+  const canWrite = writeAllowed(`master-data:${entity}`)
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [whError, setWhError] = useState<string | null>(null)
 
@@ -102,6 +110,7 @@ export default function MasterDataScreen() {
   const warehouseName = (id?: string | null) => warehouses.find((w) => w.id === id)?.code ?? id ?? '—'
 
   return (
+    <MdWriteContext.Provider value={canWrite}>
     <div className="app-content">
       <div className="page-head">
         <span className="eyebrow">{t('eyebrow', 'Master data')}</span>
@@ -114,6 +123,13 @@ export default function MasterDataScreen() {
               : t('manageCatalog', 'Manage this master-data catalog.')}
         </p>
       </div>
+
+      {!canWrite && entity !== 'skus' && (
+        <div className="alert" role="status" style={{ marginBottom: '1rem' }}>
+          <span className="badge badge-info">{t('viewOnly', 'View only')}</span>{' '}
+          {t('viewOnlyNote', 'You have read access to this catalog. Editing is disabled.')}
+        </div>
+      )}
 
       {active.scoped && whError && (
         <div className="toolbar">
@@ -133,6 +149,7 @@ export default function MasterDataScreen() {
 
       <Styles />
     </div>
+    </MdWriteContext.Provider>
   )
 }
 
@@ -196,13 +213,16 @@ function Field({
 
 function Toolbar({ onAdd, label, children }: { onAdd: () => void; label: string; children?: React.ReactNode }) {
   const t = useT('masterdata')
+  const canWrite = useMdWrite()
   return (
     <div className="toolbar">
       {children}
       <div className="spacer" />
-      <button className="btn btn-primary btn-sm" onClick={onAdd}>
-        {t('newPrefix', '+ New')} {label}
-      </button>
+      {canWrite && (
+        <button className="btn btn-primary btn-sm" onClick={onAdd}>
+          {t('newPrefix', '+ New')} {label}
+        </button>
+      )}
     </div>
   )
 }
@@ -236,6 +256,7 @@ function EditDialog<T>({
   wide?: boolean
 }) {
   const t = useT('masterdata')
+  const canWrite = useMdWrite()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function save() {
@@ -256,11 +277,13 @@ function EditDialog<T>({
       <div className={`md-form${wide ? ' md-form-2col' : ''}`}>{children}</div>
       <div className="dialog-actions">
         <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}>
-          {t('cancel', 'Cancel')}
+          {canWrite ? t('cancel', 'Cancel') : t('close', 'Close')}
         </button>
-        <button className="btn btn-primary btn-sm" onClick={save} disabled={saving || !canSave}>
-          {saving ? <span className="spin" /> : t('save', 'Save')}
-        </button>
+        {canWrite && (
+          <button className="btn btn-primary btn-sm" onClick={save} disabled={saving || !canSave}>
+            {saving ? <span className="spin" /> : t('save', 'Save')}
+          </button>
+        )}
       </div>
     </Dialog>
   )
@@ -276,6 +299,7 @@ function ConfirmDelete({
   onClose: () => void
 }) {
   const t = useT('masterdata')
+  const canWrite = useMdWrite()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function go() {
@@ -297,11 +321,13 @@ function ConfirmDelete({
       </p>
       <div className="dialog-actions">
         <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={busy}>
-          {t('cancel', 'Cancel')}
+          {canWrite ? t('cancel', 'Cancel') : t('close', 'Close')}
         </button>
-        <button className="btn btn-danger btn-sm" onClick={go} disabled={busy}>
-          {busy ? <span className="spin" /> : t('archive', 'Archive')}
-        </button>
+        {canWrite && (
+          <button className="btn btn-danger btn-sm" onClick={go} disabled={busy}>
+            {busy ? <span className="spin" /> : t('archive', 'Archive')}
+          </button>
+        )}
       </div>
     </Dialog>
   )
@@ -333,6 +359,7 @@ function StatusSelect({ value, onChange }: { value: string; onChange: (v: string
 
 function WarehousesTab({ onWarehousesChanged }: { onWarehousesChanged: () => void }) {
   const t = useT('masterdata')
+  const canWrite = useMdWrite()
   const [rows, setRows] = useState<Warehouse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -378,11 +405,13 @@ function WarehousesTab({ onWarehousesChanged }: { onWarehousesChanged: () => voi
             render: (w) => (
               <div className="md-row-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(w)}>
-                  {t('edit', 'Edit')}
+                  {canWrite ? t('edit', 'Edit') : t('view', 'View')}
                 </button>
-                <button className="btn btn-danger btn-sm" onClick={() => setDeleting(w)}>
-                  {t('delete', 'Delete')}
-                </button>
+                {canWrite && (
+                  <button className="btn btn-danger btn-sm" onClick={() => setDeleting(w)}>
+                    {t('delete', 'Delete')}
+                  </button>
+                )}
               </div>
             ),
           },
@@ -829,6 +858,7 @@ function StorageBlocksTab({
 }) {
   const t = useT('masterdata')
   const { roles } = useAuth()
+  const canWrite = useMdWrite()
   const isAdmin = roles.includes('ADMIN')
   const [rows, setRows] = useState<StorageBlock[]>([])
   const [loading, setLoading] = useState(false)
@@ -991,9 +1021,9 @@ function StorageBlocksTab({
             render: (b) => (
               <div className="md-row-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(b)}>
-                  {t('edit', 'Edit')}
+                  {canWrite ? t('edit', 'Edit') : t('view', 'View')}
                 </button>
-                {isAdmin && (
+                {isAdmin && canWrite && (
                   <>
                     {isArchived(b) ? (
                       <button className="btn btn-ghost btn-sm" disabled={busyId === b.id} onClick={() => restore(b)}>
@@ -1591,6 +1621,7 @@ function LocationsTab({
   warehouseName: (id?: string | null) => string
 }) {
   const t = useT('masterdata')
+  const canWrite = useMdWrite()
   const [rows, setRows] = useState<Location[]>([])
   const [blocks, setBlocks] = useState<StorageBlock[]>([])
   const [loading, setLoading] = useState(false)
@@ -1707,11 +1738,13 @@ function LocationsTab({
             render: (l) => (
               <div className="md-row-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(l)}>
-                  {t('edit', 'Edit')}
+                  {canWrite ? t('edit', 'Edit') : t('view', 'View')}
                 </button>
-                <button className="btn btn-danger btn-sm" onClick={() => setDeleting(l)}>
-                  {t('delete', 'Delete')}
-                </button>
+                {canWrite && (
+                  <button className="btn btn-danger btn-sm" onClick={() => setDeleting(l)}>
+                    {t('delete', 'Delete')}
+                  </button>
+                )}
               </div>
             ),
           },
@@ -2479,6 +2512,7 @@ function EquipmentDialog({
 function HandlingUnitTypesTab() {
   const t = useT('masterdata')
   const { roles } = useAuth()
+  const canWrite = useMdWrite()
   const isAdmin = roles.includes('ADMIN')
   const [rows, setRows] = useState<HandlingUnitType[]>([])
   const [loading, setLoading] = useState(true)
@@ -2625,9 +2659,9 @@ function HandlingUnitTypesTab() {
             render: (h) => (
               <div className="md-row-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(h)}>
-                  {t('edit', 'Edit')}
+                  {canWrite ? t('edit', 'Edit') : t('view', 'View')}
                 </button>
-                {isAdmin &&
+                {isAdmin && canWrite &&
                   (isArchived(h) ? (
                     <button
                       className="btn btn-ghost btn-sm"
@@ -2766,6 +2800,7 @@ function HandlingUnitTypeDialog({
 
 function LabelTemplatesTab() {
   const t = useT('masterdata')
+  const canWrite = useMdWrite()
   const [rows, setRows] = useState<LabelTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -2849,11 +2884,13 @@ function LabelTemplatesTab() {
             render: (lt) => (
               <div className="md-row-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(lt)}>
-                  {t('edit', 'Edit')}
+                  {canWrite ? t('edit', 'Edit') : t('view', 'View')}
                 </button>
-                <button className="btn btn-danger btn-sm" onClick={() => setDeleting(lt)}>
-                  {t('delete', 'Delete')}
-                </button>
+                {canWrite && (
+                  <button className="btn btn-danger btn-sm" onClick={() => setDeleting(lt)}>
+                    {t('delete', 'Delete')}
+                  </button>
+                )}
               </div>
             ),
           },

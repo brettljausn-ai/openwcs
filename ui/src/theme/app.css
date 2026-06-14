@@ -254,6 +254,32 @@ a { color: var(--herbal-lime); text-decoration: none; }
 .switch-muted input:checked + .switch-track { background: rgba(141, 198, 63, .14); }
 .switch-muted input:checked + .switch-track .switch-thumb { background: rgba(141, 198, 63, .7); }
 
+/* --- Access-level segmented control (off / read / write) --- */
+.lvl { display: inline-flex; border: 1px solid var(--glass-border); border-radius: 8px; overflow: hidden; }
+.lvl.is-muted { opacity: .55; }
+.lvl-seg {
+  padding: .28rem .55rem;
+  font-size: .72rem;
+  font-family: var(--font-body);
+  line-height: 1;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--glass-border);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.lvl-seg:first-child { border-left: none; }
+.lvl-seg:hover:not(:disabled) { background: var(--glass-bg); color: var(--text); }
+.lvl-seg:disabled { cursor: not-allowed; }
+.lvl-seg.lvl-off.is-on { background: rgba(255, 107, 94, .18); color: #ff8a80; }
+.lvl-seg.lvl-read.is-on { background: rgba(141, 198, 63, .14); color: var(--herbal-lime); }
+.lvl-seg.lvl-write.is-on { background: var(--herbal-lime); color: var(--forest-abyss); font-weight: 500; }
+
+.user-levels { margin-top: .4rem; display: flex; flex-direction: column; gap: .3rem; }
+.user-level-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.user-level-name { font-family: var(--font-mono); font-size: .72rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* --- Form controls (§6) --- */
 label { display: block; font-size: .8125rem; color: var(--text-dim); margin-bottom: .3rem; }
 .form-control {

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import InfoTip from '../ui/InfoTip'
 import Select from '../ui/Select'
@@ -61,8 +61,16 @@ const TABS: { key: Tab; labelKey: string; label: string }[] = [
 // Settings / Configuration (ADMIN). A UI-only console over existing service endpoints:
 // per-block put-away scoring (slotting), ABC-cadence count schedules (counting),
 // host/adapter config + status (read-only), and edge security / health (read-only).
+// Whether the signed-in user may change settings. Settings is ADMIN-only by default (admins
+// always have write), so a read-only view only arises when an admin explicitly grants a non-admin
+// READ. The shared editors (Toggle, NumberField, primary Save/action buttons) read this.
+const SettingsWriteContext = createContext(true)
+const useSettingsWrite = () => useContext(SettingsWriteContext)
+
 export default function SettingsScreen() {
   const t = useT('settings')
+  const { writeAllowed } = useAuth()
+  const canWrite = writeAllowed('settings')
   const [tab, setTab] = useState<Tab>('slotting')
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [warehouseId, setWarehouseId] = useState('')
@@ -80,12 +88,20 @@ export default function SettingsScreen() {
   const needsWarehouse = tab === 'slotting' || tab === 'cubing' || tab === 'counting' || tab === 'demo'
 
   return (
+    <SettingsWriteContext.Provider value={canWrite}>
     <div className="app-content">
       <div className="page-head">
         <div className="eyebrow">{t('eyebrow', 'openWCS · Configuration')}</div>
         <h1>{t('title', 'Settings')}</h1>
         <p>{t('intro', 'System policy, schedules and integration endpoints. Changes write directly to the live services.')}</p>
       </div>
+
+      {!canWrite && (
+        <div className="alert" role="status" style={{ marginBottom: '1rem' }}>
+          <span className="badge badge-info">{t('viewOnly', 'View only')}</span>{' '}
+          {t('viewOnlyNote', 'You have read access to settings. Editing is disabled.')}
+        </div>
+      )}
 
       {whError && <div className="alert-danger" style={{ marginBottom: '1rem' }}>{t('couldNotLoadWarehouses', 'Could not load warehouses:')} {whError}</div>}
 
@@ -134,6 +150,7 @@ export default function SettingsScreen() {
         </div>
       </div>
     </div>
+    </SettingsWriteContext.Provider>
   )
 }
 
@@ -160,6 +177,7 @@ function NumberField({
         type="number"
         step={step || 'any'}
         value={Number.isFinite(value) ? value : ''}
+        disabled={!useSettingsWrite()}
         onChange={(e) => onChange(Number(e.target.value))}
       />
       {hint && <span className={styles.fieldHint}>{hint}</span>}
@@ -168,9 +186,10 @@ function NumberField({
 }
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  const canWrite = useSettingsWrite()
   return (
     <label className={styles.toggle}>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" checked={checked} disabled={!canWrite} onChange={(e) => onChange(e.target.checked)} />
       <span className={styles.slider} />
     </label>
   )
