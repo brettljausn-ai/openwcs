@@ -6,6 +6,7 @@ import Select, { type SelectOption } from '../ui/Select'
 import InfoTip from '../ui/InfoTip'
 import { useT } from '../i18n/useT'
 import { useWarehouse } from '../warehouse/WarehouseContext'
+import { useAuth } from '../auth/AuthContext'
 import {
   listEquipment,
   listStorageBlocks,
@@ -520,6 +521,10 @@ export default function AutomationTopology3D({
 } = {}) {
   const t = useT('topology')
   const { currentWarehouseId: warehouseId } = useWarehouse()
+  const { writeAllowed } = useAuth()
+  // Topology persistence (Save / projection) is gated to write level; the gateway also rejects
+  // writes to /api/flow/*/topology for read-only users.
+  const canWrite = writeAllowed('topology')
 
   const [levels, setLevels] = useState<AutomationLevel[]>([])
   const [equipment, setEquipment] = useState<AutomationEquipment[]>([])
@@ -1731,9 +1736,15 @@ export default function AutomationTopology3D({
           <button type="button" className="btn btn-ghost btn-sm" onClick={load} disabled={loading || saving}>
             {loading ? t('loading', 'Loading…') : t('reload', 'Reload')}
           </button>
-          <button type="button" className="btn btn-primary btn-sm" onClick={save} disabled={saving || loading}>
-            {saving ? t('saving', 'Saving…') : t('save', 'Save')}
-          </button>
+          {canWrite ? (
+            <button type="button" className="btn btn-primary btn-sm" onClick={save} disabled={saving || loading}>
+              {saving ? t('saving', 'Saving…') : t('save', 'Save')}
+            </button>
+          ) : (
+            <span className="badge badge-info" title={t('viewOnlyNote', 'You have read access to the topology. Saving is disabled.')}>
+              {t('viewOnly', 'View only')}
+            </span>
+          )}
           {onToggleChrome && (
             <button
               type="button"
