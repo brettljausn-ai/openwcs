@@ -39,6 +39,23 @@ class ScreenWriteCatalogTest {
     }
 
     @Test
+    void adminDatabaseIsAnAccessRoute_readSufficesWhenGranted() {
+        assertThat(catalog.screenForAccessPath("/api/master-data/admin/db/schemas")).isEqualTo("admin-database");
+        assertThat(catalog.screenForAccessPath("/api/master-data/admin/db/query")).isEqualTo("admin-database");
+        // The console is SELECT-only, so it is not a write route (READ is enough to use it).
+        assertThat(catalog.screenForPath("/api/master-data/admin/db/query")).isNull();
+
+        Map<String, Override> noOverrides = Map.of();
+        // ADMIN by default; nobody else has access until granted.
+        assertThat(catalog.effectiveLevel("admin-database", List.of("SUPERVISOR"), "sue", noOverrides)).isNull();
+        // Granting a supervisor read is enough to reach it.
+        Map<String, Override> granted = Map.of(
+                "admin-database", new Override(Map.of("SUPERVISOR", "read"), Map.of()));
+        assertThat(catalog.effectiveLevel("admin-database", List.of("SUPERVISOR"), "sue", granted))
+                .isEqualTo(Level.READ);
+    }
+
+    @Test
     void overrideReplacesDefaultsAndTakesTheStrongestMatch() {
         // Supervisor downgraded to read on SKUs.
         Map<String, Override> ro = Map.of(
