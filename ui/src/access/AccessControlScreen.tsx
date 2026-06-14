@@ -1,83 +1,65 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useT } from '../i18n/useT'
 import UserAutocomplete from '../ui/UserAutocomplete'
+import { AccessLevel, Role, SCREENS, defaultLevel } from '../auth/screens'
 
-// Roles the matrix offers as columns. Mirrors the Role union in ui/src/auth/screens.ts
-// (not imported — this screen keeps a local copy of the catalog per the access-control brief).
-const ROLES = ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'VIEWER'] as const
-type Role = (typeof ROLES)[number]
+// Roles the matrix offers as columns. Mirrors the Role union in ui/src/auth/screens.ts.
+const ROLES: Role[] = ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'VIEWER']
 
-// Local mirror of the screen catalog (key + label + section) from ui/src/auth/screens.ts.
-// Kept in sync by hand: agents adding a screen there should add it here too.
+// The catalog is derived from the canonical screen list (ui/src/auth/screens.ts) so it can never
+// drift: every screen appears here automatically with its built-in default level per role.
+// Dashboard has no section (top-level) → shown under "General".
 interface CatalogEntry {
   key: string
   label: string
   section: string
-  // The screen's built-in default roles (mirror of defaultRoles in ui/src/auth/screens.ts).
-  // When a screen has no override, the toggles reflect these so an admin sees who can
-  // already open it before deciding to override.
-  defaultRoles: Role[]
+  defaults: Record<Role, AccessLevel | null>
 }
-const CATALOG: CatalogEntry[] = [
-  { key: 'dashboard', label: 'Dashboard', section: 'General', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'VIEWER'] },
-  { key: 'inbound', label: 'Inbound orders', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'] },
-  { key: 'outbound', label: 'Outbound orders', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'] },
-  { key: 'counting', label: 'Stock counting', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'] },
-  { key: 'gtp-ops', label: 'GTP workplaces', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'] },
-  { key: 'transport', label: 'Transport', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
-  { key: 'stock-transactions', label: 'Stock transactions', section: 'Operations', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
-  { key: 'topology', label: 'Automation topology', section: 'Engineering', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
-  { key: 'processes', label: 'Processes', section: 'Engineering', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
-  { key: 'slotting', label: 'Slotting', section: 'Engineering', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
-  { key: 'master-data:warehouses', label: 'Warehouses', section: 'Master data', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
-  { key: 'master-data:skus', label: 'SKUs', section: 'Master data', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
-  { key: 'master-data:storage-blocks', label: 'Storage blocks', section: 'Master data', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
-  { key: 'master-data:locations', label: 'Locations', section: 'Master data', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
-  { key: 'master-data:equipment', label: 'Equipment', section: 'Engineering', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
-  { key: 'master-data:handling-unit-types', label: 'Handling unit types', section: 'Master data', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
-  { key: 'master-data:label-templates', label: 'Label templates', section: 'Master data', defaultRoles: ['ADMIN', 'SUPERVISOR'] },
-  { key: 'gtp-config', label: 'GTP workplaces', section: 'Configuration', defaultRoles: ['ADMIN'] },
-  { key: 'settings', label: 'Settings', section: 'Configuration', defaultRoles: ['ADMIN'] },
-  { key: 'users', label: 'User management', section: 'Administration', defaultRoles: ['ADMIN'] },
-  { key: 'access-control', label: 'Access control', section: 'Administration', defaultRoles: ['ADMIN'] },
-  { key: 'warehouse-access', label: 'Warehouse access', section: 'Administration', defaultRoles: ['ADMIN'] },
-]
+const CATALOG: CatalogEntry[] = SCREENS.map((s) => ({
+  key: s.key,
+  label: s.label,
+  section: s.section ?? 'General',
+  defaults: {
+    ADMIN: defaultLevel(s, 'ADMIN'),
+    SUPERVISOR: defaultLevel(s, 'SUPERVISOR'),
+    OPERATOR: defaultLevel(s, 'OPERATOR'),
+    VIEWER: defaultLevel(s, 'VIEWER'),
+  },
+}))
 const CATALOG_BY_KEY: Record<string, CatalogEntry> = Object.fromEntries(CATALOG.map((e) => [e.key, e]))
 
-// The backend/AuthContext shape: { "<screenKey>": { roles?: string[], users?: string[] } }.
-type Override = { roles?: string[]; users?: string[] }
+// The backend/AuthContext shape: { "<screenKey>": { roles?: {role: level}, users?: {user: level} } }.
+// A role/user absent from the maps is OFF for that overridden screen.
+type Override = { roles?: Record<string, AccessLevel>; users?: Record<string, AccessLevel> }
 type AccessMap = Record<string, Override>
 
-// Per-screen editable state. `overridden` distinguishes an explicit override from a row
-// that's merely *showing* the built-in defaults (so toggling the latter reflects reality
-// without counting as an override until the admin actually changes something).
+// Per-screen editable state. `overridden` distinguishes an explicit override from a row that's
+// merely *showing* the built-in defaults (so changing the latter reflects reality without counting
+// as an override until the admin actually changes something). `null` role level = OFF.
 interface RowState {
   overridden: boolean
-  roles: Record<Role, boolean>
-  users: string[]
+  roles: Record<Role, AccessLevel | null>
+  users: Record<string, AccessLevel>
 }
 
-function rolesRecord(active: readonly string[]): Record<Role, boolean> {
-  return {
-    ADMIN: active.includes('ADMIN'),
-    SUPERVISOR: active.includes('SUPERVISOR'),
-    OPERATOR: active.includes('OPERATOR'),
-    VIEWER: active.includes('VIEWER'),
-  }
-}
-
-// A non-overridden row that mirrors the screen's built-in default roles.
+// A non-overridden row that mirrors the screen's built-in default levels.
 function defaultRow(entry: CatalogEntry): RowState {
-  return { overridden: false, roles: rolesRecord(entry.defaultRoles), users: [] }
+  return { overridden: false, roles: { ...entry.defaults }, users: {} }
 }
 
 function rowFromOverride(entry: CatalogEntry, o: Override | undefined): RowState {
-  const hasOverride = !!(o && ((o.roles?.length ?? 0) > 0 || (o.users?.length ?? 0) > 0))
-  if (!hasOverride) return defaultRow(entry)
+  const roleCount = o?.roles ? Object.keys(o.roles).length : 0
+  const userCount = o?.users ? Object.keys(o.users).length : 0
+  if (roleCount === 0 && userCount === 0) return defaultRow(entry)
   return {
     overridden: true,
-    roles: rolesRecord((o?.roles ?? []).filter((r) => (ROLES as readonly string[]).includes(r))),
-    users: o?.users ?? [],
+    roles: {
+      ADMIN: o?.roles?.ADMIN ?? null,
+      SUPERVISOR: o?.roles?.SUPERVISOR ?? null,
+      OPERATOR: o?.roles?.OPERATOR ?? null,
+      VIEWER: o?.roles?.VIEWER ?? null,
+    },
+    users: { ...(o?.users ?? {}) },
   }
 }
 
@@ -128,23 +110,33 @@ export default function AccessControlScreen() {
     [rows],
   )
 
-  // Changing any toggle (or the user list) on a default row "takes control" of it: the
-  // reflected defaults become the starting point of an explicit override.
-  function toggleRole(key: string, role: Role) {
+  // Changing any level (or the user list) on a default row "takes control" of it: the reflected
+  // defaults become the starting point of an explicit override.
+  function setRoleLevel(key: string, role: Role, level: AccessLevel | null) {
     setSavedAt(null)
     setRows((prev) => {
       const row = prev[key]
-      return { ...prev, [key]: { ...row, overridden: true, roles: { ...row.roles, [role]: !row.roles[role] } } }
+      return { ...prev, [key]: { ...row, overridden: true, roles: { ...row.roles, [role]: level } } }
     })
   }
 
-  function setUsers(key: string, usernames: string[]) {
+  // Reconcile the username set from the autocomplete: new users default to WRITE, removed users drop.
+  function setUsernames(key: string, usernames: string[]) {
     setSavedAt(null)
     setRows((prev) => {
       const row = prev[key]
-      // Keep it a default row only while the list is being cleared back to empty.
+      const next: Record<string, AccessLevel> = {}
+      for (const u of usernames) next[u] = row.users[u] ?? 'write'
       const overridden = row.overridden || usernames.length > 0
-      return { ...prev, [key]: { ...row, overridden, users: usernames } }
+      return { ...prev, [key]: { ...row, overridden, users: next } }
+    })
+  }
+
+  function setUserLevel(key: string, username: string, level: AccessLevel) {
+    setSavedAt(null)
+    setRows((prev) => {
+      const row = prev[key]
+      return { ...prev, [key]: { ...row, overridden: true, users: { ...row.users, [username]: level } } }
     })
   }
 
@@ -158,9 +150,10 @@ export default function AccessControlScreen() {
     for (const entry of CATALOG) {
       const row = rows[entry.key]
       if (!row || !row.overridden) continue // default row → UI defaults apply
-      const roles = ROLES.filter((r) => row.roles[r])
+      const roles: Record<string, AccessLevel> = {}
+      for (const r of ROLES) if (row.roles[r]) roles[r] = row.roles[r] as AccessLevel
       const users = row.users
-      if (roles.length === 0 && users.length === 0) continue // emptied override → back to defaults
+      if (Object.keys(roles).length === 0 && Object.keys(users).length === 0) continue // emptied → back to defaults
       map[entry.key] = { roles, users }
     }
     return map
@@ -198,7 +191,7 @@ export default function AccessControlScreen() {
         <div className="eyebrow">{t('eyebrow', 'Administration')}</div>
         <h1>{t('title', 'Access control')}</h1>
         <p>
-          {t('subtitle', 'Map each screen to the roles and individual users that may open it. A screen with no selection here falls back to its built-in default roles. ADMIN always has access.')}
+          {t('subtitle', 'Map each screen to the access each role and individual user has: off, read (view-only) or write (full). A screen with no selection here falls back to its built-in defaults. ADMIN always has full access.')}
         </p>
       </div>
 
@@ -243,7 +236,7 @@ export default function AccessControlScreen() {
                   {r}
                 </th>
               ))}
-              <th style={{ minWidth: 220 }}>{t('colAllowedUsers', 'Allowed users')}</th>
+              <th style={{ minWidth: 260 }}>{t('colAllowedUsers', 'Allowed users')}</th>
               <th style={{ width: 1 }}></th>
             </tr>
           </thead>
@@ -254,8 +247,9 @@ export default function AccessControlScreen() {
                 section={section}
                 rows={rows}
                 loading={loading}
-                onToggleRole={toggleRole}
-                onSetUsers={setUsers}
+                onSetRoleLevel={setRoleLevel}
+                onSetUsernames={setUsernames}
+                onSetUserLevel={setUserLevel}
                 onClear={clearRow}
               />
             ))}
@@ -270,15 +264,17 @@ function SectionRows({
   section,
   rows,
   loading,
-  onToggleRole,
-  onSetUsers,
+  onSetRoleLevel,
+  onSetUsernames,
+  onSetUserLevel,
   onClear,
 }: {
   section: string
   rows: Record<string, RowState>
   loading: boolean
-  onToggleRole: (key: string, role: Role) => void
-  onSetUsers: (key: string, usernames: string[]) => void
+  onSetRoleLevel: (key: string, role: Role, level: AccessLevel | null) => void
+  onSetUsernames: (key: string, usernames: string[]) => void
+  onSetUserLevel: (key: string, username: string, level: AccessLevel) => void
   onClear: (key: string) => void
 }) {
   const t = useT('access')
@@ -293,6 +289,7 @@ function SectionRows({
       {entries.map((entry) => {
         const row = rows[entry.key] ?? defaultRow(entry)
         const overridden = row.overridden
+        const usernames = Object.keys(row.users)
         return (
           <tr key={entry.key}>
             <td>
@@ -308,21 +305,40 @@ function SectionRows({
             </td>
             {ROLES.map((r) => (
               <td key={r} style={{ textAlign: 'center' }}>
-                <Toggle
+                <LevelControl
                   label={`${entry.label}: ${r}`}
-                  checked={row.roles[r]}
+                  value={row.roles[r]}
+                  options={['off', 'read', 'write']}
                   muted={!overridden}
                   disabled={loading}
-                  onChange={() => onToggleRole(entry.key, r)}
+                  onChange={(lvl) => onSetRoleLevel(entry.key, r, lvl)}
+                  t={t}
                 />
               </td>
             ))}
             <td>
               <UserAutocomplete
-                value={row.users}
-                onChange={(u) => onSetUsers(entry.key, u)}
+                value={usernames}
+                onChange={(u) => onSetUsernames(entry.key, u)}
                 ariaLabel={t('allowedUsersFor', 'Allowed users for {screen}').replace('{screen}', entry.label)}
               />
+              {usernames.length > 0 && (
+                <div className="user-levels">
+                  {usernames.map((u) => (
+                    <div key={u} className="user-level-row">
+                      <span className="user-level-name">{u}</span>
+                      <LevelControl
+                        label={`${entry.label}: ${u}`}
+                        value={row.users[u]}
+                        options={['read', 'write']}
+                        disabled={loading}
+                        onChange={(lvl) => onSetUserLevel(entry.key, u, (lvl ?? 'read') as AccessLevel)}
+                        t={t}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </td>
             <td>
               <button
@@ -341,26 +357,47 @@ function SectionRows({
   )
 }
 
-// Toggle switch. `muted` renders the dimmed "this is just reflecting the default" state.
-function Toggle({
+// Segmented off/read/write (or read/write) control. `muted` renders the dimmed
+// "this is just reflecting the default" state.
+type LevelOption = 'off' | 'read' | 'write'
+function LevelControl({
   label,
-  checked,
+  value,
+  options,
   muted,
   disabled,
   onChange,
+  t,
 }: {
   label: string
-  checked: boolean
+  value: AccessLevel | null
+  options: LevelOption[]
   muted?: boolean
   disabled?: boolean
-  onChange: () => void
+  onChange: (level: AccessLevel | null) => void
+  t: (key: string, fallback: string) => string
 }) {
+  const current: LevelOption = value ?? 'off'
+  const labels: Record<LevelOption, string> = {
+    off: t('lvlOff', 'Off'),
+    read: t('lvlRead', 'Read'),
+    write: t('lvlWrite', 'Write'),
+  }
   return (
-    <label className={`switch${muted ? ' switch-muted' : ''}`}>
-      <input type="checkbox" aria-label={label} checked={checked} disabled={disabled} onChange={onChange} />
-      <span className="switch-track">
-        <span className="switch-thumb" />
-      </span>
-    </label>
+    <div className={`lvl${muted ? ' is-muted' : ''}`} role="group" aria-label={label}>
+      {options.map((opt) => (
+        <button
+          key={opt}
+          type="button"
+          className={`lvl-seg lvl-${opt}${current === opt ? ' is-on' : ''}`}
+          aria-pressed={current === opt}
+          disabled={disabled}
+          title={labels[opt]}
+          onClick={() => onChange(opt === 'off' ? null : opt)}
+        >
+          {labels[opt]}
+        </button>
+      ))}
+    </div>
   )
 }

@@ -72,22 +72,62 @@ export const SCREENS: ScreenDef[] = [
 
 export const SECTION_ORDER: Section[] = ['Master data', 'Operations', 'Reporting', 'Engineering', 'Configuration', 'Administration']
 
-/** Per-screen access override returned by the Access Control backend. */
-export type AccessOverrides = Record<string, { roles?: string[]; users?: string[] }>
+// Access has three levels: OFF (no access — represented as the absence of an entry / null),
+// READ (view-only) and WRITE (full). A screen with a WRITE level lets the user perform writes;
+// READ shows the screen but write controls are hidden/disabled (enforced per screen and, for the
+// write-heavy screens, at the gateway too).
+export type AccessLevel = 'read' | 'write'
 
-export function canAccess(
-  screen: ScreenDef,
-  ctx: { roles: string[]; username: string; overrides?: AccessOverrides },
-): boolean {
-  if (ctx.roles.includes('ADMIN')) return true // admin bypass — never lock out admin
-  const override = ctx.overrides?.[screen.key]
-  if (override && (override.roles?.length || override.users?.length)) {
-    if (override.users?.includes(ctx.username)) return true
-    return !!override.roles?.some((r) => ctx.roles.includes(r))
-  }
-  return screen.defaultRoles.some((r) => ctx.roles.includes(r))
+/**
+ * Per-screen access override from the Access Control backend. Each role / username maps to its
+ * level; an absent role/user is OFF for that overridden screen. (The wire form is lowercase
+ * {@code 'read'}/{@code 'write'}.) An override only "takes over" from the defaults when it has at
+ * least one role or user entry.
+ */
+export type AccessOverrides = Record<string, { roles?: Record<string, AccessLevel>; users?: Record<string, AccessLevel> }>
+
+/** WRITE beats READ beats OFF. */
+function stronger(a: AccessLevel | null, b: AccessLevel | null): AccessLevel | null {
+  if (a === 'write' || b === 'write') return 'write'
+  if (a === 'read' || b === 'read') return 'read'
+  return null
 }
 
-export function accessibleScreens(ctx: { roles: string[]; username: string; overrides?: AccessOverrides }): ScreenDef[] {
+/**
+ * A screen's built-in default level for a role: OFF if the role isn't in {@code defaultRoles};
+ * otherwise READ for VIEWER and for the read-only Reporting section, WRITE for everyone else.
+ */
+export function defaultLevel(screen: ScreenDef, role: string): AccessLevel | null {
+  if (!screen.defaultRoles.includes(role as Role)) return null
+  if (role === 'VIEWER' || screen.section === 'Reporting') return 'read'
+  return 'write'
+}
+
+type AccessCtx = { roles: string[]; username: string; overrides?: AccessOverrides }
+
+/** The user's effective access level on a screen: 'write' | 'read' | null (= no access). */
+export function accessLevel(screen: ScreenDef, ctx: AccessCtx): AccessLevel | null {
+  if (ctx.roles.includes('ADMIN')) return 'write' // admin bypass — never lock out admin, always full
+  const override = ctx.overrides?.[screen.key]
+  const overridden = override && ((override.roles && Object.keys(override.roles).length) || (override.users && Object.keys(override.users).length))
+  let level: AccessLevel | null = null
+  if (overridden) {
+    if (override?.users) level = stronger(level, override.users[ctx.username] ?? null)
+    if (override?.roles) for (const r of ctx.roles) level = stronger(level, override.roles[r] ?? null)
+  } else {
+    for (const r of ctx.roles) level = stronger(level, defaultLevel(screen, r))
+  }
+  return level
+}
+
+export function canAccess(screen: ScreenDef, ctx: AccessCtx): boolean {
+  return accessLevel(screen, ctx) !== null
+}
+
+export function canWrite(screen: ScreenDef, ctx: AccessCtx): boolean {
+  return accessLevel(screen, ctx) === 'write'
+}
+
+export function accessibleScreens(ctx: AccessCtx): ScreenDef[] {
   return SCREENS.filter((s) => canAccess(s, ctx))
 }
