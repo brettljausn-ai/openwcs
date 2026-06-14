@@ -140,8 +140,9 @@ function isLineReceived(line: OrderLine): boolean {
 // ---------------------------------------------------------------- component
 export default function InboundScreen() {
   const t = useT('inbound')
-  const { roles } = useAuth()
-  const canReceive = roles.includes('ADMIN') || roles.includes('SUPERVISOR') || roles.includes('OPERATOR')
+  const { roles, writeAllowed } = useAuth()
+  const canWrite = writeAllowed('inbound')
+  const canReceive = canWrite && (roles.includes('ADMIN') || roles.includes('SUPERVISOR') || roles.includes('OPERATOR'))
 
   const { currentWarehouseId: warehouseId, current: currentWarehouse } = useWarehouse()
   const { enabled: demoEnabled } = useDemoMode()
@@ -280,7 +281,7 @@ export default function InboundScreen() {
           {t('refresh', 'Refresh')}
         </button>
 
-        {demoEnabled && (
+        {demoEnabled && canWrite && (
           <button
             type="button"
             className="btn btn-outline btn-sm"
