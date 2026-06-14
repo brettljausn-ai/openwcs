@@ -390,7 +390,10 @@ function PasswordDialog({
   const t = useT('users')
   const [password, setPassword] = useState('')
   const [confirmPw, setConfirmPw] = useState('')
-  const [temporary, setTemporary] = useState(true)
+  // Default OFF: a temporary password forces an action the password-grant login can't satisfy, so it
+  // would leave the account "not fully set up". Admins can still opt in; users change it themselves
+  // via the login-screen "Change password" flow.
+  const [temporary, setTemporary] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)

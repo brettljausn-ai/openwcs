@@ -317,10 +317,29 @@ default) and passes the dispatch context to allocation.
   by `jwk-set-uri` so tokens minted through the UI's nginx proxy verify regardless of public
   hostname); downstream services keep their per-service toggle off so internal calls are
   unaffected (the gateway is the trust boundary). It remains off by default for bare host-run dev.
+- **Self-service password change at login** (`POST /api/iam/change-password`, public — the one
+  unauthenticated `/api/**` route, permitted on the gateway): lets a user set a new password from
+  the login screen **without an admin**, and crucially **works for an account that "is not fully
+  set up"** (a temporary/forced password adds Keycloak's UPDATE_PASSWORD required action, so the
+  password grant returns `invalid_grant` and the user can never obtain a token to change it
+  in-app). Identity is proven by the **current password**: `KeycloakClient.verifyPassword` does a
+  direct grant and treats both 2xx **and** the "not fully set up" error as proof the credential is
+  right; `ChangePasswordService` then sets the new password as **permanent** and clears required
+  actions via the Keycloak admin API, called with a **confidential service-account client**
+  `openwcs-iam` (least-privilege `manage-users`/`view-users`/`query-users`, secret
+  `OPENWCS_IAM_CLIENT_SECRET`). Server-side rules: new password ≥ 8 chars, must differ from the
+  current, username non-blank; a wrong current password or a missing user both return a generic 401
+  (no account enumeration). The login screen (`ui/src/auth/Login.tsx`, English only — it renders
+  before the language provider) offers a "Change password" link and **auto-switches to the change
+  form when a sign-in attempt reports "not fully set up"**, prefilling the entered password as the
+  current one. Admin **Set password** dialog now defaults **Temporary = off** (the footgun that
+  produced "account is not fully set up"), with the option still available.
 - **Keycloak realm**: compose imports `platform/keycloak/openwcs-realm.json` — realm
-  `openwcs` with roles ADMIN/SUPERVISOR/OPERATOR/VIEWER, the `openwcs-web` public client, and
-  users (admin `admIn1!` with realm-management roles for UI user-management; supervisor/operator/
-  viewer). The UI signs in via the password grant; README documents getting a token for the API.
+  `openwcs` with roles ADMIN/SUPERVISOR/OPERATOR/VIEWER, the `openwcs-web` public client, the
+  confidential `openwcs-iam` service-account client (manage-users, for self-service password
+  change), and users (admin `admIn1!` with realm-management roles for UI user-management;
+  supervisor/operator/viewer). The UI signs in via the password grant; README documents getting a
+  token for the API.
 - **Authenticated actor**: order-management records a stock transaction's `actor` from the
   gateway-forwarded `X-Auth-User` (the request-body actor is only a fallback). So once
   security is on, every stock change is attributed to the authenticated user.
