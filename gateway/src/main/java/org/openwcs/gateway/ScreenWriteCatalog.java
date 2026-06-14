@@ -50,6 +50,13 @@ public class ScreenWriteCatalog {
             rule("warehouse-access", "/api/iam/warehouse-access/**"),
             rule("access-control", "/api/iam/screen-access/**"));
 
+    // Access-required paths: reachable on ANY method only if the user has at least READ on the
+    // owning screen (not just writes). Used for screens whose API surface is privileged enough that
+    // mere reachability is gated by screen access rather than a hard role check. The admin database
+    // console is SELECT-only, so READ access is sufficient to use it (no separate write rule).
+    private final List<Rule> accessRules = List.of(
+            rule("admin-database", "/api/master-data/admin/db/**"));
+
     // Built-in default level per role for the mapped screens (mirror of defaultLevel() in
     // screens.ts: VIEWER → read, others → write, for roles in the screen's defaultRoles; roles not
     // listed have no default access). Master-data + engineering screens default ADMIN/SUPERVISOR
@@ -70,12 +77,25 @@ public class ScreenWriteCatalog {
             Map.entry("slotting", MD_ENGINEERING),
             Map.entry("topology", MD_ENGINEERING),
             Map.entry("warehouse-access", ADMIN_ONLY),
-            Map.entry("access-control", ADMIN_ONLY));
+            Map.entry("access-control", ADMIN_ONLY),
+            Map.entry("admin-database", ADMIN_ONLY));
 
     /** The screen that owns this write path, or null if none (→ unenforced, fail-open). */
     String screenForPath(String path) {
+        return match(rules, path);
+    }
+
+    /**
+     * The screen whose access governs this path on ANY method (read or write), or null if none.
+     * A user must have at least READ on that screen to reach the path at all.
+     */
+    String screenForAccessPath(String path) {
+        return match(accessRules, path);
+    }
+
+    private static String match(List<Rule> ruleSet, String path) {
         PathContainer container = PathContainer.parsePath(path);
-        for (Rule r : rules) {
+        for (Rule r : ruleSet) {
             if (r.pattern().matches(container)) {
                 return r.screenKey();
             }

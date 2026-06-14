@@ -26,7 +26,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Admin database console: ADMIN-only schema browsing and strictly read-only SELECT execution.
+ * Admin database console: schema browsing and strictly read-only SELECT execution (who may reach
+ * it is enforced at the gateway via screen access for the {@code admin-database} screen, not here).
  * The safety model is layered (mirrors {@code AdminDbService}): a validator rejects everything
  * that is not a single SELECT, and a read-only transaction stops any write that slips past it.
  */
@@ -68,23 +69,10 @@ class AdminDbConsoleTest {
         return roles == null ? req : req.header(ROLES, roles);
     }
 
-    // ------------------------------------------------------------------ RBAC
-
-    @Test
-    void schemasRequireAdmin() throws Exception {
-        mockMvc.perform(get("/api/master-data/admin/db/schemas"))
-                .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/master-data/admin/db/schemas").header(ROLES, "VIEWER,OPERATOR,SUPERVISOR"))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void queryRequiresAdmin() throws Exception {
-        mockMvc.perform(query("{\"sql\":\"select 1\"}", null))
-                .andExpect(status().isForbidden());
-        mockMvc.perform(query("{\"sql\":\"select 1\"}", "SUPERVISOR"))
-                .andExpect(status().isForbidden());
-    }
+    // Access is governed by the gateway (screen access for the `admin-database` screen), not by this
+    // controller (see ScreenWriteCatalog access rules + the gateway's ScreenWriteCatalogTest). The
+    // controller itself no longer hard-requires ADMIN, so the tests below exercise the SELECT-only
+    // safety of AdminDbService for whoever the gateway lets through.
 
     // ------------------------------------------------------------------ schema metadata
 

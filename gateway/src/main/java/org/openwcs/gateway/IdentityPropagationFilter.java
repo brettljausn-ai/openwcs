@@ -91,9 +91,9 @@ public class IdentityPropagationFilter implements GlobalFilter, Ordered {
             return forward(exchange, chain, withIdentity(stripped, username, roles, null));
         }
 
-        return screenWriteAllowed(exchange, roles, username).flatMap(writeAllowed -> {
-            if (!writeAllowed) {
-                log.warn("screen-write denied: user {} attempted {} {} without write access on the owning screen; returning 403",
+        return screenAccessAllowed(exchange, roles, username).flatMap(allowed -> {
+            if (!allowed) {
+                log.warn("screen-access denied: user {} attempted {} {} without sufficient access on the owning screen; returning 403",
                         username, exchange.getRequest().getMethod(), exchange.getRequest().getPath().value());
                 exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
                 return exchange.getResponse().setComplete();
@@ -103,24 +103,34 @@ public class IdentityPropagationFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * Whether this request is permitted by read-vs-write screen access: true for reads, for writes
-     * to unmapped paths, and when IAM is unreachable (fail-open); false only for a write to a
-     * screen-owned path where the user's effective level is below WRITE.
+     * Whether this request is permitted by screen access. Two checks, resolved off one override
+     * fetch: (1) an <em>access-required</em> path is reachable on any method only if the user has at
+     * least READ on the owning screen; (2) a <em>write</em> ({@code POST/PUT/PATCH/DELETE}) to a
+     * screen-owned path needs WRITE. True for reads to unmapped paths, and when IAM is unreachable
+     * (fail-open); false only when a matched screen denies the level the request needs.
      */
-    private Mono<Boolean> screenWriteAllowed(ServerWebExchange exchange, List<String> roles, String username) {
-        if (!WRITE_METHODS.contains(exchange.getRequest().getMethod().name())) {
-            return Mono.just(true);
-        }
-        String screen = screenCatalog.screenForPath(exchange.getRequest().getPath().value());
-        if (screen == null) {
+    private Mono<Boolean> screenAccessAllowed(ServerWebExchange exchange, List<String> roles, String username) {
+        String path = exchange.getRequest().getPath().value();
+        String accessScreen = screenCatalog.screenForAccessPath(path);
+        boolean isWrite = WRITE_METHODS.contains(exchange.getRequest().getMethod().name());
+        String writeScreen = isWrite ? screenCatalog.screenForPath(path) : null;
+        if (accessScreen == null && writeScreen == null) {
             return Mono.just(true);
         }
         return screenAccess.overrides().map(opt -> {
             if (opt.isEmpty()) {
                 return true; // IAM unavailable — fail open
             }
-            return screenCatalog.effectiveLevel(screen, roles, username, opt.get())
-                    == ScreenWriteCatalog.Level.WRITE;
+            Map<String, ScreenAccessResolver.Override> overrides = opt.get();
+            if (accessScreen != null
+                    && screenCatalog.effectiveLevel(accessScreen, roles, username, overrides) == null) {
+                return false; // OFF — not allowed to reach this screen's API at all
+            }
+            if (writeScreen != null
+                    && screenCatalog.effectiveLevel(writeScreen, roles, username, overrides) != ScreenWriteCatalog.Level.WRITE) {
+                return false; // needs WRITE
+            }
+            return true;
         });
     }
 
