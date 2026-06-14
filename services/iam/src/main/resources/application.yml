@@ -21,6 +21,16 @@ spring:
     schemas: iam
     default-schema: iam
     create-schemas: true
+openwcs:
+  keycloak:
+    # Internal Keycloak URL (compose overrides to http://keycloak:8080; local dev hits the mapped port).
+    base-url: ${OPENWCS_KEYCLOAK_URL:http://localhost:8180}
+    realm: ${OPENWCS_KEYCLOAK_REALM:openwcs}
+    # Public SPA client — used to VERIFY a user's current password via a direct grant.
+    web-client-id: ${OPENWCS_KEYCLOAK_WEB_CLIENT:openwcs-web}
+    # Confidential service-account client (realm-management:manage-users) — used to SET the new password.
+    iam-client-id: ${OPENWCS_IAM_CLIENT_ID:openwcs-iam}
+    iam-client-secret: ${OPENWCS_IAM_CLIENT_SECRET:openwcs-iam-dev-secret}
 management:
   endpoints:
     web:

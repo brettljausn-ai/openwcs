@@ -27,6 +27,16 @@ public class ApiExceptionHandler {
         return problem;
     }
 
+    /** Wrong current password on a self-service change. 401, generic detail (no account-existence
+     *  disclosure). */
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ProblemDetail onInvalidCredentials(InvalidCredentialsException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNAUTHORIZED);
+        problem.setTitle("Invalid credentials");
+        problem.setDetail(ex.getMessage());
+        return problem;
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail onConflict(DataIntegrityViolationException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);

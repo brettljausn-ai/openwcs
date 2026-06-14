@@ -55,6 +55,33 @@ export async function passwordGrant(username: string, password: string): Promise
   return res.json()
 }
 
+/**
+ * Self-service password change (login screen). Public endpoint: works even for an account that is
+ * "not fully set up" (a forced/temporary password), which can't obtain a token to change it
+ * in-app. The iam service verifies the current password and sets the new one as permanent.
+ */
+export async function changePassword(
+  username: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const res = await fetch('/api/iam/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, currentPassword, newPassword }),
+  })
+  if (!res.ok) {
+    let msg = 'Could not change the password'
+    try {
+      const j = await res.json()
+      if (j.detail) msg = j.detail
+    } catch {
+      /* keep default */
+    }
+    throw new Error(msg)
+  }
+}
+
 /** Exchange a refresh token for a fresh access token (silent session renewal). */
 export async function refreshTokenGrant(refreshToken: string): Promise<TokenResponse> {
   const body = new URLSearchParams({

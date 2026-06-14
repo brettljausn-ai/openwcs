@@ -26,9 +26,29 @@
       "attributes": {
         "post.logout.redirect.uris": "+"
       }
+    },
+    {
+      "clientId": "openwcs-iam",
+      "name": "openWCS IAM service (self-service password change)",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "openwcs-iam-dev-secret",
+      "redirectUris": [],
+      "webOrigins": []
     }
   ],
   "users": [
+    {
+      "username": "service-account-openwcs-iam",
+      "enabled": true,
+      "serviceAccountClientId": "openwcs-iam",
+      "clientRoles": {
+        "realm-management": ["manage-users", "view-users", "query-users"]
+      }
+    },
     {
       "username": "admin",
       "enabled": true,

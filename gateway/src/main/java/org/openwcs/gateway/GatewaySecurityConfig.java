@@ -31,6 +31,10 @@ public class GatewaySecurityConfig {
             log.info("edge security ENABLED: JWT validation required on all routes except /actuator/**; identity is forwarded downstream as X-Auth-* headers");
             http.authorizeExchange(exchange -> exchange
                             .pathMatchers("/actuator/**").permitAll()
+                            // Self-service password change is pre-login: a user with a forced /
+                            // temporary password cannot get a token, so this one path is public.
+                            // Identity is proven inside the iam service by the current password.
+                            .pathMatchers(org.springframework.http.HttpMethod.POST, "/api/iam/change-password").permitAll()
                             .anyExchange().authenticated())
                     .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
         } else {
