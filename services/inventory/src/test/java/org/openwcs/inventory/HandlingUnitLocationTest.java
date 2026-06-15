@@ -166,4 +166,43 @@ class HandlingUnitLocationTest {
         assertThatThrownBy(() -> controller.updateLocation(UUID.randomUUID(), new LocationUpdateRequest(null)))
                 .isInstanceOf(HandlingUnitNotFoundException.class);
     }
+
+    @Test
+    void contentsReturnsTheStockRidingInTheHu() {
+        UUID warehouse = UUID.randomUUID();
+        UUID slot = UUID.randomUUID();
+        UUID skuA = UUID.randomUUID();
+        UUID skuB = UUID.randomUUID();
+        HandlingUnit tote = hu("HU-CONT-1", warehouse, slot);
+        stockInHu(warehouse, tote.getHuId(), slot, "7", skuA);
+        stockInHu(warehouse, tote.getHuId(), slot, "3", skuB);
+        // A row in a DIFFERENT HU must not leak into this HU's contents.
+        HandlingUnit other = hu("HU-CONT-2", warehouse, slot);
+        stockInHu(warehouse, other.getHuId(), slot, "99", UUID.randomUUID());
+
+        var lines = controller.contents(tote.getHuId());
+
+        assertThat(lines).hasSize(2);
+        assertThat(lines).extracting(org.openwcs.inventory.api.HuContentLine::skuId)
+                .containsExactlyInAnyOrder(skuA, skuB);
+        assertThat(lines).allSatisfy(l -> {
+            assertThat(l.uomCode()).isEqualTo("EACH");
+            assertThat(l.status()).isEqualTo("AVAILABLE");
+        });
+        assertThat(lines).extracting(org.openwcs.inventory.api.HuContentLine::qty)
+                .usingElementComparator(java.math.BigDecimal::compareTo)
+                .containsExactlyInAnyOrder(new BigDecimal("7"), new BigDecimal("3"));
+    }
+
+    @Test
+    void contentsIsEmptyForAKnownButEmptyHu() {
+        HandlingUnit tote = hu("HU-CONT-3", UUID.randomUUID(), UUID.randomUUID());
+        assertThat(controller.contents(tote.getHuId())).isEmpty();
+    }
+
+    @Test
+    void contentsOfUnknownHandlingUnitIsNotFound() {
+        assertThatThrownBy(() -> controller.contents(UUID.randomUUID()))
+                .isInstanceOf(HandlingUnitNotFoundException.class);
+    }
 }
