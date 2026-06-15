@@ -48,6 +48,16 @@ public class EmulatorTwinClient {
                 .body(AutostoreTelemetry.class);
     }
 
+    /** ASRS crane telemetry: one entry per crane, aisle + world XYZ metres + busy/status + carried HU. */
+    public List<CraneTelemetry> asrsCranes() {
+        List<CraneTelemetry> body = http.get()
+                .uri("/asrs/cranes")
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<CraneTelemetry>>() {
+                });
+        return body == null ? List.of() : body;
+    }
+
     /** One AMR robot as the emulator reports it. */
     public record AmrTelemetry(String amrId, Double x, Double z, String status, String huCode) {
     }
@@ -59,5 +69,14 @@ public class EmulatorTwinClient {
 
     /** One AutoStore port as the emulator reports it. */
     public record PortTelemetry(String portId, Double x, Double z, Boolean busy, String huCode) {
+    }
+
+    /**
+     * One ASRS crane as the emulator reports it: {@code aisle} index, world {@code x}/{@code z} metres
+     * and {@code y} lift height metres (any may be null when the emulator omits world coords),
+     * {@code busy} flag and free-form {@code status}, and the carried HU code (null when empty).
+     */
+    public record CraneTelemetry(String craneId, Integer aisle, Double x, Double y, Double z,
+                                 Boolean busy, String status, String huCode) {
     }
 }

@@ -9,12 +9,15 @@ import java.util.Map;
 import java.util.UUID;
 import org.openwcs.flow.api.TwinTelemetryDtos.Amr;
 import org.openwcs.flow.api.TwinTelemetryDtos.AmrFleet;
+import org.openwcs.flow.api.TwinTelemetryDtos.AsrsCranes;
 import org.openwcs.flow.api.TwinTelemetryDtos.Autostore;
+import org.openwcs.flow.api.TwinTelemetryDtos.Crane;
 import org.openwcs.flow.api.TwinTelemetryDtos.Grid;
 import org.openwcs.flow.api.TwinTelemetryDtos.Port;
 import org.openwcs.flow.client.EmulatorTwinClient;
 import org.openwcs.flow.client.EmulatorTwinClient.AmrTelemetry;
 import org.openwcs.flow.client.EmulatorTwinClient.AutostoreTelemetry;
+import org.openwcs.flow.client.EmulatorTwinClient.CraneTelemetry;
 import org.openwcs.flow.client.EmulatorTwinClient.PortTelemetry;
 import org.openwcs.flow.domain.PlacedEquipment;
 import org.openwcs.flow.repo.PlacedEquipmentRepository;
@@ -111,6 +114,51 @@ public class TwinTelemetryService {
         log.debug("autostore twin for warehouse {}: {}/{} bins, {} ports", warehouseId,
                 grid.occupiedBins(), grid.totalBins(), ports.size());
         return new Autostore(nowMs, grid, ports);
+    }
+
+    /**
+     * Per ASRS crane: world coordinates (x/z metres aisle floor, y lift height metres), status
+     * (IDLE/MOVING/FAULTED) and carried HU. Positions come from the emulator; where it omits world
+     * coordinates, x/z are resolved from the placed ASRS equipment whose code matches the crane id
+     * (its aisle/rack origin), and y falls back to the placed pos_y_m (else 0). Best-effort: an empty
+     * list when the emulator is off/unreachable.
+     */
+    @Transactional(readOnly = true)
+    public AsrsCranes asrsCranes(UUID warehouseId) {
+        long nowMs = Instant.now().toEpochMilli();
+        List<CraneTelemetry> telemetry;
+        try {
+            telemetry = emulator.asrsCranes();
+        } catch (RuntimeException e) {
+            log.debug("asrs-cranes twin: emulator unreachable for warehouse {}, returning empty: {}",
+                    warehouseId, e.toString());
+            return new AsrsCranes(nowMs, List.of());
+        }
+
+        Map<String, PlacedEquipment> byCode = equipmentByCode(warehouseId);
+        List<Crane> cranes = new ArrayList<>(telemetry.size());
+        for (CraneTelemetry t : telemetry) {
+            if (t == null || t.craneId() == null) {
+                continue;
+            }
+            PlacedEquipment placed = byCode.get(t.craneId());
+            double[] xz = worldXz(t.x(), t.z(), placed);
+            double y = t.y() != null ? t.y() : asDouble(placed == null ? null : placed.getPosYM());
+            cranes.add(new Crane(t.craneId(), xz[0], y, xz[1], craneStatus(t), t.huCode()));
+        }
+        log.debug("asrs-cranes twin for warehouse {}: {} cranes", warehouseId, cranes.size());
+        return new AsrsCranes(nowMs, cranes);
+    }
+
+    /**
+     * Crane status: an explicit {@code status} (IDLE/MOVING/FAULTED) when the emulator carries one,
+     * else derived from {@code busy} (MOVING when busy, IDLE otherwise).
+     */
+    private static String craneStatus(CraneTelemetry t) {
+        if (t.status() != null && !t.status().isBlank()) {
+            return t.status();
+        }
+        return Boolean.TRUE.equals(t.busy()) ? "MOVING" : "IDLE";
     }
 
     /** Placed equipment indexed by code (last write wins), for position fallback resolution. */

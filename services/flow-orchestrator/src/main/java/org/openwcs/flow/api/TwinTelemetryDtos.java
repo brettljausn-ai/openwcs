@@ -49,4 +49,20 @@ public final class TwinTelemetryDtos {
      */
     public record Port(String portId, double x, double z, boolean busy, String huCode) {
     }
+
+    /**
+     * @param serverTimeMs server clock at response time (frontend render-clock anchor).
+     * @param cranes       one entry per ASRS crane.
+     */
+    public record AsrsCranes(long serverTimeMs, List<Crane> cranes) {
+    }
+
+    /**
+     * An ASRS crane in world coordinates: x/z metres (aisle floor position), y the lift height metres.
+     *
+     * @param status IDLE | MOVING | FAULTED.
+     * @param huCode the carried handling unit's code, or null when the crane is empty.
+     */
+    public record Crane(String craneId, double x, double y, double z, String status, String huCode) {
+    }
 }
