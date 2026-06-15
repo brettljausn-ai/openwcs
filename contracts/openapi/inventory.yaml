@@ -15,6 +15,7 @@ tags:
   - name: Stock
   - name: Reservations
   - name: Reports
+  - name: Handling Units
 
 paths:
   /stock:
@@ -50,6 +51,33 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Availability' }
+
+  /handling-units/{id}/contents:
+    get:
+      tags: [Handling Units]
+      summary: The stock riding in a handling unit
+      description: >
+        Lists the stock bound to the handling unit, one line per bucket (SKU × batch × status),
+        in the SKU base UoM. Other services use this to see what stock an HU carries: flow reads
+        it before a putaway or move leg, picking reads it to confirm the tote's contents. The
+        HU's location is implied (the stock follows the HU) and is not repeated per line. Requires
+        INVENTORY_VIEW.
+      operationId: handlingUnitContents
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: "OK — empty array when the HU is known but carries no stock."
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/HuContentLine' }
+        "404":
+          description: No handling unit with that id.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
 
   /locations/occupied:
     post:
@@ -246,6 +274,15 @@ components:
         status: { $ref: '#/components/schemas/StockStatus' }
         qty: { type: number, description: Quantity in the SKU base UoM. }
         uomCode: { type: string, example: EACH }
+    HuContentLine:
+      type: object
+      description: One line of the stock riding in a handling unit (the HU's location is implied).
+      properties:
+        skuId: { type: string, format: uuid }
+        batchId: { type: string, format: uuid, nullable: true }
+        qty: { type: number, description: Quantity in the SKU base UoM. }
+        uomCode: { type: string, example: EACH }
+        status: { $ref: '#/components/schemas/StockStatus' }
     Availability:
       type: object
       properties:
