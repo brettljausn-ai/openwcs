@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
+    "build:pages": "node -e \"console.log('no build step — views/pages + data/pages.json are the source of truth')\"",
     "build:static": "node scripts/build-static.js"
   },
   "engines": {
