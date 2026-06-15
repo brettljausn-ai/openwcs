@@ -40,6 +40,9 @@ public class FlowProperties {
      *  workplaces so HU bookings always name the tote's current physical place). */
     private String masterDataBaseUrl = "http://localhost:8081";
 
+    /** Base URL of the txlog service (append-only audit of physical HU moves, {@code HandlingUnitMoved}). */
+    private String txlogBaseUrl = "http://localhost:8086";
+
     public Map<String, String> getAdapters() {
         return adapters;
     }
@@ -94,5 +97,13 @@ public class FlowProperties {
 
     public void setMasterDataBaseUrl(String masterDataBaseUrl) {
         this.masterDataBaseUrl = masterDataBaseUrl;
+    }
+
+    public String getTxlogBaseUrl() {
+        return txlogBaseUrl;
+    }
+
+    public void setTxlogBaseUrl(String txlogBaseUrl) {
+        this.txlogBaseUrl = txlogBaseUrl;
     }
 }

@@ -1,12 +1,15 @@
 package org.openwcs.flow.service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.openwcs.flow.api.DeviceTaskNotFoundException;
 import org.openwcs.flow.api.DeviceTaskView;
 import org.openwcs.flow.api.RequestDeviceTask;
 import org.openwcs.flow.client.DeviceClient;
+import org.openwcs.flow.client.TxLogClient;
 import org.openwcs.flow.domain.DeviceTask;
 import org.openwcs.flow.repo.DeviceTaskRepository;
 import org.slf4j.Logger;
@@ -28,9 +31,17 @@ public class DeviceTaskService {
 
     private static final Logger log = LoggerFactory.getLogger(DeviceTaskService.class);
 
+    /**
+     * Commands that physically relocate a handling unit (vs CONVEY transport): each terminal one
+     * emits a {@code HandlingUnitMoved} audit event. AutoStore bin variants included.
+     */
+    private static final Set<String> MOVE_COMMANDS = Set.of(
+            "STORE", "BIN_STORE", "RETRIEVE", "BIN_RETRIEVE", "RELOCATE", "BIN_RELOCATE");
+
     private final DeviceTaskRepository tasks;
     private final DeviceClient deviceClient;
     private final InductionQueueService induction;
+    private final TxLogClient txlog;
 
     /**
      * {@code induction} is injected {@link Lazy} to break the dispatch↔callback cycle:
@@ -39,10 +50,11 @@ public class DeviceTaskService {
      * {@link #completeFromCallback}, after both beans are constructed.
      */
     public DeviceTaskService(DeviceTaskRepository tasks, DeviceClient deviceClient,
-                             @Lazy InductionQueueService induction) {
+                             @Lazy InductionQueueService induction, TxLogClient txlog) {
         this.tasks = tasks;
         this.deviceClient = deviceClient;
         this.induction = induction;
+        this.txlog = txlog;
     }
 
     @Transactional
@@ -77,18 +89,21 @@ public class DeviceTaskService {
                 task.setResult(result.resultPayload());
                 log.info("device task {} ({} for hu {}) completed synchronously by adapter",
                         task.getId(), task.getCommand(), huOf(task));
+                auditMove(task, true);
             } else {
                 task.setStatus("FAILED");
                 task.setDetail(result == null ? "adapter returned no result" : result.detail());
                 task.setResult(result == null ? null : result.resultPayload());
                 log.warn("device task {} ({} for hu {}) FAILED at dispatch: {} (adapter rejected it)",
                         task.getId(), task.getCommand(), huOf(task), task.getDetail());
+                auditMove(task, false);
             }
         } catch (RestClientException e) {
             log.warn("device task {} ({} for hu {}) dispatch failed, recording FAILED: {}",
                     task.getId(), task.getCommand(), huOf(task), e.toString());
             task.setStatus("FAILED");
             task.setDetail("adapter call failed: " + e.getMessage());
+            auditMove(task, false);
         }
         return DeviceTaskView.from(task);
     }
@@ -123,6 +138,7 @@ public class DeviceTaskService {
             log.warn("device task {} ({} for hu {}) -> FAILED via adapter callback: {}", taskId,
                     task.getCommand(), huOf(task), detail);
         }
+        auditMove(task, completed);
 
         // §4 lifecycle wiring: a completing RETRIEVE/CONVEY task advances its linked induction entry.
         // The early-return guard above means this runs exactly once per device task (idempotent).
@@ -179,6 +195,63 @@ public class DeviceTaskService {
 
     private static String blankToNull(String s) {
         return (s == null || s.isBlank()) ? null : s;
+    }
+
+    /**
+     * Append a {@code HandlingUnitMoved} audit event to the txlog system-of-record for a terminal
+     * physical move (STORE/RETRIEVE/RELOCATE + AutoStore BIN_* variants); CONVEY transport is skipped
+     * (it does not change a stock location and is already on the HU trace). The from/to locations are
+     * read from the command's own payload shape. Best-effort: a txlog hiccup must never fail the
+     * device-task transition, so failures are caught and logged (mirrors the booking side effects).
+     *
+     * <p>Called exactly once per task at its terminal transition — synchronously in {@link #request}
+     * or from {@link #completeFromCallback}, whose duplicate-callback guard keeps it once-only.
+     */
+    private void auditMove(DeviceTask task, boolean completed) {
+        String command = task.getCommand();
+        if (!MOVE_COMMANDS.contains(command)) {
+            return;
+        }
+        Map<String, Object> p = task.getPayload();
+        Object fromLocationId;
+        Object toLocationId;
+        if ("STORE".equals(command) || "BIN_STORE".equals(command)) {
+            fromLocationId = null;
+            toLocationId = p == null ? null : p.get("locationId");
+        } else if ("RETRIEVE".equals(command) || "BIN_RETRIEVE".equals(command)) {
+            fromLocationId = p == null ? null : p.get("locationId");
+            toLocationId = null;
+        } else { // RELOCATE / BIN_RELOCATE
+            fromLocationId = p == null ? null : p.get("fromLocationId");
+            toLocationId = p == null ? null : p.get("toLocationId");
+        }
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("warehouseId", task.getWarehouseId());
+        payload.put("huId", p == null ? null : p.get("huId"));
+        payload.put("huCode", p == null ? null : p.get("huCode"));
+        payload.put("command", command);
+        payload.put("family", task.getFamily());
+        payload.put("equipmentId", task.getEquipmentId());
+        payload.put("fromLocationId", fromLocationId);
+        payload.put("toLocationId", toLocationId);
+        payload.put("status", completed ? "COMPLETED" : "FAILED");
+        payload.put("detail", task.getDetail());
+        payload.put("deviceTaskId", task.getId());
+
+        Object huId = payload.get("huId");
+        String streamId = huId == null ? "device-task-" + task.getId() : "hu-" + huId;
+        try {
+            txlog.append(streamId, TxLogClient.HANDLING_UNIT_MOVED, task.getCorrelationId(),
+                    task.getActor(), payload);
+            log.info("audit: HandlingUnitMoved {} {} for hu {} (task {}, from {} to {})",
+                    command, completed ? "COMPLETED" : "FAILED", huOf(task), task.getId(),
+                    fromLocationId, toLocationId);
+        } catch (RuntimeException e) {
+            log.warn("audit: failed to append HandlingUnitMoved for device task {} ({} for hu {}); "
+                            + "move stands, audit trail has a gap: {}",
+                    task.getId(), command, huOf(task), e.toString());
+        }
     }
 
     /**

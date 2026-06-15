@@ -51,6 +51,8 @@ openwcs:
     inventory-base-url: ${OPENWCS_INVENTORY_BASE_URL:http://localhost:8082}
     # slotting service base URL — relocation plans for multi-deep channel dig-outs (ADR-0009).
     slotting-base-url: ${OPENWCS_SLOTTING_BASE_URL:http://localhost:8093}
+    # txlog service base URL — append-only audit of physical HU moves (HandlingUnitMoved).
+    txlog-base-url: ${OPENWCS_TXLOG_BASE_URL:http://localhost:8086}
 
 management:
   endpoints:
