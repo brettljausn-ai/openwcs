@@ -6,6 +6,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.openwcs.notification.api.DemoClearResult;
 import org.openwcs.notification.api.DemoDashboardSeedResult;
 import org.openwcs.notification.client.DemoModeClient;
 import org.openwcs.notification.domain.AlertEvent;
@@ -93,6 +94,19 @@ public class DemoDashboardSeedService {
                         + " requested notification dashboard demo data",
                 warehouseId, rows.size(), hist.length);
         return new DemoDashboardSeedResult(rows.size());
+    }
+
+    /**
+     * Remove the demo alert rows the seeder backfilled for a warehouse, invoked when demo mode is
+     * turned off. Only rows carrying the {@code |DEMO-} dedupe-key marker are deleted, so any real
+     * alerts survive. Not demo-gated: the off-toggle must always be able to complete the teardown.
+     */
+    @Transactional
+    public DemoClearResult clear(UUID warehouseId) {
+        int removed = repo.deleteDemoByWarehouseId(warehouseId);
+        log.info("demo clear for warehouse {}: removed {} demo alert_event rows because demo mode was switched off",
+                warehouseId, removed);
+        return new DemoClearResult(removed);
     }
 
     private static AlertEvent row(UUID warehouseId, String area, String metric, String severity,

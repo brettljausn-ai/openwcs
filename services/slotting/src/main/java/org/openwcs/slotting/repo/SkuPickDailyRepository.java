@@ -65,4 +65,13 @@ public class SkuPickDailyRepository {
                 warehouseId, java.sql.Date.valueOf(from), java.sql.Date.valueOf(to));
         return total == null ? 0L : total;
     }
+
+    /**
+     * Bulk-delete every daily-pick bucket for a warehouse (demo reset). On a demo box these buckets
+     * exist only because the dashboard seeder backfilled them, so clearing them empties the windowed
+     * ABC movers when demo mode is turned off. Returns the row count.
+     */
+    public int deleteBulkByWarehouseId(UUID warehouseId) {
+        return jdbc.update("DELETE FROM slotting.sku_pick_daily WHERE warehouse_id = ?", warehouseId);
+    }
 }

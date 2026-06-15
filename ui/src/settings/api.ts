@@ -240,9 +240,12 @@ async function idsFrom(url: string): Promise<string[]> {
 }
 
 /**
- * Enable demo mode: seed the master-data catalog, then register handling units + stock in the
- * warehouse's existing locations. Rejected server-side unless the system is empty (no host data)
- * AND the warehouse already has storage locations.
+ * Enable demo mode: seed the master-data catalog, register handling units + stock in the warehouse's
+ * existing locations, then backfill representative, BACKDATED dashboard data across every service so
+ * a fresh demo box shows plausible non-empty numbers (no separate button — turning demo ON is the
+ * one action). Rejected server-side unless the system is empty (no host data) AND the warehouse
+ * already has storage locations. The dashboard backfill is best-effort: a per-service hiccup is
+ * swallowed (the data is cosmetic) and never aborts enabling demo mode.
  */
 export async function enableDemo(warehouseId: string): Promise<DemoResult> {
   const q = warehouseId ? `?warehouseId=${encodeURIComponent(warehouseId)}` : ''
@@ -264,6 +267,13 @@ export async function enableDemo(warehouseId: string): Promise<DemoResult> {
     emptyHandlingUnits: number
     stockRows: number
   }
+
+  // Fan out the dashboard backfill as part of turning demo mode on. Reuse the location/sku/HU-type
+  // ids already resolved above; only the receiving locations still need fetching. Best-effort.
+  if (warehouseId) {
+    await seedDashboards(warehouseId, huTypeId, locationIds, skuIds).catch(() => undefined)
+  }
+
   return { ...cat, handlingUnits: inv.handlingUnits, emptyHandlingUnits: inv.emptyHandlingUnits, stockRows: inv.stockRows }
 }
 
@@ -293,11 +303,19 @@ export async function disableDemo(warehouseId: string): Promise<DemoResult> {
   if (warehouseId) {
     const wh = encodeURIComponent(warehouseId)
     // Phase 1: tear down the transport pipeline (the producers of HU location bookings) FIRST.
+    // The flow clear also wipes the dashboard-seeded scan_stat counters and the faulted demo
+    // device_task, and the orders clear removes the dashboard-seeded orders/lines/transactions, so
+    // those backfills need no separate teardown. The slotting + notification clears below remove the
+    // dashboard data the standard reset does NOT cover (slotting velocity / daily-pick buckets / open
+    // replenishment tasks, and the demo alert_event rows); neither produces HU bookings, so they are
+    // race-free in this phase.
     const producers: Array<[string, string]> = [
       ['flow', `/api/flow/demo/clear?warehouseId=${wh}`],
       ['gtp', `/api/gtp/demo/clear?warehouseId=${wh}`],
       ['counting', `/api/counting/demo/clear?warehouseId=${wh}`],
       ['orders', `/api/orders/demo/clear?warehouseId=${wh}`],
+      ['slotting', `/api/slotting/demo/clear?warehouseId=${wh}`],
+      ['notification', `/api/notification/demo/clear?warehouseId=${wh}`],
     ]
     // Phase 2: only now wipe the inventory registry + the (global) journal; nothing can re-book.
     const stores: Array<[string, string]> = [
@@ -323,57 +341,42 @@ export async function disableDemo(warehouseId: string): Promise<DemoResult> {
 }
 
 // ---- demo dashboard seeding (best-effort fan-out across services) ----
-// One convenience trigger that backfills representative, BACKDATED data into every dashboard so a
-// fresh demo box shows plausible non-empty numbers. Each per-service call is demo-mode-gated and
-// admin-only server-side; we run them all and report which succeeded. Strictly demo-only.
-export interface DemoDashboardSeedReport {
-  succeeded: string[]
-  failed: { service: string; error: string }[]
-}
-
-export async function seedDemoDashboards(warehouseId: string): Promise<DemoDashboardSeedReport> {
+// Backfills representative, BACKDATED data into every dashboard so a fresh demo box shows plausible
+// non-empty numbers. Called automatically as part of enableDemo (no standalone button). Each
+// per-service call is demo-mode-gated and admin-only server-side; every call is best-effort so a
+// hiccup in one service never aborts the rest of the demo-on flow. Strictly demo-only. The
+// corresponding teardown is folded into disableDemo (the flow + orders clears cover their own seeds;
+// slotting + notification carry dedicated demo clears for the data the standard reset misses).
+async function seedDashboards(
+  warehouseId: string,
+  huTypeId: string | null,
+  storageLocationIds: string[],
+  skuIds: string[],
+): Promise<void> {
   const wh = encodeURIComponent(warehouseId)
-  const succeeded: string[] = []
-  const failed: { service: string; error: string }[] = []
+  const best = (fn: () => Promise<unknown>) => fn().catch(() => undefined)
 
-  const run = async (service: string, fn: () => Promise<unknown>) => {
-    try {
-      await fn()
-      succeeded.push(service)
-    } catch (e) {
-      failed.push({ service, error: e instanceof Error ? e.message : String(e) })
-    }
-  }
-
-  // Inventory needs the existing demo storage + receiving location ids and demo SKU ids (same
-  // resolution as enableDemo). Resolved best-effort; an empty list makes the seed a server no-op.
-  const huTypes = await fetch('/api/master-data/handling-unit-types')
-    .then((r) => (r.ok ? (r.json() as Promise<{ id: string; name: string }[]>) : []))
-    .catch(() => [] as { id: string; name: string }[])
-  const huTypeId = huTypes.find((t) => t.name === 'DEMO-STORAGE-HU')?.id ?? null
-  const locationIds = await idsFrom(
-    `/api/master-data/locations?warehouseId=${wh}&purpose=STORAGE&size=500`,
-  )
+  // Inventory's dashboard seed also wants the receiving locations (for the put-away backlog HUs);
+  // everything else it needs was already resolved by the caller. Resolved best-effort.
   const receivingLocationIds = await idsFrom(
     `/api/master-data/locations?warehouseId=${wh}&purpose=RECEIVING&size=200`,
-  )
-  const skuIds = await idsFrom('/api/master-data/skus?ownerClient=DEMO&size=500')
+  ).catch(() => [] as string[])
 
-  await run('orders', () => demoPost(`/api/orders/demo/seed-dashboard?warehouseId=${wh}`))
-  await run('slotting', () => demoPost(`/api/slotting/demo/seed-dashboard?warehouseId=${wh}`))
-  await run('inventory', () =>
-    demoPost('/api/inventory/demo/seed-dashboard', {
-      warehouseId,
-      huTypeId,
-      locationIds,
-      receivingLocationIds,
-      skuIds,
-    }),
-  )
-  await run('flow', () => demoPost(`/api/flow/demo/seed-dashboard?warehouseId=${wh}`))
-  await run('notification', () => demoPost(`/api/notification/demo/seed-dashboard?warehouseId=${wh}`))
-
-  return { succeeded, failed }
+  await Promise.allSettled([
+    best(() => demoPost(`/api/orders/demo/seed-dashboard?warehouseId=${wh}`)),
+    best(() => demoPost(`/api/slotting/demo/seed-dashboard?warehouseId=${wh}`)),
+    best(() =>
+      demoPost('/api/inventory/demo/seed-dashboard', {
+        warehouseId,
+        huTypeId,
+        locationIds: storageLocationIds,
+        receivingLocationIds,
+        skuIds,
+      }),
+    ),
+    best(() => demoPost(`/api/flow/demo/seed-dashboard?warehouseId=${wh}`)),
+    best(() => demoPost(`/api/notification/demo/seed-dashboard?warehouseId=${wh}`)),
+  ])
 }
 
 // ---- cubing config (warehouse fulfillment config + shipper catalog) ----

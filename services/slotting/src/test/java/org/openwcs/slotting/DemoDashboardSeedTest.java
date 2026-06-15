@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.openwcs.slotting.api.DemoClearResult;
 import org.openwcs.slotting.api.DemoDashboardSeedResult;
 import org.openwcs.slotting.client.InventoryClient;
 import org.openwcs.slotting.client.MasterDataClient;
@@ -91,5 +92,28 @@ class DemoDashboardSeedTest {
         when(masterData.demoEnabled()).thenReturn(false);
         assertThatThrownBy(() -> seed.seed(UUID.randomUUID()))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void clearRemovesSeededDashboardData() {
+        when(masterData.demoEnabled()).thenReturn(true);
+        UUID warehouse = UUID.randomUUID();
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+
+        seed.seed(warehouse);
+        // Rows are present after seeding.
+        assertThat(velocity.findByWarehouseId(warehouse)).isNotEmpty();
+        assertThat(dailyPicks.windowTotal(warehouse, today.minusDays(89), today)).isGreaterThan(0);
+        assertThat(tasks.findByWarehouseIdAndStatus(warehouse, "PLANNED")).isNotEmpty();
+
+        DemoClearResult result = seed.clear(warehouse);
+        assertThat(result.velocityRows()).isEqualTo(18);
+        assertThat(result.pickDayRows()).isGreaterThan(0);
+        assertThat(result.replenishmentTasks()).isEqualTo(6);
+
+        // Everything the seeder added is gone after clear.
+        assertThat(velocity.findByWarehouseId(warehouse)).isEmpty();
+        assertThat(dailyPicks.windowTotal(warehouse, today.minusDays(89), today)).isZero();
+        assertThat(tasks.findByWarehouseIdAndStatus(warehouse, "PLANNED")).isEmpty();
     }
 }

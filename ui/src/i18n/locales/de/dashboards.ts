@@ -165,9 +165,4 @@ export default {
   staleTitle: 'Veraltete Alarme',
   staleSub:
     'Am längsten offene Alarme; älteste zuerst. Langlebige Alarme bedeuten meist eine fehlende Reaktion oder eine falsch gesetzte Schwelle.',
-  // demo-only dashboard seeding (nur bei aktivem Demo-Modus, nur für ADMIN)
-  seedDashboards: 'Demo-Dashboard-Daten einspielen',
-  seeding: 'Demo-Daten werden eingespielt…',
-  seedOk: 'Demo-Dashboard-Daten eingespielt ({{n}} Dienste).',
-  seedPartial: 'Eingespielt: {{ok}}; fehlgeschlagen: {{bad}}.',
 }

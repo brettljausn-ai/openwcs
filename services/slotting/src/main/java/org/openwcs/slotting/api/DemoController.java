@@ -12,9 +12,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Demo mode for slotting (build.md §4.8). Admin-only, demo-only backfill of dashboard-relevant data
- * (ABC velocity + daily picks + replenishment tasks) so /velocity/abc and /replenishment/dashboard
- * show plausible numbers on a fresh demo box. No effect when demo mode is off.
+ * Demo mode for slotting (build.md §4.8). Admin-only backfill of dashboard-relevant data (ABC
+ * velocity + daily picks + replenishment tasks) when demo mode is turned on, and removal of that
+ * same data ({@code /clear}) when it is turned off, so /velocity/abc and /replenishment/dashboard
+ * show plausible numbers on a demo box and return to empty afterwards.
  */
 @RestController
 @RequestMapping("/api/slotting/demo")
@@ -37,6 +38,18 @@ public class DemoController {
         } catch (IllegalStateException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
         }
+    }
+
+    /**
+     * Remove the dashboard data the seeder backfilled (admin-only), invoked when demo mode is turned
+     * off. Not demo-gated: the off-toggle must always be able to complete the teardown.
+     */
+    @PostMapping("/clear")
+    public DemoClearResult clear(
+            @RequestParam UUID warehouseId,
+            @RequestHeader(name = "X-Auth-Roles", required = false) String roles) {
+        requireAdmin(roles);
+        return dashboardSeed.clear(warehouseId);
     }
 
     private static void requireAdmin(String roles) {

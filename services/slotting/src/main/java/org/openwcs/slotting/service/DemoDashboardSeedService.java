@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
+import org.openwcs.slotting.api.DemoClearResult;
 import org.openwcs.slotting.api.DemoDashboardSeedResult;
 import org.openwcs.slotting.client.MasterDataClient;
 import org.openwcs.slotting.domain.ReplenishmentTask;
@@ -149,5 +150,25 @@ public class DemoDashboardSeedService {
                         + " and {} replenishment tasks because an admin requested slotting dashboard demo data",
                 warehouseId, velocityRows, pickDays, taskCount);
         return new DemoDashboardSeedResult(velocityRows, pickDays, taskCount);
+    }
+
+    /**
+     * Tear down the slotting data the dashboard seeder backfilled, invoked when demo mode is turned
+     * off. The standard operational reset does not touch these tables (velocity, daily picks and the
+     * open replenishment tasks are derived from real pick events that never run in demo), so they are
+     * cleared here: every {@code sku_velocity} and {@code sku_pick_daily} row for the warehouse, and
+     * the open (PLANNED) {@code replenishment_task} rows. Block policies and other configuration are
+     * untouched. Bulk DELETEs only; not demo-gated so an off-toggle always completes the teardown.
+     */
+    @Transactional
+    public DemoClearResult clear(UUID warehouseId) {
+        int velocityRows = velocity.deleteBulkByWarehouseId(warehouseId);
+        int pickDayRows = dailyPicks.deleteBulkByWarehouseId(warehouseId);
+        int taskRows = tasks.deletePlannedByWarehouseId(warehouseId);
+
+        log.info("demo clear for warehouse {}: removed {} velocity rows, {} pick-day buckets and {} open"
+                        + " replenishment tasks because demo mode was switched off",
+                warehouseId, velocityRows, pickDayRows, taskRows);
+        return new DemoClearResult(velocityRows, pickDayRows, taskRows);
     }
 }

@@ -150,9 +150,20 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
     admin, not swallowed. Warehouses, locations, blocks, topology and GTP/station config are kept.
   - **Demo dashboard seeders** (demo-mode-gated, ADMIN-only; one per service, all
     `POST /api/<svc>/demo/seed-dashboard`): backfill representative, BACKDATED rows so a fresh demo
-    box's dashboards show plausible non-empty numbers. A single UI trigger on the dashboards landing
-    header ("Seed demo dashboard data", shown only while demo mode is on, ADMIN) fans out to all five
-    best-effort and reports which succeeded; the per-service endpoints can also be curl'd directly.
+    box's dashboards show plausible non-empty numbers. There is NO standalone button — the fan-out runs
+    automatically as part of turning demo mode ON (`enableDemo()` calls all five best-effort after the
+    base catalog/HU/stock seed; a per-service hiccup is swallowed and never aborts demo-on), and the
+    matching teardown runs as part of turning demo mode OFF. The per-service endpoints can still be
+    curl'd directly. Teardown coverage on `disableDemo()`: the existing **flow** clear already wipes the
+    seeded `scan_stat` counters and the faulted demo `device_task`, and the **orders** clear already
+    removes the seeded orders/lines/transactions, so those need no extra step; the **inventory** clear
+    (warehouse-scoped bulk DELETE) already removes the dashboard HUs/stock. The data the standard reset
+    did NOT cover gets dedicated demo clears, wired into the disable fan-out: **slotting**
+    `POST /api/slotting/demo/clear?warehouseId=` (bulk-deletes `sku_velocity` + `sku_pick_daily` for the
+    warehouse and the open PLANNED `replenishment_task` rows) and **notification**
+    `POST /api/notification/demo/clear?warehouseId=` (bulk-deletes only `alert_event` rows whose dedupe
+    key carries the `|DEMO-` marker, so real alerts survive). Both clears are ADMIN-only and run in the
+    producers phase (neither issues HU location bookings, so they are race-free).
     - **orders** (`?warehouseId=`): ~90 days of INBOUND + OUTBOUND orders across statuses with
       backdated `created_at`/`updated_at`/`posted_at` (native UPDATE — they are Hibernate-managed) +
       route codes; shipped on-time vs late (SLA), today's SHORT lines and over/under receipts

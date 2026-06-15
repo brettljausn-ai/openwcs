@@ -152,9 +152,4 @@ export default {
   chatteringSub: '在开启与清除之间反复的告警；最严重者浪费注意力，应重新调参。',
   staleTitle: '陈旧告警',
   staleSub: '开启时间最长的告警；最早的在前。长期未清除的告警通常意味着缺少响应或阈值设置不当。',
-  // 仅演示：填充演示仪表板数据（仅在演示模式下显示，仅限 ADMIN）
-  seedDashboards: '填充演示仪表板数据',
-  seeding: '正在填充演示数据…',
-  seedOk: '已填充演示仪表板数据（{{n}} 个服务）。',
-  seedPartial: '已填充：{{ok}}；失败：{{bad}}。',
 }

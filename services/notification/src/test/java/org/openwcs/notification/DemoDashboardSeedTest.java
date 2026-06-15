@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openwcs.notification.api.AlertHealthView;
+import org.openwcs.notification.api.DemoClearResult;
 import org.openwcs.notification.api.DemoDashboardSeedResult;
 import org.openwcs.notification.client.DemoModeClient;
 import org.openwcs.notification.client.MetricsClient;
@@ -92,5 +93,33 @@ class DemoDashboardSeedTest {
         assertThatThrownBy(() -> seed.seed(UUID.randomUUID()))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(repo.findAll()).isEmpty();
+    }
+
+    @Test
+    void clearRemovesDemoAlertsButKeepsRealOnes() {
+        when(demoMode.demoEnabled()).thenReturn(true);
+        UUID warehouse = UUID.randomUUID();
+
+        DemoDashboardSeedResult seeded = seed.seed(warehouse);
+        assertThat(seeded.alertsCreated()).isGreaterThan(5);
+
+        // A real (non-demo) alert in the same warehouse — its dedupe key carries no DEMO marker.
+        AlertEvent real = new AlertEvent();
+        real.setWarehouseId(warehouse);
+        real.setArea("SCAN");
+        real.setMetric("scanNoReadPct");
+        real.setSeverity("WARNING");
+        real.setState("OPEN");
+        real.setDedupeKey(warehouse + "|SCAN|scanNoReadPct");
+        repo.save(real);
+
+        long before = repo.findAll().size();
+        DemoClearResult result = seed.clear(warehouse);
+        assertThat(result.alertsRemoved()).isEqualTo((int) (before - 1));
+
+        // Only the real alert survives the demo clear.
+        var remaining = repo.findAll();
+        assertThat(remaining).hasSize(1);
+        assertThat(remaining.get(0).getDedupeKey()).doesNotContain("|DEMO-");
     }
 }

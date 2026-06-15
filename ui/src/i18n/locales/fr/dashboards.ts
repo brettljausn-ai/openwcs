@@ -165,9 +165,4 @@ export default {
   staleTitle: 'Alertes obsolètes',
   staleSub:
     'Alertes ouvertes le plus longtemps ; les plus anciennes d’abord. Une alerte persistante signale souvent une réponse manquante ou un seuil mal réglé.',
-  // amorçage de démo (affiché uniquement en mode démo, réservé ADMIN)
-  seedDashboards: 'Charger les données de démo',
-  seeding: 'Chargement des données de démo…',
-  seedOk: 'Données de démo chargées ({{n}} services).',
-  seedPartial: 'Chargé : {{ok}} ; échec : {{bad}}.',
 }

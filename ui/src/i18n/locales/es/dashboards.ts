@@ -165,9 +165,4 @@ export default {
   staleTitle: 'Alertas obsoletas',
   staleSub:
     'Alertas abiertas más tiempo; las más antiguas primero. Una alerta persistente suele indicar una respuesta ausente o un umbral mal configurado.',
-  // sembrado de demo (visible solo en modo demo, solo ADMIN)
-  seedDashboards: 'Cargar datos de demo',
-  seeding: 'Cargando datos de demo…',
-  seedOk: 'Datos de demo cargados ({{n}} servicios).',
-  seedPartial: 'Cargado: {{ok}}; fallido: {{bad}}.',
 }
