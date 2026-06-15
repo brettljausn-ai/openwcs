@@ -14,6 +14,10 @@ import java.util.List;
  *   <li><b>open</b>: orders of the direction not yet finished (INBOUND: not cancelled and
  *       some line not fully received; OUTBOUND: not SHIPPED and not CANCELLED).</li>
  *   <li><b>expectedToday</b> (inbound): orders created today (intake expected to be worked).</li>
+ *   <li><b>receiveErrorsToday</b> (inbound): inbound lines with a receipt-quantity discrepancy
+ *       today, i.e. a RECEIPT posted today on a line whose posted quantity diverged from the
+ *       ordered quantity (over- or under-receipt). A defensible "receive error" signal from the
+ *       existing data, counted per line for the current UTC day.</li>
  *   <li><b>releasedToday</b> (outbound): orders that moved past CREATED with an update today.</li>
  *   <li><b>linesPickedToday</b>: distinct outbound lines with a PICK transaction posted today.</li>
  *   <li><b>shortsToday</b>: outbound lines in SHORT status updated today.</li>
@@ -26,7 +30,8 @@ import java.util.List;
 public record OrderDashboardReport(Inbound inbound, Outbound outbound, List<HourSplit> perHour) {
 
     /** Inbound headline figures. */
-    public record Inbound(long open, long expectedToday, String projectedFinishIso) {
+    public record Inbound(
+            long open, long expectedToday, long receiveErrorsToday, String projectedFinishIso) {
     }
 
     /** Outbound headline figures. */

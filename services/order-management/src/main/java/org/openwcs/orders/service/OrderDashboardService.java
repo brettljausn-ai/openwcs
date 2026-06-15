@@ -11,8 +11,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.sql.Date;
+import java.util.Collections;
+import java.util.Comparator;
 import org.openwcs.orders.api.DispatchReport;
 import org.openwcs.orders.api.OrderDashboardReport;
+import org.openwcs.orders.api.SlaReport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -85,6 +89,23 @@ public class OrderDashboardService {
                     having max(t.posted_at) >= :startOfToday
                 ) x
                 """);
+        // Receive errors today: inbound lines with a RECEIPT posted today whose posted quantity
+        // diverged from the ordered quantity. Over-receipt (posted_qty > qty) is always an error.
+        // Under-receipt (posted_qty < qty) is only an error once the line is closed short — an
+        // in-progress partial receipt is expected to be topped up, not an error — so we require
+        // status SHORT / CANCELLED there. This is the most defensible discrepancy signal the
+        // existing order_line / order_line_transaction model offers (no dedicated error flag).
+        long inboundReceiveErrorsToday = safeCount(params, """
+                select count(distinct l.line_id)
+                from orders.order_line l
+                join orders.outbound_order o on l.order_id = o.order_id
+                join orders.order_line_transaction t on t.line_id = l.line_id
+                where o.warehouse_id = :wh and o.order_type = 'INBOUND'
+                  and o.status <> 'CANCELLED'
+                  and t.txn_type = 'RECEIPT' and t.posted_at >= :startOfToday
+                  and (l.posted_qty > l.qty
+                       or (l.posted_qty < l.qty and l.status in ('SHORT', 'CANCELLED')))
+                """);
         String inboundProjected = projectFinish(inboundOpen, inboundCompletedToday);
 
         // OUTBOUND headline.
@@ -126,7 +147,8 @@ public class OrderDashboardService {
         log.debug("dashboard for warehouse {}: inboundOpen {}, outboundOpen {}, picked {}",
                 warehouseId, inboundOpen, outboundOpen, linesPickedToday);
         return new OrderDashboardReport(
-                new OrderDashboardReport.Inbound(inboundOpen, inboundExpectedToday, inboundProjected),
+                new OrderDashboardReport.Inbound(
+                        inboundOpen, inboundExpectedToday, inboundReceiveErrorsToday, inboundProjected),
                 new OrderDashboardReport.Outbound(
                         outboundOpen, releasedToday, linesPickedToday, shortsToday, outboundProjected),
                 perHour);
@@ -230,6 +252,95 @@ public class OrderDashboardService {
 
         log.debug("dispatch for warehouse {}: {} open route groups", warehouseId, routes.size());
         return new DispatchReport(next, routes);
+    }
+
+    /** One shipped outbound order's SLA inputs: created -> shipped span and cut-off compliance. */
+    private record ShippedOrder(LocalDate shipDay, double cycleMinutes, Boolean onTime) {
+    }
+
+    /**
+     * Service-level report over shipped OUTBOUND orders: on-time-to-cutoff percent and median
+     * created -> shipped cycle time, for today and per UTC day across the window. Ship time is
+     * approximated by {@code updated_at} of SHIPPED orders (no dispatch timestamp exists). The
+     * median is computed in Java; best-effort, null where nothing shipped.
+     */
+    @Transactional(readOnly = true)
+    public SlaReport sla(UUID warehouseId, int days) {
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate sinceDay = today.minusDays(Math.max(days, 1) - 1L);
+        Instant since = sinceDay.atStartOfDay(ZoneOffset.UTC).toInstant();
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("wh", warehouseId)
+                .addValue("since", Timestamp.from(since))
+                .addValue("sinceDay", Date.valueOf(sinceDay));
+
+        List<ShippedOrder> shipped = best(() -> {
+            List<ShippedOrder> out = new ArrayList<>();
+            jdbc.query("""
+                    select (o.updated_at at time zone 'UTC')::date as ship_day,
+                           o.created_at as created_at,
+                           o.updated_at as shipped_at,
+                           o.dispatch_by as cutoff
+                    from orders.outbound_order o
+                    where o.warehouse_id = :wh and o.order_type = 'OUTBOUND'
+                      and o.status = 'SHIPPED' and o.updated_at >= :since
+                    """, params, rs -> {
+                LocalDate shipDay = rs.getObject("ship_day", LocalDate.class);
+                Instant created = rs.getTimestamp("created_at").toInstant();
+                Instant shippedAt = rs.getTimestamp("shipped_at").toInstant();
+                Timestamp cutoff = rs.getTimestamp("cutoff");
+                double cycleMinutes = Duration.between(created, shippedAt).toMillis() / 60000.0;
+                Boolean onTime = cutoff == null ? null : !shippedAt.isAfter(cutoff.toInstant());
+                out.add(new ShippedOrder(shipDay, cycleMinutes, onTime));
+            });
+            return out;
+        });
+        if (shipped == null) {
+            shipped = List.of();
+        }
+
+        // Group rows by ship day for the per-day buckets.
+        Map<LocalDate, List<ShippedOrder>> byDay = new HashMap<>();
+        for (ShippedOrder s : shipped) {
+            byDay.computeIfAbsent(s.shipDay(), d -> new ArrayList<>()).add(s);
+        }
+        List<SlaReport.DayBucket> perDay = new ArrayList<>();
+        for (LocalDate day = sinceDay; !day.isAfter(today); day = day.plusDays(1)) {
+            List<ShippedOrder> rows = byDay.getOrDefault(day, List.of());
+            perDay.add(new SlaReport.DayBucket(day, onTimePct(rows), cycleMedianMin(rows)));
+        }
+
+        List<ShippedOrder> todayRows = byDay.getOrDefault(today, List.of());
+        log.debug("sla for warehouse {} over {} days: {} shipped outbound orders",
+                warehouseId, days, shipped.size());
+        return new SlaReport(onTimePct(todayRows), cycleMedianMin(todayRows), perDay);
+    }
+
+    /** Percent of orders carrying a cut-off that shipped at/before it; null when none carry one. */
+    private Double onTimePct(List<ShippedOrder> rows) {
+        long withCutoff = rows.stream().filter(r -> r.onTime() != null).count();
+        if (withCutoff == 0) {
+            return null;
+        }
+        long onTime = rows.stream().filter(r -> Boolean.TRUE.equals(r.onTime())).count();
+        return 100.0 * onTime / withCutoff;
+    }
+
+    /** Median created -> shipped duration in minutes; null when no orders shipped. */
+    private Double cycleMedianMin(List<ShippedOrder> rows) {
+        if (rows.isEmpty()) {
+            return null;
+        }
+        List<Double> spans = new ArrayList<>();
+        for (ShippedOrder r : rows) {
+            spans.add(r.cycleMinutes());
+        }
+        Collections.sort(spans, Comparator.naturalOrder());
+        int n = spans.size();
+        if (n % 2 == 1) {
+            return spans.get(n / 2);
+        }
+        return (spans.get(n / 2 - 1) + spans.get(n / 2)) / 2.0;
     }
 
     /** Simple projection: open backlog finishing at today's completion rate, ISO instant or null. */
