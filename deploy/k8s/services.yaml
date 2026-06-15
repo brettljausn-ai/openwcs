@@ -410,6 +410,52 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: assistant
+  namespace: openwcs
+  labels: { app: assistant }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: assistant }
+  template:
+    metadata:
+      labels: { app: assistant }
+    spec:
+      containers:
+        - name: assistant
+          image: REGISTRY/openwcs-assistant:TAG
+          ports:
+            - containerPort: 8096
+          # Stateless (no DB): only the shared config map; the Anthropic key is fetched from
+          # master-data at request time, never mounted here.
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8096 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8096 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: assistant
+  namespace: openwcs
+spec:
+  selector: { app: assistant }
+  ports:
+    - port: 8096
+      targetPort: 8096
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: integration-sap
   namespace: openwcs
   labels: { app: integration-sap }

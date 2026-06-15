@@ -22,6 +22,9 @@ include 'services:txlog'
 include 'services:iam'
 include 'services:notification'
 
+// AI assistant (chat over warehouse data via the Anthropic Claude API)
+include 'services:assistant'
+
 // host / external-system integration gateways (anti-corruption layers)
 include 'services:integration-sap'
 include 'services:integration-manhattan'

@@ -85,6 +85,7 @@ services:
       OPENWCS_URI_SLOTTING: http://slotting:8093
       OPENWCS_URI_GTP: http://gtp:8094
       OPENWCS_URI_COUNTING: http://counting:8095
+      OPENWCS_URI_ASSISTANT: http://assistant:8096
       # Go device adapters — reached by the System info aggregator (GET /api/system/services).
       OPENWCS_URI_CONVEYOR_ADAPTER: http://conveyor-adapter:9091
       OPENWCS_URI_AMR_GEEKPLUS_ADAPTER: http://amr-geekplus-adapter:9093
@@ -351,6 +352,24 @@ services:
       OPENWCS_NOTIFICATION_MAIL_FROM: openwcs-alerts@localhost
       # Optional outbound webhook for OPEN/CLEAR; unset = webhook channel skipped.
       ALERT_WEBHOOK_URL: ""
+
+  assistant:
+    restart: unless-stopped
+    profiles: ["apps"]
+    volumes:
+      - openwcs-logs:/var/log/openwcs
+    build: ../services/assistant
+    ports: ["8096:8096"]
+    depends_on: [master-data]
+    environment:
+      # No DB: the assistant is stateless. The Anthropic key + model + enabled flag are owned by
+      # master-data and fetched server-side from its network-only internal endpoint (never logged).
+      OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
+      # Tool target services (read-only GETs; the caller's identity headers are forwarded).
+      OPENWCS_ORDER_MANAGEMENT_BASE_URL: http://order-management:8084
+      OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
+      OPENWCS_FLOW_ORCHESTRATOR_BASE_URL: http://flow-orchestrator:8085
+      OPENWCS_ALLOCATION_BASE_URL: http://allocation:8091
 
   integration-sap:
     restart: unless-stopped

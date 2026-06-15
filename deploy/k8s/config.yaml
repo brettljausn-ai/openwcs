@@ -23,6 +23,12 @@ data:
   OPENWCS_SLOTTING_BASE_URL: http://slotting:8093
   OPENWCS_GTP_BASE_URL: http://gtp:8094
   OPENWCS_COUNTING_BASE_URL: http://counting:8095
+  # AI assistant (chat over warehouse data via Anthropic Claude). Stateless; the Anthropic key +
+  # model + enabled flag are owned by master-data and fetched server-side (never logged). The
+  # assistant's tools call the order-management / inventory / flow-orchestrator / allocation base
+  # URLs above. OPENWCS_URI_ASSISTANT is the gateway's route target for /api/assistant/**.
+  OPENWCS_ASSISTANT_BASE_URL: http://assistant:8096
+  OPENWCS_URI_ASSISTANT: http://assistant:8096
   # Single equipment-emulator: flow-orchestrator dispatches every family here while the hardware-
   # emulator flag (read from master-data) is ON.
   OPENWCS_EMULATOR_URL: http://equipment-emulator:9097
