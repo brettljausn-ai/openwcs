@@ -148,6 +148,46 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
     inventory clear itself is location-blind (warehouse-scoped bulk DELETE; `handling_unit` carries no
     inbound FK), so it never leaves operational-location HUs behind. Failed clears are surfaced to the
     admin, not swallowed. Warehouses, locations, blocks, topology and GTP/station config are kept.
+  - **Demo dashboard seeders** (demo-mode-gated, ADMIN-only; one per service, all
+    `POST /api/<svc>/demo/seed-dashboard`): backfill representative, BACKDATED rows so a fresh demo
+    box's dashboards show plausible non-empty numbers. There is NO standalone button — the fan-out runs
+    automatically as part of turning demo mode ON (`enableDemo()` calls all five best-effort after the
+    base catalog/HU/stock seed; a per-service hiccup is swallowed and never aborts demo-on), and the
+    matching teardown runs as part of turning demo mode OFF. The per-service endpoints can still be
+    curl'd directly. Teardown coverage on `disableDemo()`: the existing **flow** clear already wipes the
+    seeded `scan_stat` counters and the faulted demo `device_task`, and the **orders** clear already
+    removes the seeded orders/lines/transactions, so those need no extra step; the **inventory** clear
+    (warehouse-scoped bulk DELETE) already removes the dashboard HUs/stock. The data the standard reset
+    did NOT cover gets dedicated demo clears, wired into the disable fan-out: **slotting**
+    `POST /api/slotting/demo/clear?warehouseId=` (bulk-deletes `sku_velocity` + `sku_pick_daily` for the
+    warehouse and the open PLANNED `replenishment_task` rows) and **notification**
+    `POST /api/notification/demo/clear?warehouseId=` (bulk-deletes only `alert_event` rows whose dedupe
+    key carries the `|DEMO-` marker, so real alerts survive). Both clears are ADMIN-only and run in the
+    producers phase (neither issues HU location bookings, so they are race-free).
+    - **orders** (`?warehouseId=`): ~90 days of INBOUND + OUTBOUND orders across statuses with
+      backdated `created_at`/`updated_at`/`posted_at` (native UPDATE — they are Hibernate-managed) +
+      route codes; shipped on-time vs late (SLA), today's SHORT lines and over/under receipts
+      (receive-errors). Lights order-flow, `/reports/dashboard|dispatch|sla`. Gated via
+      `MasterDataClient.listDemoSkus()` (empty ⇒ 409, exactly like the "Add 10" seeder).
+    - **slotting** (`?warehouseId=`): `sku_velocity` for ~18 SKUs with an ABC skew (a few A-movers,
+      long C tail) + `sku_pick_daily` over 90 days (some concentrated in the last 14 days = risers vs
+      older = fallers) + a few `replenishment_task` rows (EMERGENCY/urgent, backdated ages). Lights
+      `/velocity/abc` + `/replenishment/dashboard`.
+    - **inventory** (body `{warehouseId, huTypeId, locationIds, receivingLocationIds, skuIds}`):
+      reuses the occupancy seeder, then adds HUs received-and-stored today (dock-to-stock timing,
+      backdated `created_at`) plus a couple parked at receiving (`stored_at` null = put-away backlog).
+      Lights `/reports/dashboard`.
+    - **flow** (`?warehouseId=`): today's `scan_stat` counters across nodes (one node elevated
+      no-read rate) + one placed equipment marked faulted (a recent FAILED `device_task`). Lights
+      `/reports/automation-summary`.
+    - **notification** (`?warehouseId=`): `alert_event` rows — 2 active (1 WARNING + 1 CRITICAL),
+      14 days of opened/cleared history, one chattering key (several clears), one stale OPEN
+      (> 24 h). Lights `/api/notification/alerts` (andon) + `/alerts/health`.
+    - Gating for the slotting/flow/notification seeders reuses master-data's `GET /api/master-data/demo`
+      (`DEMO_MODE_ENABLED`) via a small `demoEnabled()` client call; off ⇒ 409 / no-op.
+      The notification periodic evaluator scheduler is now gated on
+      `openwcs.notification.scheduler.enabled` (on in prod, off in tests) so a background tick never
+      races test mocks.
   - **Stock rules** (`SINGLE_SKU_PER_COMPARTMENT_ENABLED`, **default ON**, `/api/master-data/stock-rules`
     get + `/single-sku-per-compartment/enable|disable` ADMIN-gated): one HU compartment holds exactly
     one SKU, so an HU never carries more distinct SKUs than its type has compartments. GTP decanting

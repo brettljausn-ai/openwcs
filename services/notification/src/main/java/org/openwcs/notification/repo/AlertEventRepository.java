@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.openwcs.notification.domain.AlertEvent;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -13,6 +14,15 @@ public interface AlertEventRepository extends JpaRepository<AlertEvent, UUID> {
 
     /** The single active (OPEN or ACKED) alert for a dedupe key, if any (the active-dedupe index keeps it unique). */
     Optional<AlertEvent> findFirstByDedupeKeyAndStateIn(String dedupeKey, List<String> states);
+
+    /**
+     * Bulk-delete the demo alert rows the dashboard seeder backfilled for a warehouse (demo reset).
+     * Every seeded row carries a {@code |DEMO-} marker in its dedupe key, so this removes only the
+     * demo data and leaves any real alerts untouched. Returns the row count.
+     */
+    @Modifying
+    @Query("delete from AlertEvent a where a.warehouseId = :warehouseId and a.dedupeKey like '%|DEMO-%'")
+    int deleteDemoByWarehouseId(@Param("warehouseId") UUID warehouseId);
 
     /** Active alerts (OPEN or ACKED) for a warehouse, newest first. */
     List<AlertEvent> findByWarehouseIdAndStateInOrderByOpenedAtDesc(UUID warehouseId, List<String> states);

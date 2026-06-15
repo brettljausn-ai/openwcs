@@ -2,6 +2,7 @@ package org.openwcs.orders.api;
 
 import java.util.UUID;
 import org.openwcs.common.security.AccessControl;
+import org.openwcs.orders.service.DemoDashboardSeedService;
 import org.openwcs.orders.service.DemoResetService;
 import org.openwcs.orders.service.DemoSeedService;
 import org.springframework.http.HttpStatus;
@@ -23,10 +24,13 @@ public class DemoController {
 
     private final DemoResetService demo;
     private final DemoSeedService seed;
+    private final DemoDashboardSeedService dashboardSeed;
 
-    public DemoController(DemoResetService demo, DemoSeedService seed) {
+    public DemoController(DemoResetService demo, DemoSeedService seed,
+            DemoDashboardSeedService dashboardSeed) {
         this.demo = demo;
         this.seed = seed;
+        this.dashboardSeed = dashboardSeed;
     }
 
     /** Full operational reset for a warehouse (admin-only). */
@@ -49,6 +53,24 @@ public class DemoController {
             @RequestParam(defaultValue = "10") int count) {
         try {
             return seed.seed(warehouseId, type, count);
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+        }
+    }
+
+    /**
+     * Backfill a representative spread of backdated orders / lines / transactions so the order
+     * dashboards (order-flow, /reports/dashboard, /reports/dispatch, /reports/sla) show plausible
+     * non-empty numbers on a demo box. Admin-only, demo-only; rejected with 409 if the demo
+     * catalog is absent.
+     */
+    @PostMapping("/seed-dashboard")
+    public DemoDashboardSeedResult seedDashboard(
+            @RequestParam UUID warehouseId,
+            @RequestHeader(name = "X-Auth-Roles", required = false) String roles) {
+        requireAdmin(roles);
+        try {
+            return dashboardSeed.seed(warehouseId);
         } catch (IllegalStateException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
         }

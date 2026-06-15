@@ -61,4 +61,22 @@ public class MasterDataClient {
     /** Subset of the master-data location we need: its id. */
     private record Location(UUID id, String code) {
     }
+
+    /** Whether master-data demo mode (DEMO_MODE_ENABLED) is currently ON; false on any error. */
+    public boolean demoEnabled() {
+        try {
+            DemoStatus status = http.get()
+                    .uri("/api/master-data/demo")
+                    .retrieve()
+                    .body(DemoStatus.class);
+            return status != null && status.enabled();
+        } catch (RestClientException e) {
+            log.warn("could not read the demo flag from master-data (treating as off): {}", e.toString());
+            return false;
+        }
+    }
+
+    /** Subset of the master-data demo-status response. */
+    private record DemoStatus(boolean enabled) {
+    }
 }

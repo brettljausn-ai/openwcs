@@ -74,9 +74,22 @@ public class HttpMasterDataClient implements MasterDataClient {
         return page.content();
     }
 
+    @Override
+    public boolean demoEnabled() {
+        try {
+            DemoStatus s = http.get().uri("/api/master-data/demo").retrieve().body(DemoStatus.class);
+            return s != null && s.enabled();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     private record LocationPage(List<StorageLocation> content) {
     }
 
     private record CellLocationPage(List<CellLocation> content) {
+    }
+
+    private record DemoStatus(boolean enabled) {
     }
 }

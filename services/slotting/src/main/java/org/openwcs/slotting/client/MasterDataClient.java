@@ -23,6 +23,9 @@ public interface MasterDataClient {
     /** All locations of a warehouse, with their exact cell coordinates where present. */
     List<CellLocation> locations(UUID warehouseId);
 
+    /** Whether master-data demo mode (DEMO_MODE_ENABLED) is currently ON; false on any error. */
+    boolean demoEnabled();
+
     record StorageLocation(
             UUID id,
             String code,
