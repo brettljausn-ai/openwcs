@@ -52,6 +52,21 @@ export default function Overview() {
   const thr = usePoll(wh ? 'global' : '', () => getAlertThresholds().catch(() => DEFAULT_THRESHOLDS), 60_000)
   const T = thr.data ?? DEFAULT_THRESHOLDS
 
+  // ---- automation (state from highest active alert severity) ----
+  // NOTE: every hook must run before the `if (!wh)` early return below, or the hook count changes
+  // between renders (React error #310 — "rendered more hooks than during the previous render").
+  const alertList = alerts.data ?? []
+  const alertCounts = useMemo(() => {
+    const c = { critical: 0, warning: 0, info: 0 }
+    for (const a of alertList) {
+      const st = severityState(a.severity)
+      if (st === 'critical') c.critical++
+      else if (st === 'warning') c.warning++
+      else c.info++
+    }
+    return c
+  }, [alertList])
+
   if (!wh) {
     return (
       <div className="app-content">
@@ -99,17 +114,6 @@ export default function Overview() {
 
   // ---- automation (state from highest active alert severity) ----
   const au = automation.data
-  const alertList = alerts.data ?? []
-  const alertCounts = useMemo(() => {
-    const c = { critical: 0, warning: 0, info: 0 }
-    for (const a of alertList) {
-      const st = severityState(a.severity)
-      if (st === 'critical') c.critical++
-      else if (st === 'warning') c.warning++
-      else c.info++
-    }
-    return c
-  }, [alertList])
   const automationState: DashState = alertCounts.critical > 0 ? 'critical' : alertCounts.warning > 0 ? 'warning' : 'ok'
 
   return (
