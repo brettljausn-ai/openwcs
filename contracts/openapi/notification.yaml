@@ -43,6 +43,34 @@ paths:
                 items: { $ref: '#/components/schemas/AlertView' }
         "403": { description: Missing view permission }
 
+  /alerts/health:
+    get:
+      tags: [Alerts]
+      summary: Alert-system-health snapshot
+      description: >
+        Measures the alarm system itself (ISA-18.2): the count of active alerts by severity, per-day
+        opened/cleared volume over the window, the chattering (flapping) keys, and stale OPEN alerts.
+        Requires a view permission (INVENTORY_VIEW) when edge security is enabled, same as the alert
+        list. warehouseId is optional (omit for all warehouses).
+      operationId: alertHealth
+      parameters:
+        - name: warehouseId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: days
+          in: query
+          required: false
+          description: "Window length in UTC days for perDay and chattering (default 14)."
+          schema: { type: integer, default: 14, minimum: 1 }
+      responses:
+        "200":
+          description: Alert-system-health snapshot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertHealthView' }
+        "403": { description: Missing view permission }
+
   /alerts/{id}/ack:
     post:
       tags: [Alerts]
@@ -96,3 +124,61 @@ components:
         state:
           type: string
           enum: [OPEN, ACKED, CLEARED]
+
+    AlertHealthView:
+      type: object
+      description: Alert-system-health snapshot (ISA-18.2 "measure the alarm system").
+      properties:
+        activeBySeverity:
+          type: object
+          description: Current count of active (OPEN or ACKED) alerts by severity.
+          properties:
+            warning: { type: integer, format: int64 }
+            critical: { type: integer, format: int64 }
+        perDay:
+          type: array
+          description: "Zero-filled last <days> UTC days, oldest first."
+          items:
+            type: object
+            properties:
+              day:
+                type: string
+                format: date
+                description: "UTC day (ISO-8601 date)."
+              opened:
+                type: integer
+                format: int64
+                description: "Alerts whose opened_at falls on this day."
+              cleared:
+                type: integer
+                format: int64
+                description: "Alerts whose cleared_at falls on this day."
+        chattering:
+          type: array
+          description: >
+            Flapping keys: (area, metric) that cleared two or more times in the window, most flaps
+            first, top ~10. One CLEARED row in the window counts as one flap (an open-clear cycle).
+          items:
+            type: object
+            properties:
+              area: { type: string }
+              metric: { type: string }
+              flaps:
+                type: integer
+                format: int64
+                description: "Number of CLEARED rows in the window for this key."
+        stale:
+          type: array
+          description: >
+            Alerts still OPEN longer than the staleness threshold (default 1440 min, configurable via
+            openwcs.alerts.stale-minutes), oldest first, top ~20.
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              area: { type: string }
+              metric: { type: string }
+              ageMin:
+                type: integer
+                format: int64
+                description: "Minutes the alert has been OPEN."
