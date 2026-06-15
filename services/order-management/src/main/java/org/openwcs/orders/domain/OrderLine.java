@@ -55,6 +55,15 @@ public class OrderLine extends Auditable {
     @Column(name = "reservation_id")
     private UUID reservationId;
 
+    /**
+     * Allocated primary pick location (the reservation/pick face the allocation service assigned
+     * for this line). Populated on release/allocate; null for lines allocated before this was
+     * threaded through, or when allocation reserved nothing. Drives the operator pick queue's
+     * {@code locationId} so a real face shows before any stock is picked.
+     */
+    @Column(name = "pick_location_id")
+    private UUID pickLocationId;
+
     /** Signed sum of posted transaction quantities (received / picked / counted / adjusted). */
     @Column(name = "posted_qty", nullable = false)
     private BigDecimal postedQty = BigDecimal.ZERO;
@@ -126,6 +135,14 @@ public class OrderLine extends Auditable {
 
     public void setReservationId(UUID reservationId) {
         this.reservationId = reservationId;
+    }
+
+    public UUID getPickLocationId() {
+        return pickLocationId;
+    }
+
+    public void setPickLocationId(UUID pickLocationId) {
+        this.pickLocationId = pickLocationId;
     }
 
     public BigDecimal getPostedQty() {

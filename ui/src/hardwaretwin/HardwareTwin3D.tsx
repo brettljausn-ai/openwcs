@@ -930,9 +930,27 @@ function StoredTotes({
 // AMR fleet (item 3) — one small robot marker per AMR at its world XZ, coloured by status using the
 // twin's existing live-state palette (idle = grey, moving = amber, faulted = red). The carried HU code
 // shows on hover. Pure representation of the fleet telemetry; an empty fleet renders nothing.
+//
+// MOTION (item: metre-exact, continuous): the fleet endpoint polls each robot's position roughly every
+// 2 s, so rendering at the raw polled XZ makes a moving robot teleport once per poll. Instead a single
+// useFrame loop (owned by AmrFleet, never a hook-in-a-loop) eases each robot's RENDERED position toward
+// its latest polled target every frame, and rotates it to face its heading of travel. We only ever
+// interpolate TOWARD the most recent known target — never extrapolate past it — so the robot always
+// converges on real backend data and stops when the data stops moving. A robot that newly appears
+// snaps to its first reported position (no glide from the origin); a robot that disappears is unmounted
+// and its motion state dropped.
 // ----------------------------------------------------------------------------------------------------
 
 const AMR_Y = 0.25 // ride height of the robot body (floor-relative, like the editor's meshes)
+/** Per-second exponential approach rate for the rendered position toward the polled target. At ~6/s a
+ *  robot covers most of a 2 s poll hop smoothly and is essentially on target before the next poll, so
+ *  it tracks the backend faithfully without ever overshooting or inventing positions beyond it. */
+const AMR_POS_LERP_PER_S = 6
+/** Per-second exponential approach rate for the facing angle (turns are quick but not instant). */
+const AMR_YAW_LERP_PER_S = 8
+/** Below this per-frame planar movement the robot is treated as stationary and keeps its facing
+ *  (avoids jitter/spin when the target equals the current position). */
+const AMR_HEADING_EPS = 1e-4
 
 function amrColor(status: Amr['status']): string {
   switch (status) {
@@ -945,22 +963,116 @@ function amrColor(status: Amr['status']): string {
   }
 }
 
+/** Local +X (the heading nub) → world facing. A Y-rotation by θ sends local +X to
+ *  (cosθ, 0, -sinθ), so to face world direction (dx, dz) we need θ = atan2(-dz, dx). */
+function yawForHeading(dx: number, dz: number): number {
+  return Math.atan2(-dz, dx)
+}
+
+/** Shortest signed angular delta from a to b, wrapped to (-π, π] so the robot never spins the long way. */
+function angleDelta(a: number, b: number): number {
+  let d = b - a
+  while (d > Math.PI) d -= 2 * Math.PI
+  while (d < -Math.PI) d += 2 * Math.PI
+  return d
+}
+
+interface AmrMotion {
+  /** Rendered (eased) world XZ — what the group is actually drawn at. */
+  x: number
+  z: number
+  /** Rendered facing (radians, Y rotation). */
+  yaw: number
+}
+
 function AmrFleet({ amrs }: { amrs: Amr[] }): JSX.Element {
+  // Stable refs across renders/frames: the group per robot and its per-robot eased motion state.
+  // Identity is stable for the component's lifetime; entries are added when a robot first appears and
+  // dropped when it leaves, so the loop never lerps a stale robot or a disappeared one.
+  const groupRefs = useRef<Map<string, THREE.Group>>(new Map())
+  const motion = useRef<Map<string, AmrMotion>>(new Map())
+
+  // Latest polled targets, by id, read per-frame (kept in a ref so the loop sees the freshest poll
+  // without the frame closure being recreated each render).
+  const targets = useRef<Map<string, Amr>>(new Map())
+  targets.current = useMemo(() => {
+    const m = new Map<string, Amr>()
+    for (const a of amrs) m.set(a.amrId, a)
+    return m
+  }, [amrs])
+
+  useFrame((_state, delta) => {
+    const groups = groupRefs.current
+    const tgts = targets.current
+    const mo = motion.current
+    // Drop motion state for robots that have left the fleet (React unmounts their group separately).
+    for (const id of Array.from(mo.keys())) if (!tgts.has(id)) mo.delete(id)
+
+    // Exponential smoothing factors are frame-rate independent: k = 1 - e^(-rate·dt).
+    const kPos = 1 - Math.exp(-AMR_POS_LERP_PER_S * Math.max(0, delta))
+    const kYaw = 1 - Math.exp(-AMR_YAW_LERP_PER_S * Math.max(0, delta))
+
+    for (const [id, amr] of tgts) {
+      const g = groups.get(id)
+      if (!g) continue
+      let st = mo.get(id)
+      if (!st) {
+        // A newly appeared robot starts exactly at its first reported position (no glide from origin).
+        const yaw = g.rotation.y
+        st = { x: amr.x, z: amr.z, yaw }
+        mo.set(id, st)
+        g.position.set(amr.x, 0, amr.z)
+        g.rotation.y = yaw
+        continue
+      }
+      const prevX = st.x
+      const prevZ = st.z
+      // Ease the rendered position toward the latest polled target (never beyond it).
+      st.x = prevX + (amr.x - prevX) * kPos
+      st.z = prevZ + (amr.z - prevZ) * kPos
+      g.position.set(st.x, 0, st.z)
+      // Face the direction we are actually moving; hold facing when effectively stationary (no spin
+      // when the target equals the current position — guards the atan2 against a zero vector too).
+      const mdx = st.x - prevX
+      const mdz = st.z - prevZ
+      if (Math.hypot(mdx, mdz) > AMR_HEADING_EPS) {
+        const want = yawForHeading(mdx, mdz)
+        st.yaw += angleDelta(st.yaw, want) * kYaw
+      }
+      g.rotation.y = st.yaw
+    }
+  })
+
   return (
     <group>
       {amrs.map((amr) => (
-        <AmrMarker key={amr.amrId} amr={amr} />
+        <AmrMarker
+          key={amr.amrId}
+          amr={amr}
+          registerGroup={(g) => {
+            if (g) groupRefs.current.set(amr.amrId, g)
+            else groupRefs.current.delete(amr.amrId)
+          }}
+        />
       ))}
     </group>
   )
 }
 
-function AmrMarker({ amr }: { amr: Amr }): JSX.Element {
+function AmrMarker({
+  amr,
+  registerGroup,
+}: {
+  amr: Amr
+  registerGroup: (g: THREE.Group | null) => void
+}): JSX.Element {
   const [hover, setHover] = useState(false)
   const color = amrColor(amr.status)
+  // Position + rotation are driven imperatively by AmrFleet's useFrame loop (smooth between polls), so
+  // the group carries no static position/rotation prop here.
   return (
     <group
-      position={[amr.x, 0, amr.z]}
+      ref={registerGroup}
       onPointerOver={(e: ThreeEvent<PointerEvent>) => {
         e.stopPropagation()
         setHover(true)

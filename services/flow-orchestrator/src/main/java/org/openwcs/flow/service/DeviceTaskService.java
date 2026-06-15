@@ -51,21 +51,24 @@ public class DeviceTaskService {
     private final DeviceTaskRepository tasks;
     private final DeviceClient deviceClient;
     private final InductionQueueService induction;
+    private final FlowMoveChainService moveChains;
     private final InventoryClient inventory;
     private final TxLogClient txlog;
 
     /**
-     * {@code induction} is injected {@link Lazy} to break the dispatch↔callback cycle:
-     * {@link InductionQueueService} dispatches device tasks through this service, and this service
-     * advances induction entries from the §3b callback. The lazy proxy is only dereferenced inside
-     * {@link #completeFromCallback}, after both beans are constructed.
+     * {@code induction} and {@code moveChains} are injected {@link Lazy} to break the dispatch↔callback
+     * cycle: both services dispatch device tasks through this service, and this service advances their
+     * entries/chains from the result callback. The lazy proxies are only dereferenced inside
+     * {@link #completeFromCallback}, after all beans are constructed.
      */
     public DeviceTaskService(DeviceTaskRepository tasks, DeviceClient deviceClient,
-                             @Lazy InductionQueueService induction, InventoryClient inventory,
+                             @Lazy InductionQueueService induction,
+                             @Lazy FlowMoveChainService moveChains, InventoryClient inventory,
                              TxLogClient txlog) {
         this.tasks = tasks;
         this.deviceClient = deviceClient;
         this.induction = induction;
+        this.moveChains = moveChains;
         this.inventory = inventory;
         this.txlog = txlog;
     }
@@ -157,12 +160,15 @@ public class DeviceTaskService {
             bookFlowMoveLocation(task);
         }
 
-        // §4 lifecycle wiring: a completing RETRIEVE/CONVEY task advances its linked induction entry.
-        // The early-return guard above means this runs exactly once per device task (idempotent).
-        // For a flow-move RELOCATE this is a no-op: onRelocateCompleted looks the task up by
-        // relocate_task_id (set only on a dig-out entry) and returns early on a miss, so the move's
-        // booking above is the only side effect — no double dispatch, no induction interference.
+        // §4 lifecycle wiring: a completing RETRIEVE/CONVEY/STORE task advances its linked induction
+        // entry AND/OR cross-system move chain. The early-return guard above means this runs exactly
+        // once per device task (idempotent). For a same-system flow-move RELOCATE this is a no-op:
+        // onRelocateCompleted looks the task up by relocate_task_id (set only on a dig-out entry) and
+        // returns early on a miss, so the move's booking above is the only side effect — no double
+        // dispatch, no induction interference. Every chain/induction hook looks the task up by its own
+        // task-id column and is a no-op on a miss, so a task belongs to at most one of them.
         advanceInduction(task, completed);
+        advanceMoveChain(task, completed);
         return DeviceTaskView.from(task);
     }
 
@@ -183,6 +189,22 @@ public class DeviceTaskService {
             induction.onReturnConveyCompleted(task.getId(), completed, task.getActor());
         } else if ("STORE".equals(command) || "BIN_STORE".equals(command)) {
             induction.onReturnStoreCompleted(task.getId(), completed, task.getActor());
+        }
+    }
+
+    /**
+     * Cross-system move-chain wiring: a completing RETRIEVE → CONVEY → STORE leg advances its linked
+     * {@code flow_move_chain} to the next leg (the final STORE books the destination). Keyed off the
+     * chain's own task-id columns; a no-op on a miss, so an induction or same-system task is unaffected.
+     */
+    private void advanceMoveChain(DeviceTask task, boolean completed) {
+        String command = task.getCommand();
+        if ("RETRIEVE".equals(command) || "BIN_RETRIEVE".equals(command)) {
+            moveChains.onRetrieveCompleted(task.getId(), completed, task.getActor());
+        } else if ("CONVEY".equals(command)) {
+            moveChains.onConveyCompleted(task.getId(), completed, task.getActor());
+        } else if ("STORE".equals(command) || "BIN_STORE".equals(command)) {
+            moveChains.onStoreCompleted(task.getId(), completed, task.getActor());
         }
     }
 

@@ -63,6 +63,11 @@ class DeviceTaskServiceTest {
     @MockBean
     InventoryClient inventory;
 
+    // The flow-move tests here exercise the SAME-system single-RELOCATE path: an unstubbed blockId()
+    // returns null, which FlowMoveService treats as same-system (today's behaviour, no HTTP latency).
+    @MockBean
+    org.openwcs.flow.client.MasterDataClient masterData;
+
     @Autowired
     DeviceTaskService service;
 
@@ -314,7 +319,7 @@ class DeviceTaskServiceTest {
         UUID to = UUID.randomUUID();
         // No family given -> defaults to AUTOSTORE -> BIN_RELOCATE.
         FlowMoveResult result = moveService.move(
-                new FlowMoveRequest(warehouse, huId, "TTE-9", from, to, null, "rebalance"), "tester");
+                new FlowMoveRequest(warehouse, huId, "TTE-9", from, to, null, null, null, "rebalance"), "tester");
 
         DeviceTaskView task = service.get(result.deviceTaskId());
         assertThat(task.family()).isEqualTo("AUTOSTORE");
@@ -334,7 +339,7 @@ class DeviceTaskServiceTest {
                 new DeviceClient.DeviceResult("ACCEPTED", "dispatched", null));
 
         FlowMoveResult result = moveService.move(new FlowMoveRequest(UUID.randomUUID(),
-                UUID.randomUUID(), "TTE-1", UUID.randomUUID(), UUID.randomUUID(), "ASRS", null), "tester");
+                UUID.randomUUID(), "TTE-1", UUID.randomUUID(), UUID.randomUUID(), "ASRS", null, null, null), "tester");
 
         DeviceTaskView task = service.get(result.deviceTaskId());
         assertThat(task.family()).isEqualTo("ASRS");
@@ -351,7 +356,7 @@ class DeviceTaskServiceTest {
         UUID from = UUID.randomUUID();
         UUID to = UUID.randomUUID();
         FlowMoveResult result = moveService.move(
-                new FlowMoveRequest(warehouse, huId, "TTE-7", from, to, null, "rebalance"), "tester");
+                new FlowMoveRequest(warehouse, huId, "TTE-7", from, to, null, null, null, "rebalance"), "tester");
 
         // Dispatch alone must not book a location yet (the move is only DISPATCHED).
         verify(inventory, never()).bookLocation(any(), any());
@@ -377,7 +382,7 @@ class DeviceTaskServiceTest {
         UUID huId = UUID.randomUUID();
         UUID to = UUID.randomUUID();
         moveService.move(new FlowMoveRequest(UUID.randomUUID(), huId, "TTE-3",
-                UUID.randomUUID(), to, "ASRS", null), "tester");
+                UUID.randomUUID(), to, "ASRS", null, null, null), "tester");
 
         verify(inventory, times(1)).bookLocation(huId, to);
     }

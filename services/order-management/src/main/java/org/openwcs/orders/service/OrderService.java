@@ -186,6 +186,11 @@ public class OrderService {
                         line.setAllocatedQty(lineResult.allocatedQty());
                         line.setStatus("SHORT".equals(lineResult.status())
                                 ? LineStatus.SHORT : LineStatus.ALLOCATED);
+                        // Thread the allocated primary pick location onto the line (best-effort:
+                        // older allocation paths supply none, leaving it null — no regression).
+                        if (lineResult.pickLocationId() != null) {
+                            line.setPickLocationId(lineResult.pickLocationId());
+                        }
                     });
         }
     }

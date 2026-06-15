@@ -240,13 +240,15 @@ paths:
       summary: Dispatch a generic physical move of a handling unit
       description: >
         Dispatches the device task(s) that physically move a handling unit from one location to
-        another and returns the dispatched device-task id. v1 issues a single RELOCATE through the
-        existing device-task machinery (AUTOSTORE maps to BIN_RELOCATE, every other family to
-        RELOCATE, ADR-0009), which the equipment emulator simulates. On completion the move books the
-        HU's new location in inventory; the HU's riding stock follows it automatically (the inventory
-        stock projection resolves HU-bound buckets to the HU's current location), so NO StockMoved is
-        emitted for HU-bound stock. A multi-leg RETRIEVE then CONVEY then STORE across subsystems is a
-        documented follow-up. Requires DEVICE_OPERATE.
+        another and returns the dispatched device-task id (the first leg). The transport is chosen by
+        where the locations live: a SAME-system / in-aisle move (both ends in one storage block)
+        issues a single RELOCATE through the existing device-task machinery (AUTOSTORE maps to
+        BIN_RELOCATE, every other family to RELOCATE, ADR-0009); a CROSS-system move (different
+        storage blocks, or a storage slot to a conveyor/pick-face on a different family) runs a
+        multi-leg chain RETRIEVE then CONVEY then STORE, each leg's completion advancing the next.
+        On completion the move books the HU's destination location in inventory; the HU's riding stock
+        follows it automatically (the inventory stock projection resolves HU-bound buckets to the HU's
+        current location), so NO StockMoved is emitted for HU-bound stock. Requires DEVICE_OPERATE.
       operationId: dispatchMove
       requestBody:
         required: true
@@ -752,8 +754,17 @@ components:
         family:
           type: string
           nullable: true
-          description: "Equipment family selecting the adapter (default AUTOSTORE). AUTOSTORE maps to BIN_RELOCATE, every other family to RELOCATE."
+          description: "Source equipment family selecting the adapter (default AUTOSTORE). AUTOSTORE maps to BIN_RELOCATE/BIN_RETRIEVE/BIN_STORE, every other family to RELOCATE/RETRIEVE/STORE."
           example: AUTOSTORE
+        destFamily:
+          type: string
+          nullable: true
+          description: "Destination equipment family for the cross-system chain STORE leg (defaults to family). Ignored for a same-system single RELOCATE."
+          example: ASRS
+        crossSystem:
+          type: boolean
+          nullable: true
+          description: "Force the transport choice: true runs the RETRIEVE/CONVEY/STORE chain, false the single RELOCATE. When omitted, it is inferred from the locations' storage blocks (same block is same-system, different/unresolved is cross-system)."
         reason: { type: string, nullable: true, description: Why the move was requested (carried on the move trail). }
     FlowMoveResult:
       type: object
