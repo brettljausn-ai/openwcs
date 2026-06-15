@@ -19,8 +19,12 @@ import org.openwcs.flow.api.DeviceTaskNotFoundException;
 import org.openwcs.flow.api.DeviceTaskView;
 import org.openwcs.flow.api.RequestDeviceTask;
 import org.openwcs.flow.client.DeviceClient;
+import org.openwcs.flow.client.InventoryClient;
 import org.openwcs.flow.client.TxLogClient;
 import org.openwcs.flow.service.DeviceTaskService;
+import org.openwcs.flow.service.FlowMoveService;
+import org.openwcs.flow.api.FlowMoveRequest;
+import org.openwcs.flow.api.FlowMoveResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -56,8 +60,14 @@ class DeviceTaskServiceTest {
     @MockBean
     TxLogClient txlog;
 
+    @MockBean
+    InventoryClient inventory;
+
     @Autowired
     DeviceTaskService service;
+
+    @Autowired
+    FlowMoveService moveService;
 
     @Test
     void successfulDispatchRecordsCompleted() {
@@ -289,5 +299,101 @@ class DeviceTaskServiceTest {
 
         assertThat(view.status()).isEqualTo("COMPLETED");
         assertThat(service.get(view.id()).status()).isEqualTo("COMPLETED");
+    }
+
+    // ---- execution-layer item 1: generic physical-move dispatch (POST /api/flow/moves) ----------
+
+    @Test
+    void flowMoveDispatchesRelocateWithPayloadAndFamily() {
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("ACCEPTED", "dispatched", null));
+
+        UUID warehouse = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+        // No family given -> defaults to AUTOSTORE -> BIN_RELOCATE.
+        FlowMoveResult result = moveService.move(
+                new FlowMoveRequest(warehouse, huId, "TTE-9", from, to, null, "rebalance"), "tester");
+
+        DeviceTaskView task = service.get(result.deviceTaskId());
+        assertThat(task.family()).isEqualTo("AUTOSTORE");
+        assertThat(task.command()).isEqualTo("BIN_RELOCATE");
+        assertThat(task.payload())
+                .containsEntry("huId", huId.toString())
+                .containsEntry("huCode", "TTE-9")
+                .containsEntry("fromLocationId", from.toString())
+                .containsEntry("toLocationId", to.toString())
+                .containsEntry("reason", "rebalance")
+                .containsEntry("moveSource", "flow-move");
+    }
+
+    @Test
+    void flowMoveNonAutostoreFamilyUsesPlainRelocate() {
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("ACCEPTED", "dispatched", null));
+
+        FlowMoveResult result = moveService.move(new FlowMoveRequest(UUID.randomUUID(),
+                UUID.randomUUID(), "TTE-1", UUID.randomUUID(), UUID.randomUUID(), "ASRS", null), "tester");
+
+        DeviceTaskView task = service.get(result.deviceTaskId());
+        assertThat(task.family()).isEqualTo("ASRS");
+        assertThat(task.command()).isEqualTo("RELOCATE");
+    }
+
+    @Test
+    void completedFlowMoveBooksHuToDestinationOnceAndDoesNotDoubleDispatch() {
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("ACCEPTED", "dispatched", null));
+
+        UUID warehouse = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+        FlowMoveResult result = moveService.move(
+                new FlowMoveRequest(warehouse, huId, "TTE-7", from, to, null, "rebalance"), "tester");
+
+        // Dispatch alone must not book a location yet (the move is only DISPATCHED).
+        verify(inventory, never()).bookLocation(any(), any());
+
+        // The emulator posts the terminal RELOCATE result back.
+        service.completeFromCallback(result.deviceTaskId(), "COMPLETED", "relocated", Map.of());
+
+        // The HU is booked to its NEW location exactly once.
+        verify(inventory, times(1)).bookLocation(huId, to);
+
+        // A late/duplicate callback must not re-book or dispatch again.
+        service.completeFromCallback(result.deviceTaskId(), "COMPLETED", "again", Map.of());
+        verify(inventory, times(1)).bookLocation(huId, to);
+        // Exactly one device task was created for the move (no second dispatch).
+        verify(deviceClient, times(1)).execute(any());
+    }
+
+    @Test
+    void completedSyncFlowMoveBooksHuToDestination() {
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("COMPLETED", "relocated", Map.of()));
+
+        UUID huId = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+        moveService.move(new FlowMoveRequest(UUID.randomUUID(), huId, "TTE-3",
+                UUID.randomUUID(), to, "ASRS", null), "tester");
+
+        verify(inventory, times(1)).bookLocation(huId, to);
+    }
+
+    @Test
+    void plainRelocateWithoutMoveTagDoesNotBookLocation() {
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("ACCEPTED", "dispatched", null));
+
+        // A RELOCATE dispatched directly (e.g. an induction dig-out, no moveSource tag) must NOT
+        // trigger a flow-move booking.
+        DeviceTaskView view = service.request(new RequestDeviceTask(UUID.randomUUID(), "ASRS", null,
+                "RELOCATE", Map.of("huId", UUID.randomUUID(),
+                        "fromLocationId", UUID.randomUUID(), "toLocationId", UUID.randomUUID()), null), "tester");
+        service.completeFromCallback(view.id(), "COMPLETED", "relocated", Map.of());
+
+        verify(inventory, never()).bookLocation(any(), any());
     }
 }
