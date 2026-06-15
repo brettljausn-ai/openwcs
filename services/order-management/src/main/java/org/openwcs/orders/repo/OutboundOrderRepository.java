@@ -74,6 +74,41 @@ public interface OutboundOrderRepository extends JpaRepository<OutboundOrder, UU
             @Param("cutoff") Instant cutoff);
 
     /**
+     * Roll-up of the outbound orders assigned to one dispatch wave (warehouse + route + cut-off),
+     * for advancing the persisted {@link org.openwcs.orders.domain.RouteDispatch}. Excludes
+     * CANCELLED orders. {@code assigned} = orders on the route, {@code ready} = the ALLOCATED /
+     * PARTIALLY_ALLOCATED / SHIPPED subset (allocated or already gone), {@code shipped} = SHIPPED.
+     */
+    @Query("""
+        select count(o) as assigned,
+               sum(case when o.status in (org.openwcs.orders.domain.OrderStatus.ALLOCATED,
+                                          org.openwcs.orders.domain.OrderStatus.PARTIALLY_ALLOCATED,
+                                          org.openwcs.orders.domain.OrderStatus.SHIPPED)
+                        then 1 else 0 end) as ready,
+               sum(case when o.status = org.openwcs.orders.domain.OrderStatus.SHIPPED
+                        then 1 else 0 end) as shipped
+        from OutboundOrder o
+        where o.warehouseId = :warehouseId
+          and o.orderType = org.openwcs.orders.domain.OrderType.OUTBOUND
+          and o.routeCode = :routeCode
+          and o.dispatchBy = :cutoff
+          and o.status <> org.openwcs.orders.domain.OrderStatus.CANCELLED
+        """)
+    RouteDispatchRollup routeDispatchRollup(
+            @Param("warehouseId") UUID warehouseId,
+            @Param("routeCode") String routeCode,
+            @Param("cutoff") Instant cutoff);
+
+    /** Projection for {@link #routeDispatchRollup}: assigned / ready / shipped order counts. */
+    interface RouteDispatchRollup {
+        long getAssigned();
+
+        long getReady();
+
+        long getShipped();
+    }
+
+    /**
      * Bulk-delete every order of a warehouse in one DELETE statement (demo-mode reset).
      * Lines, line transactions and their outbox rows cascade at the DB level
      * (ON DELETE CASCADE), so no child loading or ordering is needed.

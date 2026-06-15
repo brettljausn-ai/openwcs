@@ -17,6 +17,8 @@ import java.util.Comparator;
 import org.openwcs.orders.api.DispatchReport;
 import org.openwcs.orders.api.OrderDashboardReport;
 import org.openwcs.orders.api.SlaReport;
+import org.openwcs.orders.domain.RouteDispatch;
+import org.openwcs.orders.repo.RouteDispatchRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -44,13 +46,12 @@ public class OrderDashboardService {
             "CREATED", "RELEASED", "PARTIALLY_ALLOCATED", "ALLOCATED",
             "NOT_FULFILLABLE", "CUBING_FAILED");
 
-    /** OUTBOUND statuses considered "ready" for dispatch (allocated or already shipped). */
-    private static final List<String> OUTBOUND_READY_STATUSES = List.of("ALLOCATED", "SHIPPED");
-
     private final NamedParameterJdbcTemplate jdbc;
+    private final RouteDispatchRepository routeDispatches;
 
-    public OrderDashboardService(NamedParameterJdbcTemplate jdbc) {
+    public OrderDashboardService(NamedParameterJdbcTemplate jdbc, RouteDispatchRepository routeDispatches) {
         this.jdbc = jdbc;
+        this.routeDispatches = routeDispatches;
     }
 
     @Transactional(readOnly = true)
@@ -187,53 +188,33 @@ public class OrderDashboardService {
         return hours;
     }
 
+    /**
+     * Dispatch board backed by the persisted {@link org.openwcs.orders.domain.RouteDispatch}
+     * waves: real status + timestamps rather than a derived snapshot. The response JSON is the
+     * same shape the dashboard already consumes ({@code routes[].{routeCode, cutoffIso,
+     * ordersAssigned, ordersReady, status}} + {@code nextDeparture}); only the source changed.
+     * Waves are returned soonest cut-off first; {@code status} is the lowercase persisted state
+     * (open / loading / departed). Best-effort — a failure degrades to an empty board.
+     */
     @Transactional(readOnly = true)
     public DispatchReport dispatch(UUID warehouseId) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("wh", warehouseId)
-                .addValue("openStatuses", OUTBOUND_OPEN_STATUSES)
-                .addValue("readyStatuses", OUTBOUND_READY_STATUSES);
-
         List<DispatchReport.Route> routes = best(() -> {
             List<DispatchReport.Route> out = new ArrayList<>();
-            jdbc.query("""
-                    select o.route_code as route_code,
-                           o.dispatch_by as cutoff,
-                           count(*) as assigned,
-                           count(*) filter (where o.status in (:readyStatuses)) as ready,
-                           count(*) filter (where o.status = 'SHIPPED') as shipped
-                    from orders.outbound_order o
-                    where o.warehouse_id = :wh and o.order_type = 'OUTBOUND'
-                      and o.status in (:openStatuses)
-                    group by o.route_code, o.dispatch_by
-                    order by o.dispatch_by asc nulls last, o.route_code asc nulls last
-                    """, params, rs -> {
-                Timestamp cutoff = rs.getTimestamp("cutoff");
-                long assigned = rs.getLong("assigned");
-                long ready = rs.getLong("ready");
-                long shipped = rs.getLong("shipped");
-                String status;
-                if (shipped >= assigned && assigned > 0) {
-                    status = "departed";
-                } else if (ready > 0) {
-                    status = "loading";
-                } else {
-                    status = "open";
-                }
+            for (RouteDispatch wave : routeDispatches.board(warehouseId)) {
                 out.add(new DispatchReport.Route(
-                        rs.getString("route_code"),
-                        cutoff == null ? null : cutoff.toInstant().toString(),
-                        assigned,
-                        ready,
-                        status));
-            });
+                        wave.getRouteCode(),
+                        wave.getCutoff() == null ? null : wave.getCutoff().toString(),
+                        wave.getOrdersAssigned(),
+                        wave.getOrdersReady(),
+                        wave.getStatus().name().toLowerCase(java.util.Locale.ROOT)));
+            }
             return out;
         });
         if (routes == null) {
             routes = List.of();
         }
 
-        // Next departure: the soonest still-open cut-off in the future.
+        // Next departure: the soonest not-yet-departed wave whose cut-off is still in the future.
         DispatchReport.NextDeparture next = null;
         Instant now = Instant.now();
         for (DispatchReport.Route route : routes) {
@@ -250,7 +231,7 @@ public class OrderDashboardService {
             break; // routes are already sorted by cut-off ascending
         }
 
-        log.debug("dispatch for warehouse {}: {} open route groups", warehouseId, routes.size());
+        log.debug("dispatch for warehouse {}: {} persisted route waves", warehouseId, routes.size());
         return new DispatchReport(next, routes);
     }
 
@@ -260,9 +241,12 @@ public class OrderDashboardService {
 
     /**
      * Service-level report over shipped OUTBOUND orders: on-time-to-cutoff percent and median
-     * created -> shipped cycle time, for today and per UTC day across the window. Ship time is
-     * approximated by {@code updated_at} of SHIPPED orders (no dispatch timestamp exists). The
-     * median is computed in Java; best-effort, null where nothing shipped.
+     * created -> shipped cycle time, for today and per UTC day across the window. On-time uses the
+     * <b>actual departure</b> of the order's persisted route dispatch wave ({@code departed_at})
+     * vs its cut-off when the wave has departed, falling back to the order's own ship time
+     * ({@code updated_at} of SHIPPED orders) when no departed wave is recorded. Cycle time stays
+     * created -> ship time (a per-order span). The median is computed in Java; best-effort, null
+     * where nothing shipped.
      */
     @Transactional(readOnly = true)
     public SlaReport sla(UUID warehouseId, int days) {
@@ -276,12 +260,21 @@ public class OrderDashboardService {
 
         List<ShippedOrder> shipped = best(() -> {
             List<ShippedOrder> out = new ArrayList<>();
+            // Left-join the persisted dispatch wave on (warehouse, route, cut-off): when it has
+            // departed, departed_at is the actual departure time used for the cut-off check;
+            // otherwise we fall back to the order's own ship time below.
             jdbc.query("""
                     select (o.updated_at at time zone 'UTC')::date as ship_day,
                            o.created_at as created_at,
                            o.updated_at as shipped_at,
-                           o.dispatch_by as cutoff
+                           o.dispatch_by as cutoff,
+                           rd.departed_at as departed_at
                     from orders.outbound_order o
+                    left join orders.route_dispatch rd
+                           on rd.warehouse_id = o.warehouse_id
+                          and rd.route_code = o.route_code
+                          and rd.cutoff = o.dispatch_by
+                          and rd.status = 'DEPARTED'
                     where o.warehouse_id = :wh and o.order_type = 'OUTBOUND'
                       and o.status = 'SHIPPED' and o.updated_at >= :since
                     """, params, rs -> {
@@ -289,8 +282,12 @@ public class OrderDashboardService {
                 Instant created = rs.getTimestamp("created_at").toInstant();
                 Instant shippedAt = rs.getTimestamp("shipped_at").toInstant();
                 Timestamp cutoff = rs.getTimestamp("cutoff");
+                Timestamp departedAt = rs.getTimestamp("departed_at");
                 double cycleMinutes = Duration.between(created, shippedAt).toMillis() / 60000.0;
-                Boolean onTime = cutoff == null ? null : !shippedAt.isAfter(cutoff.toInstant());
+                // On-time = the actual departure (wave departed_at, else order ship time) met the
+                // cut-off. Null when the order carries no cut-off.
+                Instant departure = departedAt != null ? departedAt.toInstant() : shippedAt;
+                Boolean onTime = cutoff == null ? null : !departure.isAfter(cutoff.toInstant());
                 out.add(new ShippedOrder(shipDay, cycleMinutes, onTime));
             });
             return out;
