@@ -200,6 +200,13 @@ func runTask(family string, req deviceTaskRequest) deviceTaskResult {
 	case "AUTOSTORE":
 		id := twin.startAutoStoreTask(req.Command, huCodeOrEmpty(req.Payload))
 		releaseTwin = func() { twin.finishAutoStoreTask(id) }
+	case "ASRS":
+		// STORE/RETRIEVE/RELOCATE animate a crane travelling the aisle + lifting; SCAN is instant and
+		// moves nothing, so only the tote-moving commands take a crane.
+		if usesHandover(family, req.Command) {
+			id := twin.startASRSTask(huCodeOrEmpty(req.Payload))
+			releaseTwin = func() { twin.finishASRSTask(id) }
+		}
 	}
 	if releaseTwin != nil {
 		defer releaseTwin()
