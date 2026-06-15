@@ -20,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.openwcs.assistant.tools.WarehouseToolClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -51,6 +52,9 @@ public class AnthropicChatModel implements ChatModel {
     // Cache the SDK client per API key so we don't rebuild OkHttp/connection pools every request.
     private final Map<String, AnthropicClient> clientsByKey = new ConcurrentHashMap<>();
 
+    // @Autowired so Spring picks this constructor over the test-seam one below (two constructors with
+    // no @Autowired makes Spring look for a no-arg default and fail to start the context).
+    @Autowired
     public AnthropicChatModel(WarehouseToolClient tools) {
         this(tools, key -> AnthropicOkHttpClient.builder().apiKey(key).build());
     }
