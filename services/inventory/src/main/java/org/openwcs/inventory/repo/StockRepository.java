@@ -150,6 +150,10 @@ public interface StockRepository extends JpaRepository<Stock, UUID> {
     List<org.openwcs.inventory.service.SkuQtyRow> sumUnavailablePerSku(
             @Param("warehouseId") UUID warehouseId);
 
+    /** Distinct SKUs that currently have any stock row in the warehouse (dashboard skuCountWithStock). */
+    @Query("select count(distinct s.skuId) from Stock s where s.warehouseId = :warehouseId")
+    long countDistinctSkusWithStock(@Param("warehouseId") UUID warehouseId);
+
     /** Per-SKU unavailable on-hand: non-AVAILABLE status OR parked at the UNKNOWN location. */
     @Query("""
         select new org.openwcs.inventory.service.SkuQtyRow(s.skuId, sum(s.qty)) from Stock s

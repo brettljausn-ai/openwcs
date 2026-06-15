@@ -1,6 +1,11 @@
 package org.openwcs.inventory.service;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -8,9 +13,12 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.openwcs.inventory.api.InventoryDashboard;
 import org.openwcs.inventory.api.StockBySkuRow;
 import org.openwcs.inventory.client.MasterDataClient;
 import org.openwcs.inventory.client.MasterDataUnavailableException;
+import org.openwcs.inventory.domain.HandlingUnit;
+import org.openwcs.inventory.repo.HandlingUnitRepository;
 import org.openwcs.inventory.repo.ReservationRepository;
 import org.openwcs.inventory.repo.StockRepository;
 import org.slf4j.Logger;
@@ -42,13 +50,72 @@ public class InventoryReportService {
 
     private final StockRepository stock;
     private final ReservationRepository reservations;
+    private final HandlingUnitRepository handlingUnits;
+    private final StorageDensityService density;
     private final MasterDataClient masterData;
 
     public InventoryReportService(
-            StockRepository stock, ReservationRepository reservations, MasterDataClient masterData) {
+            StockRepository stock,
+            ReservationRepository reservations,
+            HandlingUnitRepository handlingUnits,
+            StorageDensityService density,
+            MasterDataClient masterData) {
         this.stock = stock;
         this.reservations = reservations;
+        this.handlingUnits = handlingUnits;
+        this.density = density;
         this.masterData = masterData;
+    }
+
+    /**
+     * Dashboard KPIs for one warehouse (best-effort: utilisation and backlog age degrade to
+     * null when a dependency is unreachable, the rest always answers from local tables).
+     *
+     * <ul>
+     *   <li><b>husReceivedToday / huCount</b>: HUs created today / total, from the HU table,</li>
+     *   <li><b>skuCountWithStock</b>: distinct SKUs with any stock row,</li>
+     *   <li><b>utilisationPct / asrsUtilisationPct</b>: today's storage fill, reusing the
+     *       {@link StorageDensityService} occupied/total-cell computation (overall + ASRS),</li>
+     *   <li><b>putawayBacklog</b>: HUs parked at the warehouse's RECEIVING / UNKNOWN locations
+     *       (received, not yet stored), with the oldest one's age in minutes; count falls back
+     *       to 0 and the age to null when master-data cannot resolve those locations.</li>
+     * </ul>
+     */
+    @Transactional(readOnly = true)
+    public InventoryDashboard dashboard(UUID warehouseId) {
+        Instant startOfToday = LocalDate.now(ZoneOffset.UTC).atStartOfDay(ZoneOffset.UTC).toInstant();
+        long husReceivedToday =
+                handlingUnits.countByWarehouseIdAndCreatedAtGreaterThanEqual(warehouseId, startOfToday);
+        long huCount = handlingUnits.countByWarehouseId(warehouseId);
+        long skuCountWithStock = stock.countDistinctSkusWithStock(warehouseId);
+
+        StorageDensityService.Utilisation util = density.todayUtilisation(warehouseId);
+        InventoryDashboard.PutawayBacklog backlog = putawayBacklog(warehouseId);
+
+        return new InventoryDashboard(
+                husReceivedToday, huCount, skuCountWithStock,
+                util.overallPct(), util.asrsPct(), backlog);
+    }
+
+    /** HUs at RECEIVING + UNKNOWN locations, oldest-first; count + oldest age (best-effort). */
+    private InventoryDashboard.PutawayBacklog putawayBacklog(UUID warehouseId) {
+        List<UUID> locations = new ArrayList<>();
+        try {
+            locations.addAll(masterData.receivingLocationIds(warehouseId));
+            locations.add(masterData.unknownLocationId(warehouseId));
+        } catch (MasterDataUnavailableException e) {
+            log.warn("put-away backlog skipped for warehouse {} because master-data is unreachable"
+                    + " ({}); reporting count 0 and null age", warehouseId, e.getMessage());
+            return new InventoryDashboard.PutawayBacklog(0, null);
+        }
+        if (locations.isEmpty()) {
+            return new InventoryDashboard.PutawayBacklog(0, null);
+        }
+        List<HandlingUnit> backlog =
+                handlingUnits.findBacklogByWarehouseIdAndLocationIdIn(warehouseId, locations);
+        Long oldestAgeMin = backlog.isEmpty() ? null
+                : Duration.between(backlog.get(0).getCreatedAt(), Instant.now()).toMinutes();
+        return new InventoryDashboard.PutawayBacklog(backlog.size(), oldestAgeMin);
     }
 
     @Transactional(readOnly = true)

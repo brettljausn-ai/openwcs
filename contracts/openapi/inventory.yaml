@@ -117,6 +117,27 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/StorageDensityRow' }
 
+  /reports/dashboard:
+    get:
+      tags: [Reports]
+      summary: Inventory dashboard KPIs for one warehouse
+      description: >
+        Read-only dashboard aggregate (best-effort: percentages and the backlog age degrade to
+        null rather than failing the response). `husReceivedToday` / `huCount` come from the HU
+        table, `skuCountWithStock` is the distinct SKUs with any stock row, `utilisationPct` /
+        `asrsUtilisationPct` reuse the storage-density occupied/total-cell computation (today,
+        overall and ASRS-typed blocks only), and `putawayBacklog` counts HUs parked at the
+        warehouse's RECEIVING / UNKNOWN locations with the oldest one's age in minutes.
+      operationId: inventoryDashboard
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryDashboard' }
+
   /reservations:
     post:
       tags: [Reservations]
@@ -292,6 +313,32 @@ components:
         occupiedCells: { type: integer, description: Cells holding any stock row or handling unit. }
         totalCells: { type: integer, description: The block's locations (cells) in master-data. }
         pct: { type: number, format: double, description: occupiedCells / totalCells in percent. }
+    InventoryDashboard:
+      type: object
+      properties:
+        husReceivedToday: { type: integer, format: int64, description: Handling units created today. }
+        huCount: { type: integer, format: int64, description: Total handling units in the warehouse. }
+        skuCountWithStock: { type: integer, format: int64, description: Distinct SKUs with any stock row. }
+        utilisationPct:
+          type: number
+          format: double
+          nullable: true
+          description: Overall storage fill (occupied/total cells); null when not derivable.
+        asrsUtilisationPct:
+          type: number
+          format: double
+          nullable: true
+          description: ASRS-only storage fill; null when there are no ASRS cells / master-data is down.
+        putawayBacklog:
+          type: object
+          description: HUs received but not yet stored (at RECEIVING / UNKNOWN locations).
+          properties:
+            count: { type: integer, format: int64 }
+            oldestAgeMin:
+              type: integer
+              format: int64
+              nullable: true
+              description: Age in minutes of the oldest backlog HU; null when empty / not derivable.
     Problem:
       type: object
       description: RFC 9457 problem detail.

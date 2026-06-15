@@ -32,6 +32,17 @@ public class HttpInventoryClient implements InventoryClient {
     }
 
     @Override
+    public BigDecimal available(UUID warehouseId, UUID skuId) {
+        Availability availability = http.get()
+                .uri("/api/inventory/availability?warehouseId={w}&skuId={s}", warehouseId, skuId)
+                .retrieve()
+                .body(Availability.class);
+        return availability == null || availability.availableToPromise() == null
+                ? BigDecimal.ZERO
+                : availability.availableToPromise();
+    }
+
+    @Override
     public UUID reserve(UUID warehouseId, UUID skuId, BigDecimal qty, UUID locationId, String orderRef) {
         Map<String, Object> body = new HashMap<>();
         body.put("warehouseId", warehouseId);

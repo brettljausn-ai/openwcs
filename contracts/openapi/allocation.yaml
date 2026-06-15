@@ -126,8 +126,38 @@ paths:
           content:
             application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
 
+  /reports/stock-blocking:
+    get:
+      tags: [Reports]
+      summary: Stock-blocking KPIs for one warehouse
+      description: >
+        Read-only dashboard / alerting aggregate (best-effort). A blocked line is an outbound
+        order line currently unfulfillable from pickable stock (an allocation line in SHORT
+        status on a non-cancelled order). `distinctSkusShort` is the distinct SKUs across them;
+        `recoverableLines` vs `zeroStockLines` split by whether warehouse-wide available-to-promise
+        exists somewhere (reserve / ASRS). When inventory is unreachable the split degrades to
+        recoverable = 0 / zeroStock = blockedLines. `openOutboundLines` is the denominator for a
+        blocking-percentage alert.
+      operationId: stockBlockingReport
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockBlockingReport' }
+
 components:
   schemas:
+    StockBlockingReport:
+      type: object
+      properties:
+        blockedLines: { type: integer, format: int64, description: Outbound lines unfulfillable from pickable stock. }
+        distinctSkusShort: { type: integer, format: int64, description: Distinct SKUs across the blocked lines. }
+        recoverableLines: { type: integer, format: int64, description: Blocked lines whose SKU has stock somewhere. }
+        zeroStockLines: { type: integer, format: int64, description: Blocked lines whose SKU has no stock anywhere. }
+        openOutboundLines: { type: integer, format: int64, description: All non-cancelled outbound order lines. }
     AllocateOrderRequest:
       type: object
       required: [orderRef, warehouseId, lines]
