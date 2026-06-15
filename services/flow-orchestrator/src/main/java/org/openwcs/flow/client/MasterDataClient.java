@@ -62,6 +62,35 @@ public class MasterDataClient {
     private record Location(UUID id, String code) {
     }
 
+    /**
+     * The storage block ({@code block_id}, the slotting pool) a location belongs to, used to decide a
+     * move's transport: same block ⇒ same storage system ⇒ a single in-aisle RELOCATE; different
+     * blocks ⇒ cross-system ⇒ a RETRIEVE → CONVEY → STORE chain. Returns {@code null} when the
+     * location has no block (an unslotted topology / operational location such as a conveyor or
+     * workplace) OR when the lookup fails — callers treat "no block resolved on one side" as a
+     * cross-system signal (a storage slot → a conveyor/pick-face on a different family).
+     */
+    public UUID blockId(UUID warehouseId, UUID locationId) {
+        if (locationId == null) {
+            return null;
+        }
+        try {
+            FullLocation location = http.get()
+                    .uri("/api/master-data/locations/{id}", locationId)
+                    .retrieve()
+                    .body(FullLocation.class);
+            return location == null ? null : location.blockId();
+        } catch (RestClientException e) {
+            log.warn("location block lookup failed for {} in warehouse {} (treating as unresolved): {}",
+                    locationId, warehouseId, e.toString());
+            return null;
+        }
+    }
+
+    /** Subset of the master-data location carrying its storage block. */
+    private record FullLocation(UUID id, UUID blockId) {
+    }
+
     /** Whether master-data demo mode (DEMO_MODE_ENABLED) is currently ON; false on any error. */
     public boolean demoEnabled() {
         try {

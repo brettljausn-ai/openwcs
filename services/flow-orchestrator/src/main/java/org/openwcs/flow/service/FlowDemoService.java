@@ -4,6 +4,7 @@ import java.util.UUID;
 import org.openwcs.flow.api.DemoClearResult;
 import org.openwcs.flow.repo.DeviceTaskRepository;
 import org.openwcs.flow.repo.EdgeTrafficRepository;
+import org.openwcs.flow.repo.FlowMoveChainRepository;
 import org.openwcs.flow.repo.HuRouteRepository;
 import org.openwcs.flow.repo.HuTransportTraceRepository;
 import org.openwcs.flow.repo.InductionQueueEntryRepository;
@@ -28,12 +29,13 @@ public class FlowDemoService {
     private final HuTransportTraceRepository traces;
     private final ScanStatRepository scanStats;
     private final EdgeTrafficRepository edgeTraffic;
+    private final FlowMoveChainRepository moveChains;
 
     public FlowDemoService(DeviceTaskRepository deviceTasks, HuRouteRepository huRoutes,
                            TopologyObservationRepository observations,
                            InductionQueueEntryRepository induction,
                            HuTransportTraceRepository traces, ScanStatRepository scanStats,
-                           EdgeTrafficRepository edgeTraffic) {
+                           EdgeTrafficRepository edgeTraffic, FlowMoveChainRepository moveChains) {
         this.deviceTasks = deviceTasks;
         this.huRoutes = huRoutes;
         this.observations = observations;
@@ -41,6 +43,7 @@ public class FlowDemoService {
         this.traces = traces;
         this.scanStats = scanStats;
         this.edgeTraffic = edgeTraffic;
+        this.moveChains = moveChains;
     }
 
     /**
@@ -58,6 +61,9 @@ public class FlowDemoService {
         // ADR-0007 §3c-1 induction queue + HU transport trace are transactional flow state too.
         induction.deleteBulkByWarehouseId(warehouseId);
         traces.deleteBulkByWarehouseId(warehouseId);
+
+        // Cross-system move chains (RETRIEVE -> CONVEY -> STORE) are transactional flow state too.
+        moveChains.deleteBulkByWarehouseId(warehouseId);
 
         // Reporting counters are derived from the operational state purged above: clearing them
         // keeps the Reporting screens consistent with the (now empty) device tasks and traces.
