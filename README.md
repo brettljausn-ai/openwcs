@@ -17,7 +17,7 @@ cycle count) that run the building.
 > 🎨 **UI design system & tokens:** [`styling.md`](./styling.md)
 > 🏗️ **As-built (what's actually implemented):** [`docs/AS-BUILT.md`](./docs/AS-BUILT.md)
 > 📊 **Development status:** [`docs/DEVELOPMENT-STATUS.md`](./docs/DEVELOPMENT-STATUS.md)
-> 🌐 **Public product site:** [`public/`](./public) (static; deployable to GitHub Pages)
+> 🌐 **Public product site:** [openwcs.ai](https://openwcs.ai) — source in [`public/`](./public) (Express + EJS; the old GitHub Pages mirror now redirects here)
 > 🗺️ **Product roadmap:** [`public/roadmap.md`](./public/roadmap.md) (edit this file to update the roadmap page)
 
 ---

@@ -91,8 +91,14 @@ deploy** — the static GitHub Pages mirror has no server, so the form is inert 
 Any other Node host (Render, Fly, a VPS with `pm2 start server.js`, Docker) works the same — it just needs
 `npm install` + `npm start` and a port.
 
-### GitHub Pages (free static mirror)
+### GitHub Pages (redirect to openwcs.ai)
 
-[`.github/workflows/pages.yml`](../.github/workflows/pages.yml) runs `npm run build:static` on pushes to
-`main` that touch `public/**` and publishes `public/dist/` to Pages — **https://brettljausn-ai.github.io/openwcs/**.
-Pages **Source** must be **GitHub Actions** (Settings → Pages, build type `workflow`).
+The live site is **https://openwcs.ai** (Express + EJS on a Node host). The old free GitHub Pages
+mirror (**https://brettljausn-ai.github.io/openwcs/**) is **retired**: instead of mirroring the site,
+[`.github/workflows/pages.yml`](../.github/workflows/pages.yml) publishes the tiny redirect bundle in
+[`public/pages-redirect/`](./pages-redirect) — `index.html` + `404.html` bounce every legacy URL
+(deep links and unknown paths alike) to the matching page on openwcs.ai, preserving the path under the
+`/openwcs/` base. Pages **Source** must be **GitHub Actions** (Settings → Pages, build type `workflow`).
+
+(`npm run build:static` still pre-renders the full site to `public/dist/` for any other static host;
+it is just no longer what Pages serves.)

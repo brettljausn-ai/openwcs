@@ -1,14 +1,16 @@
 name: Deploy public site
 
-# The product site in /public is now an Express + EJS app (deploy it to a Node host such as Hostinger).
-# For the free GitHub Pages mirror we pre-render it to static HTML (`npm run build:static` → public/dist)
-# and publish that. Runs on every push to main that touches it (and on demand). Pages source must be
-# "GitHub Actions" — configure-pages attempts to enable it automatically on the first run.
+# The product site now lives at https://openwcs.ai (Express + EJS app on a Node host).
+# The free GitHub Pages mirror (brettljausn-ai.github.io/openwcs) is RETIRED: instead of
+# pre-rendering the site, we publish a tiny redirect bundle (public/pages-redirect) that bounces
+# every legacy URL — deep links and unknown paths via 404.html — to the matching page on
+# openwcs.ai. Runs on every push to main that touches it (and on demand). Pages source must be
+# "GitHub Actions".
 on:
   push:
     branches: [main]
     paths:
-      - 'public/**'
+      - 'public/pages-redirect/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -25,29 +27,19 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: public
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install & pre-render static site
-        run: |
-          npm ci
-          npm run build:static
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
-      - name: Upload static artifact
+      - name: Upload redirect bundle
         uses: actions/upload-pages-artifact@v3
         with:
-          path: public/dist
+          path: public/pages-redirect
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
