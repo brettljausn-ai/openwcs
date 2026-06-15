@@ -3,15 +3,20 @@ package org.openwcs.slotting.service;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.openwcs.slotting.api.AbcMoversView;
 import org.openwcs.slotting.api.AbcMoversView.Mover;
 import org.openwcs.slotting.api.AbcMoversView.ParetoEntry;
 import org.openwcs.slotting.api.AbcMoversView.Trend;
 import org.openwcs.slotting.domain.SkuVelocity;
+import org.openwcs.slotting.repo.SkuPickDailyRepository;
 import org.openwcs.slotting.repo.SkuVelocityRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,22 +24,16 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Builds the read-only ABC / movers dashboard from the learned velocity snapshot.
  *
- * <p><b>Data honesty.</b> The velocity store keeps only a decayed EWMA pick-frequency score per SKU
- * ({@link SkuVelocity#getScore()}) plus the picks counted since the last decay
- * ({@link SkuVelocity#getPendingPicks()}); it does <em>not</em> persist raw, timestamped pick events
- * or periodic snapshots. True trailing-90d and trailing-14d windowed pick counts are therefore not
- * recoverable here without new persistence. Rather than fabricate windows, this service:
- * <ul>
- *   <li>uses the decayed EWMA {@code score} as the trailing pick-frequency proxy for the Pareto
- *       curve, A/B/C counts, and top/bottom movers (the score already favours recent activity with
- *       the configured ~90d-scale half-life), and</li>
- *   <li>approximates risers/fallers as a <em>short</em> window (the un-folded {@code pendingPicks}
- *       counted most recently) versus a <em>long</em> window (the established decayed {@code score}),
- *       each expressed as a percent of the warehouse's total activity in that window. A SKU whose
- *       recent share exceeds its established share is a riser; the reverse is a faller.</li>
- * </ul>
- * This is documented as an approximation; replacing it with exact windows needs a windowed pick
- * count (persisted snapshots or queryable raw events), which is out of scope for this read endpoint.
+ * <p>Class counts, the Pareto curve, and top/bottom movers rank SKUs by the decayed EWMA
+ * pick-frequency score ({@link SkuVelocity#getScore()} plus any not-yet-folded
+ * {@link SkuVelocity#getPendingPicks()}) — the same score the classifier ranks on, so the
+ * dashboard agrees with the assigned A/B/C labels.
+ *
+ * <p>Risers/fallers use <em>exact</em> trailing windows summed from {@code sku_pick_daily}
+ * (one pick bucket per calendar day): {@code pct14d} is a SKU's last-14-day picks as a percent of
+ * the warehouse's 14-day total, {@code pct90d} the same over 90 days. A SKU whose recent share
+ * materially exceeds its established share is a riser (sorted by delta descending); the inverse is
+ * a faller. These are real windowed counts, not an approximation.
  */
 @Service
 public class VelocityDashboardService {
@@ -42,10 +41,23 @@ public class VelocityDashboardService {
     private static final MathContext MC = MathContext.DECIMAL64;
     private static final int MOVERS_LIMIT = 10;
 
-    private final SkuVelocityRepository velocity;
+    /** Trailing windows for the riser/faller comparison (inclusive of the current day). */
+    static final int SHORT_WINDOW_DAYS = 14;
+    static final int LONG_WINDOW_DAYS = 90;
 
-    public VelocityDashboardService(SkuVelocityRepository velocity) {
+    private final SkuVelocityRepository velocity;
+    private final SkuPickDailyRepository dailyPicks;
+    private final Clock clock;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public VelocityDashboardService(SkuVelocityRepository velocity, SkuPickDailyRepository dailyPicks) {
+        this(velocity, dailyPicks, Clock.systemUTC());
+    }
+
+    VelocityDashboardService(SkuVelocityRepository velocity, SkuPickDailyRepository dailyPicks, Clock clock) {
         this.velocity = velocity;
+        this.dailyPicks = dailyPicks;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -88,17 +100,26 @@ public class VelocityDashboardService {
                 .map(r -> new Mover(r.getSkuId(), score(r).setScale(2, RoundingMode.HALF_UP)))
                 .toList();
 
-        // Trend proxy: short window = recent un-folded picks; long window = established decayed score.
-        BigDecimal shortTotal = ranked.stream().map(SkuVelocity::getPendingPicks)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal longTotal = ranked.stream().map(SkuVelocity::getScore)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Exact trailing windows from the daily pick tallies (sku_pick_daily, migration V6).
+        LocalDate today = LocalDate.now(clock.withZone(ZoneOffset.UTC));
+        LocalDate from14 = today.minusDays(SHORT_WINDOW_DAYS - 1L);
+        LocalDate from90 = today.minusDays(LONG_WINDOW_DAYS - 1L);
+
+        Map<UUID, Long> picks14 = dailyPicks.windowPicksBySku(warehouseId, from14, today);
+        Map<UUID, Long> picks90 = dailyPicks.windowPicksBySku(warehouseId, from90, today);
+        long total14 = dailyPicks.windowTotal(warehouseId, from14, today);
+        long total90 = dailyPicks.windowTotal(warehouseId, from90, today);
+
+        // Any SKU active in either window is a trend candidate.
+        java.util.Set<UUID> skus = new java.util.LinkedHashSet<>();
+        skus.addAll(picks90.keySet());
+        skus.addAll(picks14.keySet());
 
         List<Trend> trends = new ArrayList<>();
-        for (SkuVelocity r : ranked) {
-            BigDecimal pct14d = pct(r.getPendingPicks(), shortTotal);
-            BigDecimal pct90d = pct(r.getScore(), longTotal);
-            trends.add(new Trend(r.getSkuId(), pct14d, pct90d));
+        for (UUID sku : skus) {
+            BigDecimal pct14d = pct(picks14.getOrDefault(sku, 0L), total14);
+            BigDecimal pct90d = pct(picks90.getOrDefault(sku, 0L), total90);
+            trends.add(new Trend(sku, pct14d, pct90d));
         }
 
         List<Trend> risers = trends.stream()
@@ -120,10 +141,11 @@ public class VelocityDashboardService {
         return r.getScore().add(r.getPendingPicks(), MC);
     }
 
-    private static BigDecimal pct(BigDecimal part, BigDecimal total) {
-        if (total == null || total.signum() == 0) {
+    private static BigDecimal pct(long part, long total) {
+        if (total <= 0) {
             return BigDecimal.ZERO;
         }
-        return part.multiply(BigDecimal.valueOf(100), MC).divide(total, 2, RoundingMode.HALF_UP);
+        return BigDecimal.valueOf(part).multiply(BigDecimal.valueOf(100), MC)
+                .divide(BigDecimal.valueOf(total), 2, RoundingMode.HALF_UP);
     }
 }
