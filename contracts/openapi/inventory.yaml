@@ -339,6 +339,19 @@ components:
               format: int64
               nullable: true
               description: Age in minutes of the oldest backlog HU; null when empty / not derivable.
+        dockToStock:
+          type: object
+          description: "Dock-to-stock put-away timing for HUs stored today (UTC): median minutes + sample count."
+          properties:
+            medianMin:
+              type: integer
+              format: int64
+              nullable: true
+              description: "Median minutes from HU received (createdAt) to stored, over HUs stored today; null when no samples."
+            samples:
+              type: integer
+              format: int64
+              description: Number of HUs stored today that contributed to the median.
     Problem:
       type: object
       description: RFC 9457 problem detail.
