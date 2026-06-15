@@ -39,10 +39,28 @@ public interface ScanStatRepository extends JpaRepository<ScanStat, ScanStat.Key
             """, nativeQuery = true)
     List<ScanQualityAgg> quality(@Param("warehouseId") UUID warehouseId, @Param("days") int days);
 
+    /**
+     * Today's warehouse-wide scan totals (scans, no-reads) summed across all scan points, for the
+     * automation summary's scan no-read percentage. Returns zeros when there is no scanning today.
+     */
+    @Query(value = """
+            SELECT COALESCE(sum(scans), 0) AS "scans",
+                   COALESCE(sum(no_reads), 0) AS "noReads"
+            FROM flow.scan_stat
+            WHERE warehouse_id = :warehouseId AND day = CURRENT_DATE
+            """, nativeQuery = true)
+    ScanTotalsAgg todayTotals(@Param("warehouseId") UUID warehouseId);
+
     /** Bulk-delete all rows for a warehouse in one DELETE statement (demo-mode reset). */
     @Modifying
     @Query("delete from ScanStat e where e.warehouseId = :warehouseId")
     int deleteBulkByWarehouseId(@Param("warehouseId") UUID warehouseId);
+
+    interface ScanTotalsAgg {
+        long getScans();
+
+        long getNoReads();
+    }
 
     interface ScanQualityAgg {
         String getNode();

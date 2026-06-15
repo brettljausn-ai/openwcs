@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
+import org.openwcs.flow.api.ReportingDtos.AutomationSummary;
 import org.openwcs.flow.api.ReportingDtos.DeviceMovementRow;
 import org.openwcs.flow.api.ReportingDtos.ScanQualityRow;
 import org.openwcs.flow.api.ReportingDtos.StorageMovementRow;
@@ -14,6 +15,7 @@ import org.openwcs.flow.api.ReportingDtos.TransitTimeRow;
 import org.openwcs.flow.repo.DeviceTaskRepository;
 import org.openwcs.flow.repo.EdgeTrafficRepository;
 import org.openwcs.flow.repo.HuTransportTraceRepository;
+import org.openwcs.flow.repo.PlacedEquipmentRepository;
 import org.openwcs.flow.repo.ScanStatRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -37,13 +39,16 @@ public class ReportingService {
     private final EdgeTrafficRepository edgeTraffic;
     private final DeviceTaskRepository deviceTasks;
     private final HuTransportTraceRepository traces;
+    private final PlacedEquipmentRepository placedEquipment;
 
     public ReportingService(ScanStatRepository scanStats, EdgeTrafficRepository edgeTraffic,
-                            DeviceTaskRepository deviceTasks, HuTransportTraceRepository traces) {
+                            DeviceTaskRepository deviceTasks, HuTransportTraceRepository traces,
+                            PlacedEquipmentRepository placedEquipment) {
         this.scanStats = scanStats;
         this.edgeTraffic = edgeTraffic;
         this.deviceTasks = deviceTasks;
         this.traces = traces;
+        this.placedEquipment = placedEquipment;
     }
 
     // ------------------------------------------------------------------ counters (scan path)
@@ -123,6 +128,26 @@ public class ReportingService {
                     percentile(samples, 50), percentile(samples, 95)));
         });
         return rows;
+    }
+
+    /**
+     * Warehouse automation health snapshot for the dashboards/alerting epic: today's scan no-read
+     * percentage (no-reads / scans, 0 when nothing scanned yet) and equipment availability (placed
+     * equipment not currently in fault / total placed, 100 when nothing is placed). An equipment is
+     * "in fault" when its most recent device task is FAILED.
+     */
+    @Transactional(readOnly = true)
+    public AutomationSummary automationSummary(UUID warehouseId) {
+        ScanStatRepository.ScanTotalsAgg totals = scanStats.todayTotals(warehouseId);
+        long scans = totals == null ? 0 : totals.getScans();
+        long noReads = totals == null ? 0 : totals.getNoReads();
+        double scanNoReadPct = scans == 0 ? 0.0 : (noReads * 100.0) / scans;
+
+        long total = placedEquipment.countByWarehouseId(warehouseId);
+        long inFault = total == 0 ? 0 : deviceTasks.countEquipmentInFault(warehouseId);
+        double availabilityPct = total == 0 ? 100.0 : ((total - inFault) * 100.0) / total;
+
+        return new AutomationSummary(scanNoReadPct, availabilityPct, total, inFault);
     }
 
     /** Nearest-rank percentile over an ascending-sorted, non-empty sample list. */
