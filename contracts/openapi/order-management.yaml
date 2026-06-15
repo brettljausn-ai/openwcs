@@ -248,6 +248,30 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DispatchReport' }
 
+  /api/orders/reports/sla:
+    get:
+      tags: [Reports]
+      summary: Service-level report for shipped outbound orders (on-time + cycle time)
+      description: >
+        Read-only, warehouse-scoped, best-effort (null figures where nothing shipped). Today is
+        the current UTC day; the window spans the last `days` UTC days, oldest first. Ship time
+        is taken from `updated_at` of SHIPPED orders (no dispatch timestamp exists, so this is an
+        approximation). `onTimeToCutoffPctToday` = of today's shipped outbound orders that carry a
+        cut-off (`dispatchBy`), the percent shipped at or before it; null when none carry one.
+        `orderCycleTimeMedianMinToday` = median created-to-shipped duration in minutes over today's
+        shipped orders (median computed server-side); null when none shipped. `perDay` repeats
+        both figures per UTC day, with null fields on days with no shipments.
+      operationId: orderSlaReport
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: days, in: query, required: false, schema: { type: integer, default: 30 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SlaReport' }
+
   /api/orders/demo/seed:
     post:
       tags: [Orders]
@@ -423,6 +447,7 @@ components:
           properties:
             open: { type: integer, format: int64, description: Inbound orders not cancelled with stock still missing. }
             expectedToday: { type: integer, format: int64, description: Inbound orders created today (UTC). }
+            receiveErrorsToday: { type: integer, format: int64, description: "Inbound lines with a receipt-quantity discrepancy today (over-receipt, or under-receipt on a short/cancelled line)." }
             projectedFinishIso: { type: string, format: date-time, nullable: true, description: "Projected backlog finish at today's rate, or null." }
         outbound:
           type: object
@@ -464,6 +489,21 @@ components:
               ordersAssigned: { type: integer, format: int64 }
               ordersReady: { type: integer, format: int64, description: Assigned subset in ALLOCATED or SHIPPED. }
               status: { type: string, enum: [open, loading, departed] }
+    SlaReport:
+      type: object
+      description: Service-level report over shipped outbound orders; best-effort, null where nothing shipped.
+      properties:
+        onTimeToCutoffPctToday: { type: number, format: double, nullable: true, description: "Percent of today's shipped orders with a cut-off that met it, or null." }
+        orderCycleTimeMedianMinToday: { type: number, format: double, nullable: true, description: "Median created-to-shipped minutes over today's shipped orders, or null." }
+        perDay:
+          type: array
+          description: One bucket per UTC day of the window (oldest first); null fields on days with no shipments.
+          items:
+            type: object
+            properties:
+              day: { type: string, format: date }
+              onTimePct: { type: number, format: double, nullable: true }
+              cycleMedianMin: { type: number, format: double, nullable: true }
     Problem:
       type: object
       properties:

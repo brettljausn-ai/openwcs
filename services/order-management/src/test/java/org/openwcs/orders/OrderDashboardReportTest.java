@@ -93,6 +93,13 @@ class OrderDashboardReportTest {
         create(wh, "IN-OPEN", "INBOUND", "10");
         OrderView inDone = create(wh, "IN-DONE", "INBOUND", "5");
         post(inDone.id(), "5");
+        // Inbound receive errors today: one over-receipt (posted > ordered), one short under-receipt.
+        OrderView inOver = create(wh, "IN-OVER", "INBOUND", "5");
+        post(inOver.id(), "7"); // posted_qty 7 > qty 5 -> over-receipt error
+        OrderView inShort = create(wh, "IN-UNDER", "INBOUND", "5");
+        post(inShort.id(), "3"); // posted_qty 3 < qty 5 ...
+        jdbc.update("update orders.order_line set status = 'SHORT', updated_at = now()"
+                + " where order_id = ?", inShort.id()); // ... and closed short -> error
 
         // Outbound: created (open, not released), released+picked, shorted, shipped today.
         create(wh, "OUT-CREATED", "OUTBOUND", "5");
@@ -110,9 +117,10 @@ class OrderDashboardReportTest {
         OrderDashboardReport d = dashboards.dashboard(wh);
 
         // Inbound headline.
-        assertThat(d.inbound().open()).isEqualTo(1);          // IN-OPEN still missing stock
-        assertThat(d.inbound().expectedToday()).isEqualTo(2); // both created today
-        assertThat(d.inbound().projectedFinishIso()).isNotNull(); // 1 open, 1 completed today
+        assertThat(d.inbound().open()).isEqualTo(2);          // IN-OPEN + IN-UNDER still short of qty
+        assertThat(d.inbound().expectedToday()).isEqualTo(4); // all four created today
+        assertThat(d.inbound().receiveErrorsToday()).isEqualTo(2); // IN-OVER (over) + IN-UNDER (short)
+        assertThat(d.inbound().projectedFinishIso()).isNotNull(); // open backlog, completion today
 
         // Outbound headline.
         // open = CREATED + PICK(released) + SHORT(not_fulfillable); SHIP is shipped -> not open.
@@ -126,7 +134,7 @@ class OrderDashboardReportTest {
         assertThat(d.perHour()).hasSize(24);
         long inboundReceipts = d.perHour().stream().mapToLong(OrderDashboardReport.HourSplit::inbound).sum();
         long outboundPicks = d.perHour().stream().mapToLong(OrderDashboardReport.HourSplit::outbound).sum();
-        assertThat(inboundReceipts).isEqualTo(1); // IN-DONE's receipt
+        assertThat(inboundReceipts).isEqualTo(3); // IN-DONE, IN-OVER, IN-UNDER receipts
         assertThat(outboundPicks).isEqualTo(1);   // OUT-PICK's pick
     }
 
@@ -134,6 +142,7 @@ class OrderDashboardReportTest {
     void dashboardEmptyWarehouseDegradesToZerosAndNullProjection() {
         OrderDashboardReport d = dashboards.dashboard(UUID.randomUUID());
         assertThat(d.inbound().open()).isZero();
+        assertThat(d.inbound().receiveErrorsToday()).isZero();
         assertThat(d.inbound().projectedFinishIso()).isNull();
         assertThat(d.outbound().open()).isZero();
         assertThat(d.outbound().projectedFinishIso()).isNull();
