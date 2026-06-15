@@ -423,7 +423,7 @@ components:
           properties:
             open: { type: integer, format: int64, description: Inbound orders not cancelled with stock still missing. }
             expectedToday: { type: integer, format: int64, description: Inbound orders created today (UTC). }
-            projectedFinishIso: { type: string, format: date-time, nullable: true, description: Projected backlog finish at today's rate, or null. }
+            projectedFinishIso: { type: string, format: date-time, nullable: true, description: "Projected backlog finish at today's rate, or null." }
         outbound:
           type: object
           properties:
@@ -431,7 +431,7 @@ components:
             releasedToday: { type: integer, format: int64, description: Outbound orders past CREATED updated today. }
             linesPickedToday: { type: integer, format: int64, description: Distinct outbound lines with a PICK posted today. }
             shortsToday: { type: integer, format: int64, description: Outbound lines in SHORT updated today. }
-            projectedFinishIso: { type: string, format: date-time, nullable: true, description: Projected backlog finish at today's rate, or null. }
+            projectedFinishIso: { type: string, format: date-time, nullable: true, description: "Projected backlog finish at today's rate, or null." }
         perHour:
           type: array
           description: Today's UTC hours (0..23, zero-filled); inbound receipts vs outbound picks posted.
