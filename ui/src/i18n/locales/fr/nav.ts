@@ -13,6 +13,7 @@ export default {
   outbound: 'Expéditions',
   counting: 'Comptage des stocks',
   'gtp-ops': 'Postes GTP',
+  picking: 'Préparation',
   transport: 'Transport',
   'hardware-twin': 'Visualisation matériel',
   'stock-transactions': 'Mouvements de stock',

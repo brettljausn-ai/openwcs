@@ -5,7 +5,15 @@ import { listDeviceTasks } from '../transport/api'
 import { getStationQueue } from '../gtpops/api'
 import { listLocations } from '../masterdata/api'
 import { listHandlingUnits } from '../inventory/api'
-import { loadConveyorNodePositions, listTotePaths, type TwinPaths } from './api'
+import {
+  loadConveyorNodePositions,
+  listTotePaths,
+  listAmrFleet,
+  getAutoStore,
+  type TwinPaths,
+  type Amr,
+  type AutoStoreStatus,
+} from './api'
 import { insertPoint, pruneBefore, type ToteTimeline } from './motion'
 import {
   deriveStoredTotes,
@@ -48,6 +56,10 @@ export interface UseLiveTwinResult {
   timelines: Map<string, ToteTimeline>
   /** HUs at rest in storage, positioned at their cell inside the ASRS rack (ADR-0009 §5). */
   storedTotes: StoredTote[]
+  /** Live AMR fleet (each robot's world XZ + status + carried HU). Empty when no telemetry. */
+  amrs: Amr[]
+  /** Live AutoStore status (grid fill + ports). Null when no telemetry. */
+  autostore: AutoStoreStatus | null
   loading: boolean
   error: string | null
   lastUpdated: Date | null
@@ -64,6 +76,8 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
   const [lib, setLib] = useState<Map<string, Equipment>>(EMPTY_LIB)
   const [snapshot, setSnapshot] = useState<TwinSnapshot | null>(null)
   const [storedTotes, setStoredTotes] = useState<StoredTote[]>([])
+  const [amrs, setAmrs] = useState<Amr[]>([])
+  const [autostore, setAutostore] = useState<AutoStoreStatus | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
@@ -93,6 +107,8 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
       setTopology(null)
       setLib(EMPTY_LIB)
       setSnapshot(null)
+      setAmrs([])
+      setAutostore(null)
       setError(null)
       setLastUpdated(null)
       return
@@ -153,6 +169,20 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
         totePaths = await listTotePaths(warehouseId)
       } catch {
         /* keep the last motion on a transient failure (equipment activity still updates) */
+      }
+      // AMR fleet + AutoStore are best-effort live views (item 3): a missing endpoint or empty
+      // telemetry simply renders nothing. They never fail the whole poll — caught independently so a
+      // 404 on a warehouse without AMRs / AutoStore doesn't blank the rest of the twin.
+      try {
+        const fleet = await listAmrFleet(warehouseId)
+        setAmrs(fleet.amrs)
+      } catch {
+        /* no AMR telemetry — render no robots, keep the last good fleet otherwise */
+      }
+      try {
+        setAutostore(await getAutoStore(warehouseId))
+      } catch {
+        /* no AutoStore telemetry — render nothing for it */
       }
       // The REAL induction queue per placed workstation — the truth source for "queued" totes
       // (a tote whose work is DONE stops being shown; no phantom queued from stale tasks).
@@ -272,6 +302,8 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
     snapshot,
     timelines: timelinesRef.current,
     storedTotes,
+    amrs,
+    autostore,
     loading,
     error,
     lastUpdated,

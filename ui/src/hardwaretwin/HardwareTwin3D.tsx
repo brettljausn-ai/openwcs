@@ -52,6 +52,7 @@ import {
   type XZ,
 } from './motion'
 import { JAM_HOLD_MS, deriveConveyorJamIds } from './conveyorState'
+import type { Amr, AutoStorePort } from './api'
 
 const BG = '#081e16'
 const LIME = '#8DC63F'
@@ -86,6 +87,10 @@ export interface HardwareTwin3DProps {
   clockOffsetMsRef?: MutableRefObject<number | null>
   /** HUs at rest in storage, rendered at their cell position inside the ASRS rack (ADR-0009 §5). */
   storedTotes?: StoredTote[]
+  /** Live AMR fleet — small robot markers at world XZ, coloured by status (item 3). */
+  amrs?: Amr[]
+  /** Live AutoStore ports — busy/idle markers at world XZ (item 3). */
+  autostorePorts?: AutoStorePort[]
   activeLevelId?: string | null
   selectedPlacedId?: string | null
   selectedHuId?: string | null
@@ -102,6 +107,8 @@ export default function HardwareTwin3D({
   timelines,
   clockOffsetMsRef,
   storedTotes = [],
+  amrs = [],
+  autostorePorts = [],
   activeLevelId = null,
   selectedPlacedId = null,
   selectedHuId = null,
@@ -157,6 +164,10 @@ export default function HardwareTwin3D({
       />
 
       <StoredTotes totes={storedTotes} selectedHuId={selectedHuId} onSelectTote={onSelectTote} />
+
+      {/* Live AMR fleet + AutoStore ports (item 3). Empty arrays render nothing — best-effort views. */}
+      <AmrFleet amrs={amrs} />
+      <AutoStorePorts ports={autostorePorts} />
 
       <OrbitControls
         makeDefault
@@ -911,6 +922,155 @@ function StoredTotes({
           </group>
         )
       })}
+    </group>
+  )
+}
+
+// ----------------------------------------------------------------------------------------------------
+// AMR fleet (item 3) — one small robot marker per AMR at its world XZ, coloured by status using the
+// twin's existing live-state palette (idle = grey, moving = amber, faulted = red). The carried HU code
+// shows on hover. Pure representation of the fleet telemetry; an empty fleet renders nothing.
+// ----------------------------------------------------------------------------------------------------
+
+const AMR_Y = 0.25 // ride height of the robot body (floor-relative, like the editor's meshes)
+
+function amrColor(status: Amr['status']): string {
+  switch (status) {
+    case 'moving':
+      return AMBER
+    case 'faulted':
+      return RED
+    default:
+      return GREY
+  }
+}
+
+function AmrFleet({ amrs }: { amrs: Amr[] }): JSX.Element {
+  return (
+    <group>
+      {amrs.map((amr) => (
+        <AmrMarker key={amr.amrId} amr={amr} />
+      ))}
+    </group>
+  )
+}
+
+function AmrMarker({ amr }: { amr: Amr }): JSX.Element {
+  const [hover, setHover] = useState(false)
+  const color = amrColor(amr.status)
+  return (
+    <group
+      position={[amr.x, 0, amr.z]}
+      onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+        e.stopPropagation()
+        setHover(true)
+      }}
+      onPointerOut={() => setHover(false)}
+    >
+      {/* Squat chassis — a small puck so it reads as a floor robot, distinct from the taller totes. */}
+      <mesh position={[0, AMR_Y / 2, 0]} castShadow>
+        <cylinderGeometry args={[0.32, 0.36, AMR_Y, 18]} />
+        <meshStandardMaterial color={color} metalness={0.3} roughness={0.5} emissive={color} emissiveIntensity={0.25} />
+      </mesh>
+      {/* Heading nub so a moving robot has an obvious facing/“front”. */}
+      <mesh position={[0.28, AMR_Y / 2, 0]}>
+        <boxGeometry args={[0.18, AMR_Y * 0.7, 0.18]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.4} />
+      </mesh>
+      {/* Carried HU sits on top, so a laden robot visibly differs from an empty one. */}
+      {amr.huCode && (
+        <mesh position={[0, AMR_Y + 0.12, 0]} castShadow>
+          <boxGeometry args={[0.42, 0.22, 0.32]} />
+          <meshStandardMaterial color={LIME} metalness={0.1} roughness={0.55} emissive={LIME} emissiveIntensity={0.2} />
+        </mesh>
+      )}
+      {hover && (
+        <Html position={[0, AMR_Y + 0.5, 0]} center distanceFactor={18} occlude={false}>
+          <div
+            style={{
+              padding: '0.15rem 0.45rem',
+              borderRadius: 4,
+              fontSize: 11,
+              whiteSpace: 'nowrap',
+              background: 'rgba(8, 30, 22, 0.85)',
+              color: '#d6e4dc',
+              border: `1px solid ${color}`,
+            }}
+          >
+            {amr.amrId}
+            {amr.huCode ? ` · ${amr.huCode}` : ''} · {amr.status}
+          </div>
+        </Html>
+      )}
+    </group>
+  )
+}
+
+// ----------------------------------------------------------------------------------------------------
+// AutoStore ports (item 3) — a marker per port at its world XZ, amber when busy, grey when idle. The
+// presented HU code shows on hover. The grid FILL % is surfaced in the screen's stats bar (numeric),
+// not the 3D scene, since the AutoStore cube geometry isn't part of the placed topology. Empty ports
+// render nothing.
+// ----------------------------------------------------------------------------------------------------
+
+const PORT_Y = 0.6
+
+function AutoStorePorts({ ports }: { ports: AutoStorePort[] }): JSX.Element {
+  return (
+    <group>
+      {ports.map((port) => (
+        <AutoStorePortMarker key={port.portId} port={port} />
+      ))}
+    </group>
+  )
+}
+
+function AutoStorePortMarker({ port }: { port: AutoStorePort }): JSX.Element {
+  const [hover, setHover] = useState(false)
+  const matRef = useRef<THREE.MeshStandardMaterial>(null)
+  const color = port.busy ? AMBER : GREY
+  // Pulse a busy port so active workstations are obvious at a glance (mirrors the equipment orb pulse).
+  useFrame(({ clock }) => {
+    const mat = matRef.current
+    if (!mat) return
+    mat.emissiveIntensity = port.busy ? 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(clock.elapsedTime * 4)) : 0.2
+  })
+  return (
+    <group
+      position={[port.x, 0, port.z]}
+      onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+        e.stopPropagation()
+        setHover(true)
+      }}
+      onPointerOut={() => setHover(false)}
+    >
+      {/* A short pillar topped with a state cap — reads as an AutoStore carousel port. */}
+      <mesh position={[0, PORT_Y / 2, 0]} castShadow>
+        <boxGeometry args={[0.5, PORT_Y, 0.5]} />
+        <meshStandardMaterial color="#2a3b33" metalness={0.2} roughness={0.7} />
+      </mesh>
+      <mesh position={[0, PORT_Y + 0.12, 0]}>
+        <boxGeometry args={[0.56, 0.22, 0.56]} />
+        <meshStandardMaterial ref={matRef} color={color} emissive={color} emissiveIntensity={0.2} toneMapped={false} />
+      </mesh>
+      {hover && (
+        <Html position={[0, PORT_Y + 0.5, 0]} center distanceFactor={18} occlude={false}>
+          <div
+            style={{
+              padding: '0.15rem 0.45rem',
+              borderRadius: 4,
+              fontSize: 11,
+              whiteSpace: 'nowrap',
+              background: 'rgba(8, 30, 22, 0.85)',
+              color: '#d6e4dc',
+              border: `1px solid ${color}`,
+            }}
+          >
+            {port.portId} · {port.busy ? 'busy' : 'idle'}
+            {port.huCode ? ` · ${port.huCode}` : ''}
+          </div>
+        </Html>
+      )}
     </group>
   )
 }

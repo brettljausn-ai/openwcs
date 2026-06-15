@@ -49,4 +49,8 @@ export default {
   transportTrace: 'Transportverfolgung',
   loadingTrace: 'Verfolgung wird geladen…',
   noTraceEvents: 'Keine aufgezeichneten Transportereignisse für diese Handhabungseinheit.',
+  statAmrs: 'AMRs',
+  statAutostoreFill: 'AutoStore-Füllung %',
+  legendAmr: 'AMR (in Bewegung)',
+  legendAutostorePort: 'AutoStore-Port (belegt)',
 }

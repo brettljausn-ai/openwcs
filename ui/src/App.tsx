@@ -19,6 +19,7 @@ import InboundScreen from './inbound/InboundScreen'
 import OutboundScreen from './outbound/OutboundScreen'
 import CountingScreen from './counting/CountingScreen'
 import GtpOpsScreen from './gtpops/GtpOpsScreen'
+import PickingScreen from './picking/PickingScreen'
 import TransportScreen from './transport/TransportScreen'
 import HardwareTwinScreen from './hardwaretwin/HardwareTwinScreen'
 import StockTxnScreen from './stocktxn/StockTxnScreen'
@@ -63,6 +64,7 @@ const COMPONENTS: Record<string, JSX.Element> = {
   outbound: <OutboundScreen />,
   counting: <CountingScreen />,
   'gtp-ops': <GtpOpsScreen />,
+  picking: <PickingScreen />,
   transport: <TransportScreen />,
   'hardware-twin': <HardwareTwinScreen />,
   'stock-transactions': <StockTxnScreen />,
