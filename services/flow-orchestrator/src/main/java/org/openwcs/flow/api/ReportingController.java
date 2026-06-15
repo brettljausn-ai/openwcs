@@ -2,6 +2,7 @@ package org.openwcs.flow.api;
 
 import java.util.List;
 import java.util.UUID;
+import org.openwcs.flow.api.ReportingDtos.AutomationSummary;
 import org.openwcs.flow.api.ReportingDtos.DecisionLatencyStats;
 import org.openwcs.flow.api.ReportingDtos.DeviceMovementRow;
 import org.openwcs.flow.api.ReportingDtos.ScanQualityRow;
@@ -61,6 +62,16 @@ public class ReportingController {
     public List<TransitTimeRow> transitTimes(@RequestParam UUID warehouseId,
                                              @RequestParam(defaultValue = "90") int days) {
         return reporting.transitTimes(warehouseId, days);
+    }
+
+    /**
+     * Warehouse automation health snapshot for the dashboards/alerting epic: today's scan no-read
+     * percentage and equipment availability (placed equipment not currently in fault). RBAC is
+     * DEVICE_VIEW like the other flow reports.
+     */
+    @GetMapping("/automation-summary")
+    public AutomationSummary automationSummary(@RequestParam UUID warehouseId) {
+        return reporting.automationSummary(warehouseId);
     }
 
     /**

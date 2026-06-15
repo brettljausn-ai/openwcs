@@ -89,6 +89,22 @@ public interface DeviceTaskRepository extends JpaRepository<DeviceTask, UUID> {
     List<DeviceMovementAgg> deviceMovements(@Param("warehouseId") UUID warehouseId,
                                             @Param("days") int days);
 
+    /**
+     * Automation summary: how many of the warehouse's placed equipments are CURRENTLY in fault. A
+     * placed equipment counts as in fault when its most recent device task (by creation time) is
+     * FAILED. Equipment with no tasks, or whose latest task is REQUESTED/DISPATCHED/COMPLETED, is
+     * not in fault. Best-effort: equipment that has never had a task is treated as healthy.
+     */
+    @Query(value = """
+            SELECT count(*) FROM flow.placed_equipment p
+            WHERE p.warehouse_id = :warehouseId
+              AND (SELECT t.status FROM flow.device_task t
+                   WHERE t.warehouse_id = p.warehouse_id AND t.equipment_id = p.equipment_id
+                   ORDER BY t.created_at DESC
+                   LIMIT 1) = 'FAILED'
+            """, nativeQuery = true)
+    long countEquipmentInFault(@Param("warehouseId") UUID warehouseId);
+
     interface StorageMovementAgg {
         UUID getLocationId();
 

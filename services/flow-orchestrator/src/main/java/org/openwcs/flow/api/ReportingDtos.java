@@ -42,4 +42,14 @@ public final class ReportingDtos {
     public record DecisionLatencyStats(long count, double p50Ms, double p95Ms, double p99Ms,
                                        double maxMs) {
     }
+
+    /**
+     * Warehouse automation health snapshot for the dashboards/alerting epic.
+     * {@code scanNoReadPctToday} is today's scanner read-error rate (no-reads / scans, 0 when no
+     * scans yet); {@code equipmentAvailabilityPct} is the share of placed equipment NOT currently
+     * in fault ({@code (total - inFault) / total}, 100 when nothing is placed).
+     */
+    public record AutomationSummary(double scanNoReadPctToday, double equipmentAvailabilityPct,
+                                    long equipmentTotal, long equipmentInFault) {
+    }
 }
