@@ -11,7 +11,7 @@
 
 export type Role = 'ADMIN' | 'SUPERVISOR' | 'OPERATOR' | 'VIEWER'
 
-export type Section = 'Master data' | 'Operations' | 'Reporting' | 'Engineering' | 'Configuration' | 'Administration'
+export type Section = 'Dashboards' | 'Master data' | 'Operations' | 'Reporting' | 'Engineering' | 'Configuration' | 'Administration'
 
 export interface ScreenDef {
   key: string
@@ -24,7 +24,15 @@ export interface ScreenDef {
 }
 
 export const SCREENS: ScreenDef[] = [
-  { key: 'dashboard', label: 'Dashboard', path: '/', icon: '◫', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'VIEWER'], description: 'Overview and quick links into every area of the warehouse control system.' },
+  { key: 'dashboard', label: 'Quick links', path: '/home', icon: '◫', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'VIEWER'], description: 'Overview and quick links into every area of the warehouse control system.' },
+
+  // Dashboards — at-a-glance situation assessment (read-only). Landing page is the post-login home.
+  { key: 'dashboards:overview', label: 'Overview', path: '/', section: 'Dashboards', icon: '◫', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'VIEWER'], description: 'Control-room landing page: at-a-glance state of stock, inbound, outbound, dispatch and automation, each drilling into its dashboard.' },
+  { key: 'dashboards:inbound', label: 'Inbound', path: '/dashboards/inbound', section: 'Dashboards', icon: '⇣', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'VIEWER'], description: 'Inbound dashboard: receive and putaway timings, backlog, receipts per hour and open-order burn-down.' },
+  { key: 'dashboards:outbound', label: 'Outbound', path: '/dashboards/outbound', section: 'Dashboards', icon: '⇡', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'VIEWER'], description: 'Outbound dashboard: open orders with projected completion, pick rate, shorts and on-time-to-cutoff.' },
+  { key: 'dashboards:replenishment', label: 'Replenishment', path: '/dashboards/replenishment', section: 'Dashboards', icon: '⇅', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'VIEWER'], description: 'Replenishment dashboard: urgent replenishments, projected stockouts and open tasks, worst-first.' },
+  { key: 'dashboards:stock', label: 'Stock levels', path: '/dashboards/stock', section: 'Dashboards', icon: '▤', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'VIEWER'], description: 'Stock dashboard: location and ASRS utilisation against the 90-day normal band, HU and SKU counts.' },
+  { key: 'dashboards:abc', label: 'ABC movers', path: '/dashboards/abc', section: 'Dashboards', icon: '∷', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR', 'VIEWER'], description: 'ABC movers dashboard: Pareto of picks per SKU with A/B/C cut points, top/bottom movers and risers/fallers.' },
 
   // Operations — day-to-day execution
   { key: 'inbound', label: 'Inbound orders', path: '/inbound', section: 'Operations', icon: '⇣', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'Inbound orders & ASNs — receive goods and track put-away.' },
@@ -70,7 +78,7 @@ export const SCREENS: ScreenDef[] = [
   { key: 'admin-database', label: 'Database', path: '/admin/database', section: 'Administration', icon: '⛁', defaultRoles: ['ADMIN'], description: 'Browse schemas and tables and run read-only SELECT queries against the shared database.' },
 ]
 
-export const SECTION_ORDER: Section[] = ['Master data', 'Operations', 'Reporting', 'Engineering', 'Configuration', 'Administration']
+export const SECTION_ORDER: Section[] = ['Dashboards', 'Master data', 'Operations', 'Reporting', 'Engineering', 'Configuration', 'Administration']
 
 // Access has three levels: OFF (no access — represented as the absence of an entry / null),
 // READ (view-only) and WRITE (full). A screen with a WRITE level lets the user perform writes;
@@ -99,7 +107,7 @@ function stronger(a: AccessLevel | null, b: AccessLevel | null): AccessLevel | n
  */
 export function defaultLevel(screen: ScreenDef, role: string): AccessLevel | null {
   if (!screen.defaultRoles.includes(role as Role)) return null
-  if (role === 'VIEWER' || screen.section === 'Reporting') return 'read'
+  if (role === 'VIEWER' || screen.section === 'Reporting' || screen.section === 'Dashboards') return 'read'
   return 'write'
 }
 

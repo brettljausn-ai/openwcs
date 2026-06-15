@@ -1,6 +1,12 @@
 // Chinese (中文) — sidebar navigation labels + section headers (keys = screen `key`s).
 export default {
-  dashboard: '仪表板',
+  dashboard: '快捷入口',
+  'dashboards:overview': '总览',
+  'dashboards:inbound': '入库',
+  'dashboards:outbound': '出库',
+  'dashboards:replenishment': '补货',
+  'dashboards:stock': '库存水平',
+  'dashboards:abc': 'ABC 动销',
   inbound: '入库订单',
   outbound: '出库订单',
   counting: '库存盘点',
@@ -32,6 +38,7 @@ export default {
   'warehouse-access': '仓库访问权限',
   'system-info': '系统信息',
   'admin-database': '数据库',
+  'section:Dashboards': '仪表板',
   'section:Master data': '主数据',
   'section:Operations': '运营',
   'section:Reporting': '报表',
