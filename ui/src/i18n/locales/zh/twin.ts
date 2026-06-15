@@ -48,4 +48,8 @@ export default {
   transportTrace: '运输轨迹',
   loadingTrace: '正在加载轨迹…',
   noTraceEvents: '此搬运单元没有已记录的运输事件。',
+  statAmrs: 'AMR',
+  statAutostoreFill: 'AutoStore 填充率 %',
+  legendAmr: 'AMR（移动中）',
+  legendAutostorePort: 'AutoStore 端口（忙碌）',
 }

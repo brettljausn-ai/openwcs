@@ -49,4 +49,8 @@ export default {
   transportTrace: 'Trace de transport',
   loadingTrace: 'Chargement de la trace…',
   noTraceEvents: 'Aucun événement de transport enregistré pour cette unité de manutention.',
+  statAmrs: 'AMR',
+  statAutostoreFill: 'Remplissage AutoStore %',
+  legendAmr: 'AMR (en mouvement)',
+  legendAutostorePort: 'Port AutoStore (occupé)',
 }

@@ -13,6 +13,7 @@ export default {
   outbound: '出库订单',
   counting: '库存盘点',
   'gtp-ops': 'GTP 工作站',
+  picking: '拣货',
   transport: '运输',
   'hardware-twin': '硬件可视化',
   'stock-transactions': '库存事务',
