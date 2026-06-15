@@ -2,7 +2,10 @@ package org.openwcs.flow.api;
 
 import java.util.UUID;
 import org.openwcs.flow.api.TwinPathDtos.TwinPaths;
+import org.openwcs.flow.api.TwinTelemetryDtos.AmrFleet;
+import org.openwcs.flow.api.TwinTelemetryDtos.Autostore;
 import org.openwcs.flow.service.TwinPathService;
+import org.openwcs.flow.service.TwinTelemetryService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -19,13 +22,33 @@ import org.springframework.web.bind.annotation.RestController;
 public class TwinPathController {
 
     private final TwinPathService service;
+    private final TwinTelemetryService telemetry;
 
-    public TwinPathController(TwinPathService service) {
+    public TwinPathController(TwinPathService service, TwinTelemetryService telemetry) {
         this.service = service;
+        this.telemetry = telemetry;
     }
 
     @GetMapping("/tote-paths")
     public TwinPaths totePaths(@RequestParam("warehouseId") UUID warehouseId) {
         return service.paths(warehouseId);
+    }
+
+    /**
+     * Live AMR fleet: per active robot, its world XZ position, status and carried HU. Best-effort —
+     * an empty fleet when the emulator is off/unreachable. Requires DEVICE_VIEW.
+     */
+    @GetMapping("/amr-fleet")
+    public AmrFleet amrFleet(@RequestParam("warehouseId") UUID warehouseId) {
+        return telemetry.amrFleet(warehouseId);
+    }
+
+    /**
+     * Live AutoStore grid fill + port activity. Best-effort — a zeroed grid / empty ports when the
+     * emulator is off/unreachable. Requires DEVICE_VIEW.
+     */
+    @GetMapping("/autostore")
+    public Autostore autostore(@RequestParam("warehouseId") UUID warehouseId) {
+        return telemetry.autostore(warehouseId);
     }
 }
