@@ -175,6 +175,57 @@ paths:
             application/json: { schema: { $ref: '#/components/schemas/Order' } }
         "409": { $ref: '#/components/responses/Problem' }
 
+  /api/orders/pick-tasks:
+    get:
+      tags: [Transactions]
+      summary: Operator pick queue (RF-style guided picking)
+      description: >
+        Outbound order lines that are released/allocated and still need picking, the unit of
+        work for guided operator picking. A line qualifies while its order is ALLOCATED or
+        PARTIALLY_ALLOCATED and the line is ALLOCATED or SHORT with quantity still to pick;
+        fully picked lines drop out. Ordered for a sensible pick walk: most-urgent order first
+        (priority desc, then dispatch cut-off), then line number. Best-effort. The allocated
+        pick location is included when known; the gap is that the allocation service does not
+        return the assigned location and the order line stores none, so locationId is sourced
+        from the latest Picked transaction (set after the first partial pick) and is otherwise
+        null. Requires ORDER_VIEW.
+      operationId: pickTasks
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/PickTask' } }
+  /api/orders/pick-tasks/{lineId}/confirm:
+    parameters: [ { name: lineId, in: path, required: true, schema: { type: string, format: uuid } } ]
+    post:
+      tags: [Transactions]
+      summary: Confirm an operator pick against a pick-task line
+      description: >
+        Records the pick: posts a Picked stock transaction (decrementing stock through the same
+        outbox to transaction-log path as a line pick) and advances the line's picked quantity.
+        A short confirm under the requested quantity marks the line SHORT. pickedQty is the
+        just-picked increment; a zero confirm posts nothing (idempotent-ish). The operator is
+        taken from the gateway-forwarded X-Auth-User header (required for audit). Requires
+        ORDER_POST_TRANSACTION (held by OPERATOR in the shipped role catalog, the picking write
+        permission). 409 when the line is not pickable (cancelled order, non-allocated line, or
+        already fully picked) or an over-pick. Returns the updated pick-task row.
+      operationId: confirmPick
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfirmPickRequest' }
+      responses:
+        "200":
+          description: Updated pick-task row
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/PickTask' } }
+        "400": { $ref: '#/components/responses/Problem' }
+        "409": { $ref: '#/components/responses/Problem' }
+
   /api/orders/reports/flow:
     get:
       tags: [Reports]
@@ -357,6 +408,31 @@ components:
         uomCode: { type: string, nullable: true, default: EACH }
         status: { type: string, nullable: true }
         actor: { type: string, nullable: true }
+    PickTask:
+      type: object
+      description: One row in the operator pick queue (an outbound line still needing picking).
+      properties:
+        orderId: { type: string, format: uuid }
+        orderCode: { type: string, description: The order reference (host order id / wave). }
+        lineId: { type: string, format: uuid }
+        lineNo: { type: integer }
+        skuId: { type: string, format: uuid }
+        locationId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Allocated pick location, best-effort (latest Picked transaction); null until known (see endpoint gap)."
+        requestedQty: { type: number, description: Quantity to pick (allocated/reserved qty, falling back to ordered). }
+        pickedQty: { type: number, description: Quantity picked so far (sum of Picked postings). }
+        remainingQty: { type: number, description: requestedQty minus pickedQty, floored at zero. }
+        status: { type: string, description: Line status (ALLOCATED, SHORT). }
+    ConfirmPickRequest:
+      type: object
+      required: [pickedQty]
+      properties:
+        pickedQty: { type: number, description: "Quantity just picked (positive; zero records nothing)." }
+        short: { type: boolean, nullable: true, description: "Mark the line SHORT when the remaining quantity cannot be fully picked." }
+        locationId: { type: string, format: uuid, nullable: true, description: "Bin picked from, recorded on the Picked transaction; reuses the last known location when omitted." }
     Order:
       type: object
       properties:
