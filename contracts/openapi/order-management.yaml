@@ -184,11 +184,10 @@ paths:
         work for guided operator picking. A line qualifies while its order is ALLOCATED or
         PARTIALLY_ALLOCATED and the line is ALLOCATED or SHORT with quantity still to pick;
         fully picked lines drop out. Ordered for a sensible pick walk: most-urgent order first
-        (priority desc, then dispatch cut-off), then line number. Best-effort. The allocated
-        pick location is included when known; the gap is that the allocation service does not
-        return the assigned location and the order line stores none, so locationId is sourced
-        from the latest Picked transaction (set after the first partial pick) and is otherwise
-        null. Requires ORDER_VIEW.
+        (priority desc, then dispatch cut-off), then line number. Best-effort. locationId is the
+        allocated primary pick location threaded onto the order line on release/allocate (the face
+        the allocation service reserved against), falling back to the latest Picked transaction's
+        location, then null when neither is known. Requires ORDER_VIEW.
       operationId: pickTasks
       parameters:
         - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }

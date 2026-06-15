@@ -65,12 +65,17 @@ class PickTaskTest {
 
     /** Create an OUTBOUND order and fully allocate it (status ALLOCATED, lines ALLOCATED). */
     private OrderView allocatedOrder(String ref, UUID warehouse, UUID sku, String qty) {
+        return allocatedOrder(ref, warehouse, sku, qty, null);
+    }
+
+    /** As above, with the allocation service returning {@code pickLocation} as the line's pick face. */
+    private OrderView allocatedOrder(String ref, UUID warehouse, UUID sku, String qty, UUID pickLocation) {
         OrderView created = service.create(new CreateOrderRequest(
                 ref, warehouse, "OUTBOUND", null, null, null, null, null, null, null,
                 List.of(new CreateOrderRequest.Line(sku, new BigDecimal(qty)))));
         when(allocation.allocate(eq(ref), any(), anyList(), any(), eq(false)))
                 .thenReturn(new AllocationClient.AllocationResult("FULFILLABLE", null,
-                        List.of(new AllocationClient.LineResult(1, new BigDecimal(qty), "ALLOCATED"))));
+                        List.of(new AllocationClient.LineResult(1, new BigDecimal(qty), "ALLOCATED", pickLocation))));
         OrderView released = service.release(created.id());
         assertThat(released.status()).isEqualTo("ALLOCATED");
         return released;
@@ -93,7 +98,23 @@ class PickTaskTest {
         assertThat(task.pickedQty()).isEqualByComparingTo("0");
         assertThat(task.remainingQty()).isEqualByComparingTo("5");
         assertThat(task.status()).isEqualTo("ALLOCATED");
-        assertThat(task.locationId()).isNull(); // no pick yet → location unknown (documented gap)
+        // Allocation supplied no pick location (older path) and no pick posted yet → null.
+        assertThat(task.locationId()).isNull();
+    }
+
+    @Test
+    void pickQueueShowsAllocatedPickLocation() {
+        UUID warehouse = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID pickFace = UUID.randomUUID();
+        // Allocation returns the reserved pick face; it is threaded onto the order line on release.
+        allocatedOrder("ORD-PQ-LOC", warehouse, sku, "5", pickFace);
+
+        List<PickTaskView> tasks = service.pickTasks(warehouse);
+
+        assertThat(tasks).hasSize(1);
+        // locationId is the allocated pick location, shown before any stock is picked.
+        assertThat(tasks.get(0).locationId()).isEqualTo(pickFace);
     }
 
     @Test

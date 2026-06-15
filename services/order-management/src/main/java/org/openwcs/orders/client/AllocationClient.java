@@ -50,7 +50,17 @@ public interface AllocationClient {
         }
     }
 
-    /** Per-line allocation outcome: how much of the line is reserved ({@code ALLOCATED} or {@code SHORT}). */
-    record LineResult(int lineNo, BigDecimal allocatedQty, String status) {
+    /**
+     * Per-line allocation outcome: how much of the line is reserved ({@code ALLOCATED} or
+     * {@code SHORT}) and the primary pick location it was reserved at (the head of the pick walk;
+     * {@code null} when nothing was reserved, or for an older allocation path that did not return
+     * a location). The location is threaded onto the order line so the pick queue can show a real
+     * face before any stock is picked.
+     */
+    record LineResult(int lineNo, BigDecimal allocatedQty, String status, UUID pickLocationId) {
+        /** Outcome without a pick location (older allocation path / nothing reserved). */
+        public LineResult(int lineNo, BigDecimal allocatedQty, String status) {
+            this(lineNo, allocatedQty, status, null);
+        }
     }
 }

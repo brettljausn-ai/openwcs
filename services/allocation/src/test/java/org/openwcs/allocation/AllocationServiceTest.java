@@ -77,6 +77,9 @@ class AllocationServiceTest {
         AllocationView allocated = service.allocate(request);
         assertThat(allocated.status()).isEqualTo("FULFILLABLE");
         assertThat(allocated.lines().get(0).picks().get(0).reservationId()).isEqualTo(reservation);
+        // The line now carries its primary pick location (the first/only pick's location) so
+        // order-management can thread it onto the order line for the operator pick queue.
+        assertThat(allocated.lines().get(0).pickLocationId()).isEqualTo(location);
 
         AllocationView cancelled = service.cancel("ORD-CANCEL");
         assertThat(cancelled.status()).isEqualTo("CANCELLED");
