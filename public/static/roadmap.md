@@ -49,6 +49,7 @@
 - [done] Live 3D digital twin :: The saved layout rendered live in the browser: equipment coloured idle / running / faulted from real device tasks, totes replaying the actual scan trail, and storage fill shown at cell level in the ASRS rack.
 - [done] Cycle counting :: Count tasks with blind and variance modes and ABC-cadence scheduling, at-station blind counting via the GTP console, and a standalone count-capture screen with variances, recounts and reconciliation.
 - [done] Operational reporting :: A Reporting section with five screens: scan quality per scan point with predictive error trends, a 3D conveyor traffic heatmap, ASRS storage density and movements with 90-day history and 14-day forecasts, per-SKU stock availability split, and inbound/outbound flow with hour-of-day peak maps.
+- [done] Multilanguage UI :: The operator and management SPA ships in English, German, French, Spanish and Chinese with a per-user language preference — no add-on required.
 
 ## In progress
 > Active development

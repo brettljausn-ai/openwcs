@@ -1,6 +1,6 @@
 # openWCS — As-Built Documentation
 
-_Last updated: 2026-06-13 (logging convention applied to all services; slotting assignment lifecycle + single-aisle block starvation fix; inventory stock-follows-HU with bucket merge on collision; digital twin live conveyor state colours + smooth tote motion)_
+_Last updated: 2026-06-15 (self-service password change at login rescues "not fully set up" accounts; per-screen off/read/write access with gateway enforcement via ScreenWriteCatalog; database console governed by admin-database screen access and grantable to non-admin roles; multilanguage UI ships in 5 languages out of the box)_
 
 What is **actually implemented** today (not the target architecture). Design intent:
 [`build.md`](../build.md); decisions: [`docs/adr/`](./adr); live progress:
