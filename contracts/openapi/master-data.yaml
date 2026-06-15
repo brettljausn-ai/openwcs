@@ -112,6 +112,44 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/StockRules' }
         "403": { description: Not an ADMIN }
+  # ---------------------------------------------------------------- AI assistant config
+  /ai-assistant:
+    get:
+      tags: [Equipment]
+      summary: AI-assistant configuration status
+      description: >
+        Public assistant config for any authenticated user: whether the feature is enabled, whether
+        an Anthropic API key is configured, and the selected model. The API key itself is write-only
+        and is never returned here.
+      operationId: getAiAssistantConfig
+      responses:
+        "200":
+          description: AI-assistant config (never the key)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AiAssistantConfig' }
+    put:
+      tags: [Equipment]
+      summary: Update the AI-assistant configuration (admin-only)
+      description: >
+        Sets the Anthropic API key, model, and/or enabled flag. ADMIN only; audited with
+        X-Auth-User. An omitted/null apiKey leaves the stored key unchanged (so admins can toggle
+        model/enabled without re-entering it); an explicit empty string clears it; a non-blank value
+        is stored trimmed. The key is write-only and never echoed in the response.
+      operationId: putAiAssistantConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AiAssistantConfigUpdate' }
+      responses:
+        "200":
+          description: AI-assistant config after the update (never the key)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AiAssistantConfig' }
+        "400": { description: "Invalid model" }
+        "403": { description: Not an ADMIN }
   /alert-thresholds:
     get:
       tags: [Equipment]
@@ -1218,6 +1256,41 @@ components:
           type: boolean
           description: One HU compartment holds exactly one SKU (default true).
       required: [singleSkuPerCompartment]
+    AiAssistantConfig:
+      type: object
+      description: >
+        Public AI-assistant config. Never carries the Anthropic API key (write-only); the assistant
+        service reads the real key server-side via the network-only /internal/ai-assistant endpoint.
+      properties:
+        enabled:
+          type: boolean
+          description: True when the AI assistant feature is on (default false).
+        configured:
+          type: boolean
+          description: True when an Anthropic API key is present (non-blank).
+        model:
+          type: string
+          description: 'Selected Claude model (default claude-haiku-4-5).'
+      required: [enabled, configured, model]
+    AiAssistantConfigUpdate:
+      type: object
+      description: >
+        Admin update for the AI-assistant config. All fields are optional. A null apiKey leaves the
+        stored key unchanged; an explicit empty string clears it; a non-blank value is stored
+        trimmed. The key is write-only and never echoed back.
+      properties:
+        apiKey:
+          type: string
+          description: >
+            Anthropic API key. Omit/null to keep the existing key; empty string to clear it; a
+            non-blank value to set it (stored trimmed). Write-only.
+        model:
+          type: string
+          enum: [claude-haiku-4-5, claude-opus-4-8]
+          description: 'Claude model to use; must be one of the allowed values.'
+        enabled:
+          type: boolean
+          description: Whether the AI assistant feature is on.
     AlertThresholds:
       type: object
       description: >
