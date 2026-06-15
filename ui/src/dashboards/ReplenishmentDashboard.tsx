@@ -4,6 +4,7 @@
 // our own derivation (no verified industry precedent — flagged in the spec).
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import { useT } from '../i18n/useT'
+import { useCatalog } from '../lib/useCatalog'
 import { usePoll } from './usePoll'
 import { Hero, WorstFirstStrip, type DashState } from './components'
 import { ChartCard, ChartRow, HeroRow, NoWarehouse, PageHead } from './DashboardPage'
@@ -17,6 +18,7 @@ const DEFAULTS: AlertThresholds = { scanNoReadPct: 1, receiveErrorsDay: 5, asrsU
 export default function ReplenishmentDashboard() {
   const t = useT('dashboards')
   const { currentWarehouseId: wh } = useWarehouse()
+  const cat = useCatalog(wh)
   const rep = usePoll(wh, loadReplenishmentDashboard, POLL)
   const thr = usePoll(wh ? 'g' : '', () => getAlertThresholds().catch(() => DEFAULTS), 120_000)
   const T = thr.data ?? DEFAULTS
@@ -54,7 +56,7 @@ export default function ReplenishmentDashboard() {
           <div style={{ paddingTop: '.5rem' }}>
             <WorstFirstStrip
               entries={stockouts.map((s) => ({
-                label: s.locationCode,
+                label: cat.locationCode(s.locationCode), // backend sends the location id here; show its code
                 value: maxMin - s.minutesToStockout, // shorter time-to-stockout → longer (more urgent) bar
                 display: minsLabel(s.minutesToStockout),
                 breach: s.minutesToStockout <= HORIZON_MIN,
