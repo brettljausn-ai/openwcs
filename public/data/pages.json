@@ -1,4 +1,11 @@
 {
+  "/ai-assistant": {
+    "file": "ai-assistant.html",
+    "view": "pages/ai-assistant",
+    "bodyId": "top",
+    "headMeta": "<title data-i18n=\"aia.title\">AI assistant — openWCS</title>\n  <meta name=\"description\" content=\"The openWCS AI assistant: an in-app chat that answers questions about your orders, transports, stock and handling units by calling the WCS's own read-only APIs under your permissions and warehouse scope. Bring your own Anthropic API key. Built today.\">\n  <meta name=\"theme-color\" content=\"#061812\">\n  <link rel=\"canonical\" href=\"https://openwcs.ai/ai-assistant\">\n  <link rel=\"icon\" type=\"image/png\" href=\"/favicon.png\">\n  <meta property=\"og:title\" content=\"AI assistant — openWCS\">\n  <meta property=\"og:description\" content=\"An in-app AI chat over your warehouse: it calls the WCS's own read APIs under your permissions and answers only from the results. Bring your own Anthropic key.\">\n  <meta property=\"og:type\" content=\"article\">\n  <meta property=\"og:image\" content=\"https://openwcs.ai/openwcs.png\">",
+    "scripts": ""
+  },
   "/allocation": {
     "file": "allocation.html",
     "view": "pages/allocation",

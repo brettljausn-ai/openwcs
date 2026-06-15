@@ -53,6 +53,9 @@ spring:
         - id: integration-host
           uri: ${OPENWCS_URI_INTEGRATION_HOST:http://localhost:8092}
           predicates: [ "Path=/api/host/**" ]
+        - id: assistant
+          uri: ${OPENWCS_URI_ASSISTANT:http://localhost:8096}
+          predicates: [ "Path=/api/assistant/**" ]
 
 # Edge security (build.md §4.8, §12). Off by default so the stack runs without a realm.
 # To enable JWT validation, set OPENWCS_SECURITY_ENABLED=true AND point the resource server
@@ -83,6 +86,7 @@ openwcs:
       - { name: slotting, kind: java, uri: "${OPENWCS_URI_SLOTTING:http://localhost:8093}" }
       - { name: gtp, kind: java, uri: "${OPENWCS_URI_GTP:http://localhost:8094}" }
       - { name: counting, kind: java, uri: "${OPENWCS_URI_COUNTING:http://localhost:8095}" }
+      - { name: assistant, kind: java, uri: "${OPENWCS_URI_ASSISTANT:http://localhost:8096}" }
       - { name: conveyor-adapter, kind: go, uri: "${OPENWCS_URI_CONVEYOR_ADAPTER:http://localhost:9091}" }
       - { name: amr-geekplus-adapter, kind: go, uri: "${OPENWCS_URI_AMR_GEEKPLUS_ADAPTER:http://localhost:9093}" }
       - { name: autostore-adapter, kind: go, uri: "${OPENWCS_URI_AUTOSTORE_ADAPTER:http://localhost:9094}" }

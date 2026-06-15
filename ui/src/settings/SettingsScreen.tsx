@@ -18,6 +18,9 @@ import {
   Shipper,
   StorageBlock,
   Warehouse,
+  AiAssistantConfig,
+  getAiAssistantConfig,
+  saveAiAssistantConfig,
   archiveShipper,
   createSchedule,
   createShipper,
@@ -46,7 +49,7 @@ import {
 } from './api'
 import { getAlertThresholds, saveAlertThresholds, type AlertThresholds } from '../dashboards/api'
 
-type Tab = 'slotting' | 'cubing' | 'counting' | 'stockrules' | 'alerts' | 'integration' | 'system' | 'demo' | 'emulator'
+type Tab = 'slotting' | 'cubing' | 'counting' | 'stockrules' | 'alerts' | 'assistant' | 'integration' | 'system' | 'demo' | 'emulator'
 
 const TABS: { key: Tab; labelKey: string; label: string }[] = [
   { key: 'slotting', labelKey: 'tabSlotting', label: 'Slotting policy' },
@@ -54,6 +57,7 @@ const TABS: { key: Tab; labelKey: string; label: string }[] = [
   { key: 'counting', labelKey: 'tabCounting', label: 'Counting' },
   { key: 'stockrules', labelKey: 'tabStockRules', label: 'Stock rules' },
   { key: 'alerts', labelKey: 'tabAlerts', label: 'Alerts' },
+  { key: 'assistant', labelKey: 'tabAiAssistant', label: 'AI Assistant' },
   { key: 'integration', labelKey: 'tabIntegrations', label: 'Integrations' },
   { key: 'system', labelKey: 'tabSystemStatus', label: 'System status' },
   { key: 'demo', labelKey: 'tabDemoMode', label: 'Demo mode' },
@@ -146,6 +150,7 @@ export default function SettingsScreen() {
           {tab === 'counting' && <CountingSettings warehouseId={warehouseId} />}
           {tab === 'stockrules' && <StockRulesSettings />}
           {tab === 'alerts' && <AlertThresholdsSettings />}
+          {tab === 'assistant' && <AiAssistantSettings />}
           {tab === 'integration' && <Integrations />}
           {tab === 'system' && <SystemStatus />}
           {tab === 'demo' && <DemoMode warehouseId={warehouseId} />}
@@ -1325,6 +1330,148 @@ function AlertThresholdsSettings() {
           <div className={styles.actions}>
             <button className="btn btn-primary" type="button" onClick={save} disabled={saving || !canWrite}>
               {saving ? t('saving', 'Saving…') : t('saveThresholds', 'Save thresholds')}
+            </button>
+            {saved && <span className={styles.savedNote}>{t('saved', 'Saved.')}</span>}
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+
+// AI assistant (ADMIN). The chat widget's provider config: an API key (write-only — never returned),
+// the model, and an enable switch. GET reports a `configured` flag (whether a key is stored) without
+// revealing the key; PUT applies only the fields provided, so leaving the key blank on save keeps the
+// existing one. Mirrors the other admin panels: settings-write gate + the shared Toggle / Save button.
+function AiAssistantSettings() {
+  const t = useT('settings')
+  const canWrite = useSettingsWrite()
+  const [cfg, setCfg] = useState<AiAssistantConfig | null>(null)
+  const [apiKey, setApiKey] = useState('')
+  const [model, setModel] = useState('claude-haiku-4-5')
+  const [enabled, setEnabled] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function apply(c: AiAssistantConfig) {
+    setCfg(c)
+    setModel(c.model || 'claude-haiku-4-5')
+    setEnabled(c.enabled)
+    setApiKey('') // never pre-fill the key field — it is write-only
+  }
+
+  useEffect(() => {
+    getAiAssistantConfig()
+      .then(apply)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }, [])
+
+  async function save() {
+    setSaving(true)
+    setError(null)
+    setSaved(false)
+    try {
+      // Only send fields that should change. Omit apiKey when blank so the existing key is kept.
+      const update = { model, enabled, ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}) }
+      apply(await saveAiAssistantConfig(update))
+      setSaved(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className={`glass ${styles.section}`}>
+      <div className={styles.sectionHead}>
+        <div>
+          <h2>{t('aiAssistantHeading', 'AI assistant')}</h2>
+          <p>
+            {t(
+              'aiAssistantIntro',
+              'The provider key and model behind the floating chat assistant. The key is stored write-only and never shown again; leave it blank when saving to keep the current key. Turn the assistant on once a key is configured.',
+            )}
+          </p>
+        </div>
+      </div>
+
+      {error && <div className="alert-danger" style={{ marginBottom: '1rem' }}>{error}</div>}
+      {!cfg && !error && <p className={styles.muted}>{t('loading', 'Loading…')}</p>}
+
+      {cfg && (
+        <>
+          <div className={styles.grid}>
+            <div className={styles.field}>
+              <label>
+                {t('aiApiKey', 'API key')}{' '}
+                <InfoTip
+                  text={t('tipAiApiKey', 'The Anthropic API key the assistant uses. Stored write-only and never returned. Leave blank to keep the existing key.')}
+                  example="sk-ant-…"
+                />
+              </label>
+              <input
+                className="form-control"
+                type="password"
+                autoComplete="off"
+                value={apiKey}
+                disabled={!canWrite}
+                placeholder={cfg.configured ? t('aiKeyConfigured', '•••••••• (configured — leave blank to keep)') : t('aiKeyNotConfigured', 'Not configured — paste a key')}
+                onChange={(e) => {
+                  setApiKey(e.target.value)
+                  setSaved(false)
+                }}
+              />
+              <span className={styles.fieldHint}>
+                {cfg.configured ? t('aiKeyConfiguredHint', 'A key is configured.') : t('aiKeyNotConfiguredHint', 'No key configured yet.')}
+              </span>
+            </div>
+            <div className={styles.field}>
+              <label>
+                {t('aiModel', 'Model')}{' '}
+                <InfoTip text={t('tipAiModel', 'Which Claude model answers chat messages. Haiku is fastest and cheapest; Opus is the most capable.')} example="Haiku 4.5" />
+              </label>
+              <Select
+                ariaLabel={t('aiModel', 'Model')}
+                value={model}
+                disabled={!canWrite}
+                onChange={(v) => {
+                  setModel(v)
+                  setSaved(false)
+                }}
+                options={[
+                  { value: 'claude-haiku-4-5', label: t('aiModelHaiku', 'Haiku 4.5 (fast, default)') },
+                  { value: 'claude-opus-4-8', label: t('aiModelOpus', 'Opus 4.8 (most capable)') },
+                ]}
+              />
+            </div>
+          </div>
+
+          <div className={styles.toggleRow} style={{ margin: '1rem 0' }}>
+            <Toggle
+              checked={enabled}
+              onChange={(v) => {
+                setEnabled(v)
+                setSaved(false)
+              }}
+            />
+            <div>
+              <div>
+                {enabled ? t('aiEnabledOn', 'Assistant is ON') : t('aiEnabledOff', 'Assistant is OFF')}{' '}
+                <InfoTip text={t('tipAiEnabled', 'When ON, the floating chat launcher appears for all users. Requires a configured key to answer.')} example="On" />
+              </div>
+              <span className={styles.fieldHint}>
+                {enabled
+                  ? t('aiEnabledOnHint', 'The chat launcher is shown on every screen.')
+                  : t('aiEnabledOffHint', 'The chat launcher is hidden.')}
+              </span>
+            </div>
+          </div>
+
+          <div className={styles.actions}>
+            <button className="btn btn-primary" type="button" onClick={save} disabled={saving || !canWrite}>
+              {saving ? t('saving', 'Saving…') : t('saveAiAssistant', 'Save assistant settings')}
             </button>
             {saved && <span className={styles.savedNote}>{t('saved', 'Saved.')}</span>}
           </div>

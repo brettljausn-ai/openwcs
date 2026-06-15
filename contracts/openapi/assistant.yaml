@@ -1,0 +1,110 @@
+openapi: 3.0.3
+info:
+  title: openWCS AI Assistant API
+  version: 0.1.0
+  description: >
+    Operator-facing AI chat over this openWCS instance's warehouse data, powered by the Anthropic
+    Claude API. A chat turn runs a manual tool-use agentic loop: Claude is given a set of read-only
+    tools (orders, stock-by-SKU, inventory dashboard, handling-unit trace, transport tasks, stock
+    blocking, order dashboard), each of which is an HTTP GET against an existing service that
+    propagates the caller's identity headers, so RBAC and warehouse scope still apply. The Anthropic
+    API key, model, and enabled flag are owned by master-data and fetched server-side from its
+    network-only internal endpoint; the key is never logged or returned. The default model is
+    "claude-haiku-4-5" (fast/cheap); "claude-opus-4-8" is also selectable via the master-data config.
+servers:
+  - url: /api/assistant
+    description: Via the API gateway
+
+tags:
+  - name: Assistant
+
+paths:
+  /chat:
+    post:
+      tags: [Assistant]
+      summary: Run an AI chat turn over warehouse data
+      description: >
+        Runs one chat turn for the given warehouse. The assistant answers only from tool results (no
+        fabrication) and says when data is unavailable. Requires a view permission (INVENTORY_VIEW)
+        when edge security is enabled; the caller's identity is forwarded to every tool call.
+      operationId: chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        "200":
+          description: The assistant's reply
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        "400":
+          description: Invalid request body
+        "403":
+          description: Missing the required view permission
+        "409":
+          description: "AI assistant not configured (disabled, or no API key set in master-data)"
+        "502":
+          description: The model API call failed
+  /status:
+    get:
+      tags: [Assistant]
+      summary: Assistant availability and active model (no key)
+      description: >
+        Reports whether the assistant is enabled and configured, and which Claude model is active.
+        Never returns the API key. Reachable by any authenticated user.
+      operationId: status
+      responses:
+        "200":
+          description: Assistant status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusView'
+
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required: [warehouseId, messages]
+      properties:
+        warehouseId:
+          type: string
+          format: uuid
+          description: The active warehouse; every tool call is scoped to it.
+        messages:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Turn'
+    Turn:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+    ChatResponse:
+      type: object
+      properties:
+        reply:
+          type: string
+          description: The assistant's final natural-language answer.
+    StatusView:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: Whether the assistant is enabled in the master-data config.
+        configured:
+          type: boolean
+          description: Whether an Anthropic API key is present (the key itself is never returned).
+        model:
+          type: string
+          nullable: true
+          description: The active Claude model id, e.g. claude-haiku-4-5 or claude-opus-4-8.
