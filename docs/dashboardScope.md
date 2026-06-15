@@ -1,3 +1,7 @@
+> **Implemented in this epic (Dashboards & alerting).** The landing dashboard (situation tiles at `/`) and all five menu dashboards (Inbound, Outbound, Replenishment, Stock, ABC movers) are built, along with threshold-based alerting that delivers WARNING/CRITICAL alerts by email and webhook on breach (notification service) and an admin Settings tab for the thresholds. The spec body below is the design doctrine the build follows (ISA-101 / Stephen Few); a few items remain backlog (e.g. an admin alert-system-health view). See `docs/AS-BUILT.md` for what each endpoint and screen actually does.
+
+---
+
 Dashboard Scope Specification
 
 This is a specification for a. the landing dashboard and b. Dashboards that sit in a main menu Dashboards section.

@@ -5,9 +5,10 @@
       <p class="lead" data-i18n="kpi.lead1">
         A Reporting section in the product, built today: scan quality with predictive error trends,
         3D traffic and movement heatmaps on the digital twin scene, ASRS density with forecasts,
-        stock availability, and inbound/outbound peaks. Five screens, collected live.
+        stock availability, and inbound/outbound peaks. Plus a live landing dashboard, five area
+        dashboards, and threshold alerts delivered by email and webhook.
       </p>
-      <p class="status-line">✓ Built: the Reporting section ships today in the openWCS UI (Material Flow, ASRS, Stock, Inbound, Outbound). Alerting, SLA metrics and the richer dashboards menu follow.</p>
+      <p class="status-line" data-i18n="kpi.status1">✓ Built: the Reporting section ships today in the openWCS UI (Material Flow, ASRS, Stock, Inbound, Outbound), plus a live landing dashboard, five area dashboards and threshold alerting with email and webhook delivery. SLA metrics and andon views follow.</p>
     </div>
   </section>
 
@@ -60,23 +61,23 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow" data-i18n="kpi.eyebrow5">On the roadmap</p>
-        <h2 data-i18n="kpi.h11">What joins the reports next.</h2>
+        <p class="eyebrow" data-i18n="kpi.eyebrow5">Built in the latest epic</p>
+        <h2 data-i18n="kpi.h11">Live dashboards and alerts that find you.</h2>
         <p data-i18n="kpi.p9">
-          The reporting layer grows where it pays off: from numbers you read to alerts that find you,
-          with richer dashboards on top.
+          The reporting layer grew where it pays off: from numbers you read to a live landing board,
+          area dashboards, and threshold alerts that reach you by email and webhook.
         </p>
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="kpi.tag7">Alerting &amp; SLA</div><span class="pill pill-roadmap" data-i18n="kpi.pill8">Roadmap</span></div>
+          <div class="card-head"><div class="tag" data-i18n="kpi.tag7">Threshold alerting</div><span class="pill pill-built" data-i18n="kpi.pill8">Built</span></div>
           <h3 data-i18n="kpi.h12">From reading to paging</h3>
-          <p data-i18n="kpi.p10">Planned: alerting and andon views on top of the collected counters, plus order and wave SLA metrics. Today the numbers are there to read; they do not page you yet.</p>
+          <p data-i18n="kpi.p10">Built: a service evaluates the dashboard metrics against configurable thresholds every minute, opens warning and critical alerts when a limit is breached, clears them when the metric recovers, and delivers each one by email and webhook. SLA metrics and andon views are still on the roadmap.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="kpi.tag8">Dashboards menu</div><span class="pill pill-roadmap" data-i18n="kpi.pill9">Roadmap</span></div>
+          <div class="card-head"><div class="tag" data-i18n="kpi.tag8">Dashboards menu</div><span class="pill pill-built" data-i18n="kpi.pill9">Built</span></div>
           <h3 data-i18n="kpi.h13">State heroes &amp; ABC movers</h3>
-          <p data-i18n="kpi.p11">Planned: landing-page state heroes and a richer Dashboards menu (inbound/outbound deep dives, replenishment urgency, ABC movers), spec'd in the dashboard scope document.</p>
+          <p data-i18n="kpi.p11">Built: a live landing dashboard with state-aware heroes (a big number, a target bar and a sparkline, coloured only when something needs attention) and five area dashboards (inbound, outbound, replenishment, stock, and ABC movers with a Pareto curve). Thresholds are edited in Settings.</p>
         </div>
       </div>
     </div>
@@ -89,12 +90,16 @@
         <h2 data-i18n="kpi.h3">Live counters in, five screens out.</h2>
       </div>
       <div class="arch">
-<pre>  <b>live collection</b>  (per-scan counters · daily density snapshots)        (built)
+<pre>  <b>live collection</b>  (per-scan counters · daily density snapshots · area aggregates)   (built)
         │  history accumulates from deployment day
         ▼
-  <b>Reporting section</b>  ── Material Flow · ASRS · Stock · Inbound · Outbound   (built)
+  <b>Reporting section</b>  ── Material Flow · ASRS · Stock · Inbound · Outbound          (built)
         │
-  ┄┄┄ roadmap ┄┄┄  alerting / andon · SLA metrics · dashboards menu (state heroes · ABC movers)</pre>
+  <b>Dashboards</b>  ── landing state heroes · inbound · outbound · replenishment · stock · ABC   (built)
+        │
+  <b>Threshold alerting</b>  ── per-minute evaluator · email + webhook delivery               (built)
+        │
+  ┄┄┄ roadmap ┄┄┄  SLA metrics · andon views</pre>
       </div>
     </div>
   </section>
