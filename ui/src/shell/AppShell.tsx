@@ -6,6 +6,7 @@ import WarehouseSwitcher from '../warehouse/WarehouseSwitcher'
 import LanguageSwitcher from '../i18n/LanguageSwitcher'
 import { useT } from '../i18n/useT'
 import HelpButton from '../help/HelpButton'
+import AssistantWidget from '../assistant/AssistantWidget'
 import { SidebarProvider, useSidebar } from './SidebarContext'
 
 function initials(name: string): string {
@@ -118,6 +119,7 @@ function AppShellInner() {
           <Outlet />
         </div>
       </main>
+      <AssistantWidget />
     </div>
   )
 }
