@@ -8,29 +8,31 @@
   z-index: 900;
   display: inline-flex;
   align-items: center;
-  gap: .5rem;
-  padding: .7rem 1rem;
-  border: 1px solid var(--glass-border-bright);
-  border-radius: 999px;
-  background: var(--brand-forest);
-  color: var(--alpine-white);
-  font-family: var(--font-body);
-  font-size: .9rem;
-  font-weight: 600;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--herbal-lime);
+  color: var(--forest-abyss);
   cursor: pointer;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
-  transition: transform .15s, box-shadow .15s, background .15s;
+  box-shadow: 0 6px 22px var(--herbal-glow), 0 4px 14px rgba(0, 0, 0, .35);
+  transition: transform .15s, box-shadow .15s, filter .15s;
 }
 
 .launcher:hover {
-  background: #245a44;
-  transform: translateY(-1px);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, .45);
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px var(--herbal-glow), 0 6px 18px rgba(0, 0, 0, .45);
+}
+
+.launcher:active {
+  transform: translateY(0);
 }
 
 .launcherIcon {
-  font-size: 1.1rem;
-  line-height: 1;
+  display: block;
 }
 
 .panel {
