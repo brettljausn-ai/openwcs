@@ -50,14 +50,17 @@ public class OrderService {
     private final AllocationClient allocation;
     private final OrderOutboxRepository outbox;
     private final MasterDataClient masterData;
+    private final RouteDispatchService routeDispatch;
 
     public OrderService(OutboundOrderRepository orders, OrderLineRepository lines, AllocationClient allocation,
-                        OrderOutboxRepository outbox, MasterDataClient masterData) {
+                        OrderOutboxRepository outbox, MasterDataClient masterData,
+                        RouteDispatchService routeDispatch) {
         this.orders = orders;
         this.lines = lines;
         this.allocation = allocation;
         this.outbox = outbox;
         this.masterData = masterData;
+        this.routeDispatch = routeDispatch;
     }
 
     @Transactional
@@ -97,6 +100,11 @@ public class OrderService {
             order.addLine(orderLine);
         }
         OutboundOrder saved = orders.save(order);
+        // Lazily open the route dispatch wave this order is assigned to (best-effort, no-op for
+        // non-outbound / unrouted / no-cut-off orders).
+        if (saved.getOrderType() == OrderType.OUTBOUND) {
+            routeDispatch.onOrderChanged(saved);
+        }
         log.info("order {} received: type {}, {} lines, priority {}, dispatch by {}",
                 saved.getOrderRef(), saved.getOrderType(), saved.getLines().size(),
                 saved.getPriority(), saved.getDispatchBy());
@@ -167,6 +175,8 @@ public class OrderService {
             throw new IllegalOrderStateException("Cannot short release " + order.getOrderRef()
                     + ": no stock is available for any line, nothing would be picked");
         }
+        // Advance the route dispatch wave: a PARTIALLY_ALLOCATED order is ready (LOADING). Best-effort.
+        routeDispatch.onOrderChanged(order);
         return OrderView.from(order);
     }
 
@@ -254,6 +264,9 @@ public class OrderService {
         // relay appends it to the transaction log, where the host confirmation feed picks it up.
         outbox.save(new OrderOutboxMessage(null, order.getOrderRef(), "OrderShipped", order.getId(),
                 actor == null || actor.isBlank() ? "system" : actor, shippedPayload(order, shortShipped)));
+        // Advance the route dispatch wave: shipping the last assigned order flips it to DEPARTED
+        // (sets departedAt). Best-effort — a wave update must never break shipping.
+        routeDispatch.onOrderChanged(order);
         log.info("order {} dispatched by {}: {} -> SHIPPED{}", order.getOrderRef(),
                 actor == null || actor.isBlank() ? "system" : actor, previous,
                 shortShipped ? " (short shipped: " + order.getStatusDetail() + ")" : "");
@@ -493,6 +506,9 @@ public class OrderService {
             log.warn("order {} release left NOT_FULFILLABLE: {} (eligible for re-release once stock arrives)",
                     order.getOrderRef(), result.detail());
         }
+        // Advance the route dispatch wave: an order becoming ALLOCATED makes its wave LOADING
+        // (sets firstLoadedAt). Best-effort.
+        routeDispatch.onOrderChanged(order);
         return order;
     }
 

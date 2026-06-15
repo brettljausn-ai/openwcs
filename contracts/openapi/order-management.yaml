@@ -281,13 +281,15 @@ paths:
   /api/orders/reports/dispatch:
     get:
       tags: [Reports]
-      summary: Dispatch board derived from open outbound orders (route + cut-off)
+      summary: Dispatch board backed by persisted route-dispatch waves (route + cut-off)
       description: >
-        Read-only, warehouse-scoped, best-effort. Derived purely from open outbound orders
-        grouped by their `routeCode` + `dispatchBy` cut-off (no dispatch/ops entity).
-        `nextDeparture` = soonest still-open future cut-off, else null. Per route group:
-        `ordersAssigned` = open outbound orders, `ordersReady` = assigned subset in ALLOCATED or
-        SHIPPED, `status` = `departed` when all shipped, `loading` when any ready, else `open`.
+        Read-only, warehouse-scoped, best-effort. Backed by the persisted `route_dispatch` wave
+        entity (one row per warehouse + `routeCode` + `dispatchBy` cut-off), so status and
+        timestamps are real, not derived. `nextDeparture` = soonest not-yet-departed future
+        cut-off, else null. Per wave: `ordersAssigned` = outbound orders on the route,
+        `ordersReady` = assigned subset that is allocated or shipped, `status` = the persisted
+        lifecycle state (`open` when assigned but unworked, `loading` once the first order is
+        ready/picked, `departed` once every assigned order shipped).
       operationId: dispatchReport
       parameters:
         - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
@@ -304,13 +306,15 @@ paths:
       summary: Service-level report for shipped outbound orders (on-time + cycle time)
       description: >
         Read-only, warehouse-scoped, best-effort (null figures where nothing shipped). Today is
-        the current UTC day; the window spans the last `days` UTC days, oldest first. Ship time
-        is taken from `updated_at` of SHIPPED orders (no dispatch timestamp exists, so this is an
-        approximation). `onTimeToCutoffPctToday` = of today's shipped outbound orders that carry a
-        cut-off (`dispatchBy`), the percent shipped at or before it; null when none carry one.
-        `orderCycleTimeMedianMinToday` = median created-to-shipped duration in minutes over today's
-        shipped orders (median computed server-side); null when none shipped. `perDay` repeats
-        both figures per UTC day, with null fields on days with no shipments.
+        the current UTC day; the window spans the last `days` UTC days, oldest first.
+        `onTimeToCutoffPctToday` = of today's shipped outbound orders that carry a cut-off
+        (`dispatchBy`), the percent that met it; the comparison uses the actual departure of the
+        order's persisted route-dispatch wave (`departedAt`) vs the cut-off where the wave has
+        departed, falling back to the order's own ship time (`updated_at` of SHIPPED orders)
+        otherwise; null when no shipped order carries a cut-off. `orderCycleTimeMedianMinToday` =
+        median created-to-shipped duration in minutes over today's shipped orders (median computed
+        server-side); null when none shipped. `perDay` repeats both figures per UTC day, with null
+        fields on days with no shipments.
       operationId: orderSlaReport
       parameters:
         - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
@@ -543,26 +547,26 @@ components:
               outbound: { type: integer, format: int64 }
     DispatchReport:
       type: object
-      description: Dispatch board derived purely from open outbound orders; best-effort.
+      description: Dispatch board backed by the persisted route-dispatch waves; best-effort.
       properties:
         nextDeparture:
           type: object
           nullable: true
-          description: Soonest still-open future route cut-off, or null.
+          description: Soonest not-yet-departed future route cut-off, or null.
           properties:
             routeCode: { type: string, nullable: true }
             cutoffIso: { type: string, format: date-time }
             secondsToCutoff: { type: integer, format: int64 }
         routes:
           type: array
-          description: One row per (routeCode, cut-off) group of open outbound orders, soonest first.
+          description: One persisted route-dispatch wave per (routeCode, cut-off), soonest first.
           items:
             type: object
             properties:
               routeCode: { type: string, nullable: true }
               cutoffIso: { type: string, format: date-time, nullable: true }
               ordersAssigned: { type: integer, format: int64 }
-              ordersReady: { type: integer, format: int64, description: Assigned subset in ALLOCATED or SHIPPED. }
+              ordersReady: { type: integer, format: int64, description: Assigned subset that is allocated or shipped. }
               status: { type: string, enum: [open, loading, departed] }
     SlaReport:
       type: object

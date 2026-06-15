@@ -51,12 +51,14 @@ public class DemoDashboardSeedService {
     private final OutboundOrderRepository orders;
     private final MasterDataClient masterData;
     private final JdbcTemplate jdbc;
+    private final RouteDispatchService routeDispatch;
 
     public DemoDashboardSeedService(OutboundOrderRepository orders, MasterDataClient masterData,
-            JdbcTemplate jdbc) {
+            JdbcTemplate jdbc, RouteDispatchService routeDispatch) {
         this.orders = orders;
         this.masterData = masterData;
         this.jdbc = jdbc;
+        this.routeDispatch = routeDispatch;
     }
 
     /**
@@ -128,6 +130,10 @@ public class DemoDashboardSeedService {
             OutboundOrder saved = orders.saveAndFlush(o);
             backdateOrder(saved, created, updated);
             backdateLines(saved, created, updated);
+            // Open these live waves on the persisted dispatch board (best-effort). The historical
+            // shipped orders (section 1) are deliberately left without a wave, so the SLA report
+            // keeps using their own ship time (departed_at would otherwise read "now").
+            routeDispatch.onOrderChanged(saved);
             orderCount++;
             lineCount += saved.getLines().size();
         }

@@ -4,6 +4,7 @@ import java.util.UUID;
 import org.openwcs.orders.api.DemoClearResult;
 import org.openwcs.orders.repo.OrderOutboxRepository;
 import org.openwcs.orders.repo.OutboundOrderRepository;
+import org.openwcs.orders.repo.RouteDispatchRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -23,10 +24,13 @@ public class DemoResetService {
 
     private final OutboundOrderRepository orders;
     private final OrderOutboxRepository outbox;
+    private final RouteDispatchRepository routeDispatches;
 
-    public DemoResetService(OutboundOrderRepository orders, OrderOutboxRepository outbox) {
+    public DemoResetService(OutboundOrderRepository orders, OrderOutboxRepository outbox,
+                            RouteDispatchRepository routeDispatches) {
         this.orders = orders;
         this.outbox = outbox;
+        this.routeDispatches = routeDispatches;
     }
 
     @Transactional
@@ -34,12 +38,16 @@ public class DemoResetService {
         // Bulk statements only — order books can be large; the DB cascades lines, line
         // transactions and their outbox rows (ON DELETE CASCADE), so one DELETE per table.
         int ordersRemoved = orders.deleteBulkByWarehouseId(warehouseId);
+        // The dispatch waves are not children of orders (keyed by route + cut-off), so clear them
+        // explicitly, otherwise stale waves would linger on the dispatch board after a reset.
+        int wavesRemoved = routeDispatches.deleteBulkByWarehouseId(warehouseId);
 
         long outboxRemoved = outbox.count();
         outbox.deleteAllInBatch();
 
-        log.info("demo clear for warehouse {}: {} orders deleted (lines and transactions cascade), {} outbox rows drained",
-                warehouseId, ordersRemoved, outboxRemoved);
+        log.info("demo clear for warehouse {}: {} orders deleted (lines and transactions cascade), "
+                        + "{} dispatch waves cleared, {} outbox rows drained",
+                warehouseId, ordersRemoved, wavesRemoved, outboxRemoved);
         return new DemoClearResult(ordersRemoved, outboxRemoved);
     }
 }
