@@ -189,6 +189,22 @@ func runTask(family string, req deviceTaskRequest) deviceTaskResult {
 		}
 	}
 
+	// Twin live views (execution-layer epic item 3): an AMR-family task makes a robot MOVING (carrying
+	// the task's HU) and an AUTOSTORE-family task makes a port busy for the task's duration, then the
+	// robot/port is released. Best-effort simulated state; ASRS/CONVEYOR don't feed the twin.
+	var releaseTwin func()
+	switch family {
+	case "AMR":
+		id := twin.startAMRTask(huCodeOrEmpty(req.Payload))
+		releaseTwin = func() { twin.finishAMRTask(id) }
+	case "AUTOSTORE":
+		id := twin.startAutoStoreTask(req.Command, huCodeOrEmpty(req.Payload))
+		releaseTwin = func() { twin.finishAutoStoreTask(id) }
+	}
+	if releaseTwin != nil {
+		defer releaseTwin()
+	}
+
 	time.Sleep(d)
 
 	// Inject a deterministic simulated equipment fault when configured (OPENWCS_EMULATOR_FAULT_RATE
