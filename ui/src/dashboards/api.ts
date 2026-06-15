@@ -19,6 +19,7 @@ export interface OrdersDashboardInbound {
   open: number
   expectedToday: number
   projectedFinishIso: string | null
+  receiveErrorsToday: number
 }
 export interface OrdersDashboardOutbound {
   open: number
@@ -41,7 +42,7 @@ export interface OrdersDashboardDto {
 export async function loadOrdersDashboard(warehouseId: string): Promise<OrdersDashboardDto> {
   const b = await getJson<Partial<OrdersDashboardDto>>(`/api/orders/reports/dashboard?warehouseId=${enc(warehouseId)}`)
   return {
-    inbound: { open: 0, expectedToday: 0, projectedFinishIso: null, ...(b.inbound ?? {}) },
+    inbound: { open: 0, expectedToday: 0, projectedFinishIso: null, receiveErrorsToday: 0, ...(b.inbound ?? {}) },
     outbound: {
       open: 0,
       releasedToday: 0,
@@ -51,6 +52,30 @@ export async function loadOrdersDashboard(warehouseId: string): Promise<OrdersDa
       ...(b.outbound ?? {}),
     },
     perHour: b.perHour ?? [],
+  }
+}
+
+// ---------------------------------------------------------------- outbound SLA (order-management)
+
+export interface SlaPerDay {
+  day: string // YYYY-MM-DD
+  onTimePct: number
+  cycleMedianMin: number
+}
+export interface SlaDto {
+  onTimeToCutoffPctToday: number
+  orderCycleTimeMedianMinToday: number
+  perDay: SlaPerDay[]
+}
+
+export async function loadSla(warehouseId: string, days = 14): Promise<SlaDto> {
+  const b = await getJson<Partial<SlaDto>>(
+    `/api/orders/reports/sla?warehouseId=${enc(warehouseId)}&days=${days}`,
+  )
+  return {
+    onTimeToCutoffPctToday: b.onTimeToCutoffPctToday ?? 0,
+    orderCycleTimeMedianMinToday: b.orderCycleTimeMedianMinToday ?? 0,
+    perDay: b.perDay ?? [],
   }
 }
 
@@ -84,6 +109,10 @@ export interface PutawayBacklog {
   count: number
   oldestAgeMin: number
 }
+export interface DockToStock {
+  medianMin: number
+  samples: number
+}
 export interface InventoryDashboardDto {
   husReceivedToday: number
   huCount: number
@@ -91,6 +120,7 @@ export interface InventoryDashboardDto {
   utilisationPct: number
   asrsUtilisationPct: number
   putawayBacklog: PutawayBacklog
+  dockToStock: DockToStock
 }
 
 export async function loadInventoryDashboard(warehouseId: string): Promise<InventoryDashboardDto> {
@@ -104,6 +134,7 @@ export async function loadInventoryDashboard(warehouseId: string): Promise<Inven
     utilisationPct: b.utilisationPct ?? 0,
     asrsUtilisationPct: b.asrsUtilisationPct ?? 0,
     putawayBacklog: { count: 0, oldestAgeMin: 0, ...(b.putawayBacklog ?? {}) },
+    dockToStock: { medianMin: 0, samples: 0, ...(b.dockToStock ?? {}) },
   }
 }
 
@@ -235,6 +266,43 @@ export interface AlertDto {
 export async function loadAlerts(warehouseId: string): Promise<AlertDto[]> {
   const b = await getJson<AlertDto[] | null>(`/api/notification/alerts?warehouseId=${enc(warehouseId)}`)
   return Array.isArray(b) ? b : []
+}
+
+// ---------------------------------------------------------------- alert-system health (notification)
+
+export interface AlertHealthPerDay {
+  day: string // YYYY-MM-DD
+  opened: number
+  cleared: number
+}
+export interface AlertHealthChattering {
+  area: string
+  metric: string
+  flaps: number
+}
+export interface AlertHealthStale {
+  id: string
+  area: string
+  metric: string
+  ageMin: number
+}
+export interface AlertHealthDto {
+  activeBySeverity: { warning: number; critical: number }
+  perDay: AlertHealthPerDay[]
+  chattering: AlertHealthChattering[]
+  stale: AlertHealthStale[]
+}
+
+export async function loadAlertHealth(warehouseId: string, days = 14): Promise<AlertHealthDto> {
+  const b = await getJson<Partial<AlertHealthDto>>(
+    `/api/notification/alerts/health?warehouseId=${enc(warehouseId)}&days=${days}`,
+  )
+  return {
+    activeBySeverity: { warning: 0, critical: 0, ...(b.activeBySeverity ?? {}) },
+    perDay: b.perDay ?? [],
+    chattering: b.chattering ?? [],
+    stale: b.stale ?? [],
+  }
 }
 
 // ---------------------------------------------------------------- alert thresholds (master-data)

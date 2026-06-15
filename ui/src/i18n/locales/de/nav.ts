@@ -7,6 +7,8 @@ export default {
   'dashboards:replenishment': 'Nachschub',
   'dashboards:stock': 'Bestandsfüllgrad',
   'dashboards:abc': 'ABC-Renner',
+  'dashboards:andon': 'Andon-Tafel',
+  'dashboards:alert-health': 'Zustand des Alarmsystems',
   inbound: 'Wareneingangsaufträge',
   outbound: 'Warenausgangsaufträge',
   counting: 'Bestandszählung',

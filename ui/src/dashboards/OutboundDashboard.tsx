@@ -6,23 +6,31 @@ import { useT } from '../i18n/useT'
 import { usePoll } from './usePoll'
 import { Hero, HourBars, WorstFirstStrip, type DashState } from './components'
 import { ChartCard, ChartRow, HeroRow, NoWarehouse, PageHead } from './DashboardPage'
-import { timeHm } from './format'
-import { loadDispatch, loadOrdersDashboard } from './api'
+import { minsLabel, timeHm } from './format'
+import { loadDispatch, loadOrdersDashboard, loadSla } from './api'
 
 const POLL = 60_000
+// On-time-to-cutoff target: warn below 95 %, critical below 90 % (our default, configurable thinking
+// in the spec — there is no published industry threshold). Drawn as a bullet bar where higher is better.
+const ONTIME_WARN = 95
+const ONTIME_CRIT = 90
 
 export default function OutboundDashboard() {
   const t = useT('dashboards')
   const { currentWarehouseId: wh } = useWarehouse()
   const orders = usePoll(wh, loadOrdersDashboard, POLL)
   const dispatch = usePoll(wh, loadDispatch, POLL)
+  const sla = usePoll(wh, (id) => loadSla(id, 14), POLL)
 
   if (!wh) return <NoWarehouse />
 
   const ob = orders.data?.outbound
   const dp = dispatch.data
+  const sl = sla.data
   const openState: DashState = (ob?.open ?? 0) > 0 ? 'warning' : 'ok'
   const shortsState: DashState = (ob?.shortsToday ?? 0) > 0 ? 'warning' : 'ok'
+  const onTime = sl?.onTimeToCutoffPctToday ?? 0
+  const onTimeState: DashState = !sl ? 'ok' : onTime < ONTIME_CRIT ? 'critical' : onTime < ONTIME_WARN ? 'warning' : 'ok'
 
   const hourData = (orders.data?.perHour ?? []).map((h) => ({ hour: h.hour, outbound: h.outbound }))
 
@@ -41,6 +49,21 @@ export default function OutboundDashboard() {
         <Hero label={t('projFinishLabel', 'Projected finish')} value={timeHm(ob?.projectedFinishIso)} state="ok" />
         <Hero label={t('linesPicked', 'Lines picked today')} value={ob?.linesPickedToday ?? 0} state="ok" />
         <Hero label={t('shorts', 'Shorts today')} value={ob?.shortsToday ?? 0} state={shortsState} context={t('accuracyProxy', 'order-accuracy proxy')} />
+        <Hero
+          label={t('onTimeToCutoff', 'On-time to cutoff')}
+          value={onTime}
+          unit="%"
+          state={onTimeState}
+          fill={Math.min(1, onTime / 100)}
+          context={`${t('target', 'target')} ≥ ${ONTIME_WARN}%`}
+          spark={(sl?.perDay ?? []).map((d) => d.onTimePct)}
+        />
+        <Hero
+          label={t('cycleTimeMedian', 'Order cycle time (median)')}
+          value={minsLabel(sl?.orderCycleTimeMedianMinToday ?? 0)}
+          state="ok"
+          spark={(sl?.perDay ?? []).map((d) => d.cycleMedianMin)}
+        />
       </HeroRow>
 
       <ChartRow>

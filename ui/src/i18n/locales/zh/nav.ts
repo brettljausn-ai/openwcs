@@ -7,6 +7,8 @@ export default {
   'dashboards:replenishment': '补货',
   'dashboards:stock': '库存水平',
   'dashboards:abc': 'ABC 动销',
+  'dashboards:andon': 'Andon 看板',
+  'dashboards:alert-health': '告警健康度',
   inbound: '入库订单',
   outbound: '出库订单',
   counting: '库存盘点',

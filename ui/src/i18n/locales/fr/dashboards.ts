@@ -130,4 +130,39 @@ export default {
   topMoversSub: 'SKU les plus prélevés sur la période.',
   bottomMovers: '10 mouvements les plus faibles',
   bottomMoversSub: 'SKU les moins prélevés ayant un mouvement.',
+  // wired metrics (receive errors, dock-to-stock, SLA)
+  threshold: 'seuil',
+  target: 'objectif',
+  samples: 'mesures aujourd’hui',
+  dockToStock: 'Quai à stock (médiane)',
+  onTimeToCutoff: 'À l’heure au cutoff',
+  cycleTimeMedian: 'Temps de cycle commande (médiane)',
+  // andon board
+  andonTitle: 'Tableau Andon',
+  andonIntro:
+    'Tableau d’alertes du poste de contrôle pour écrans muraux. Le critique d’abord, puis les avertissements ; la couleur et la forme marquent la gravité. Un tableau gris et calme signifie un site sain.',
+  andonAllClear: 'Tout va bien',
+  andonAllClearSub: 'Aucune alerte active. Un site sain est calme.',
+  // alert-system health
+  alertHealthTitle: 'Santé du système d’alertes',
+  alertHealthIntro:
+    'Comportement du système d’alertes lui-même. Une alerte n’est utile que si elle exige une réponse, nous surveillons donc la charge : compteurs actifs, équilibre quotidien ouvertes/résolues, alertes qui clignotent (chattering) et alertes obsolètes.',
+  activeCritical: 'Critiques actives',
+  activeWarning: 'Avertissements actifs',
+  chatteringCount: 'Alertes clignotantes',
+  chatteringHint: 'oscillent ouvert/résolu',
+  staleCount: 'Alertes obsolètes',
+  staleHint: 'ouvertes longtemps',
+  openedCleared: 'Ouvertes vs résolues par jour',
+  openedClearedSub:
+    'Un système sain résout à peu près autant d’alertes qu’il en ouvre ; un écart croissant indique une dette d’alertes.',
+  noAlertHistory: 'Aucun historique d’alertes sur cette période.',
+  opened: 'Ouvertes',
+  cleared: 'Résolues',
+  chatteringTitle: 'Alertes clignotantes',
+  chatteringSub:
+    'Alertes oscillant entre ouvert et résolu ; les pires gaspillent l’attention et devraient être réglées.',
+  staleTitle: 'Alertes obsolètes',
+  staleSub:
+    'Alertes ouvertes le plus longtemps ; les plus anciennes d’abord. Une alerte persistante signale souvent une réponse manquante ou un seuil mal réglé.',
 }

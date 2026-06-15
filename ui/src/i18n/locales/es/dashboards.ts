@@ -130,4 +130,39 @@ export default {
   topMoversSub: 'SKU más preparados en el periodo.',
   bottomMovers: '10 movimientos más bajos',
   bottomMoversSub: 'SKU menos preparados con algún movimiento.',
+  // wired metrics (receive errors, dock-to-stock, SLA)
+  threshold: 'umbral',
+  target: 'objetivo',
+  samples: 'muestras hoy',
+  dockToStock: 'Muelle a stock (mediana)',
+  onTimeToCutoff: 'A tiempo para el cutoff',
+  cycleTimeMedian: 'Tiempo de ciclo de pedido (mediana)',
+  // andon board
+  andonTitle: 'Tablero Andon',
+  andonIntro:
+    'Tablero de alertas de la sala de control para pantallas de pared. Lo crítico primero, luego las advertencias; el color y la forma marcan la gravedad. Un tablero gris y tranquilo significa una planta sana.',
+  andonAllClear: 'Todo en orden',
+  andonAllClearSub: 'Sin alertas activas. Una planta sana es tranquila.',
+  // alert-system health
+  alertHealthTitle: 'Salud del sistema de alertas',
+  alertHealthIntro:
+    'Cómo se comporta el propio sistema de alertas. Una alerta solo es útil si requiere una respuesta, así que vigilamos la carga: recuentos activos, el balance diario de abiertas vs resueltas, alertas que parpadean (chattering) y alertas obsoletas.',
+  activeCritical: 'Críticas activas',
+  activeWarning: 'Advertencias activas',
+  chatteringCount: 'Alertas parpadeantes',
+  chatteringHint: 'oscilan abierta/resuelta',
+  staleCount: 'Alertas obsoletas',
+  staleHint: 'abiertas mucho tiempo',
+  openedCleared: 'Abiertas vs resueltas por día',
+  openedClearedSub:
+    'Un sistema sano resuelve aproximadamente tantas alertas como abre; una brecha creciente indica deuda de alertas.',
+  noAlertHistory: 'Aún no hay historial de alertas en esta ventana.',
+  opened: 'Abiertas',
+  cleared: 'Resueltas',
+  chatteringTitle: 'Alertas parpadeantes',
+  chatteringSub:
+    'Alertas que oscilan entre abierta y resuelta; las peores desperdician atención y deberían reajustarse.',
+  staleTitle: 'Alertas obsoletas',
+  staleSub:
+    'Alertas abiertas más tiempo; las más antiguas primero. Una alerta persistente suele indicar una respuesta ausente o un umbral mal configurado.',
 }
