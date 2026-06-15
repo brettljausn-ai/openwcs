@@ -204,6 +204,50 @@ paths:
               schema: { $ref: '#/components/schemas/OrderFlowReport' }
         "400": { $ref: '#/components/responses/Problem' }
 
+  /api/orders/reports/dashboard:
+    get:
+      tags: [Reports]
+      summary: Live operations dashboard (inbound / outbound headline + per-hour split)
+      description: >
+        Read-only, warehouse-scoped, best-effort (partial data / nulls instead of 500). Today is
+        the current UTC day. `inbound.open` = inbound orders not cancelled with stock still
+        missing; `inbound.expectedToday` = inbound orders created today. `outbound.open` =
+        outbound orders not shipped and not cancelled; `outbound.releasedToday` = outbound orders
+        past CREATED updated today; `outbound.linesPickedToday` = distinct outbound lines with a
+        PICK posted today; `outbound.shortsToday` = outbound lines in SHORT updated today.
+        `projectedFinishIso` = ISO instant the open backlog is projected to finish at today's
+        completion rate (null if no backlog or no rate). `perHour` = today's UTC hours (0..23,
+        zero-filled), inbound = receipts posted, outbound = picks posted.
+      operationId: orderDashboardReport
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderDashboardReport' }
+
+  /api/orders/reports/dispatch:
+    get:
+      tags: [Reports]
+      summary: Dispatch board derived from open outbound orders (route + cut-off)
+      description: >
+        Read-only, warehouse-scoped, best-effort. Derived purely from open outbound orders
+        grouped by their `routeCode` + `dispatchBy` cut-off (no dispatch/ops entity).
+        `nextDeparture` = soonest still-open future cut-off, else null. Per route group:
+        `ordersAssigned` = open outbound orders, `ordersReady` = assigned subset in ALLOCATED or
+        SHIPPED, `status` = `departed` when all shipped, `loading` when any ready, else `open`.
+      operationId: dispatchReport
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DispatchReport' }
+
   /api/orders/demo/seed:
     post:
       tags: [Orders]
@@ -370,6 +414,56 @@ components:
             properties:
               hour: { type: integer, minimum: 0, maximum: 23 }
               count: { type: integer, format: int64 }
+    OrderDashboardReport:
+      type: object
+      description: Live operations dashboard; best-effort, every figure degrades to 0 / null.
+      properties:
+        inbound:
+          type: object
+          properties:
+            open: { type: integer, format: int64, description: Inbound orders not cancelled with stock still missing. }
+            expectedToday: { type: integer, format: int64, description: Inbound orders created today (UTC). }
+            projectedFinishIso: { type: string, format: date-time, nullable: true, description: Projected backlog finish at today's rate, or null. }
+        outbound:
+          type: object
+          properties:
+            open: { type: integer, format: int64, description: Outbound orders not shipped and not cancelled. }
+            releasedToday: { type: integer, format: int64, description: Outbound orders past CREATED updated today. }
+            linesPickedToday: { type: integer, format: int64, description: Distinct outbound lines with a PICK posted today. }
+            shortsToday: { type: integer, format: int64, description: Outbound lines in SHORT updated today. }
+            projectedFinishIso: { type: string, format: date-time, nullable: true, description: Projected backlog finish at today's rate, or null. }
+        perHour:
+          type: array
+          description: Today's UTC hours (0..23, zero-filled); inbound receipts vs outbound picks posted.
+          items:
+            type: object
+            properties:
+              hour: { type: integer, minimum: 0, maximum: 23 }
+              inbound: { type: integer, format: int64 }
+              outbound: { type: integer, format: int64 }
+    DispatchReport:
+      type: object
+      description: Dispatch board derived purely from open outbound orders; best-effort.
+      properties:
+        nextDeparture:
+          type: object
+          nullable: true
+          description: Soonest still-open future route cut-off, or null.
+          properties:
+            routeCode: { type: string, nullable: true }
+            cutoffIso: { type: string, format: date-time }
+            secondsToCutoff: { type: integer, format: int64 }
+        routes:
+          type: array
+          description: One row per (routeCode, cut-off) group of open outbound orders, soonest first.
+          items:
+            type: object
+            properties:
+              routeCode: { type: string, nullable: true }
+              cutoffIso: { type: string, format: date-time, nullable: true }
+              ordersAssigned: { type: integer, format: int64 }
+              ordersReady: { type: integer, format: int64, description: Assigned subset in ALLOCATED or SHIPPED. }
+              status: { type: string, enum: [open, loading, departed] }
     Problem:
       type: object
       properties:
