@@ -13,6 +13,7 @@ export default {
   outbound: 'Warenausgangsaufträge',
   counting: 'Bestandszählung',
   'gtp-ops': 'GTP-Arbeitsplätze',
+  picking: 'Kommissionierung',
   transport: 'Transport',
   'hardware-twin': 'Hardware-Visualisierung',
   'stock-transactions': 'Bestandsbewegungen',

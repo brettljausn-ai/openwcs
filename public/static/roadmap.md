@@ -46,7 +46,8 @@
 - [done] Security — JWT · RBAC · Keycloak :: Gateway JWT validation and per-endpoint role-based access from a shared catalog, with Keycloak — all toggleable from simple to locked-down.
 - [done] Horizontal scaling :: Every service is stateless and replica-safe — relays and schedulers run across replicas, with Kubernetes manifests for scaling out behind any load balancer.
 - [done] Hardware emulator mode :: Every device adapter (conveyors, ASRS, AMR, AutoStore) simulates its machines and telemetry behind a single admin toggle — run the full automation flow with zero physical hardware for evaluation, onboarding, or CI.
-- [done] Live 3D digital twin :: The saved layout rendered live in the browser: equipment coloured idle / running / faulted from real device tasks, totes replaying the actual scan trail, and storage fill shown at cell level in the ASRS rack.
+- [done] Live 3D digital twin :: The saved layout rendered live in the browser: equipment coloured idle / running / faulted from real device tasks, totes replaying the actual scan trail, storage fill shown at cell level in the ASRS rack, plus a live AMR fleet (robots coloured by status, carried HU) and AutoStore ports (busy / idle) with a grid fill % stat from emulator telemetry. Metre-exact continuous crane motion is still pending.
+- [done] Operator pick confirmation :: A guided RF-style picking screen over the order-management pick queue: a big next-pick card (location, SKU code / name / image, quantity), Confirm or Short (Enter confirms) advancing the queue, posting a Picked transaction and decrementing stock. Pick-by-light / voice / RF and the full goods-to-person station workflow are still planned.
 - [done] Cycle counting :: Count tasks with blind and variance modes and ABC-cadence scheduling, at-station blind counting via the GTP console, and a standalone count-capture screen with variances, recounts and reconciliation.
 - [done] Operational reporting :: A Reporting section with five screens: scan quality per scan point with predictive error trends, a 3D conveyor traffic heatmap, ASRS storage density and movements with 90-day history and 14-day forecasts, per-SKU stock availability split, and inbound/outbound flow with hour-of-day peak maps.
 - [done] Multilanguage UI :: The operator and management SPA ships in English, German, French, Spanish and Chinese with a per-user language preference — no add-on required.
@@ -54,7 +55,7 @@
 ## In progress
 > Active development
 
-- [active] Pick execution :: Operator and goods-to-person pick confirmation, pick-by-light / voice / RF, and the GTP-station pick workflow on top of today's allocation and planning.
+- [active] Pick guidance & GTP workflow :: Pick-by-light / voice / RF guidance and the full goods-to-person station pick workflow on top of today's built operator pick confirmation, allocation and planning.
 
 ## Next up
 > Designed, build queued
@@ -64,5 +65,5 @@
 ## Exploring
 > On the horizon
 
-- [exploring] AMR fleet integration :: Device adapters and orchestration for autonomous mobile robot fleets over the uniform device contract, with live fleet positions joining the digital twin.
-- [exploring] AutoStore integration :: A native AutoStore adapter so grid storage joins conveyors and ASRS behind the same vendor-neutral contract, with grid and port status joining the digital twin.
+- [exploring] AMR fleet integration :: Real device adapters and orchestration for autonomous mobile robot fleets over the uniform device contract; the twin already renders a live AMR fleet from emulator telemetry today.
+- [exploring] AutoStore integration :: A native AutoStore adapter so grid storage joins conveyors and ASRS behind the same vendor-neutral contract; the twin already shows AutoStore ports and grid fill from emulator telemetry today.

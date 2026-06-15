@@ -1,5 +1,6 @@
 package org.openwcs.orders.service;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -10,6 +11,8 @@ import org.openwcs.orders.api.IllegalOrderStateException;
 import org.openwcs.orders.api.OrderNotFoundException;
 import org.openwcs.orders.api.OrderView;
 import org.openwcs.orders.api.PageResponse;
+import org.openwcs.orders.api.ConfirmPickRequest;
+import org.openwcs.orders.api.PickTaskView;
 import org.openwcs.orders.api.PostTransactionRequest;
 import org.openwcs.orders.client.AllocationClient;
 import org.openwcs.orders.client.MasterDataClient;
@@ -21,6 +24,7 @@ import org.openwcs.orders.domain.OrderStatus;
 import org.openwcs.orders.domain.OrderType;
 import org.openwcs.orders.domain.OutboundOrder;
 import org.openwcs.orders.domain.TransactionType;
+import org.openwcs.orders.repo.OrderLineRepository;
 import org.openwcs.orders.repo.OrderOutboxRepository;
 import org.openwcs.orders.repo.OutboundOrderRepository;
 import org.slf4j.Logger;
@@ -42,13 +46,15 @@ public class OrderService {
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private final OutboundOrderRepository orders;
+    private final OrderLineRepository lines;
     private final AllocationClient allocation;
     private final OrderOutboxRepository outbox;
     private final MasterDataClient masterData;
 
-    public OrderService(OutboundOrderRepository orders, AllocationClient allocation, OrderOutboxRepository outbox,
-                        MasterDataClient masterData) {
+    public OrderService(OutboundOrderRepository orders, OrderLineRepository lines, AllocationClient allocation,
+                        OrderOutboxRepository outbox, MasterDataClient masterData) {
         this.orders = orders;
+        this.lines = lines;
         this.allocation = allocation;
         this.outbox = outbox;
         this.masterData = masterData;
@@ -310,6 +316,111 @@ public class OrderService {
                 order.getOrderRef(), lineNo, txnType, actor, line.getSkuId(), request.qty(),
                 request.locationId(), request.huId());
         return OrderView.from(order);
+    }
+
+    /**
+     * Operator pick queue (build.md §7 outbound process): outbound order lines that are
+     * released/allocated and still need picking, ordered for a sensible pick walk (most-urgent
+     * order first, then line). Best-effort — fully picked lines drop out; the allocated pick
+     * location is included when available (see {@link PickTaskView} for the location gap).
+     */
+    @Transactional(readOnly = true)
+    public List<PickTaskView> pickTasks(UUID warehouseId) {
+        List<PickTaskView> tasks = new java.util.ArrayList<>();
+        for (OutboundOrder order : orders.pickQueue(warehouseId)) {
+            for (OrderLine line : order.getLines()) {
+                if (!isPickable(line)) {
+                    continue;
+                }
+                PickTaskView task = PickTaskView.from(order, line);
+                if (task.remainingQty().signum() > 0) {
+                    tasks.add(task);
+                }
+            }
+        }
+        return tasks;
+    }
+
+    /**
+     * Confirm an operator pick against a line: post a Picked stock transaction (reusing the
+     * outbox→txlog posting that decrements stock) and advance the line's picked quantity. A
+     * short confirm under the requested quantity marks the line SHORT. The pickedQty is the
+     * just-picked increment; idempotent-ish in that a zero confirm posts nothing. {@code actor}
+     * is the authenticated operator (gateway-forwarded) — required for audit. Returns the
+     * updated pick-task row. 409 ({@link IllegalOrderStateException}) when the line is not
+     * pickable (cancelled order, non-allocated line, or already fully picked).
+     */
+    @Transactional
+    public PickTaskView confirmPick(UUID lineId, ConfirmPickRequest request, String actor) {
+        if (actor == null || actor.isBlank()) {
+            throw new IllegalArgumentException("actor is required to confirm a pick (audit)");
+        }
+        OrderLine line = lines.findByIdWithOrder(lineId)
+                .orElseThrow(() -> new IllegalOrderStateException("No pick task for line " + lineId));
+        OutboundOrder order = line.getOrder();
+        if (order.getOrderType() != OrderType.OUTBOUND) {
+            throw new IllegalOrderStateException("Line " + lineId + " is not an outbound pick task");
+        }
+        if (!isPickable(line)) {
+            throw new IllegalOrderStateException(
+                    "Line " + lineId + " is not pickable (order " + order.getStatus()
+                            + ", line " + line.getStatus() + ", picked "
+                            + PickTaskView.pickedQtyOf(line) + " of " + PickTaskView.requestedQtyOf(line) + ")");
+        }
+
+        BigDecimal pickedQty = request.pickedQty();
+        BigDecimal requested = PickTaskView.requestedQtyOf(line);
+        BigDecimal alreadyPicked = PickTaskView.pickedQtyOf(line);
+        if (pickedQty.signum() < 0) {
+            throw new IllegalArgumentException("pickedQty must not be negative");
+        }
+        if (alreadyPicked.add(pickedQty).compareTo(requested) > 0) {
+            throw new IllegalOrderStateException("Over-pick: picking " + pickedQty + " would exceed the requested "
+                    + requested + " (already picked " + alreadyPicked + ") on line " + lineId);
+        }
+
+        // Post the Picked stock transaction (same outbox→txlog path as postTransaction): record
+        // the line transaction + the outbox row in ONE local transaction so the audit is durable.
+        UUID location = request.locationId() != null ? request.locationId() : PickTaskView.pickLocationOf(line);
+        if (pickedQty.signum() > 0) {
+            Map<String, Object> payload = pickPayload(order, line, pickedQty, location);
+            OrderLineTransaction txn = new OrderLineTransaction(line, TransactionType.PICK, pickedQty,
+                    location, null, null, null, actor);
+            line.addTransaction(txn);
+            orders.flush(); // assign the transaction id for the outbox foreign key
+            outbox.save(new OrderOutboxMessage(
+                    txn.getId(), line.getId().toString(), "Picked", order.getId(), actor, payload));
+        }
+
+        // Advance status: a short confirm under the requested qty marks the line SHORT.
+        BigDecimal nowPicked = PickTaskView.pickedQtyOf(line);
+        if (request.isShort() && nowPicked.compareTo(requested) < 0) {
+            line.setStatus(LineStatus.SHORT);
+        }
+        log.info("pick confirmed on order {} line {} by {}: +{} (now {} of {}{})", order.getOrderRef(),
+                line.getLineNo(), actor, pickedQty, nowPicked, requested, request.isShort() ? ", short" : "");
+        return PickTaskView.from(order, line);
+    }
+
+    /** A line is pickable while its order is released/fulfillable, the line is allocated/short, and qty remains. */
+    private static boolean isPickable(OrderLine line) {
+        OutboundOrder order = line.getOrder();
+        boolean orderOpen = order.getStatus() == OrderStatus.ALLOCATED
+                || order.getStatus() == OrderStatus.PARTIALLY_ALLOCATED;
+        boolean lineOpen = line.getStatus() == LineStatus.ALLOCATED || line.getStatus() == LineStatus.SHORT;
+        boolean qtyRemains = PickTaskView.requestedQtyOf(line).subtract(PickTaskView.pickedQtyOf(line)).signum() > 0;
+        return orderOpen && lineOpen && qtyRemains;
+    }
+
+    /** Picked event payload (mirrors {@link #buildPayload} for a PICK): carries qty (not signed). */
+    private static Map<String, Object> pickPayload(OutboundOrder order, OrderLine line, BigDecimal qty, UUID location) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("warehouseId", order.getWarehouseId());
+        payload.put("skuId", line.getSkuId());
+        payload.put("locationId", location);
+        payload.put("uomCode", "EACH");
+        payload.put("qty", qty);
+        return payload;
     }
 
     private static TransactionType transactionTypeFor(OrderType orderType) {

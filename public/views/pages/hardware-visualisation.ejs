@@ -7,7 +7,7 @@
         real-time equipment state, totes moving along the scan trail the floor actually reported, and
         storage fill down to the rack cell. Built today, in the open-source UI.
       </p>
-      <p class="status-line">✓ Built — the live 3D digital twin ships today in the openWCS UI. AMR fleet and AutoStore grid live views follow their device adapters.</p>
+      <p class="status-line" data-i18n="hw.status1">✓ Built: the live 3D digital twin ships today in the openWCS UI, now with live AMR fleet and AutoStore grid views. Metre-exact continuous crane motion is still pending.</p>
     </div>
   </section>
 
@@ -52,6 +52,11 @@
           <h3 data-i18n="hw.h13">No SCADA package required</h3>
           <p data-i18n="hw.p11">Everything is derived in the browser from the device-task feed the adapters already produce, plus the saved layout. No extra server, no message bridge, no per-seat visualisation license.</p>
         </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hw.tag9">AMR &amp; AutoStore</div><span class="pill pill-built" data-i18n="hw.pill10">Built</span></div>
+          <h3 data-i18n="hw.h14">Live fleets &amp; grids</h3>
+          <p data-i18n="hw.p13">The twin renders a live AMR fleet, robots coloured by status and showing the handling unit they carry, alongside AutoStore ports marked busy or idle and a grid fill % stat. It is fed by emulator telemetry (fleet and grid feeds) mapped through the twin endpoints, so a full automated floor moves on screen with no hardware.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -91,16 +96,11 @@
         <p class="eyebrow" data-i18n="hw.eyebrow3">On the roadmap</p>
         <h2 data-i18n="hw.h3">What joins the twin next.</h2>
         <p data-i18n="hw.p4">
-          The twin grows with the device adapters: each new family that comes online appears in the
+          The twin keeps gaining fidelity: each refinement that comes online appears in the
           same live picture.
         </p>
       </div>
       <div class="grid grid-3">
-        <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="hw.tag9">AMR &amp; AutoStore</div><span class="pill pill-roadmap" data-i18n="hw.pill10">Roadmap</span></div>
-          <h3 data-i18n="hw.h14">Fleets &amp; grids</h3>
-          <p data-i18n="hw.p13">Planned: AMR fleet positions and AutoStore grid/port status join the twin once their real device adapters land; today both families run in the emulator.</p>
-        </div>
         <div class="card">
           <div class="card-head"><div class="tag" data-i18n="hw.tag10">Continuous position</div><span class="pill pill-roadmap" data-i18n="hw.pill11">Roadmap</span></div>
           <h3 data-i18n="hw.h15">Metre-exact motion</h3>
@@ -120,9 +120,10 @@
 <pre>  <b>2D/3D topology editor</b>  (draw · learned overlay)                  (built)
         │  saved layout + live device tasks
         ▼
-  <b>live 3D digital twin</b>  ── equipment state · moving totes · rack fill   (built)
+  <b>live 3D digital twin</b>  ── equipment state · moving totes · rack fill
+                         · AMR fleet · AutoStore ports &amp; grid fill        (built)
         │
-  ┄┄┄ roadmap ┄┄┄  AMR fleet positions · AutoStore grid · metre-exact motion</pre>
+  ┄┄┄ roadmap ┄┄┄  metre-exact continuous crane &amp; shuttle motion</pre>
       </div>
     </div>
   </section>

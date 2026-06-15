@@ -47,6 +47,10 @@ public class ReslotRecommendation extends Auditable {
     @Column(name = "status", nullable = false)
     private String status = "RECOMMENDED";
 
+    /** The flow device-task created when this recommendation was dispatched as a physical move. */
+    @Column(name = "device_task_id")
+    private UUID deviceTaskId;
+
     public UUID getId() {
         return id;
     }
@@ -117,5 +121,13 @@ public class ReslotRecommendation extends Auditable {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public UUID getDeviceTaskId() {
+        return deviceTaskId;
+    }
+
+    public void setDeviceTaskId(UUID deviceTaskId) {
+        this.deviceTaskId = deviceTaskId;
     }
 }

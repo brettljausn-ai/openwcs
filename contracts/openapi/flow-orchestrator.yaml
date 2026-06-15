@@ -14,8 +14,10 @@ servers:
 
 tags:
   - name: DeviceTasks
+  - name: Moves
   - name: ConveyorRouting
   - name: Reports
+  - name: Twin
 
 paths:
   /conveyor/topology:
@@ -232,6 +234,100 @@ paths:
         "404":
           description: Not found
 
+  /moves:
+    post:
+      tags: [Moves]
+      summary: Dispatch a generic physical move of a handling unit
+      description: >
+        Dispatches the device task(s) that physically move a handling unit from one location to
+        another and returns the dispatched device-task id. v1 issues a single RELOCATE through the
+        existing device-task machinery (AUTOSTORE maps to BIN_RELOCATE, every other family to
+        RELOCATE, ADR-0009), which the equipment emulator simulates. On completion the move books the
+        HU's new location in inventory; the HU's riding stock follows it automatically (the inventory
+        stock projection resolves HU-bound buckets to the HU's current location), so NO StockMoved is
+        emitted for HU-bound stock. A multi-leg RETRIEVE then CONVEY then STORE across subsystems is a
+        documented follow-up. Requires DEVICE_OPERATE.
+      operationId: dispatchMove
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FlowMoveRequest' }
+      responses:
+        "201":
+          description: Move dispatched
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FlowMoveResult' }
+        "400":
+          description: Invalid request
+        "403":
+          description: Missing DEVICE_OPERATE
+        "422":
+          description: No adapter configured for the equipment family
+        "502":
+          description: Adapter unreachable
+
+  /twin/tote-paths:
+    get:
+      tags: [Twin]
+      summary: Live-twin tote paths (the visu master read model)
+      description: >
+        Every moving tote's backend-resolved conveyor polyline in world XZ metres plus the server
+        clock, so the hardware visualisation plays a backend-supplied path instead of reconstructing
+        it from a thin scan feed. Requires DEVICE_VIEW.
+      operationId: twinTotePaths
+      parameters:
+        - $ref: '#/components/parameters/TwinWarehouseId'
+      responses:
+        "200":
+          description: In-transit tote paths
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TwinPaths' }
+        "403":
+          description: Missing DEVICE_VIEW
+  /twin/amr-fleet:
+    get:
+      tags: [Twin]
+      summary: Live AMR fleet positions, status and carried HU
+      description: >
+        Per active AMR robot, its world XZ position (metres), status (IDLE/MOVING/FAULTED) and carried
+        handling unit if any, derived from the AMR-family device tasks and the equipment-emulator's
+        telemetry (positions resolve from placed_equipment where the emulator omits them). Best-effort,
+        it returns an empty fleet when the emulator is off or unreachable. Requires DEVICE_VIEW.
+      operationId: twinAmrFleet
+      parameters:
+        - $ref: '#/components/parameters/TwinWarehouseId'
+      responses:
+        "200":
+          description: AMR fleet snapshot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AmrFleet' }
+        "403":
+          description: Missing DEVICE_VIEW
+  /twin/autostore:
+    get:
+      tags: [Twin]
+      summary: Live AutoStore grid fill and port activity
+      description: >
+        AutoStore grid dimensions plus occupied/total bins and per-port activity (busy flag, handling
+        unit at the port), derived from the AutoStore-family device tasks and the equipment-emulator's
+        telemetry. Best-effort, it returns a zeroed grid and empty ports when the emulator is off or
+        unreachable. Requires DEVICE_VIEW.
+      operationId: twinAutostore
+      parameters:
+        - $ref: '#/components/parameters/TwinWarehouseId'
+      responses:
+        "200":
+          description: AutoStore grid + ports snapshot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Autostore' }
+        "403":
+          description: Missing DEVICE_VIEW
+
   /reports/scan-quality:
     get:
       tags: [Reports]
@@ -397,6 +493,11 @@ components:
       required: false
       description: History window in days, today inclusive (default 90, capped at 180).
       schema: { type: integer, default: 90, maximum: 180, minimum: 1 }
+    TwinWarehouseId:
+      name: warehouseId
+      in: query
+      required: true
+      schema: { type: string, format: uuid }
   schemas:
     Topology:
       type: object
@@ -638,3 +739,94 @@ components:
           type: integer
           format: int64
           description: Placed equipment whose most recent device task is FAILED.
+    FlowMoveRequest:
+      type: object
+      required: [warehouseId, huId, toLocationId]
+      description: Request to physically move a handling unit from one location to another.
+      properties:
+        warehouseId: { type: string, format: uuid }
+        huId: { type: string, format: uuid, description: The handling unit to move. }
+        huCode: { type: string, nullable: true, description: "Human-readable HU code, for the audit trail." }
+        fromLocationId: { type: string, format: uuid, nullable: true, description: Source location (informational; the device carries the HU). }
+        toLocationId: { type: string, format: uuid, description: Destination location the HU is booked to on completion. }
+        family:
+          type: string
+          nullable: true
+          description: "Equipment family selecting the adapter (default AUTOSTORE). AUTOSTORE maps to BIN_RELOCATE, every other family to RELOCATE."
+          example: AUTOSTORE
+        reason: { type: string, nullable: true, description: Why the move was requested (carried on the move trail). }
+    FlowMoveResult:
+      type: object
+      description: The dispatched move's device-task id.
+      properties:
+        deviceTaskId: { type: string, format: uuid }
+    TwinPaths:
+      type: object
+      description: "Live-twin tote paths: every in-transit tote's resolved polyline plus the server clock."
+      properties:
+        serverNowMs: { type: integer, format: int64, description: Server clock at response time (frontend render-clock anchor). }
+        totes:
+          type: array
+          items: { $ref: '#/components/schemas/TotePath' }
+    TotePath:
+      type: object
+      description: One in-transit handling unit's traversed-node polyline in world XZ metres.
+      properties:
+        huId: { type: string, format: uuid }
+        huCode: { type: string, nullable: true }
+        state: { type: string, description: "in-transit | recirculating." }
+        waypoints:
+          type: array
+          items: { $ref: '#/components/schemas/Waypoint' }
+        next:
+          allOf: [{ $ref: '#/components/schemas/Waypoint' }]
+          nullable: true
+          description: The routed-to node not yet reached (lead edge), or null on arrival.
+    Waypoint:
+      type: object
+      description: "A point on the path: node code, world x/z metres, and the scan time."
+      properties:
+        code: { type: string }
+        x: { type: number, format: double }
+        z: { type: number, format: double }
+        tMs: { type: integer, format: int64, nullable: true, description: "Scan time in ms (null for the not-yet-reached next node)." }
+    AmrFleet:
+      type: object
+      description: "Live AMR fleet snapshot: per active robot, world XZ position, status and carried HU."
+      properties:
+        serverTimeMs: { type: integer, format: int64, description: Server clock at response time. }
+        amrs:
+          type: array
+          items: { $ref: '#/components/schemas/Amr' }
+    Amr:
+      type: object
+      properties:
+        amrId: { type: string }
+        x: { type: number, format: double, description: World X in metres. }
+        z: { type: number, format: double, description: World Z (depth) in metres. }
+        status: { type: string, enum: [IDLE, MOVING, FAULTED] }
+        huCode: { type: string, nullable: true, description: "Carried handling unit code, or null when empty." }
+    Autostore:
+      type: object
+      description: "Live AutoStore snapshot: grid fill and per-port activity."
+      properties:
+        serverTimeMs: { type: integer, format: int64, description: Server clock at response time. }
+        grid: { $ref: '#/components/schemas/AutostoreGrid' }
+        ports:
+          type: array
+          items: { $ref: '#/components/schemas/AutostorePort' }
+    AutostoreGrid:
+      type: object
+      properties:
+        columns: { type: integer }
+        rows: { type: integer }
+        occupiedBins: { type: integer }
+        totalBins: { type: integer }
+    AutostorePort:
+      type: object
+      properties:
+        portId: { type: string }
+        x: { type: number, format: double, description: World X in metres. }
+        z: { type: number, format: double, description: World Z (depth) in metres. }
+        busy: { type: boolean, description: Whether the port is presenting/working a bin. }
+        huCode: { type: string, nullable: true, description: "Handling unit at the port, or null." }

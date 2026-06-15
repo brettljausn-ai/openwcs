@@ -58,6 +58,21 @@ public class HandlingUnitController {
                 .orElseThrow(() -> new HandlingUnitNotFoundException(id));
     }
 
+    /**
+     * The stock riding in a handling unit — what other services (flow, picking) see when they ask
+     * "what is on this HU?". One line per stock bucket bound to the HU (sku × batch × status), in
+     * the SKU base UoM. The HU's location is implied (the stock follows the HU) and so is not
+     * repeated per line. 404 if the HU is unknown; an empty list for a known but empty HU. Read
+     * access is the INVENTORY_VIEW gate the RBAC filter already applies to every inventory GET.
+     */
+    @GetMapping("/{id}/contents")
+    public List<HuContentLine> contents(@PathVariable UUID id) {
+        if (!handlingUnits.existsById(id)) {
+            throw new HandlingUnitNotFoundException(id);
+        }
+        return stock.findByHuId(id).stream().map(HuContentLine::from).toList();
+    }
+
     @PostMapping
     public ResponseEntity<HandlingUnit> create(@RequestBody HandlingUnit handlingUnit) {
         handlingUnit.setHuId(null);

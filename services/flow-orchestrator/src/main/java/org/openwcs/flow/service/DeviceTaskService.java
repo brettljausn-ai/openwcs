@@ -9,6 +9,7 @@ import org.openwcs.flow.api.DeviceTaskNotFoundException;
 import org.openwcs.flow.api.DeviceTaskView;
 import org.openwcs.flow.api.RequestDeviceTask;
 import org.openwcs.flow.client.DeviceClient;
+import org.openwcs.flow.client.InventoryClient;
 import org.openwcs.flow.client.TxLogClient;
 import org.openwcs.flow.domain.DeviceTask;
 import org.openwcs.flow.repo.DeviceTaskRepository;
@@ -38,9 +39,19 @@ public class DeviceTaskService {
     private static final Set<String> MOVE_COMMANDS = Set.of(
             "STORE", "BIN_STORE", "RETRIEVE", "BIN_RETRIEVE", "RELOCATE", "BIN_RELOCATE");
 
+    /**
+     * Payload tag stamped on a RELOCATE dispatched by {@code POST /api/flow/moves} (see
+     * {@code FlowMoveService}). It distinguishes a generic physical HU move from an induction
+     * ADR-0009 dig-out relocate (which is keyed off {@code induction_queue_entry.relocate_task_id},
+     * never tagged here), so completion books the HU's NEW location for the move case only.
+     */
+    public static final String MOVE_SOURCE_KEY = "moveSource";
+    public static final String MOVE_SOURCE_FLOW = "flow-move";
+
     private final DeviceTaskRepository tasks;
     private final DeviceClient deviceClient;
     private final InductionQueueService induction;
+    private final InventoryClient inventory;
     private final TxLogClient txlog;
 
     /**
@@ -50,10 +61,12 @@ public class DeviceTaskService {
      * {@link #completeFromCallback}, after both beans are constructed.
      */
     public DeviceTaskService(DeviceTaskRepository tasks, DeviceClient deviceClient,
-                             @Lazy InductionQueueService induction, TxLogClient txlog) {
+                             @Lazy InductionQueueService induction, InventoryClient inventory,
+                             TxLogClient txlog) {
         this.tasks = tasks;
         this.deviceClient = deviceClient;
         this.induction = induction;
+        this.inventory = inventory;
         this.txlog = txlog;
     }
 
@@ -90,6 +103,7 @@ public class DeviceTaskService {
                 log.info("device task {} ({} for hu {}) completed synchronously by adapter",
                         task.getId(), task.getCommand(), huOf(task));
                 auditMove(task, true);
+                bookFlowMoveLocation(task);
             } else {
                 task.setStatus("FAILED");
                 task.setDetail(result == null ? "adapter returned no result" : result.detail());
@@ -139,9 +153,15 @@ public class DeviceTaskService {
                     task.getCommand(), huOf(task), detail);
         }
         auditMove(task, completed);
+        if (completed) {
+            bookFlowMoveLocation(task);
+        }
 
         // §4 lifecycle wiring: a completing RETRIEVE/CONVEY task advances its linked induction entry.
         // The early-return guard above means this runs exactly once per device task (idempotent).
+        // For a flow-move RELOCATE this is a no-op: onRelocateCompleted looks the task up by
+        // relocate_task_id (set only on a dig-out entry) and returns early on a miss, so the move's
+        // booking above is the only side effect — no double dispatch, no induction interference.
         advanceInduction(task, completed);
         return DeviceTaskView.from(task);
     }
@@ -251,6 +271,54 @@ public class DeviceTaskService {
             log.warn("audit: failed to append HandlingUnitMoved for device task {} ({} for hu {}); "
                             + "move stands, audit trail has a gap: {}",
                     task.getId(), command, huOf(task), e.toString());
+        }
+    }
+
+    /**
+     * Book the HU's NEW registry location after a generic physical move (a RELOCATE/BIN_RELOCATE
+     * dispatched via {@code POST /api/flow/moves}, tagged {@code moveSource=flow-move}) completes
+     * successfully. Best-effort and isolated, mirroring the induction booking side effects: a slow or
+     * unreachable inventory must never fail the device-task transition.
+     *
+     * <p><b>Stock correctness (inventory StockProjectionService semantics):</b> inventory's stock
+     * projection resolves HU-bound stock buckets to the HU's CURRENT registry location ("stock follows
+     * the HU"), and it deliberately does NOT project flow's audit-only {@code HandlingUnitMoved}.
+     * Booking the HU location therefore already relocates all stock riding the HU, so we must NOT also
+     * emit a {@code StockMoved} for HU-bound stock — that would double-apply the move. The non-HU /
+     * explicit-quantity move case (StockMoved/PutawayCompleted) is owned by the inventory service.
+     */
+    private void bookFlowMoveLocation(DeviceTask task) {
+        Map<String, Object> p = task.getPayload();
+        if (p == null || !MOVE_SOURCE_FLOW.equals(p.get(MOVE_SOURCE_KEY))) {
+            return; // not a /api/flow/moves dispatch (e.g. an induction dig-out relocate)
+        }
+        UUID huId = uuidOf(p, "huId");
+        UUID toLocationId = uuidOf(p, "toLocationId");
+        if (huId == null || toLocationId == null) {
+            log.warn("flow-move device task {} completed without huId/toLocationId in payload; "
+                    + "skipping location booking", task.getId());
+            return;
+        }
+        try {
+            inventory.bookLocation(huId, toLocationId);
+            log.info("flow-move device task {} ({} for hu {}): booked HU to location {} in inventory",
+                    task.getId(), task.getCommand(), huOf(task), toLocationId);
+        } catch (RuntimeException e) {
+            log.warn("flow-move device task {} ({} for hu {}): location booking to {} failed; the move "
+                            + "stands but the registry is stale: {}",
+                    task.getId(), task.getCommand(), huOf(task), toLocationId, e.toString());
+        }
+    }
+
+    private static UUID uuidOf(Map<String, Object> payload, String key) {
+        Object v = payload == null ? null : payload.get(key);
+        if (v == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(v.toString());
+        } catch (IllegalArgumentException ex) {
+            return null;
         }
     }
 

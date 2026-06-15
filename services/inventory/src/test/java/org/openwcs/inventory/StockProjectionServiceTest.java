@@ -119,6 +119,60 @@ class StockProjectionServiceTest {
                 .get().satisfies(s -> assertThat(s.getQty()).isEqualByComparingTo("5"));
     }
 
+    /**
+     * The dormant from→to move projection, driven end-to-end for loose (non-HU) stock. Both
+     * PutawayCompleted (receiving → storage) and StockMoved (storage → storage) carry the {@code
+     * Move} payload; neither names an HU, so the explicit from/to locations are honoured verbatim
+     * (no HU-follows resolution). This documents and guarantees the path for its future producers
+     * (flow putaway, loose-stock transfers) before any producer exists. Also asserts idempotency
+     * through the processed_event inbox: a redelivered move is a no-op.
+     */
+    @Test
+    void putawayAndLooseMoveDecrementFromAndIncrementTo() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID receiving = UUID.randomUUID();
+        UUID storage = UUID.randomUUID();
+        UUID forward = UUID.randomUUID();
+
+        // Loose stock lands at receiving.
+        projection.apply(envelope(InventoryEventTypes.GOODS_RECEIVED, Map.of(
+                "warehouseId", wh, "skuId", sku, "locationId", receiving,
+                "qty", new BigDecimal("20"), "uomCode", "EACH")));
+
+        // PutawayCompleted: receiving → storage (partial), no HU on the payload.
+        projection.apply(envelope(InventoryEventTypes.PUTAWAY_COMPLETED, Map.of(
+                "warehouseId", wh, "skuId", sku, "qty", new BigDecimal("12"),
+                "fromLocationId", receiving, "toLocationId", storage)));
+
+        assertThat(stock.findBucket(wh, sku, null, receiving, null, "AVAILABLE"))
+                .get().satisfies(s -> assertThat(s.getQty()).isEqualByComparingTo("8"));
+        assertThat(stock.findBucket(wh, sku, null, storage, null, "AVAILABLE"))
+                .get().satisfies(s -> assertThat(s.getQty()).isEqualByComparingTo("12"));
+
+        // StockMoved: storage → forward (loose transfer between locations), no HU.
+        EventEnvelope moved = envelope(InventoryEventTypes.STOCK_MOVED, Map.of(
+                "warehouseId", wh, "skuId", sku, "qty", new BigDecimal("5"),
+                "fromLocationId", storage, "toLocationId", forward));
+        projection.apply(moved);
+
+        assertThat(stock.findBucket(wh, sku, null, storage, null, "AVAILABLE"))
+                .get().satisfies(s -> assertThat(s.getQty()).isEqualByComparingTo("7"));
+        assertThat(stock.findBucket(wh, sku, null, forward, null, "AVAILABLE"))
+                .get().satisfies(s -> assertThat(s.getQty()).isEqualByComparingTo("5"));
+
+        // Total conserved across both legs.
+        assertThat(stock.sumAvailable(wh, sku)).isEqualByComparingTo("20");
+
+        // Redelivery of the same move is a no-op (processed_event inbox).
+        projection.apply(moved);
+        assertThat(processedEvents.existsById(moved.eventId())).isTrue();
+        assertThat(stock.findBucket(wh, sku, null, storage, null, "AVAILABLE"))
+                .get().satisfies(s -> assertThat(s.getQty()).isEqualByComparingTo("7"));
+        assertThat(stock.findBucket(wh, sku, null, forward, null, "AVAILABLE"))
+                .get().satisfies(s -> assertThat(s.getQty()).isEqualByComparingTo("5"));
+    }
+
     @Test
     void statusChangeMovesQtyOutOfAvailable() {
         UUID wh = UUID.randomUUID();

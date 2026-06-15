@@ -53,6 +53,10 @@ public class ReplenishmentTask extends Auditable {
     @Column(name = "status", nullable = false)
     private String status = "PLANNED";
 
+    /** The flow device-task created when this task was dispatched as a physical replenishment move. */
+    @Column(name = "device_task_id")
+    private UUID deviceTaskId;
+
     public UUID getId() {
         return id;
     }
@@ -131,5 +135,13 @@ public class ReplenishmentTask extends Auditable {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public UUID getDeviceTaskId() {
+        return deviceTaskId;
+    }
+
+    public void setDeviceTaskId(UUID deviceTaskId) {
+        this.deviceTaskId = deviceTaskId;
     }
 }

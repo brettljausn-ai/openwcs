@@ -58,7 +58,7 @@ export default function HardwareTwinScreen() {
   const t = useT('twin')
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const [autoRefresh, setAutoRefresh] = useState(true)
-  const { topology, lib, snapshot, timelines, clockOffsetMsRef, storedTotes, loading, error, lastUpdated, refresh } = useLiveTwin(
+  const { topology, lib, snapshot, timelines, clockOffsetMsRef, storedTotes, amrs, autostore, loading, error, lastUpdated, refresh } = useLiveTwin(
     warehouseId,
     { intervalMs: POLL_MS, autoRefresh },
   )
@@ -99,6 +99,16 @@ export default function HardwareTwinScreen() {
 
   const stats = snapshot?.stats
   const isEmpty = !!topology && topology.equipment.length === 0
+
+  // AutoStore grid fill % (item 3) — only meaningful when telemetry reports a non-zero grid. Best
+  // effort: absent grid → no fill chip.
+  const autostoreGrid = autostore?.grid ?? null
+  const autostoreFillPct =
+    autostoreGrid && autostoreGrid.totalBins > 0
+      ? Math.round((autostoreGrid.occupiedBins / autostoreGrid.totalBins) * 100)
+      : null
+  const hasAmrs = amrs.length > 0
+  const hasAutostore = !!autostoreGrid || (autostore?.ports.length ?? 0) > 0
 
   return (
     <div className="app-content">
@@ -155,6 +165,10 @@ export default function HardwareTwinScreen() {
           <StatChip label={t('statRecirculations', 'Recirculations')} value={stats?.recirculations ?? 0} kind="warning" />
           <StatChip label={t('statFaults', 'Faults')} value={stats?.faults ?? 0} kind={stats && stats.faults > 0 ? 'danger' : 'muted'} />
           <StatChip label={t('statInStorage', 'In storage')} value={storedTotes.length} kind="muted" />
+          {hasAmrs && <StatChip label={t('statAmrs', 'AMRs')} value={amrs.length} kind="info" />}
+          {autostoreFillPct != null && (
+            <StatChip label={t('statAutostoreFill', 'AutoStore fill %')} value={autostoreFillPct} kind={autostoreFillPct >= 90 ? 'warning' : 'success'} />
+          )}
         </div>
 
         {levels.length > 1 && (
@@ -188,6 +202,13 @@ export default function HardwareTwinScreen() {
           <LegendSwatch colour={TOTE_COLOURS['in-transit']} label={t('legendInTransit', 'In transit')} round />
           <LegendSwatch colour={TOTE_COLOURS.recirculating} label={t('legendRecirculating', 'Recirculating')} round />
           <LegendSwatch colour={TOTE_COLOURS.queued} label={t('legendQueued', 'Queued')} round />
+          {(hasAmrs || hasAutostore) && (
+            <>
+              <span className="muted" style={{ opacity: 0.4 }}>|</span>
+              {hasAmrs && <LegendSwatch colour={EQUIPMENT_COLOURS.running} label={t('legendAmr', 'AMR (moving)')} round />}
+              {hasAutostore && <LegendSwatch colour={EQUIPMENT_COLOURS.running} label={t('legendAutostorePort', 'AutoStore port (busy)')} />}
+            </>
+          )}
         </div>
       </div>
 
@@ -248,6 +269,8 @@ export default function HardwareTwinScreen() {
                   timelines={timelines}
                   clockOffsetMsRef={clockOffsetMsRef}
                   storedTotes={storedTotes}
+                  amrs={amrs}
+                  autostorePorts={autostore?.ports ?? []}
                   showLabels={showLabels}
                   activeLevelId={activeLevelId}
                   selectedPlacedId={selectedPlacedId}

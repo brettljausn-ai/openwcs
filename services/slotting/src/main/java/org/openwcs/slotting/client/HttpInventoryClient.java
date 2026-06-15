@@ -53,6 +53,29 @@ public class HttpInventoryClient implements InventoryClient {
         return result == null ? List.of() : result;
     }
 
+    @Override
+    public List<StockBucket> stockForSku(UUID warehouseId, UUID skuId) {
+        try {
+            List<StockRow> rows = http.get()
+                    .uri("/api/inventory/stock?warehouseId={w}&skuId={s}", warehouseId, skuId)
+                    .retrieve()
+                    .body(new org.springframework.core.ParameterizedTypeReference<List<StockRow>>() {
+                    });
+            if (rows == null) {
+                return List.of();
+            }
+            return rows.stream()
+                    .map(r -> new StockBucket(r.locationId(), r.huId(), r.batchId(), r.status(), r.qty()))
+                    .toList();
+        } catch (RuntimeException e) {
+            return List.of();
+        }
+    }
+
+    /** Subset of the inventory service's stock-bucket view. */
+    private record StockRow(UUID locationId, UUID huId, UUID batchId, String status, BigDecimal qty) {
+    }
+
     /** Subset of the inventory service's Availability response. */
     private record Availability(BigDecimal onHand) {
     }

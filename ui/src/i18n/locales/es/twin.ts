@@ -49,4 +49,8 @@ export default {
   transportTrace: 'Traza de transporte',
   loadingTrace: 'Cargando traza…',
   noTraceEvents: 'No hay eventos de transporte registrados para esta unidad de manipulación.',
+  statAmrs: 'AMR',
+  statAutostoreFill: 'Llenado AutoStore %',
+  legendAmr: 'AMR (en movimiento)',
+  legendAutostorePort: 'Puerto AutoStore (ocupado)',
 }

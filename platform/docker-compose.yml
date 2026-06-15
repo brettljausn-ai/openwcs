@@ -208,6 +208,8 @@ services:
       OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
       OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
       OPENWCS_TXLOG_BASE_URL: http://txlog:8086
+      # Dispatch re-slot / replenishment / decant plans as physical moves via flow-orchestrator.
+      OPENWCS_FLOW_ORCHESTRATOR_BASE_URL: http://flow-orchestrator:8085
 
   gtp:
     restart: unless-stopped

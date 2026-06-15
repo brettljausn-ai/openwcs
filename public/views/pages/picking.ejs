@@ -1,13 +1,14 @@
 <section class="hero">
     <div class="wrap">
       <p class="eyebrow" data-i18n="pick.eyebrow1">Function · Picking</p>
-      <h1 data-i18n="pick.h1">The plan is built. <span class="lime">Execution is next.</span></h1>
+      <h1 data-i18n="pick.h1">The plan is built. <span class="lime">Now operators confirm the pick.</span></h1>
       <p class="lead" data-i18n="pick.lead1">
-        openWCS already plans the pick — allocation, cubing and batch planning are
-        <span class="pill pill-built" data-i18n="pick.pill1">Built</span>. The operator-facing execution layer is
-        <span class="pill pill-roadmap" data-i18n="pick.pill5">Roadmap</span>: planned and designed, not yet implemented.
+        openWCS already plans the pick (allocation, cubing and batch planning are
+        <span class="pill pill-built" data-i18n="pick.pill1">Built</span>), and now the guided operator pick screen is
+        <span class="pill pill-built" data-i18n="pick.pill5">Built</span> too: confirm or short each line, post the picked stock. Pick-by-light / voice / RF and the full goods-to-person station workflow remain
+        <span class="pill pill-roadmap" data-i18n="pick.pill5b">Roadmap</span>.
       </p>
-      <p class="status-line">⚑ Pick execution is planned — not yet implemented. Pick planning below is live today.</p>
+      <p class="status-line" data-i18n="pick.status1">✓ Operator pick confirmation is built and live today. Light / voice / RF guidance and the full GTP-station workflow remain on the roadmap.</p>
     </div>
   </section>
 
@@ -44,18 +45,19 @@
   <section>
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow" data-i18n="pick.eyebrow3">On the roadmap</p>
+        <p class="eyebrow" data-i18n="pick.eyebrow3">Execution: in operators' hands</p>
         <h2 data-i18n="pick.h3">Putting the plan into operators' hands.</h2>
         <p data-i18n="pick.p5">
-          The execution layer — confirming picks, guiding operators, running goods-to-person stations — is
-          designed but not built. Framed honestly so you know exactly where the line is.
+          The operator pick-confirmation screen is built and live; guidance hardware (light / voice / RF)
+          and the full goods-to-person station workflow are designed but not yet built. Framed honestly so
+          you know exactly where the line is.
         </p>
       </div>
       <div class="grid grid-3">
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="pick.tag4">Confirmation</div><span class="pill pill-roadmap" data-i18n="pick.pill6">Roadmap</span></div>
+          <div class="card-head"><div class="tag" data-i18n="pick.tag4">Confirmation</div><span class="pill pill-built" data-i18n="pick.pill6">Built</span></div>
           <h3 data-i18n="pick.h9">Confirm the pick</h3>
-          <p data-i18n="pick.p6">Planned: operator and goods-to-person pick confirmation that closes out a planned line against what was physically taken. Not yet implemented.</p>
+          <p data-i18n="pick.p6">A guided RF-style picking screen walks the operator through the pick queue: a big next-pick card with location, SKU code, name and image, and quantity, then Confirm or Short (Enter confirms) to advance. Each confirm posts a Picked transaction and decrements stock; the queue is fed by the order-management pick-task endpoints over released, allocated outbound lines.</p>
         </div>
         <div class="card">
           <div class="card-head"><div class="tag" data-i18n="pick.tag5">Guidance</div><span class="pill pill-roadmap" data-i18n="pick.pill7">Roadmap</span></div>
@@ -75,13 +77,13 @@
     <div class="wrap">
       <div class="section-head">
         <p class="eyebrow" data-i18n="pick.eyebrow4">At a glance</p>
-        <h2 data-i18n="pick.h4">Plan today → execute on the roadmap.</h2>
+        <h2 data-i18n="pick.h4">Plan today → operators confirm today.</h2>
       </div>
       <div class="arch">
-<pre>  order ─►  <b>allocate</b> → <b>cube</b> → <b>batch-plan</b>     (built)
-                                  │
-                                  ▼
-            ┄┄┄ roadmap ┄┄┄  confirm · light/voice/RF · GTP station</pre>
+<pre>  order ─►  <b>allocate</b> → <b>cube</b> → <b>batch-plan</b> → <b>operator confirm pick</b>   (built)
+                                                         │
+                                                         ▼
+                              ┄┄┄ roadmap ┄┄┄  light/voice/RF · GTP station</pre>
       </div>
     </div>
   </section>

@@ -20,7 +20,18 @@ public interface InventoryClient {
     /** All handling units registered in a warehouse (the HU registry, incl. current location). */
     List<HandlingUnitView> handlingUnits(UUID warehouseId);
 
+    /**
+     * Current stock buckets for a SKU in a warehouse (per-location on-hand, with the holding HU and
+     * batch). Replenishment source resolution scans these for a reserve location to draw from.
+     * Empty on any error (best-effort).
+     */
+    List<StockBucket> stockForSku(UUID warehouseId, UUID skuId);
+
     /** A registry handling unit: where it physically is ({@code locationId} null while in transit). */
     record HandlingUnitView(UUID huId, String code, UUID locationId, String status) {
+    }
+
+    /** One stock bucket: a SKU/batch quantity at a location, optionally on a handling unit. */
+    record StockBucket(UUID locationId, UUID huId, UUID batchId, String status, BigDecimal qty) {
     }
 }
