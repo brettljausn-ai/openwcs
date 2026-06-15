@@ -120,4 +120,36 @@ export default {
   topMoversSub: '区间内拣选最多的 SKU。',
   bottomMovers: '后 10 动销',
   bottomMoversSub: '有动销但拣选最少的 SKU。',
+  // wired metrics (receive errors, dock-to-stock, SLA)
+  threshold: '阈值',
+  target: '目标',
+  samples: '今日样本',
+  dockToStock: '收货入库时长（中位数）',
+  onTimeToCutoff: '按截止时间准时',
+  cycleTimeMedian: '订单周期时间（中位数）',
+  // andon board
+  andonTitle: 'Andon 看板',
+  andonIntro:
+    '面向墙面显示的控制室实时告警看板。先严重，后警告；颜色与形状标示严重程度。看板灰而安静即表示现场健康。',
+  andonAllClear: '一切正常',
+  andonAllClearSub: '无活动告警。健康的现场是安静的。',
+  // alert-system health
+  alertHealthTitle: '告警系统健康度',
+  alertHealthIntro:
+    '告警系统本身的运行状况。告警只有在需要响应时才有用，因此我们关注其负载：活动数量、每日新增与清除的平衡、反复抖动（chattering）的告警以及陈旧告警。',
+  activeCritical: '活动严重',
+  activeWarning: '活动警告',
+  chatteringCount: '抖动告警',
+  chatteringHint: '在开启/清除间反复',
+  staleCount: '陈旧告警',
+  staleHint: '长时间未清除',
+  openedCleared: '每日新增与清除',
+  openedClearedSub: '健康的系统清除的告警数量与新增大致相当；差距扩大说明告警债务在累积。',
+  noAlertHistory: '此区间暂无告警历史。',
+  opened: '新增',
+  cleared: '清除',
+  chatteringTitle: '抖动告警',
+  chatteringSub: '在开启与清除之间反复的告警；最严重者浪费注意力，应重新调参。',
+  staleTitle: '陈旧告警',
+  staleSub: '开启时间最长的告警；最早的在前。长期未清除的告警通常意味着缺少响应或阈值设置不当。',
 }

@@ -7,6 +7,8 @@ export default {
   'dashboards:replenishment': 'Reabastecimiento',
   'dashboards:stock': 'Niveles de stock',
   'dashboards:abc': 'Movimientos ABC',
+  'dashboards:andon': 'Tablero Andon',
+  'dashboards:alert-health': 'Salud de alertas',
   inbound: 'Recepciones',
   outbound: 'Expediciones',
   counting: 'Recuento de inventario',

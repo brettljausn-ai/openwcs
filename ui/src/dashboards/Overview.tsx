@@ -75,8 +75,14 @@ export default function Overview() {
 
   // ---- inbound ----
   const ob = orders.data
-  const inboundErrors = 0 // receive-error count is not in the orders dashboard contract; see note below
-  const inboundState: DashState = !ob ? 'ok' : ob.inbound.open > 0 ? 'warning' : 'ok'
+  const inboundErrors = ob?.inbound.receiveErrorsToday ?? 0
+  const inboundState: DashState = !ob
+    ? 'ok'
+    : inboundErrors > T.receiveErrorsDay
+      ? 'critical'
+      : inboundErrors > 0 || ob.inbound.open > 0
+        ? 'warning'
+        : 'ok'
 
   // ---- outbound ----
   const outboundState: DashState = !ob ? 'ok' : ob.outbound.shortsToday > 0 ? 'warning' : 'ok'
@@ -142,7 +148,7 @@ export default function Overview() {
           <SecondaryRow
             items={[
               { label: t('husReceived', 'HUs received'), value: inv.data?.husReceivedToday ?? 0 },
-              { label: t('receiveErrors', 'Receive errors'), value: inboundErrors },
+              { label: t('receiveErrors', 'Receive errors'), value: inboundErrors, alert: inboundErrors > 0 },
             ]}
           />
         </Tile>

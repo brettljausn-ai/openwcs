@@ -43,6 +43,8 @@ import DashboardsOutbound from './dashboards/OutboundDashboard'
 import DashboardsReplenishment from './dashboards/ReplenishmentDashboard'
 import DashboardsStock from './dashboards/StockDashboard'
 import DashboardsAbc from './dashboards/AbcDashboard'
+import DashboardsAndon from './dashboards/AndonBoard'
+import DashboardsAlertHealth from './dashboards/AlertHealthDashboard'
 
 const COMPONENTS: Record<string, JSX.Element> = {
   dashboard: <Dashboard />,
@@ -52,6 +54,8 @@ const COMPONENTS: Record<string, JSX.Element> = {
   'dashboards:replenishment': <DashboardsReplenishment />,
   'dashboards:stock': <DashboardsStock />,
   'dashboards:abc': <DashboardsAbc />,
+  'dashboards:andon': <DashboardsAndon />,
+  'dashboards:alert-health': <DashboardsAlertHealth />,
   topology: <TopologyEditor />,
   processes: <ProcessDesigner />,
   slotting: <SlottingScreen />,
