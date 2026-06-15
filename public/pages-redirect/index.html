@@ -10,9 +10,14 @@
        Redirect immediately, preserving the deep-link path under the /openwcs/ base. -->
   <script>
     (function () {
-      // Drop the /openwcs project-pages base (with or without trailing slash), then any
-      // leading slash, so /openwcs/asrs.html -> asrs.html and /openwcs(/) -> ''.
-      var path = location.pathname.replace(/^\/openwcs(\/|$)/, '').replace(/^\/+/, '');
+      // Map an old Pages URL to its clean openwcs.ai route: drop the /openwcs project base,
+      // any leading slash, the legacy .html suffix, and a trailing "index".
+      // /openwcs/asrs.html -> asrs ; /openwcs/ -> '' ; /openwcs/index.html -> ''.
+      var path = location.pathname
+        .replace(/^\/openwcs(\/|$)/, '')
+        .replace(/^\/+/, '')
+        .replace(/\.html$/, '')
+        .replace(/(^|\/)index$/, '');
       location.replace('https://openwcs.ai/' + path + location.search + location.hash);
     })();
   </script>

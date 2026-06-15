@@ -7,7 +7,6 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "build:pages": "node scripts/convert.js",
     "build:static": "node scripts/build-static.js"
   },
   "engines": {
@@ -18,8 +17,5 @@
     "ejs": "^3.1.10",
     "express": "^4.21.2",
     "express-ejs-layouts": "^2.5.1"
-  },
-  "devDependencies": {
-    "cheerio": "^1.0.0"
   }
 }

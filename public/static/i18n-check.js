@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-/* CI guard: every data-i18n key used across the source pages (public/src-html/*.html) must exist in
- * all four language dictionaries in i18n.js. Exits non-zero if any key is missing. */
+/* CI guard: every data-i18n key used across the views (public/views/layout.ejs + views/pages/*.ejs)
+ * must exist in all four language dictionaries in i18n.js. Exits non-zero if any key is missing. */
 'use strict';
 const fs = require('fs');
 const path = require('path');
 
 const dir = __dirname;                                   // public/static (where i18n.js lives)
-const pagesDir = path.join(dir, '..', 'src-html');       // the editable source pages
+const viewsDir = path.join(dir, '..', 'views');          // the source views (shared layout + page bodies)
+const pagesDir = path.join(viewsDir, 'pages');
 const src = fs.readFileSync(path.join(dir, 'i18n.js'), 'utf8');
 
 const start = src.indexOf('var I18N = {');
@@ -17,11 +18,15 @@ let I18N;
 eval('I18N=' + objText + ';');
 
 const langs = ['en', 'de', 'fr', 'es'];
-const htmls = fs.readdirSync(pagesDir).filter(f => f.endsWith('.html'));
+// Scan the shared layout (nav/footer/contact keys) + every page body view.
+const files = [
+  path.join(viewsDir, 'layout.ejs'),
+  ...fs.readdirSync(pagesDir).filter(f => f.endsWith('.ejs')).map(f => path.join(pagesDir, f)),
+];
 const keys = new Set();
 const re = /data-i18n="([^"]+)"/g;
-for (const f of htmls) {
-  const t = fs.readFileSync(path.join(pagesDir, f), 'utf8');
+for (const f of files) {
+  const t = fs.readFileSync(f, 'utf8');
   let m;
   while ((m = re.exec(t))) keys.add(m[1]);
 }
@@ -33,8 +38,8 @@ for (const k of keys) {
   }
 }
 
-console.log('Pages scanned:        ' + htmls.length);
-console.log('Distinct keys in HTML: ' + keys.size);
+console.log('Views scanned:        ' + files.length);
+console.log('Distinct keys in views: ' + keys.size);
 console.log('Dictionary sizes:      ' + langs.map(l => l + '=' + Object.keys(I18N[l] || {}).length).join(', '));
 if (missing.length) {
   console.error('\nMISSING translations (' + missing.length + '):');
