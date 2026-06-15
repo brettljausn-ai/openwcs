@@ -3,9 +3,12 @@
 // actionable number), Inbound, Outbound, Dispatch, Automation. Each carries a hero + one or two
 // secondary figures + sparkline + a computed state colour and a drill-down link into its dashboard.
 // Tiles poll every 15 s; a tile greys to "stale" after two consecutive failed polls.
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import { useT } from '../i18n/useT'
+import { useAuth } from '../auth/AuthContext'
+import { useDemoMode } from '../demo/useDemoMode'
+import { seedDemoDashboards } from '../settings/api'
 import { usePoll } from './usePoll'
 import {
   AlertBadge,
@@ -41,6 +44,8 @@ const DEFAULT_THRESHOLDS: AlertThresholds = {
 export default function Overview() {
   const t = useT('dashboards')
   const { currentWarehouseId: wh } = useWarehouse()
+  const { roles } = useAuth()
+  const { enabled: demoEnabled } = useDemoMode()
 
   const orders = usePoll(wh, loadOrdersDashboard, POLL)
   const inv = usePoll(wh, loadInventoryDashboard, POLL)
@@ -118,6 +123,7 @@ export default function Overview() {
         <span className="eyebrow">{t('eyebrow', 'Dashboards')}</span>
         <h1>{t('overviewTitle', 'Control room')}</h1>
         <p>{t('overviewIntro', 'At-a-glance state of the warehouse. A healthy floor looks quiet: colour means something needs a response. Each tile drills into its dashboard.')}</p>
+        {demoEnabled && roles.includes('ADMIN') && <SeedDashboardsButton warehouseId={wh} />}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
@@ -261,6 +267,45 @@ function SecondaryRow({ items }: { items: { label: string; value: number | strin
           </span>
         </div>
       ))}
+    </div>
+  )
+}
+
+// Demo-only convenience trigger (shown only while demo mode is on, ADMIN only). Fans out the
+// per-service demo dashboard seeders best-effort and reports which succeeded. Mirrors the existing
+// demo-seed buttons' UX (one click, inline status).
+function SeedDashboardsButton({ warehouseId }: { warehouseId: string }) {
+  const t = useT('dashboards')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const onClick = async () => {
+    setBusy(true)
+    setMsg(null)
+    try {
+      const r = await seedDemoDashboards(warehouseId)
+      if (r.failed.length === 0) {
+        setMsg(t('seedOk', 'Demo dashboard data seeded ({{n}} services).').replace('{{n}}', String(r.succeeded.length)))
+      } else {
+        setMsg(
+          t('seedPartial', 'Seeded {{ok}}; failed: {{bad}}.')
+            .replace('{{ok}}', r.succeeded.join(', ') || '—')
+            .replace('{{bad}}', r.failed.map((f) => f.service).join(', ')),
+        )
+      }
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: '.6rem', display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
+      <button className="btn" onClick={onClick} disabled={busy}>
+        {busy ? t('seeding', 'Seeding demo data…') : t('seedDashboards', 'Seed demo dashboard data')}
+      </button>
+      {msg && <span className="muted" style={{ fontSize: '.72rem' }}>{msg}</span>}
     </div>
   )
 }

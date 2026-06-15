@@ -1,9 +1,8 @@
-package org.openwcs.flow.api;
+package org.openwcs.slotting.api;
 
 import java.util.UUID;
 import org.openwcs.common.security.AccessControl;
-import org.openwcs.flow.service.FlowDashboardSeedService;
-import org.openwcs.flow.service.FlowDemoService;
+import org.openwcs.slotting.service.DemoDashboardSeedService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -13,37 +12,21 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Demo mode for flow-orchestrator (build.md §4.8). Admin-only full operational reset for a
- * warehouse: purge all transactional flow state (device tasks, handling-unit routes and
- * topology observations), keeping the topology configuration. Invoked when demo mode is
- * turned off.
+ * Demo mode for slotting (build.md §4.8). Admin-only, demo-only backfill of dashboard-relevant data
+ * (ABC velocity + daily picks + replenishment tasks) so /velocity/abc and /replenishment/dashboard
+ * show plausible numbers on a fresh demo box. No effect when demo mode is off.
  */
 @RestController
-@RequestMapping("/api/flow/demo")
+@RequestMapping("/api/slotting/demo")
 public class DemoController {
 
-    private final FlowDemoService demo;
-    private final FlowDashboardSeedService dashboardSeed;
+    private final DemoDashboardSeedService dashboardSeed;
 
-    public DemoController(FlowDemoService demo, FlowDashboardSeedService dashboardSeed) {
-        this.demo = demo;
+    public DemoController(DemoDashboardSeedService dashboardSeed) {
         this.dashboardSeed = dashboardSeed;
     }
 
-    /** Full operational reset for a warehouse (admin-only). */
-    @PostMapping("/clear")
-    public DemoClearResult clear(
-            @RequestParam UUID warehouseId,
-            @RequestHeader(name = "X-Auth-Roles", required = false) String roles) {
-        requireAdmin(roles);
-        return demo.clear(warehouseId);
-    }
-
-    /**
-     * Backfill today's scan-quality counters and one faulted equipment so the automation summary
-     * (/reports/automation-summary) shows a plausible no-read rate and an availability dip on a
-     * demo box. Admin-only, demo-only; rejected with 409 when demo mode is off.
-     */
+    /** Backfill ABC + replenishment dashboard data for a warehouse (admin-only, demo-only). */
     @PostMapping("/seed-dashboard")
     public DemoDashboardSeedResult seedDashboard(
             @RequestParam UUID warehouseId,

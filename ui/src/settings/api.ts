@@ -322,6 +322,60 @@ export async function disableDemo(warehouseId: string): Promise<DemoResult> {
   return result
 }
 
+// ---- demo dashboard seeding (best-effort fan-out across services) ----
+// One convenience trigger that backfills representative, BACKDATED data into every dashboard so a
+// fresh demo box shows plausible non-empty numbers. Each per-service call is demo-mode-gated and
+// admin-only server-side; we run them all and report which succeeded. Strictly demo-only.
+export interface DemoDashboardSeedReport {
+  succeeded: string[]
+  failed: { service: string; error: string }[]
+}
+
+export async function seedDemoDashboards(warehouseId: string): Promise<DemoDashboardSeedReport> {
+  const wh = encodeURIComponent(warehouseId)
+  const succeeded: string[] = []
+  const failed: { service: string; error: string }[] = []
+
+  const run = async (service: string, fn: () => Promise<unknown>) => {
+    try {
+      await fn()
+      succeeded.push(service)
+    } catch (e) {
+      failed.push({ service, error: e instanceof Error ? e.message : String(e) })
+    }
+  }
+
+  // Inventory needs the existing demo storage + receiving location ids and demo SKU ids (same
+  // resolution as enableDemo). Resolved best-effort; an empty list makes the seed a server no-op.
+  const huTypes = await fetch('/api/master-data/handling-unit-types')
+    .then((r) => (r.ok ? (r.json() as Promise<{ id: string; name: string }[]>) : []))
+    .catch(() => [] as { id: string; name: string }[])
+  const huTypeId = huTypes.find((t) => t.name === 'DEMO-STORAGE-HU')?.id ?? null
+  const locationIds = await idsFrom(
+    `/api/master-data/locations?warehouseId=${wh}&purpose=STORAGE&size=500`,
+  )
+  const receivingLocationIds = await idsFrom(
+    `/api/master-data/locations?warehouseId=${wh}&purpose=RECEIVING&size=200`,
+  )
+  const skuIds = await idsFrom('/api/master-data/skus?ownerClient=DEMO&size=500')
+
+  await run('orders', () => demoPost(`/api/orders/demo/seed-dashboard?warehouseId=${wh}`))
+  await run('slotting', () => demoPost(`/api/slotting/demo/seed-dashboard?warehouseId=${wh}`))
+  await run('inventory', () =>
+    demoPost('/api/inventory/demo/seed-dashboard', {
+      warehouseId,
+      huTypeId,
+      locationIds,
+      receivingLocationIds,
+      skuIds,
+    }),
+  )
+  await run('flow', () => demoPost(`/api/flow/demo/seed-dashboard?warehouseId=${wh}`))
+  await run('notification', () => demoPost(`/api/notification/demo/seed-dashboard?warehouseId=${wh}`))
+
+  return { succeeded, failed }
+}
+
 // ---- cubing config (warehouse fulfillment config + shipper catalog) ----
 export interface FulfillmentConfig {
   id?: string

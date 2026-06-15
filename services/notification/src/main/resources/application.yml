@@ -49,6 +49,10 @@ openwcs:
     flow-base-url: ${OPENWCS_FLOW_ORCHESTRATOR_BASE_URL:http://localhost:8085}
     allocation-base-url: ${OPENWCS_ALLOCATION_BASE_URL:http://localhost:8091}
     slotting-base-url: ${OPENWCS_SLOTTING_BASE_URL:http://localhost:8093}
+    # The periodic evaluator. Enabled in production; left off in tests (no property set) so a
+    # background evaluation tick never races the tests' mocked metric sources.
+    scheduler:
+      enabled: ${OPENWCS_NOTIFICATION_SCHEDULER_ENABLED:true}
     # How often the evaluator fires (ms). Default 60s.
     evaluate-interval-ms: ${OPENWCS_NOTIFICATION_EVALUATE_INTERVAL_MS:60000}
     # Which warehouses to scan. Empty = discover from master-data (GET /warehouses). A
