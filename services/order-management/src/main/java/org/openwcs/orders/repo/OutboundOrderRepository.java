@@ -38,6 +38,28 @@ public interface OutboundOrderRepository extends JpaRepository<OutboundOrder, UU
             @Param("warehouseId") UUID warehouseId,
             @Param("statuses") Collection<OrderStatus> statuses);
 
+    /**
+     * Pick queue: OUTBOUND orders carrying lines that are released/allocated and still need
+     * picking. An order qualifies when it is in a released, fulfillable state (ALLOCATED or
+     * PARTIALLY_ALLOCATED). The fetch join pulls the lines; each line's transactions load
+     * lazily within the read transaction when the read model computes picked qty + the
+     * best-effort pick location (a second bag cannot be fetch-joined in the same query).
+     * Ordered for a sensible pick walk: most-urgent order first (priority, then cut-off),
+     * then order reference; the service filters to lines still needing picking.
+     */
+    @Query("""
+        select distinct o from OutboundOrder o
+        join fetch o.lines l
+        where o.warehouseId = :warehouseId
+          and o.orderType = org.openwcs.orders.domain.OrderType.OUTBOUND
+          and o.status in (org.openwcs.orders.domain.OrderStatus.ALLOCATED,
+                           org.openwcs.orders.domain.OrderStatus.PARTIALLY_ALLOCATED)
+          and l.status in (org.openwcs.orders.domain.LineStatus.ALLOCATED,
+                           org.openwcs.orders.domain.LineStatus.SHORT)
+        order by o.priority desc, o.dispatchBy asc nulls last, o.orderRef asc
+        """)
+    List<OutboundOrder> pickQueue(@Param("warehouseId") UUID warehouseId);
+
     /** CREATED OUTBOUND orders due by the cut-off (null dispatch time = always due), most urgent first. */
     @Query("""
         select o from OutboundOrder o

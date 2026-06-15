@@ -134,6 +134,35 @@ public class OrderController {
     }
 
     /**
+     * Operator pick queue: outbound order lines that are released/allocated and still need
+     * picking, ordered for a pick walk. Read-only — requires ORDER_VIEW.
+     */
+    @GetMapping("/pick-tasks")
+    public List<PickTaskView> pickTasks(
+            @RequestHeader(name = ROLES, required = false) String roles, @RequestParam UUID warehouseId) {
+        guard.require(roles, Permission.ORDER_VIEW);
+        return service.pickTasks(warehouseId);
+    }
+
+    /**
+     * Confirm an operator pick against a pick-task line: posts a Picked stock transaction
+     * (decrementing stock through the outbox→txlog path) and advances the line's picked
+     * quantity, marking it SHORT on a short confirm. Requires ORDER_POST_TRANSACTION (held by
+     * OPERATOR in the shipped role catalog — the picking write permission); the operator is
+     * taken from the gateway-forwarded {@code X-Auth-User} and recorded for audit. 409 when
+     * the line is not pickable.
+     */
+    @PostMapping("/pick-tasks/{lineId}/confirm")
+    public PickTaskView confirmPick(
+            @PathVariable UUID lineId,
+            @RequestHeader(name = "X-Auth-User", required = false) String authUser,
+            @RequestHeader(name = ROLES, required = false) String roles,
+            @Valid @RequestBody ConfirmPickRequest request) {
+        guard.require(roles, Permission.ORDER_POST_TRANSACTION);
+        return service.confirmPick(lineId, request, authUser);
+    }
+
+    /**
      * Post a stock transaction beneath a line (receipt / pick / count / adjustment by order
      * type). The actor recorded for audit is the gateway-forwarded authenticated user
      * ({@code X-Auth-User}); the request-body {@code actor} is only a fallback for direct calls.
