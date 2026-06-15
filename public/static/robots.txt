@@ -2,4 +2,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://brettljausn-ai.github.io/openwcs/sitemap.xml
+Sitemap: https://openwcs.ai/sitemap.xml

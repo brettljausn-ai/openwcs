@@ -1,29 +1,31 @@
 # openWCS public product site (Express + EJS)
 
-The public-facing marketing/product site for openWCS. It used to be ~20 standalone static HTML pages;
-it's now an **Express + EJS** app so it can deploy to a Node host (Hostinger), with every page rendered
-through **one shared layout** — the header/nav/lang-switcher/footer live in a single place instead of
-being copy-pasted across pages. Each page's per-page SEO (`<title>`, description, canonical, OG/Twitter,
-JSON-LD) and i18n stay exactly as before.
+The public-facing marketing/product site for openWCS, live at **https://openwcs.ai**. It's an
+**Express + EJS** app deployed to a Node host (Hostinger), with every page rendered through **one shared
+layout** — the header/nav/lang-switcher/footer live in a single place instead of being copy-pasted across
+pages. URLs are **clean** (`/asrs`, not `/asrs.html`); each page's per-page SEO (`<title>`, description,
+canonical, OG/Twitter, JSON-LD) and i18n live in the manifest + views.
 
 ## How it's structured
 
 ```
 public/
-  server.js              Express app (routes from data/pages.json, static assets, 404). Listens on $PORT.
+  server.js              Express app: clean page routes from data/pages.json, legacy *.html -> clean 301s,
+                         the /api/contact endpoint, static assets, 404. Listens on $PORT.
   views/
     layout.ejs           The one shared shell: <head> boilerplate + header + footer. Per-page bits are locals.
-    pages/*.ejs          One body view per page (the content between header and footer).
-  data/pages.json        Generated manifest: route → { view, headMeta, navLinks, scripts, bodyId }.
+    pages/*.ejs          One body view per page (the content between header and footer). SOURCE OF TRUTH.
+  data/pages.json        Hand-owned manifest: cleanRoute -> { view, headMeta, scripts, bodyId }.
   static/                Served at the site root: styles.css, i18n.js, images, robots.txt, sitemap.xml, roadmap.md
-  src-html/              The legacy source pages — the editable source for the body + per-page <head>.
+  pages-redirect/        index.html + 404.html — the retired GitHub Pages mirror's redirect to openwcs.ai.
   scripts/
-    convert.js           Regenerates views/pages/*.ejs + data/pages.json from src-html/  (npm run build:pages)
-    build-static.js      Pre-renders the whole site to dist/ as plain HTML            (npm run build:static)
+    build-static.js      Pre-renders the whole site to dist/ as plain HTML (clean dirs)  (npm run build:static)
 ```
 
-Asset and inter-page links are **relative** (`styles.css`, `asrs.html`), so the same output works both at
-a domain root (Express/Hostinger) and under the GitHub Pages subpath (`/openwcs/`).
+Inter-page and asset links are **root-absolute** (`/asrs`, `/#why`, `/styles.css`), so they resolve
+correctly from any route or trailing slash and point straight at the clean URL — no redirect hop, no
+lost `#anchor`. (This replaced the old relative `.html` links, which 301-bounced and sometimes dropped
+fragments.)
 
 ## Run locally
 
@@ -35,14 +37,11 @@ npm start            # http://localhost:3000  (PORT overrides)
 
 ## Editing content
 
-The editable source is **`src-html/*.html`** (full pages) — edit there, then regenerate the views:
-
-```
-npm run build:pages
-```
-
-`views/pages/*.ejs` and `data/pages.json` are generated **and committed** (so the app runs on a host with
-no build step). Re-run `build:pages` after any `src-html/` change and commit the result.
+Edit the page body directly in **`views/pages/<name>.ejs`** and its per-page `<head>` SEO in the matching
+entry of **`data/pages.json`** (`headMeta`). To add a page: create `views/pages/<name>.ejs`, add a
+`"/<name>": { "view": "pages/<name>", "headMeta": "…", "bodyId": "top" }` entry to `data/pages.json`, and
+link to `/<name>`. No build step — the app renders straight from these files. Keep internal links
+**root-absolute** (`/<name>`, `/#anchor`); the legacy `*.html` URLs 301 to clean automatically.
 
 > **Keep it current** — this site must track real product capabilities. Update it alongside the code
 > whenever a feature lands that changes what openWCS can do. Keep every function's **Built** / **Roadmap**
@@ -84,9 +83,9 @@ deploy** — the static GitHub Pages mirror has no server, so the form is inert 
    `dist/`; the host runs `npm install`). Then **Run NPM install** and **Start**.
 3. The app listens on `process.env.PORT` (Hostinger assigns it) and `trust proxy` is on, so it works behind
    Hostinger's reverse proxy. Point your domain at the app.
-4. **Update the absolute URLs to your domain**: the canonical/OG/sitemap URLs still say
-   `https://brettljausn-ai.github.io/openwcs/...`. Search-and-replace that origin across `src-html/*.html`
-   and `static/sitemap.xml` to your Hostinger domain, then `npm run build:pages` and commit.
+4. **Absolute URLs** (canonical/OG/sitemap) use `https://openwcs.ai`. To host under a different domain,
+   search-and-replace that origin across `data/pages.json` (the `headMeta` SEO tags) and
+   `static/sitemap.xml` + `static/robots.txt`, then commit.
 
 Any other Node host (Render, Fly, a VPS with `pm2 start server.js`, Docker) works the same — it just needs
 `npm install` + `npm start` and a port.

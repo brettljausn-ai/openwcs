@@ -1,121 +1,121 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/</loc>
+    <loc>https://openwcs.ai/</loc>
     <lastmod>2026-06-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/functions.html</loc>
+    <loc>https://openwcs.ai/functions</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/automation.html</loc>
+    <loc>https://openwcs.ai/automation</loc>
     <lastmod>2026-06-06</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/architecture.html</loc>
+    <loc>https://openwcs.ai/architecture</loc>
     <lastmod>2026-06-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/roadmap.html</loc>
+    <loc>https://openwcs.ai/roadmap</loc>
     <lastmod>2026-06-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/conveyors.html</loc>
+    <loc>https://openwcs.ai/conveyors</loc>
     <lastmod>2026-06-06</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/gtp.html</loc>
+    <loc>https://openwcs.ai/gtp</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/asrs.html</loc>
+    <loc>https://openwcs.ai/asrs</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/process-designer.html</loc>
+    <loc>https://openwcs.ai/process-designer</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/inventory.html</loc>
+    <loc>https://openwcs.ai/inventory</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/allocation.html</loc>
+    <loc>https://openwcs.ai/allocation</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/host-api.html</loc>
+    <loc>https://openwcs.ai/host-api</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/security.html</loc>
+    <loc>https://openwcs.ai/security</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/living-docs.html</loc>
+    <loc>https://openwcs.ai/living-docs</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/slotting.html</loc>
+    <loc>https://openwcs.ai/slotting</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/replenishment.html</loc>
+    <loc>https://openwcs.ai/replenishment</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/picking.html</loc>
+    <loc>https://openwcs.ai/picking</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/cycle-counting.html</loc>
+    <loc>https://openwcs.ai/cycle-counting</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/kpi-dashboards.html</loc>
+    <loc>https://openwcs.ai/kpi-dashboards</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://brettljausn-ai.github.io/openwcs/hardware-visualisation.html</loc>
+    <loc>https://openwcs.ai/hardware-visualisation</loc>
     <lastmod>2026-06-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>

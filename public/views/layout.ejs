@@ -7,13 +7,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
-  <script defer src="i18n.js"></script>
+  <link rel="stylesheet" href="/styles.css" />
+  <script defer src="/i18n.js"></script>
 </head>
 <body id="<%= typeof bodyId !== 'undefined' ? bodyId : 'top' %>">
   <header class="nav">
     <div class="nav-inner">
-      <a class="brand" href="index.html"><img class="brand-logo" src="Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
+      <a class="brand" href="/"><img class="brand-logo" src="/Logo_white_solo.png" width="359" height="82" alt="openWCS" /></a>
       <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false"><span class="bars" aria-hidden="true"></span></button>
       <nav class="nav-links" aria-label="Primary">
         <div class="nav-group" data-nav-group>
@@ -22,18 +22,18 @@
             <svg class="chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
           </button>
           <div class="nav-menu">
-            <a href="functions.html" data-i18n="navFnAll">All functions</a>
-            <a href="process-designer.html" data-i18n="navFnProcess">Process designer</a>
-            <a href="inventory.html" data-i18n="navFnInventory">Inventory</a>
-            <a href="allocation.html" data-i18n="navFnAllocation">Allocation</a>
-            <a href="slotting.html" data-i18n="navFnSlotting">Slotting</a>
-            <a href="replenishment.html" data-i18n="navFnReplenishment">Replenishment</a>
-            <a href="picking.html" data-i18n="navFnPicking">Picking</a>
-            <a href="cycle-counting.html" data-i18n="navFnCycle">Cycle counting</a>
-            <a href="kpi-dashboards.html" data-i18n="navFnKpi">KPI dashboards</a>
-            <a href="host-api.html" data-i18n="navFnHostApi">Host API</a>
-            <a href="security.html" data-i18n="navFnSecurity">Security</a>
-            <a href="living-docs.html" data-i18n="navFnLivingDocs">Living docs</a>
+            <a href="/functions" data-i18n="navFnAll">All functions</a>
+            <a href="/process-designer" data-i18n="navFnProcess">Process designer</a>
+            <a href="/inventory" data-i18n="navFnInventory">Inventory</a>
+            <a href="/allocation" data-i18n="navFnAllocation">Allocation</a>
+            <a href="/slotting" data-i18n="navFnSlotting">Slotting</a>
+            <a href="/replenishment" data-i18n="navFnReplenishment">Replenishment</a>
+            <a href="/picking" data-i18n="navFnPicking">Picking</a>
+            <a href="/cycle-counting" data-i18n="navFnCycle">Cycle counting</a>
+            <a href="/kpi-dashboards" data-i18n="navFnKpi">KPI dashboards</a>
+            <a href="/host-api" data-i18n="navFnHostApi">Host API</a>
+            <a href="/security" data-i18n="navFnSecurity">Security</a>
+            <a href="/living-docs" data-i18n="navFnLivingDocs">Living docs</a>
           </div>
         </div>
         <div class="nav-group" data-nav-group>
@@ -42,24 +42,24 @@
             <svg class="chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
           </button>
           <div class="nav-menu">
-            <a href="automation.html" data-i18n="navAutoAll">Automation overview</a>
-            <a href="conveyors.html" data-i18n="navAutoConveyors">Conveyors</a>
-            <a href="asrs.html" data-i18n="navAutoAsrs">ASRS</a>
-            <a href="gtp.html" data-i18n="navAutoGtp">Goods-to-person</a>
-            <a href="hardware-visualisation.html" data-i18n="navAutoHw">Hardware visualisation</a>
+            <a href="/automation" data-i18n="navAutoAll">Automation overview</a>
+            <a href="/conveyors" data-i18n="navAutoConveyors">Conveyors</a>
+            <a href="/asrs" data-i18n="navAutoAsrs">ASRS</a>
+            <a href="/gtp" data-i18n="navAutoGtp">Goods-to-person</a>
+            <a href="/hardware-visualisation" data-i18n="navAutoHw">Hardware visualisation</a>
           </div>
         </div>
-        <a href="architecture.html" data-i18n="navArch">Architecture</a>
-        <a href="roadmap.html" data-i18n="navGrpRoadmap">Roadmap</a>
+        <a href="/architecture" data-i18n="navArch">Architecture</a>
+        <a href="/roadmap" data-i18n="navGrpRoadmap">Roadmap</a>
         <div class="nav-group" data-nav-group>
           <button class="nav-group-btn" type="button" aria-expanded="false" aria-haspopup="true">
             <span data-i18n="navGrpWhy">Why openWCS</span>
             <svg class="chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
           </button>
           <div class="nav-menu">
-            <a href="index.html#why" data-i18n="navWhy">Why open</a>
-            <a href="index.html#compare" data-i18n="navCmp">vs. locked-in WCS</a>
-            <a href="index.html#capabilities" data-i18n="navCap">Capabilities</a>
+            <a href="/#why" data-i18n="navWhy">Why open</a>
+            <a href="/#compare" data-i18n="navCmp">vs. locked-in WCS</a>
+            <a href="/#capabilities" data-i18n="navCap">Capabilities</a>
           </div>
         </div>
       </nav>
@@ -89,7 +89,7 @@
   <footer>
     <div class="wrap">
       <span data-i18n="footerTag">openWCS — open-source Warehouse Control System · AGPL-3.0.</span>
-      <span><a href="license.html" data-i18n="footerLicense">License</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a> · <a href="https://github.com/brettljausn-ai/openwcs/wiki">Docs</a> · <a href="https://www.patreon.com/c/karlfriesenbichler">Sponsor</a> · <a href="#" data-contact-open data-i18n="footerContact">Contact</a></span>
+      <span><a href="/license" data-i18n="footerLicense">License</a> · <a href="https://github.com/brettljausn-ai/openwcs">GitHub</a> · <a href="https://github.com/brettljausn-ai/openwcs/wiki">Docs</a> · <a href="https://www.patreon.com/c/karlfriesenbichler">Sponsor</a> · <a href="#" data-contact-open data-i18n="footerContact">Contact</a></span>
     </div>
   </footer>
 

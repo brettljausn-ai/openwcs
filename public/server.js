@@ -1,8 +1,8 @@
-// openWCS public product site — Express + EJS.
-// The 20 marketing pages are rendered through one shared layout (views/layout.ejs); each page's
-// per-page <head> SEO, contextual nav and body live in views/pages/*.ejs + data/pages.json (generated
-// by `npm run build:pages`). Static assets (styles.css, i18n.js, images, robots/sitemap, roadmap.md)
-// are served from static/. Designed for any Node host — listens on process.env.PORT (Hostinger).
+// openWCS public product site — Express + EJS (live at openwcs.ai).
+// The marketing pages are rendered through one shared layout (views/layout.ejs); each page's body lives
+// in views/pages/*.ejs and its <head> SEO in the hand-owned data/pages.json manifest. Routes are clean
+// (/asrs, not /asrs.html); legacy *.html URLs 301 to their clean path. Static assets (styles.css,
+// i18n.js, images, robots/sitemap, roadmap.md) are served from static/. Listens on process.env.PORT.
 const path = require('path');
 const express = require('express');
 const expressLayouts = require('express-ejs-layouts');
@@ -118,21 +118,28 @@ app.post('/api/contact', express.json({ limit: '16kb' }), async (req, res) => {
   }
 });
 
-// One route per page, from the generated manifest.
+// Legacy .html URLs (the old static-export scheme) 301 to their clean path — so old inbound links,
+// bookmarks and the retired GitHub Pages mirror keep resolving. /index.html → /, /asrs.html → /asrs.
+// The query string is preserved; fragments are client-side and ride along automatically.
+app.use((req, res, next) => {
+  if (req.path.endsWith('.html')) {
+    const clean = req.path === '/index.html' ? '/' : req.path.replace(/\.html$/, '');
+    return res.redirect(301, clean + req.url.slice(req.path.length));
+  }
+  next();
+});
+
+// One clean route per page, from the manifest (data/pages.json).
 for (const [route, p] of Object.entries(pages)) {
   app.get(route, (req, res) => {
-    res.render(p.view, { headMeta: p.headMeta, navLinks: p.navLinks, scripts: p.scripts, bodyId: p.bodyId });
+    res.render(p.view, { headMeta: p.headMeta, scripts: p.scripts, bodyId: p.bodyId });
   });
 }
-
-// /index.html → the canonical "/".
-app.get('/index.html', (req, res) => res.redirect(301, '/'));
 
 // 404
 app.use((req, res) => {
   res.status(404).render('pages/404', {
-    headMeta: '<title>Page not found — openWCS</title>\n  <meta name="robots" content="noindex" />\n  <link rel="icon" type="image/png" href="favicon.png" />',
-    navLinks: '<a href="/">← Home</a>',
+    headMeta: '<title>Page not found — openWCS</title>\n  <meta name="robots" content="noindex" />\n  <link rel="icon" type="image/png" href="/favicon.png" />',
     scripts: '',
     bodyId: 'top',
   });
