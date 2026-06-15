@@ -502,6 +502,35 @@ export async function disableEmulator(): Promise<EmulatorStatus> {
   return (await demoPost('/api/master-data/emulator/disable')) as EmulatorStatus
 }
 
+// ---- AI assistant config (master-data, admin) ----
+// GET returns the current state without revealing the key (configured flag only). PUT applies only
+// the fields provided: the API key is write-only, so omitting it (blank input) keeps the existing key.
+export interface AiAssistantConfig {
+  enabled: boolean
+  configured: boolean
+  model: string
+}
+
+export interface AiAssistantUpdate {
+  apiKey?: string
+  model?: string
+  enabled?: boolean
+}
+
+export async function getAiAssistantConfig(): Promise<AiAssistantConfig> {
+  return ok(await fetch('/api/master-data/ai-assistant'))
+}
+
+export async function saveAiAssistantConfig(update: AiAssistantUpdate): Promise<AiAssistantConfig> {
+  return ok(
+    await fetch('/api/master-data/ai-assistant', {
+      method: 'PUT',
+      headers: json,
+      body: JSON.stringify(update),
+    }),
+  )
+}
+
 /** Reads the gateway's own actuator health (not proxied; permitted under edge security). */
 export async function getGatewayHealth(): Promise<HealthStatus> {
   try {
