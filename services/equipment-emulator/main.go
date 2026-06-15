@@ -63,6 +63,9 @@ func main() {
 	mux.HandleFunc("/tasks", handleTask)
 	mux.HandleFunc("/state", handleState)
 	mux.HandleFunc("/config", handleConfig)
+	// Hardware-twin live views (execution-layer epic item 3): simulated AMR fleet + AutoStore grid.
+	mux.HandleFunc("/amr/fleet", handleAMRFleet)
+	mux.HandleFunc("/autostore/grid", handleAutoStoreGrid)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
