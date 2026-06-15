@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.openwcs.slotting.domain.BlockPolicy;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 public interface BlockPolicyRepository extends JpaRepository<BlockPolicy, UUID> {
     Optional<BlockPolicy> findByBlockId(UUID blockId);
@@ -14,4 +15,8 @@ public interface BlockPolicyRepository extends JpaRepository<BlockPolicy, UUID> 
 
     /** Policies for a warehouse — the auto-ABC classifier reads its EWMA/share knobs from here. */
     List<BlockPolicy> findByWarehouseId(UUID warehouseId);
+
+    /** Distinct warehouses with a configured block — drives the off-peak lane-reconciliation sweep. */
+    @Query("select distinct p.warehouseId from BlockPolicy p")
+    List<UUID> findDistinctWarehouseIds();
 }

@@ -52,7 +52,7 @@ import {
   type XZ,
 } from './motion'
 import { JAM_HOLD_MS, deriveConveyorJamIds } from './conveyorState'
-import type { Amr, AutoStorePort } from './api'
+import type { Amr, AsrsCrane, AutoStorePort } from './api'
 
 const BG = '#081e16'
 const LIME = '#8DC63F'
@@ -89,6 +89,8 @@ export interface HardwareTwin3DProps {
   storedTotes?: StoredTote[]
   /** Live AMR fleet — small robot markers at world XZ, coloured by status (item 3). */
   amrs?: Amr[]
+  /** Live ASRS cranes — carriage meshes gliding in their aisle at world (x, y, z), by status. */
+  cranes?: AsrsCrane[]
   /** Live AutoStore ports — busy/idle markers at world XZ (item 3). */
   autostorePorts?: AutoStorePort[]
   activeLevelId?: string | null
@@ -108,6 +110,7 @@ export default function HardwareTwin3D({
   clockOffsetMsRef,
   storedTotes = [],
   amrs = [],
+  cranes = [],
   autostorePorts = [],
   activeLevelId = null,
   selectedPlacedId = null,
@@ -165,8 +168,9 @@ export default function HardwareTwin3D({
 
       <StoredTotes totes={storedTotes} selectedHuId={selectedHuId} onSelectTote={onSelectTote} />
 
-      {/* Live AMR fleet + AutoStore ports (item 3). Empty arrays render nothing — best-effort views. */}
+      {/* Live AMR fleet + ASRS cranes + AutoStore ports. Empty arrays render nothing — best-effort. */}
       <AmrFleet amrs={amrs} />
+      <AsrsCranes cranes={cranes} />
       <AutoStorePorts ports={autostorePorts} />
 
       <OrbitControls
@@ -1111,6 +1115,165 @@ function AmrMarker({
           >
             {amr.amrId}
             {amr.huCode ? ` · ${amr.huCode}` : ''} · {amr.status}
+          </div>
+        </Html>
+      )}
+    </group>
+  )
+}
+
+// ----------------------------------------------------------------------------------------------------
+// ASRS cranes (in-aisle crane motion) — one storage-and-retrieval crane per telemetry entry, drawn at
+// its world (x, y, z): x/z place it in its aisle, y is the lift-carriage height up the rack. Coloured
+// by status using the twin's existing live-state palette (idle = grey, moving = amber, faulted = red),
+// with a carried-HU box when huCode is set, and craneId/status/HU on hover. An empty list renders
+// nothing.
+//
+// MOTION: like the AMR fleet, the endpoint polls each crane's pose roughly every 2 s, so rendering at
+// the raw polled pose teleports a moving crane once per poll. A single useFrame loop (owned by
+// AsrsCranes, never a hook-in-a-loop) eases each crane's RENDERED position — INCLUDING the lift height
+// y — toward its latest polled target every frame, frame-rate-independently. We only ever interpolate
+// TOWARD the most recent known target (never extrapolate past it), so the crane always converges on
+// real backend data and stops when the data stops. A crane that newly appears snaps to its first
+// reported pose (no glide from origin); a crane that disappears is unmounted and its motion dropped.
+// ----------------------------------------------------------------------------------------------------
+
+/** Per-second exponential approach rate for the rendered pose (XZ + lift y) toward the polled target.
+ *  At ~6/s a crane covers most of a 2 s poll hop smoothly and is essentially on target before the next
+ *  poll, tracking the backend faithfully without ever overshooting or inventing a pose beyond it. */
+const CRANE_POS_LERP_PER_S = 6
+
+function craneColor(status: AsrsCrane['status']): string {
+  switch (status) {
+    case 'moving':
+      return AMBER
+    case 'faulted':
+      return RED
+    default:
+      return GREY
+  }
+}
+
+interface CraneMotion {
+  /** Rendered (eased) world pose — what the group is actually drawn at, incl. the lift height y. */
+  x: number
+  y: number
+  z: number
+}
+
+function AsrsCranes({ cranes }: { cranes: AsrsCrane[] }): JSX.Element {
+  // Stable refs across renders/frames: the group per crane and its per-crane eased motion state.
+  // Entries are added when a crane first appears and dropped when it leaves, so the loop never lerps a
+  // stale crane or a disappeared one.
+  const groupRefs = useRef<Map<string, THREE.Group>>(new Map())
+  const motion = useRef<Map<string, CraneMotion>>(new Map())
+
+  // Latest polled targets, by id, read per-frame (kept in a ref so the loop sees the freshest poll
+  // without the frame closure being recreated each render).
+  const targets = useRef<Map<string, AsrsCrane>>(new Map())
+  targets.current = useMemo(() => {
+    const m = new Map<string, AsrsCrane>()
+    for (const c of cranes) m.set(c.craneId, c)
+    return m
+  }, [cranes])
+
+  useFrame((_state, delta) => {
+    const groups = groupRefs.current
+    const tgts = targets.current
+    const mo = motion.current
+    // Drop motion state for cranes that have left the telemetry (React unmounts their group separately).
+    for (const id of Array.from(mo.keys())) if (!tgts.has(id)) mo.delete(id)
+
+    // Frame-rate-independent exponential smoothing factor: k = 1 - e^(-rate·dt).
+    const kPos = 1 - Math.exp(-CRANE_POS_LERP_PER_S * Math.max(0, delta))
+
+    for (const [id, crane] of tgts) {
+      const g = groups.get(id)
+      if (!g) continue
+      let st = mo.get(id)
+      if (!st) {
+        // A newly appeared crane starts exactly at its first reported pose (no glide from origin).
+        st = { x: crane.x, y: crane.y, z: crane.z }
+        mo.set(id, st)
+        g.position.set(crane.x, crane.y, crane.z)
+        continue
+      }
+      // Ease the rendered pose toward the latest polled target (never beyond it) — incl. lift height y.
+      st.x += (crane.x - st.x) * kPos
+      st.y += (crane.y - st.y) * kPos
+      st.z += (crane.z - st.z) * kPos
+      g.position.set(st.x, st.y, st.z)
+    }
+  })
+
+  return (
+    <group>
+      {cranes.map((crane) => (
+        <CraneMarker
+          key={crane.craneId}
+          crane={crane}
+          registerGroup={(g) => {
+            if (g) groupRefs.current.set(crane.craneId, g)
+            else groupRefs.current.delete(crane.craneId)
+          }}
+        />
+      ))}
+    </group>
+  )
+}
+
+function CraneMarker({
+  crane,
+  registerGroup,
+}: {
+  crane: AsrsCrane
+  registerGroup: (g: THREE.Group | null) => void
+}): JSX.Element {
+  const [hover, setHover] = useState(false)
+  const color = craneColor(crane.status)
+  // Position is driven imperatively by AsrsCranes' useFrame loop (smooth between polls), so the group
+  // carries no static position prop here.
+  return (
+    <group
+      ref={registerGroup}
+      onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+        e.stopPropagation()
+        setHover(true)
+      }}
+      onPointerOut={() => setHover(false)}
+    >
+      {/* Lift carriage — a slim upright box, taller than a tote so it reads as a crane shuttle in-aisle. */}
+      <mesh position={[0, 0.3, 0]} castShadow>
+        <boxGeometry args={[0.5, 0.6, 0.5]} />
+        <meshStandardMaterial color={color} metalness={0.35} roughness={0.45} emissive={color} emissiveIntensity={0.3} />
+      </mesh>
+      {/* Mast nub on top so a crane is distinct from an AMR puck / a tote box. */}
+      <mesh position={[0, 0.72, 0]}>
+        <boxGeometry args={[0.14, 0.28, 0.14]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.45} />
+      </mesh>
+      {/* Carried HU rides on the carriage fork, so a laden crane visibly differs from an empty one. */}
+      {crane.huCode && (
+        <mesh position={[0, 0.05, 0.36]} castShadow>
+          <boxGeometry args={[0.4, 0.3, 0.32]} />
+          <meshStandardMaterial color={LIME} metalness={0.1} roughness={0.55} emissive={LIME} emissiveIntensity={0.2} />
+        </mesh>
+      )}
+      {hover && (
+        <Html position={[0, 1.05, 0]} center distanceFactor={18} occlude={false}>
+          <div
+            style={{
+              padding: '0.15rem 0.45rem',
+              borderRadius: 4,
+              fontSize: 11,
+              whiteSpace: 'nowrap',
+              background: 'rgba(8, 30, 22, 0.85)',
+              color: '#d6e4dc',
+              border: `1px solid ${color}`,
+            }}
+          >
+            {crane.craneId}
+            {crane.huCode ? ` · ${crane.huCode}` : ''} · {crane.status}
           </div>
         </Html>
       )}

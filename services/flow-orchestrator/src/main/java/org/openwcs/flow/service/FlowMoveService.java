@@ -56,10 +56,12 @@ public class FlowMoveService {
 
         if (isCrossSystem(request)) {
             // Cross-system: the source and destination are served by different storage systems, so a
-            // single device cannot carry the HU. Run a RETRIEVE -> CONVEY -> STORE chain. destFamily
-            // defaults to the same family as the source unless the request names one explicitly
-            // (a follow-up could resolve it from the destination's block; the emulator is family-blind).
-            String destFamily = normaliseFamily(request.destFamily() != null ? request.destFamily() : family);
+            // single device cannot carry the HU. Run a RETRIEVE -> CONVEY -> STORE chain. An explicit
+            // destFamily on the request wins; otherwise resolve the destination's real device family
+            // from its storage block (SHUTTLE/CRANE_ASRS->ASRS, AUTOSTORE->AUTOSTORE, AMR_GTP->AMR).
+            // When the destination has no block / can't be resolved, fall back to the source family.
+            String destFamily = normaliseFamily(
+                    request.destFamily() != null ? request.destFamily() : resolveDestFamily(request, family));
             UUID firstLeg = chains.start(request.warehouseId(), request.huId(), request.huCode(),
                     request.fromLocationId(), request.toLocationId(), family, destFamily,
                     request.reason(), actor);
@@ -113,6 +115,29 @@ public class FlowMoveService {
             return false;
         }
         return !fromBlock.equals(toBlock);
+    }
+
+    /**
+     * Resolve the destination's real device family from its storage block (the emulator itself is
+     * family-blind): look up the destination location's block, then its {@code storageType}, then map
+     * it to the routing family (SHUTTLE/CRANE_ASRS → ASRS, AUTOSTORE → AUTOSTORE, AMR_GTP → AMR). When
+     * the destination has no block, the block can't be resolved (master-data down), or the type is
+     * non-automated/unknown (no device family), fall back to the source {@code family} — preserving
+     * the prior "destFamily defaults to the source family" behaviour.
+     */
+    private String resolveDestFamily(FlowMoveRequest request, String family) {
+        UUID toBlock = masterData.blockId(request.warehouseId(), request.toLocationId());
+        if (toBlock == null) {
+            return family; // no destination block (operational location) — fall back to the source family
+        }
+        String resolved = MasterDataClient.deviceFamilyOf(
+                masterData.blockStorageType(request.warehouseId(), toBlock));
+        if (resolved == null) {
+            log.info("flow move: destination block {} has no resolvable device family; falling back to "
+                    + "the source family {}", toBlock, family);
+            return family;
+        }
+        return resolved;
     }
 
     private static String normaliseFamily(String family) {

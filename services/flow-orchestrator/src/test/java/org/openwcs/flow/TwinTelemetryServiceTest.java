@@ -12,10 +12,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.openwcs.flow.api.TwinTelemetryDtos.AmrFleet;
+import org.openwcs.flow.api.TwinTelemetryDtos.AsrsCranes;
 import org.openwcs.flow.api.TwinTelemetryDtos.Autostore;
 import org.openwcs.flow.client.EmulatorTwinClient;
 import org.openwcs.flow.client.EmulatorTwinClient.AmrTelemetry;
 import org.openwcs.flow.client.EmulatorTwinClient.AutostoreTelemetry;
+import org.openwcs.flow.client.EmulatorTwinClient.CraneTelemetry;
 import org.openwcs.flow.client.EmulatorTwinClient.PortTelemetry;
 import org.openwcs.flow.domain.PlacedEquipment;
 import org.openwcs.flow.repo.PlacedEquipmentRepository;
@@ -138,5 +140,60 @@ class TwinTelemetryServiceTest {
         assertThat(as.serverTimeMs()).isGreaterThan(0);
         assertThat(as.grid().totalBins()).isZero();
         assertThat(as.ports()).isEmpty();
+    }
+
+    @Test
+    void asrsCranesMapTelemetryToWorldCoords() {
+        UUID wh = UUID.randomUUID();
+        when(equipment.findByWarehouseId(wh)).thenReturn(List.of());
+        when(emulator.asrsCranes()).thenReturn(List.of(
+                new CraneTelemetry("CRANE-1", 0, 4.0, 2.5, -1.0, true, "MOVING", "HU-5"),
+                new CraneTelemetry("CRANE-2", 1, 8.0, 0.0, 3.0, false, "IDLE", null)));
+
+        AsrsCranes cranes = service().asrsCranes(wh);
+
+        assertThat(cranes.serverTimeMs()).isGreaterThan(0);
+        assertThat(cranes.cranes()).hasSize(2);
+        assertThat(cranes.cranes().get(0).craneId()).isEqualTo("CRANE-1");
+        assertThat(cranes.cranes().get(0).x()).isEqualTo(4.0);
+        assertThat(cranes.cranes().get(0).y()).isEqualTo(2.5); // lift height
+        assertThat(cranes.cranes().get(0).z()).isEqualTo(-1.0);
+        assertThat(cranes.cranes().get(0).status()).isEqualTo("MOVING");
+        assertThat(cranes.cranes().get(0).huCode()).isEqualTo("HU-5");
+        assertThat(cranes.cranes().get(1).status()).isEqualTo("IDLE");
+        assertThat(cranes.cranes().get(1).huCode()).isNull();
+    }
+
+    @Test
+    void asrsCraneFallsBackToPlacedEquipmentWhenEmulatorOmitsWorldCoords() {
+        UUID wh = UUID.randomUUID();
+        PlacedEquipment placed = new PlacedEquipment();
+        placed.setCode("CRANE-9");
+        placed.setPosXM(new BigDecimal("20.0"));
+        placed.setPosYM(new BigDecimal("1.5"));
+        placed.setPosZM(new BigDecimal("-7.0"));
+        when(equipment.findByWarehouseId(wh)).thenReturn(List.of(placed));
+        when(emulator.asrsCranes()).thenReturn(List.of(
+                new CraneTelemetry("CRANE-9", 2, null, null, null, true, null, null)));
+
+        AsrsCranes cranes = service().asrsCranes(wh);
+
+        assertThat(cranes.cranes()).hasSize(1);
+        assertThat(cranes.cranes().get(0).x()).isEqualTo(20.0);
+        assertThat(cranes.cranes().get(0).y()).isEqualTo(1.5);
+        assertThat(cranes.cranes().get(0).z()).isEqualTo(-7.0);
+        // No explicit status but busy=true ⇒ derived MOVING.
+        assertThat(cranes.cranes().get(0).status()).isEqualTo("MOVING");
+    }
+
+    @Test
+    void asrsCranesDegradeToEmptyWhenEmulatorThrows() {
+        UUID wh = UUID.randomUUID();
+        when(emulator.asrsCranes()).thenThrow(new RestClientException("emulator off"));
+
+        AsrsCranes cranes = service().asrsCranes(wh);
+
+        assertThat(cranes.serverTimeMs()).isGreaterThan(0);
+        assertThat(cranes.cranes()).isEmpty();
     }
 }

@@ -58,7 +58,7 @@ export default function HardwareTwinScreen() {
   const t = useT('twin')
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const [autoRefresh, setAutoRefresh] = useState(true)
-  const { topology, lib, snapshot, timelines, clockOffsetMsRef, storedTotes, amrs, autostore, loading, error, lastUpdated, refresh } = useLiveTwin(
+  const { topology, lib, snapshot, timelines, clockOffsetMsRef, storedTotes, amrs, cranes, autostore, loading, error, lastUpdated, refresh } = useLiveTwin(
     warehouseId,
     { intervalMs: POLL_MS, autoRefresh },
   )
@@ -108,6 +108,7 @@ export default function HardwareTwinScreen() {
       ? Math.round((autostoreGrid.occupiedBins / autostoreGrid.totalBins) * 100)
       : null
   const hasAmrs = amrs.length > 0
+  const hasCranes = cranes.length > 0
   const hasAutostore = !!autostoreGrid || (autostore?.ports.length ?? 0) > 0
 
   return (
@@ -202,10 +203,11 @@ export default function HardwareTwinScreen() {
           <LegendSwatch colour={TOTE_COLOURS['in-transit']} label={t('legendInTransit', 'In transit')} round />
           <LegendSwatch colour={TOTE_COLOURS.recirculating} label={t('legendRecirculating', 'Recirculating')} round />
           <LegendSwatch colour={TOTE_COLOURS.queued} label={t('legendQueued', 'Queued')} round />
-          {(hasAmrs || hasAutostore) && (
+          {(hasAmrs || hasCranes || hasAutostore) && (
             <>
               <span className="muted" style={{ opacity: 0.4 }}>|</span>
               {hasAmrs && <LegendSwatch colour={EQUIPMENT_COLOURS.running} label={t('legendAmr', 'AMR (moving)')} round />}
+              {hasCranes && <LegendSwatch colour={EQUIPMENT_COLOURS.running} label={t('legendAsrsCrane', 'ASRS crane (moving)')} />}
               {hasAutostore && <LegendSwatch colour={EQUIPMENT_COLOURS.running} label={t('legendAutostorePort', 'AutoStore port (busy)')} />}
             </>
           )}
@@ -270,6 +272,7 @@ export default function HardwareTwinScreen() {
                   clockOffsetMsRef={clockOffsetMsRef}
                   storedTotes={storedTotes}
                   amrs={amrs}
+                  cranes={cranes}
                   autostorePorts={autostore?.ports ?? []}
                   showLabels={showLabels}
                   activeLevelId={activeLevelId}

@@ -9,9 +9,11 @@ import {
   loadConveyorNodePositions,
   listTotePaths,
   listAmrFleet,
+  getAsrsCranes,
   getAutoStore,
   type TwinPaths,
   type Amr,
+  type AsrsCrane,
   type AutoStoreStatus,
 } from './api'
 import { insertPoint, pruneBefore, type ToteTimeline } from './motion'
@@ -58,6 +60,8 @@ export interface UseLiveTwinResult {
   storedTotes: StoredTote[]
   /** Live AMR fleet (each robot's world XZ + status + carried HU). Empty when no telemetry. */
   amrs: Amr[]
+  /** Live ASRS cranes (each crane's world XZ + lift height + status + carried HU). Empty when none. */
+  cranes: AsrsCrane[]
   /** Live AutoStore status (grid fill + ports). Null when no telemetry. */
   autostore: AutoStoreStatus | null
   loading: boolean
@@ -77,6 +81,7 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
   const [snapshot, setSnapshot] = useState<TwinSnapshot | null>(null)
   const [storedTotes, setStoredTotes] = useState<StoredTote[]>([])
   const [amrs, setAmrs] = useState<Amr[]>([])
+  const [cranes, setCranes] = useState<AsrsCrane[]>([])
   const [autostore, setAutostore] = useState<AutoStoreStatus | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -108,6 +113,7 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
       setLib(EMPTY_LIB)
       setSnapshot(null)
       setAmrs([])
+      setCranes([])
       setAutostore(null)
       setError(null)
       setLastUpdated(null)
@@ -178,6 +184,12 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
         setAmrs(fleet.amrs)
       } catch {
         /* no AMR telemetry — render no robots, keep the last good fleet otherwise */
+      }
+      try {
+        const cr = await getAsrsCranes(warehouseId)
+        setCranes(cr.cranes)
+      } catch {
+        /* no crane telemetry — render no cranes, keep the last good set otherwise */
       }
       try {
         setAutostore(await getAutoStore(warehouseId))
@@ -303,6 +315,7 @@ export function useLiveTwin(warehouseId: string, opts?: UseLiveTwinOptions): Use
     timelines: timelinesRef.current,
     storedTotes,
     amrs,
+    cranes,
     autostore,
     loading,
     error,

@@ -3,6 +3,7 @@ package org.openwcs.flow.api;
 import java.util.UUID;
 import org.openwcs.flow.api.TwinPathDtos.TwinPaths;
 import org.openwcs.flow.api.TwinTelemetryDtos.AmrFleet;
+import org.openwcs.flow.api.TwinTelemetryDtos.AsrsCranes;
 import org.openwcs.flow.api.TwinTelemetryDtos.Autostore;
 import org.openwcs.flow.service.TwinPathService;
 import org.openwcs.flow.service.TwinTelemetryService;
@@ -50,5 +51,15 @@ public class TwinPathController {
     @GetMapping("/autostore")
     public Autostore autostore(@RequestParam("warehouseId") UUID warehouseId) {
         return telemetry.autostore(warehouseId);
+    }
+
+    /**
+     * Live ASRS cranes: per crane, its world coordinates (x/z metres, y lift height), status and
+     * carried HU. Best-effort — an empty list when the emulator is off/unreachable. Requires
+     * DEVICE_VIEW.
+     */
+    @GetMapping("/asrs-cranes")
+    public AsrsCranes asrsCranes(@RequestParam("warehouseId") UUID warehouseId) {
+        return telemetry.asrsCranes(warehouseId);
     }
 }
