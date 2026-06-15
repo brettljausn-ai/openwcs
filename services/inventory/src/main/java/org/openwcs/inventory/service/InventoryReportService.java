@@ -91,10 +91,34 @@ public class InventoryReportService {
 
         StorageDensityService.Utilisation util = density.todayUtilisation(warehouseId);
         InventoryDashboard.PutawayBacklog backlog = putawayBacklog(warehouseId);
+        InventoryDashboard.DockToStock dockToStock = dockToStock(warehouseId, startOfToday);
 
         return new InventoryDashboard(
                 husReceivedToday, huCount, skuCountWithStock,
-                util.overallPct(), util.asrsPct(), backlog);
+                util.overallPct(), util.asrsPct(), backlog, dockToStock);
+    }
+
+    /**
+     * Dock-to-stock put-away timing for HUs stored today: for each HU stored on or after the start
+     * of the UTC day, the span {@code storedAt - createdAt} in minutes; the median (computed in
+     * Java) plus the sample count. Best-effort: medianMin is null and samples 0 when nothing was
+     * stored today.
+     */
+    private InventoryDashboard.DockToStock dockToStock(UUID warehouseId, Instant startOfToday) {
+        List<HandlingUnit> stored = handlingUnits.findStoredSince(warehouseId, startOfToday);
+        long[] minutes = stored.stream()
+                .filter(h -> h.getCreatedAt() != null && h.getStoredAt() != null)
+                .mapToLong(h -> Math.max(0, Duration.between(h.getCreatedAt(), h.getStoredAt()).toMinutes()))
+                .sorted()
+                .toArray();
+        if (minutes.length == 0) {
+            return new InventoryDashboard.DockToStock(null, 0);
+        }
+        int n = minutes.length;
+        long medianMin = (n % 2 == 1)
+                ? minutes[n / 2]
+                : Math.round((minutes[n / 2 - 1] + minutes[n / 2]) / 2.0);
+        return new InventoryDashboard.DockToStock(medianMin, n);
     }
 
     /** HUs at RECEIVING + UNKNOWN locations, oldest-first; count + oldest age (best-effort). */

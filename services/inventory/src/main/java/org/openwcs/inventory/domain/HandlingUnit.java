@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -44,6 +45,14 @@ public class HandlingUnit extends Auditable {
     /** ACTIVE | EMPTY | IN_TRANSIT | RETIRED. */
     @Column(name = "status", nullable = false)
     private String status = "ACTIVE";
+
+    /**
+     * When this HU was first booked into a real STORAGE slot (non-receiving, non-UNKNOWN).
+     * Null while it still sits at receiving / UNKNOWN (the put-away backlog) or for HUs created
+     * before dock-to-stock tracking shipped. Drives the dashboard dock-to-stock timing KPI.
+     */
+    @Column(name = "stored_at")
+    private Instant storedAt;
 
     public UUID getHuId() {
         return huId;
@@ -91,5 +100,13 @@ public class HandlingUnit extends Auditable {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public Instant getStoredAt() {
+        return storedAt;
+    }
+
+    public void setStoredAt(Instant storedAt) {
+        this.storedAt = storedAt;
     }
 }
