@@ -52,7 +52,7 @@ public class HttpAllocationClient implements AllocationClient {
         }
         List<LineResult> lineResults = response.lines() == null ? List.of()
                 : response.lines().stream()
-                        .map(l -> new LineResult(l.lineNo(), l.allocatedQty(), l.status()))
+                        .map(l -> new LineResult(l.lineNo(), l.allocatedQty(), l.status(), l.pickLocationId()))
                         .toList();
         return new AllocationResult(response.status(), response.statusDetail(), lineResults);
     }
@@ -74,6 +74,7 @@ public class HttpAllocationClient implements AllocationClient {
     }
 
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
-    private record LineResponse(int lineNo, java.math.BigDecimal allocatedQty, String status) {
+    private record LineResponse(int lineNo, java.math.BigDecimal allocatedQty, String status,
+                               UUID pickLocationId) {
     }
 }

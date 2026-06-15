@@ -247,6 +247,14 @@ components:
         requestedQty: { type: number }
         allocatedQty: { type: number }
         status: { type: string, enum: [ALLOCATED, SHORT] }
+        pickLocationId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >
+            Primary pick location for the line: the location of the first pick (head of the pick
+            walk). When the line is split across multiple locations this is the first/primary
+            face; the full per-location breakdown is in picks. Null when nothing was reserved.
         picks:
           type: array
           items: { $ref: '#/components/schemas/Pick' }

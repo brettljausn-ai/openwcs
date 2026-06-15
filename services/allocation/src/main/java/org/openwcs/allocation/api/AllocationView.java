@@ -25,11 +25,29 @@ public record AllocationView(
             BigDecimal requestedQty,
             BigDecimal allocatedQty,
             String status,
+            UUID pickLocationId,
             List<Pick> picks) {
 
         static LineView from(AllocationLine l) {
             return new LineView(l.getLineNo(), l.getSkuId(), l.getRequestedQty(),
-                    l.getAllocatedQty(), l.getStatus(), l.getPicks());
+                    l.getAllocatedQty(), l.getStatus(), primaryPickLocation(l), l.getPicks());
+        }
+
+        /**
+         * The primary pick location for the line: the location of the first pick. Picks are
+         * appended in pick-location iteration order (the first location with available stock),
+         * so the first pick is the head of the pick walk. When a line is split across multiple
+         * locations only this primary face is threaded onto the order line for the operator pick
+         * queue (the full per-location breakdown stays in {@code picks}). Null when nothing was
+         * reserved (e.g. a fully-short line). Only the locationId is carried — the allocation
+         * domain does not hold a human-readable location code, so none is returned here.
+         */
+        private static UUID primaryPickLocation(AllocationLine l) {
+            return l.getPicks().stream()
+                    .map(Pick::locationId)
+                    .filter(java.util.Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
         }
     }
 

@@ -14,12 +14,12 @@ import org.openwcs.orders.domain.TransactionType;
  * of work — the operator walks to {@code locationId}, picks {@code remainingQty} of
  * {@code skuId}, and confirms.
  *
- * <p><b>Pick location (gap):</b> the allocation service assigns the pick location, but its
- * {@code LineResult} only returns the allocated quantity + status (no location), and the
- * order line carries no per-line pick location. So {@code locationId} is sourced best-effort
- * from the most recent PICK transaction posted against the line (set once the first partial
- * pick records where stock was taken from) and is otherwise null. Wiring the allocated
- * location through from the allocation service is the documented follow-up.
+ * <p><b>Pick location:</b> {@code locationId} is the allocated primary pick location threaded
+ * onto the order line on release/allocate (the face the allocation service reserved against).
+ * It falls back to the most recent PICK transaction's location (where stock was actually taken
+ * from once the first partial pick is posted), then to null when neither is known (e.g. a line
+ * allocated before the location was threaded through). So the operator sees a real face before
+ * any stock is picked.
  */
 public record PickTaskView(
         UUID orderId,
@@ -43,8 +43,15 @@ public record PickTaskView(
         return line.getPostedQty();
     }
 
-    /** Best-effort pick location: the location of the latest PICK transaction, else null (see gap). */
+    /**
+     * Best-effort pick location: the allocated primary pick location threaded onto the line,
+     * else the location of the latest PICK transaction (where stock was actually taken from),
+     * else null.
+     */
     public static UUID pickLocationOf(OrderLine line) {
+        if (line.getPickLocationId() != null) {
+            return line.getPickLocationId();
+        }
         return line.getTransactions().stream()
                 .filter(t -> t.getTxnType() == TransactionType.PICK && t.getLocationId() != null)
                 .reduce((first, second) -> second) // last one
