@@ -1,0 +1,32 @@
+server:
+  port: 8096
+spring:
+  application:
+    name: assistant
+
+openwcs:
+  # Per-endpoint RBAC (build.md §4.8); off by default so the stack runs before a Keycloak realm.
+  security:
+    enabled: ${OPENWCS_SECURITY_ENABLED:false}
+  assistant:
+    # master-data owns the Anthropic API key + model + enabled flag. The assistant fetches them
+    # server-side from master-data's network-only internal endpoint (GET /internal/ai-assistant)
+    # and never logs or returns the key. Default localhost (host-run dev); compose/k8s override.
+    master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
+    # Tool target services (each tool is a read-only HTTP GET that forwards the caller's identity).
+    order-management-base-url: ${OPENWCS_ORDER_MANAGEMENT_BASE_URL:http://localhost:8084}
+    inventory-base-url: ${OPENWCS_INVENTORY_BASE_URL:http://localhost:8082}
+    flow-orchestrator-base-url: ${OPENWCS_FLOW_ORCHESTRATOR_BASE_URL:http://localhost:8085}
+    allocation-base-url: ${OPENWCS_ALLOCATION_BASE_URL:http://localhost:8091}
+    # How long (ms) the fetched AI config (key/model/enabled) is cached before re-fetching.
+    config-cache-ms: ${OPENWCS_ASSISTANT_CONFIG_CACHE_MS:60000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

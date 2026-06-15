@@ -1,0 +1,17 @@
+plugins {
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+    id 'java'
+}
+
+dependencies {
+    implementation project(':libs:common')
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // Official Anthropic Java SDK — powers the Claude tool-use agentic loop (ChatModel).
+    implementation 'com.anthropic:anthropic-java:2.34.0'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
