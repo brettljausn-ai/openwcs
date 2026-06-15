@@ -65,10 +65,10 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 |---|---|---|
 | `master_data` | master-data | warehouse, attribute_schema, sku, sku_profile, dangerous_goods, unit_of_measure, barcode_type, barcode, handling_unit_type (+ compartments/storable-in-automation/conveyable), equipment, location (+ block/aisle/lane-depth/distance-to-exit + **cell coords side/pos_x/pos_y/pos_z**), **storage_block** (+ allowed_hu_types), **shipper**, **warehouse_fulfillment_config**, **shipping_service**, **route**, **label_template** |
 | `transaction_log` | txlog | events (append-only; UPDATE/DELETE blocked by trigger), outbox |
-| `inventory` | inventory | batch, serial_unit, stock, reservation, projection_offset, processed_event |
+| `inventory` | inventory | batch, serial_unit, stock, reservation, projection_offset, processed_event, handling_unit (+ **`stored_at`** `V7`, nullable, stamped on first booking into a storage slot for dock-to-stock timing) |
 | `orders` | order-management | outbound_order (all order types), order_line, order_line_transaction, order_outbox |
 | `allocation` | allocation | order_allocation, allocation_line, pick_batch |
-| `slotting` | slotting | storage_profile, pick_slot, block_policy, putaway_assignment (+ sku_ids for multi-compartment), replenishment_task, reslot_recommendation, sku_velocity (+ velocity offset/processed-event for the auto-ABC EWMA) |
+| `slotting` | slotting | storage_profile, pick_slot, block_policy, putaway_assignment (+ sku_ids for multi-compartment), replenishment_task, reslot_recommendation, sku_velocity (+ velocity offset/processed-event for the auto-ABC EWMA), **sku_pick_daily** (`V6` — per-SKU daily pick tallies, upserted idempotently by the velocity consumer; powers exact trailing-14d-vs-90d ABC risers/fallers) |
 | `gtp` | gtp | gtp_station (+ supported_modes + accepting_work + max_in_transit_picking/other), station_node, destination_demand, work_cycle (+ operating_mode, target_hu_id), put_instruction, task_line, **station_queue_entry** |
 | `counting` | counting | count_task, count_line, count_schedule |
 | `iam` | iam | role, role_permission, app_user, user_role, screen_access (+ _role/_user), user_warehouse |
@@ -847,15 +847,24 @@ fatigue) is recorded in [`docs/dashboardScope.md`](./dashboardScope.md).
 
 - order-management: `GET /api/orders/reports/dashboard` (`{inbound, outbound, perHour}`) +
   `GET /api/orders/reports/dispatch` (`{nextDeparture, routes[]}`). No new entity, derived from
-  existing orders + routes.
+  existing orders + routes. The inbound block now carries a **real `receiveErrorsToday`** (INBOUND
+  lines with a receipt discrepancy today: over-receipt, or under-receipt on a line closed short)
+  replacing the previous hardcoded 0. **SLA report** `GET /api/orders/reports/sla?warehouseId&days`
+  (`{onTimeToCutoffPctToday, orderCycleTimeMedianMinToday, perDay:[{day, onTimePct,
+  cycleMedianMin}]}`): on-time = shipped at/before `dispatchBy`; cycle time = created→shipped median.
+  Surfaced as heroes on the Outbound dashboard.
 - inventory: `GET /api/inventory/reports/dashboard` (`{husReceivedToday, huCount,
-  skuCountWithStock, utilisationPct, asrsUtilisationPct, putawayBacklog}`).
+  skuCountWithStock, utilisationPct, asrsUtilisationPct, putawayBacklog}` — `putawayBacklog` now
+  also carries the oldest backlog age, plus **`dockToStock:{medianMin, samples}`**: HU
+  received→stored median today, computed from the new nullable `handling_unit.stored_at` column
+  (`V7`, stamped on an HU's first booking into a storage slot). Surfaced on the Inbound dashboard.
 - allocation: `GET /api/allocation/reports/stock-blocking` (`{blockedLines, distinctSkusShort,
   recoverableLines, zeroStockLines, openOutboundLines}`).
 - slotting: `GET /api/slotting/replenishment/dashboard` (`{urgent, openTasks, oldestAgeMin,
   projectedStockouts}`) + `GET /api/slotting/velocity/abc` (`{a, b, c, pareto, top, bottom,
-  risers, fallers}`; risers/fallers from an EWMA short-vs-long-window proxy, an honest
-  approximation).
+  risers, fallers}`). Risers/fallers are now **true windowed**: slotting persists per-SKU daily
+  pick tallies (table `sku_pick_daily`, `V6`, upserted idempotently by the velocity consumer) and
+  computes exact trailing-14d-vs-90d pick rates (the old EWMA short-vs-long proxy is gone).
 - flow-orchestrator: `GET /api/flow/reports/automation-summary` (`{scanNoReadPctToday,
   equipmentAvailabilityPct, equipmentTotal, equipmentInFault}`, DEVICE_VIEW).
 - master-data: `GET` + admin `PUT /api/master-data/alert-thresholds` (JSON in
@@ -876,6 +885,11 @@ fatigue) is recorded in [`docs/dashboardScope.md`](./dashboardScope.md).
   `POST /api/notification/alerts/{id}/ack` (acknowledge, SUPERVISOR/ADMIN). Gateway routes
   `/api/notification/**`. Compose + k8s carry env for the metric-source URLs, SMTP, and
   `ALERT_WEBHOOK_URL`. OpenAPI: `contracts/openapi/notification.yaml`.
+- **Alert-system health** (ISA-18.2 alarm-system measurement, measuring the alarm load itself so
+  it stays actionable): `GET /api/notification/alerts/health?warehouseId&days` →
+  `{activeBySeverity, perDay:[{day, opened, cleared}], chattering:[{area, metric, flaps}],
+  stale:[{id, area, metric, ageMin}]}`. Drives the alert-health UI screen. The spec previously
+  parked this as backlog; it is now built.
 
 **UI Dashboards area** (design follows `docs/dashboardScope.md`):
 
@@ -886,15 +900,26 @@ fatigue) is recorded in [`docs/dashboardScope.md`](./dashboardScope.md).
   drill-down link.
 - Five menu dashboards under a **Dashboards** sidebar section: `/dashboards/inbound`,
   `/outbound`, `/replenishment`, `/stock`, `/abc` (heroes + charts, no tables; ABC carries a
-  Pareto chart). Charts reuse `ui/src/reporting/charts.tsx`.
+  Pareto chart). Charts reuse `ui/src/reporting/charts.tsx`. **Outbound** now carries SLA heroes
+  (on-time-to-cutoff %, order-cycle-time median, from `/reports/sla`); **Inbound** carries
+  dock-to-stock and the now-real receive-errors.
+- An **andon board** at `/dashboards/andon`: a full-screen control-room alert wall polling
+  `/api/notification/alerts` (critical first; a calm all-clear state when nothing is open).
+- An **alert-system-health** screen at `/dashboards/alert-health` (ISA-18.2): active-by-severity,
+  opened/cleared per day, chattering alerts and stale alerts, from `/api/notification/alerts/health`.
 - Polls every 15 s on the landing board, 60 s on the menu dashboards; each surface shows a
   last-updated stamp and greys out as "stale" after two failed polls.
 - **Settings → Alerts** tab edits the thresholds (admin-gated; persisted via master-data).
 - Grey base theme; `--warning` / `--danger` are the single alert family (2 to 3 intensity steps,
   no gauges, no tables). Fully internationalised (en + de/fr/es/zh).
-
-Backlog (per the spec): an admin alert-system-health view (alerts per day, chattering/stale
-alerts) is not yet built.
+- **Demo-seeded**: turning demo mode ON seeds representative backdated dashboard data across the
+  services (orders/SLA/receive-errors, slotting velocity + 90d pick tallies + replenishment,
+  inventory dock-to-stock timings + occupancy + backlog, flow scan stats + a faulted device,
+  notification active/historical/chattering/stale alerts), and turning demo mode OFF tears it down.
+  No standalone button: it rides the demo on/off switch (see §3, Demo dashboard seeders).
+- **Bugfix**: a React #310 (rendered-more-hooks) crash on the post-login dashboards landing
+  (`Overview.tsx`, a `useMemo` after an early return) and a second hooks-after-return in the
+  topology `EquipmentMesh` were fixed.
 
 ---
 

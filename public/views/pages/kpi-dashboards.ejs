@@ -8,7 +8,7 @@
         stock availability, and inbound/outbound peaks. Plus a live landing dashboard, five area
         dashboards, and threshold alerts delivered by email and webhook.
       </p>
-      <p class="status-line" data-i18n="kpi.status1">✓ Built: the Reporting section ships today in the openWCS UI (Material Flow, ASRS, Stock, Inbound, Outbound), plus a live landing dashboard, five area dashboards and threshold alerting with email and webhook delivery. SLA metrics and andon views follow.</p>
+      <p class="status-line" data-i18n="kpi.status1">✓ Built: the Reporting section ships today in the openWCS UI (Material Flow, ASRS, Stock, Inbound, Outbound), plus a live landing dashboard, five area dashboards, SLA heroes, a full-screen andon board, an alert-system-health view, and threshold alerting with email and webhook delivery. Demo mode seeds the dashboards and alerts so they show live on day one.</p>
     </div>
   </section>
 
@@ -72,12 +72,17 @@
         <div class="card">
           <div class="card-head"><div class="tag" data-i18n="kpi.tag7">Threshold alerting</div><span class="pill pill-built" data-i18n="kpi.pill8">Built</span></div>
           <h3 data-i18n="kpi.h12">From reading to paging</h3>
-          <p data-i18n="kpi.p10">Built: a service evaluates the dashboard metrics against configurable thresholds every minute, opens warning and critical alerts when a limit is breached, clears them when the metric recovers, and delivers each one by email and webhook. SLA metrics and andon views are still on the roadmap.</p>
+          <p data-i18n="kpi.p10">Built: a service evaluates the dashboard metrics against configurable thresholds every minute, opens warning and critical alerts when a limit is breached, clears them when the metric recovers, and delivers each one by email and webhook.</p>
         </div>
         <div class="card">
           <div class="card-head"><div class="tag" data-i18n="kpi.tag8">Dashboards menu</div><span class="pill pill-built" data-i18n="kpi.pill9">Built</span></div>
           <h3 data-i18n="kpi.h13">State heroes &amp; ABC movers</h3>
-          <p data-i18n="kpi.p11">Built: a live landing dashboard with state-aware heroes (a big number, a target bar and a sparkline, coloured only when something needs attention) and five area dashboards (inbound, outbound, replenishment, stock, and ABC movers with a Pareto curve). Thresholds are edited in Settings.</p>
+          <p data-i18n="kpi.p11">Built: a live landing dashboard with state-aware heroes (a big number, a target bar and a sparkline, coloured only when something needs attention) and five area dashboards (inbound, outbound, replenishment, stock, and ABC movers with a Pareto curve). Outbound now carries SLA heroes (on-time-to-cutoff, cycle time); ABC risers and fallers compare trailing 14 days to 90 days. Thresholds are edited in Settings.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="kpi.tag9">Andon &amp; alert health</div><span class="pill pill-built" data-i18n="kpi.pill10">Built</span></div>
+          <h3 data-i18n="kpi.h14">A wall board and a noise meter</h3>
+          <p data-i18n="kpi.p12">Built: a full-screen andon board for the control room (critical first, a calm all-clear when nothing is open) and an alert-system-health screen that measures the alarm load itself (active by severity, opened versus cleared per day, chattering and stale alerts), the ISA-18.2 way to keep alerts actionable. Turn demo mode on and the dashboards and alerts seed themselves with realistic data.</p>
         </div>
       </div>
     </div>
@@ -96,10 +101,11 @@
   <b>Reporting section</b>  ── Material Flow · ASRS · Stock · Inbound · Outbound          (built)
         │
   <b>Dashboards</b>  ── landing state heroes · inbound · outbound · replenishment · stock · ABC   (built)
+        │  + SLA heroes · dock-to-stock · windowed ABC risers/fallers
+        ▼
+  <b>Alerting</b>  ── per-minute evaluator · email + webhook · andon board · alert-system health   (built)
         │
-  <b>Threshold alerting</b>  ── per-minute evaluator · email + webhook delivery               (built)
-        │
-  ┄┄┄ roadmap ┄┄┄  SLA metrics · andon views</pre>
+  <b>Demo mode</b>  ── seeds and clears all dashboard + alert sample data                         (built)
       </div>
     </div>
   </section>
