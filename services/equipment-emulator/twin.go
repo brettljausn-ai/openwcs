@@ -62,6 +62,8 @@ type twinState struct {
 	nextRobot    int // round-robin pointer so successive AMR tasks spread across the fleet
 	occupiedBins int // AutoStore bins currently filled (drifts within bounds as tasks run)
 	ports        []*autoStorePort
+	cranes       []*asrsCrane
+	nextCrane    int // round-robin pointer so successive ASRS tasks spread across the cranes
 }
 
 // twin is the package-wide simulated twin state, seeded with a deterministic fleet + grid so tests
@@ -86,6 +88,7 @@ func newTwinState() *twinState {
 			z:  2.0 + float64(i)*float64(autoStoreRows)/float64(autoStorePortCount),
 		})
 	}
+	t.cranes = seedCranes()
 	return t
 }
 
