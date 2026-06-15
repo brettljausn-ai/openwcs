@@ -326,7 +326,31 @@ services:
       - openwcs-logs:/var/log/openwcs
     build: ../services/notification
     ports: ["8088:8088"]
-    depends_on: [postgres, kafka]
+    depends_on: [postgres, master-data]
+    environment:
+      # Service-local `notification` schema; periodic evaluator reads KPIs + thresholds from siblings.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
+      SPRING_DATASOURCE_USERNAME: openwcs
+      SPRING_DATASOURCE_PASSWORD: openwcs
+      # Metric + threshold sources.
+      OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
+      OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
+      OPENWCS_ORDER_MANAGEMENT_BASE_URL: http://order-management:8084
+      OPENWCS_FLOW_ORCHESTRATOR_BASE_URL: http://flow-orchestrator:8085
+      OPENWCS_ALLOCATION_BASE_URL: http://allocation:8091
+      OPENWCS_SLOTTING_BASE_URL: http://slotting:8093
+      # Evaluator cadence (ms) and warehouse scope (blank = discover from master-data).
+      OPENWCS_NOTIFICATION_EVALUATE_INTERVAL_MS: "60000"
+      OPENWCS_NOTIFICATION_WAREHOUSE_IDS: ""
+      # Email delivery (SMTP). Blank host = log-and-skip (no mail server in the default stack).
+      SPRING_MAIL_HOST: ""
+      SPRING_MAIL_PORT: "587"
+      SPRING_MAIL_USERNAME: ""
+      SPRING_MAIL_PASSWORD: ""
+      OPENWCS_NOTIFICATION_MAIL_TO: ""
+      OPENWCS_NOTIFICATION_MAIL_FROM: openwcs-alerts@localhost
+      # Optional outbound webhook for OPEN/CLEAR; unset = webhook channel skipped.
+      ALERT_WEBHOOK_URL: ""
 
   integration-sap:
     restart: unless-stopped

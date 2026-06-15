@@ -1,0 +1,98 @@
+openapi: 3.0.3
+info:
+  title: openWCS Notification & Alerting API
+  version: 0.1.0
+  description: >
+    Threshold-based operational alerting (Dashboards & alerting epic). A periodic, ShedLock-guarded
+    evaluator pulls each warehouse's KPIs from the sibling services (flow automation-summary,
+    inventory dashboard, allocation stock-blocking, slotting replenishment dashboard, order-management
+    dashboard) and compares them against the master-data alert thresholds. A metric over its threshold
+    OPENS an alert (WARNING, or CRITICAL when far over); a sustained breach is dedup'd by
+    (warehouse, area, metric) so it never duplicates; dropping back under threshold CLEARS it. OPEN and
+    CLEAR transitions are delivered best-effort over email (SMTP) and an optional webhook; both degrade
+    to log-and-skip when unconfigured. This API exposes the active alert list and supervisor
+    acknowledgement.
+servers:
+  - url: /api/notification
+    description: Via the API gateway
+
+tags:
+  - name: Alerts
+
+paths:
+  /alerts:
+    get:
+      tags: [Alerts]
+      summary: List active alerts for a warehouse
+      description: >
+        Returns the active (OPEN or ACKED) alerts for a warehouse, newest first. Requires a view
+        permission (INVENTORY_VIEW) when edge security is enabled.
+      operationId: listAlerts
+      parameters:
+        - name: warehouseId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Active alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AlertView' }
+        "403": { description: Missing view permission }
+
+  /alerts/{id}/ack:
+    post:
+      tags: [Alerts]
+      summary: Acknowledge an alert
+      description: >
+        Marks an active alert ACKED (it stays active/visible but is attributed to the acknowledger).
+        Restricted to SUPERVISOR / ADMIN; the actor is the gateway-forwarded X-Auth-User.
+      operationId: acknowledgeAlert
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The acknowledged alert
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertView' }
+        "403": { description: Requires SUPERVISOR or ADMIN }
+        "404": { description: Unknown alert id }
+        "409": { description: Alert already cleared }
+
+components:
+  schemas:
+    AlertView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        area:
+          type: string
+          description: SCAN | RECEIVING | ASRS | ALLOCATION | PUTAWAY | REPLENISHMENT
+        severity:
+          type: string
+          enum: [WARNING, CRITICAL]
+        metric:
+          type: string
+          description: The breached metric key, e.g. scanNoReadPct, asrsUtilisationPct.
+        value:
+          type: number
+          nullable: true
+          description: Observed metric value at (re)open.
+        threshold:
+          type: number
+          nullable: true
+          description: The threshold it breached.
+        sinceIso:
+          type: string
+          format: date-time
+          description: When the alert opened (ISO-8601).
+        state:
+          type: string
+          enum: [OPEN, ACKED, CLEARED]

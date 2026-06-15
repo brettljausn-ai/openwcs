@@ -11,7 +11,7 @@ public class InfoController {
     public Map<String, String> info() {
         return Map.of(
             "service", "notification",
-            "description", "Operator alerts, exceptions, andon notifications.",
-            "status", "skeleton");
+            "description", "Threshold alert evaluator, alert store, email/webhook delivery, alerts API.",
+            "status", "ok");
     }
 }
