@@ -1,0 +1,78 @@
+<section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="aia.eyebrow1">Function · AI assistant <span class="pill pill-built" data-i18n="aia.pill1">Built</span></p>
+      <h1 data-i18n="aia.h1">Ask your warehouse, <span class="lime">in plain language.</span></h1>
+      <p class="lead" data-i18n="aia.lead1">
+        An in-app AI assistant that answers questions about your orders, transports, stock and
+        handling units by calling the WCS's own read APIs — under your permissions, scoped to your
+        warehouse, answering only from what those APIs return. You supply an Anthropic API key; it
+        stays disabled until you do.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="aia.eyebrow2">What it is</p>
+        <h2 data-i18n="aia.h2">A chat over your live warehouse data.</h2>
+        <p data-i18n="aia.p1">
+          A floating chat widget that an operator or manager can open from anywhere in the app. It
+          runs an Anthropic Claude tool-use loop over a fixed set of read-only WCS endpoints, so it
+          answers from your actual data — not from generic knowledge about warehouses.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="aia.tag1">Read-only tools</div><span class="pill pill-built" data-i18n="aia.pill2">Built</span></div>
+          <h3 data-i18n="aia.h3">It can read, never write</h3>
+          <p data-i18n="aia.p2">The assistant can only call read endpoints — orders, stock by SKU, the inbound/outbound and inventory dashboards, a handling unit's transport trace, transport tasks, and stock-blocking. It cannot change any order, stock figure, transport or setting.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="aia.tag2">Your permissions</div><span class="pill pill-built" data-i18n="aia.pill3">Built</span></div>
+          <h3 data-i18n="aia.h4">Scoped to who's asking</h3>
+          <p data-i18n="aia.p3">Every call the assistant makes carries the asker's identity and warehouse scope, so the same access-control and warehouse checks apply as when you use the screens yourself. It can never surface data you could not fetch on your own.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="aia.tag3">Your key, your control</div><span class="pill pill-built" data-i18n="aia.pill4">Built</span></div>
+          <h3 data-i18n="aia.h5">You bring the API key</h3>
+          <p data-i18n="aia.p4">An admin pastes an Anthropic API key in Settings, picks a model and enables the feature. The key is write-only — never shown back, never sent to the browser — and the assistant reads it only over a server-internal channel that is never exposed publicly. The feature is off until you switch it on; it is an external, billed dependency.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="aia.eyebrow3">At a glance</p>
+        <h2 data-i18n="aia.h6">How a question is answered.</h2>
+      </div>
+      <div class="arch">
+<pre>  you ask, in your warehouse                                    (built)
+        │
+        ▼
+  the model calls read-only WCS endpoints, with your identity    (built)
+        │
+        ▼
+  access-control + warehouse scope apply to every call           (built)
+        │
+        ▼
+  the model answers only from what those endpoints returned      (built)</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow" data-i18n="aia.eyebrow4">Built &amp; open</p>
+        <h2 data-i18n="aia.h7">Ask your warehouse — open source.</h2>
+        <p data-i18n="aia.p5">The assistant ships in the repo today. Bring your own Anthropic key, enable it in Settings, and ask away. Read it, run it, change it.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+          <a class="btn btn-ghost" href="/functions" data-i18n="aia.btn1">Back to functions</a>
+        </div>
+      </div>
+    </div>
+  </section>

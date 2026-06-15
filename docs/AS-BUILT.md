@@ -1,6 +1,6 @@
 # openWCS — As-Built Documentation
 
-_Last updated: 2026-06-15 (Dashboards & alerting: a landing situation dashboard + five menu dashboards over new read-only per-service aggregation endpoints, the notification service is now functional (threshold evaluator with email/webhook alert delivery), and admin alert-threshold settings; self-service password change at login rescues "not fully set up" accounts; per-screen off/read/write access with gateway enforcement via ScreenWriteCatalog; database console governed by admin-database screen access and grantable to non-admin roles; multilanguage UI ships in 5 languages out of the box)_
+_Last updated: 2026-06-15 (AI assistant: a new `assistant` service (8096) runs an Anthropic Claude Messages-API tool-use agentic loop over read-only, identity-forwarded WCS endpoints, answering only from tool results; the Anthropic key + model + enabled flag live in master-data `system_configuration`, write-only on the public API and read by the assistant from a network-only internal endpoint; a global floating chat widget + a Settings → AI Assistant admin tab; requires an admin-supplied Anthropic API key. Earlier: dashboards & alerting: a landing situation dashboard + five menu dashboards over new read-only per-service aggregation endpoints, the notification service is now functional (threshold evaluator with email/webhook alert delivery), and admin alert-threshold settings; self-service password change at login rescues "not fully set up" accounts; per-screen off/read/write access with gateway enforcement via ScreenWriteCatalog; database console governed by admin-database screen access and grantable to non-admin roles; multilanguage UI ships in 5 languages out of the box)_
 
 What is **actually implemented** today (not the target architecture). Design intent:
 [`build.md`](../build.md); decisions: [`docs/adr/`](./adr); live progress:
@@ -27,6 +27,7 @@ What is **actually implemented** today (not the target architecture). Design int
 | allocation | 8091 | ✅ | Pick-location allocation (UoM breakdown), cubing, batch picking. **Allow-short mode** (`allowShort` on `POST /api/allocation/orders`): a short order keeps what it could reserve, cubes only the allocated quantities, returns `FULFILLABLE_SHORT` (supervisor "short allocate and release"). **Dashboard aggregate** (`GET /api/allocation/reports/stock-blocking?warehouseId=`, read-only, best-effort): `{blockedLines, distinctSkusShort, recoverableLines, zeroStockLines, openOutboundLines}` for the stock-blocking situation tile and the replenishment dashboard. |
 | slotting | 8093 | ✅ | Put-away assignment for automated rack/GTP blocks (weighted scorer: velocity-to-exit · same-SKU lane consolidation · aisle redundancy · fill balance; the exit distance uses `location.distance_to_exit` when set, else a fallback derived from the cell coordinate — (posX−1)+(posY−1)+(posZ−1), port assumed at position 1, ground level — so generated racks without maintained distances still place fast movers near the port), manual pick-face slotting + min/max replenishment (opportunistic top-off), and off-peak re-slotting. ADR 0003. **Profile-less put-away fallback**: a SKU with no storage profile resolves to the warehouse's ONLY automated storage block (`SHUTTLE_ASRS`/`CRANE_ASRS`/`AUTOSTORE`/`AMR_GTP`, via `GET /api/master-data/storage-blocks?warehouseId=`); several automated blocks remain a 400 (a profile must disambiguate) — keeps flow's slotting-only return leg answerable for demo SKUs. **Relocation plan** (`POST /api/slotting/relocation-plan {warehouseId, locationId}`): for ADR-0009 multi-deep shuttle channels, returns an ordered `[{huId, fromLocationId, toLocationId}]` dig-out sequence for blockers in front of the target; same-`cellY` hard constraint (no lift move), same-aisle preferred; empty when the channel is clear.  **Assignment lifecycle**: a fresh putaway SUPERSEDEs the HU's open assignments (one live plan per tote); flow confirms the completed ASRS STORE via `POST /api/slotting/putaway/stored` → status STORED (open assignments are planned occupancy); the hard aisle-share cap is skipped in single-aisle blocks (no alternative aisle exists — it previously rejected every SKU's second putaway there). **Dashboard aggregates** (read-only, best-effort): `GET /api/slotting/replenishment/dashboard?warehouseId=` (`{urgent, openTasks, oldestAgeMin, projectedStockouts}`) for the replenishment dashboard, and `GET /api/slotting/velocity/abc?warehouseId=` (`{a, b, c, pareto, top, bottom, risers, fallers}`) for the ABC-movers dashboard. Risers/fallers use an EWMA short-vs-long-window proxy on `sku_velocity` (an approximation, not a true period-over-period pick-rate diff; flagged as such). |
 | gtp | 8094 | ✅ | Goods-to-person station execution: configure stations + STOCK/ORDER nodes, open order destinations (bind order HU + demand), present a stock HU → put-to-light put-list across destinations (one HU serves many orders: the batch), confirm puts (incl. short), complete destinations. ORDER_LOCATION (conveyor HU-in-location) and PUT_WALL (lit rack cubbies, typical AMR) destination topology share one engine. Orthogonal **operating modes** (PICKING / DECANTING / STOCK_COUNT / QC / MAINTENANCE): each cycle runs one and carries mode-appropriate task lines (decant-moves / count entries+variance / PASS-FAIL-HOLD verdicts / OK-DEFECTIVE-REPAIR checks); seams to slotting put-away (decant) and inventory StockAdjusted (count). **Station inbound queue** (`station_queue_entry`): **ADR-0007 Phase 3c-1: the inbound queue's source of truth has relocated to `flow-orchestrator`** (`induction_queue_entry`); gtp's `POST /stations/{id}/queue` inbound enqueue is deprecated and no longer called by counting; `POST /queue/{entryId}/complete` now fans out to flow `POST /api/flow/induction/entries/{id}/done` + gtp store-back. The legacy `station_queue_entry` table and enqueue code remain physically but are marked `@Deprecated` and unused for the inbound path. Previously: conveyor HUs arrived `IN_TRANSIT` (distance-timed) then `QUEUED`; ASRS/AMR/AutoStore arrived immediately `QUEUED`; operator completed entries FIFO. **Deactivate/drain control**: `POST /stations/{id}/deactivate` flips `acceptingWork=false` — station finishes its queued work but rejects new inbound HUs; `POST /stations/{id}/activate` reopens it. The `WorkplaceView` response includes `acceptingWork`, letting the console restore the drain state on reload. **In-transit capacity caps** (`maxInTransitPicking`, `maxInTransitOther`, configured via `POST /stations/{id}/capacity`): max simultaneous active inbound transports per mode class (default 4 PICKING / 2 OTHER); enqueue rejected with 409 when the cap is reached. **Topology node sync** (`POST /stations/{id}/nodes/sync`): replaces the station's STOCK/ORDER nodes from a topology-projected node set — nodes matched by code preserve their id + bound demand; the feeding conveyor distance (`inboundDistanceM`, `numeric(12,3)`) is carried from the topology function-point's `offsetM` and drives emulator queue arrival timing; called by flow-orchestrator on every topology projection (best-effort — a failure never aborts the routing projection). ADR 0006. |
+| assistant | 8096 | ✅ | **AI chat over warehouse data** (§7h). `POST /api/assistant/chat {warehouseId, messages[]}` → `{reply}` runs the Anthropic Claude Messages-API tool-use agentic loop over read-only, identity-forwarded WCS endpoints; `GET /api/assistant/status` → `{enabled, configured, model}`. Default model claude-haiku-4-5, claude-opus-4-8 selectable. No DB. Disabled until an admin configures an Anthropic key. |
 | counting | 8095 | ✅ | Cycle / stock counting: count tasks (scope LOCATION/SKU/ZONE/BLOCK, BLIND vs VARIANCE), ABC-cadence schedule generator, capture counts → variance vs an inventory-expected snapshot → within-tolerance auto-approve (posts a `StockAdjusted` event) or out-of-tolerance recount; blind hides expected/variance. **Delete OPEN tasks** (`DELETE /tasks/{taskId}`): removes a count task and its lines while still OPEN; 409 once counting has begun. Seams: GTP STOCK_COUNT station + cycle-count BPMN (by id), adjustment via txlog. **ASRS count-tote routing** (emulator mode only): when a count task is created, the counting service looks up each cell's storage block (master-data), and for ASRS-family blocks (`SHUTTLE_ASRS`, `CRANE_ASRS`, `AUTOSTORE`, `AMR_GTP`) it issues a single `flow.requestPresentation(...)` call — flow creates a `REQUESTED` induction entry and orchestrates the RETRIEVE + CONVEY journey itself (dispatching to the adapter family that services the cell — `AUTOSTORE`, `AMR`, or `ASRS` — resolved from the storage type; not hardcoded). The cap is metered by flow at RETRIEVE dispatch; `REQUESTED` is uncapped so routing always succeeds at request time; best-effort (no-op when emulator is off or no active counting station found — the count task is always created). **At-station blind count** (`POST /tasks/{taskId}/lines/{lineId}/station-count {countedQty}`): operator submits their counted qty blind (never sees the system qty). A state machine on `count_line` (`station_count_state`: PENDING → RECOUNT → ACCEPTED | ADJUSTED) drives reconciliation: first count == expected → `ACCEPTED` (no adjustment); first count ≠ expected → `RECOUNT` (hold the count); on recount, matches expected → `ACCEPTED`; matches held count → confirmed variance: posts `StockAdjusted` (delta = counted − expected, reason `COUNTING`, actor = `X-Auth-User` header or `?operator=` query param, falls back to `"system"`) → `ADJUSTED`; differs from both → update hold, `RECOUNT` again. When all lines are terminal the task transitions to `RECONCILED`. Schema: `count_line` gains `station_last_count` + `station_count_state` (`V4__count_line_station_count.sql`) and `hu_id uuid` (`V5__count_line_hu.sql`) — the tote the cell's stock sits on, snapshotted from inventory at task generation and carried onto every `StockAdjusted` event so reconciled variances target the tote's bucket rather than minting a phantom HU-less bucket at the ASRS cell; null for bin stock (no HU at the cell). **Demo quick-seed** (demo-mode only): `POST /api/counting/demo/seed {warehouseId, count?:1}` builds sample count tasks over existing demo stock (cells sourced from the inventory stock overview), returns `{created}`, guarded to demo mode ON; drives the "Add count task" button (one task per click) shown on the stock-counting screen only when demo mode is on. |
 | txlog | 8086 | ✅ | Append-only event log + transactional outbox + relay to `txlog.stream`. |
 | iam | 8087 | ✅ | openWCS authorization model: users → roles → coded permissions; **per-user warehouse access** (allowed warehouses + default; the gateway enforces scope). (Keycloak does auth.)  Per-user **UI language** (`AppUser.language`, `V5`): `GET`/`PUT /api/iam/me/language` (resolved from `X-Auth-User`; unknown codes coerced to `en`, auto-provisions the row so the choice sticks) — drives the frontend i18n; backend stays English. |
@@ -76,6 +77,7 @@ Cross-service references are **UUID columns with no cross-schema foreign keys** 
 | `notification` | notification | alert_event, shedlock |
 | `host_integration` | integration-host | idempotency_key, webhook_subscription |
 | `ACT_*` (public) | process-engine | Flowable's own engine tables (it manages its schema; a documented exception to schema-per-service) |
+| _(none)_ | assistant | **No schema — stateless.** Holds no persistent state; reads the Anthropic key/model/enabled flag from master-data's `system_configuration` and answers each chat from live read-only WCS endpoint calls. |
 
 ---
 
@@ -207,6 +209,16 @@ Full CRUD REST (`/api/master-data`, see `contracts/openapi/master-data.yaml`):
     `putawayBacklogAgeMin=120`, `replenishmentOldestAgeMin=120`); admin `PUT` replaces it
     (ADMIN-gated on `X-Auth-Roles`). Edited in **Settings → Alerts**, read by the notification
     alert evaluator (§7g) and by the dashboard hero state-colour logic in the UI.
+  - **AI assistant config** (same `system_configuration` key/value table, keys
+    `AI_ASSISTANT_API_KEY`, `AI_ASSISTANT_MODEL`, `AI_ASSISTANT_ENABLED`): the Anthropic API key,
+    chosen model, and enable flag for the `assistant` service (§7h). `GET /api/master-data/ai-assistant`
+    returns `{enabled, configured, model}` only — **never the key**; admin `PUT` (ADMIN-gated on
+    `X-Auth-Roles`) sets enabled/model and, optionally, the key (**write-only**: omit `apiKey` in the
+    body to keep the existing key, send it to replace). The actual key is served to the assistant
+    service over a separate **network-only** `GET /internal/ai-assistant` that is **never routed
+    through the gateway** (it carries no `/api/` prefix), mirroring iam's `/internal/screen-access`.
+    Edited in **Settings → AI Assistant**. The feature stays disabled until an admin sets a key and
+    flips `AI_ASSISTANT_ENABLED` on.
 - **Admin database console** (`/api/master-data/admin/db`, ADMIN-gated on `X-Auth-Roles`):
   read-only SQL access to the whole shared database (all service schemas live in the one
   PostgreSQL instance the master-data datasource reaches). `GET /schemas` lists non-system
@@ -923,6 +935,51 @@ fatigue) is recorded in [`docs/dashboardScope.md`](./dashboardScope.md).
 
 ---
 
+## 7h. AI assistant (`assistant` service + chat UI)
+
+The `assistant` service (Java, port 8096, no DB) lets an authenticated user ask questions about
+their warehouse in plain language. It runs the **Anthropic Claude Messages API tool-use agentic
+loop** (official `anthropic-java` SDK): the model is given a fixed set of tools, calls them as
+needed, the service executes each call and feeds the result back, and the loop continues until the
+model produces a final answer. The model is instructed to answer **only from tool results** (no
+free-floating knowledge about this warehouse).
+
+- **API.** `POST /api/assistant/chat {warehouseId, messages[]}` → `{reply}`; `GET /api/assistant/status`
+  → `{enabled, configured, model}` (drives whether the UI shows the widget). RBAC: authenticated
+  users with `INVENTORY_VIEW`.
+- **Tool surface — read-only, identity-forwarded.** The tools are plain HTTP calls to **existing**
+  WCS endpoints, never anything that writes:
+  - `search_orders` — order-management
+  - `get_stock_by_sku` — inventory (`/reports/stock-by-sku`)
+  - `get_inventory_dashboard` — inventory (`/reports/dashboard`)
+  - `get_hu_trace` — flow-orchestrator (`/hu-trace`)
+  - `get_transport_tasks` — flow-orchestrator device tasks
+  - `get_stock_blocking` — allocation (`/reports/stock-blocking`)
+  - `get_dashboard` — order-management dashboard aggregate
+
+  Every tool call **forwards the caller's `X-Auth-User` / `X-Auth-Roles` / `X-Auth-Warehouses`**, so
+  the same gateway/service RBAC and warehouse-scope checks apply to the assistant as to the user
+  driving it — the model can never see data the user couldn't fetch themselves. Because the surface is
+  read-only, the assistant cannot change any state.
+- **Model options.** Default **claude-haiku-4-5** (Haiku 4.5); **claude-opus-4-8** (Opus 4.8)
+  selectable per the configured model.
+- **Security model — write-only key + internal-only read.** The Anthropic API key, the chosen model,
+  and the enable flag live in master-data `system_configuration` (`AI_ASSISTANT_API_KEY/MODEL/ENABLED`,
+  see §3). On the public API the key is **write-only**: `GET /api/master-data/ai-assistant` returns
+  `{enabled, configured, model}` and never the key, and the admin `PUT` accepts a new key but never
+  echoes it (omit `apiKey` to keep the existing one). The assistant service reads the **actual** key
+  from a **network-only** internal endpoint `GET /internal/ai-assistant` that is never exposed through
+  the gateway (it has no `/api/` prefix), mirroring iam's `/internal/screen-access`. The key never
+  leaves the server side and never reaches the browser. The feature is **disabled** until an admin
+  supplies a key and turns it on; it is an external, billed dependency.
+- **UI.** A global floating **chat widget** is mounted in the app shell and shown only when
+  `GET /api/assistant/status.enabled` is true; it keeps conversation history and the active warehouse
+  and posts to `/api/assistant/chat`. A **Settings → "AI Assistant"** admin tab sets the key
+  (write-only password field), picks the model, and enables the feature. Internationalised in all
+  shipped languages.
+
+---
+
 ## 8. The two working vertical slices
 
 **Goods-in → stock:** `POST /api/txlog/events {GoodsReceived}` → outbox relay →
@@ -967,7 +1024,12 @@ allowed to create with security on), master-data (`MasterDataRbacTest` — read 
 write needs EDIT), iam (`IamServiceTest` — Testcontainers: seeded roles, effective-permission
 resolution, catalog validation), flow-orchestrator (`DeviceTaskServiceTest` — Testcontainers +
 mocked `DeviceClient`: COMPLETED on success, FAILED on adapter error without losing the task,
-query by id/correlation). Go: conveyor `main_test.go` (`POST /tasks` COMPLETED / FAILED / 405).
+query by id/correlation), assistant (`AnthropicChatModelToolLoopTest` — the Messages-API tool-use
+loop dispatches read-only tool calls, forwards the caller's identity + warehouse scope on each, feeds
+results back, and answers only from tool results; `AssistantControllerTest` — `/api/assistant/chat`
+round-trip + `/api/assistant/status` enabled/configured/model, disabled when no key is set),
+master-data `AiAssistantConfigTest` (public read never returns the key, admin write sets key/model/enabled,
+network-only `/internal/ai-assistant` returns the actual key, non-admin write rejected). Go: conveyor `main_test.go` (`POST /tasks` COMPLETED / FAILED / 405).
 The gateway has `GatewayAuthEndToEndTest` — a **live Keycloak Testcontainer** that imports the
 canonical `openwcs` realm, mints a real JWT via the password grant, and drives a route to an
 in-test echo server: no token → 401, a realm JWT → 200 with the identity forwarded as
