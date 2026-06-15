@@ -422,10 +422,10 @@ components:
           format: uuid
           nullable: true
           description: "Allocated pick location, best-effort (latest Picked transaction); null until known (see endpoint gap)."
-        requestedQty: { type: number, description: Quantity to pick (allocated/reserved qty, falling back to ordered). }
+        requestedQty: { type: number, description: "Quantity to pick (allocated/reserved qty, falling back to ordered)." }
         pickedQty: { type: number, description: Quantity picked so far (sum of Picked postings). }
-        remainingQty: { type: number, description: requestedQty minus pickedQty, floored at zero. }
-        status: { type: string, description: Line status (ALLOCATED, SHORT). }
+        remainingQty: { type: number, description: "requestedQty minus pickedQty, floored at zero." }
+        status: { type: string, description: "Line status (ALLOCATED, SHORT)." }
     ConfirmPickRequest:
       type: object
       required: [pickedQty]

@@ -746,7 +746,7 @@ components:
       properties:
         warehouseId: { type: string, format: uuid }
         huId: { type: string, format: uuid, description: The handling unit to move. }
-        huCode: { type: string, nullable: true, description: Human-readable HU code, for the audit trail. }
+        huCode: { type: string, nullable: true, description: "Human-readable HU code, for the audit trail." }
         fromLocationId: { type: string, format: uuid, nullable: true, description: Source location (informational; the device carries the HU). }
         toLocationId: { type: string, format: uuid, description: Destination location the HU is booked to on completion. }
         family:
@@ -805,7 +805,7 @@ components:
         x: { type: number, format: double, description: World X in metres. }
         z: { type: number, format: double, description: World Z (depth) in metres. }
         status: { type: string, enum: [IDLE, MOVING, FAULTED] }
-        huCode: { type: string, nullable: true, description: Carried handling unit code, or null when empty. }
+        huCode: { type: string, nullable: true, description: "Carried handling unit code, or null when empty." }
     Autostore:
       type: object
       description: "Live AutoStore snapshot: grid fill and per-port activity."
@@ -829,4 +829,4 @@ components:
         x: { type: number, format: double, description: World X in metres. }
         z: { type: number, format: double, description: World Z (depth) in metres. }
         busy: { type: boolean, description: Whether the port is presenting/working a bin. }
-        huCode: { type: string, nullable: true, description: Handling unit at the port, or null. }
+        huCode: { type: string, nullable: true, description: "Handling unit at the port, or null." }
