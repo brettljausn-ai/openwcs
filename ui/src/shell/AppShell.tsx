@@ -29,6 +29,9 @@ function AppShellInner() {
   const tn = useT('nav')
   const { pathname } = useLocation()
 
+  // The Overview dashboard ('/') is the app's landing page — pin it at the top of the nav as home,
+  // with the old quick-links page just below it.
+  const overview = SCREENS.find((s) => s.key === 'dashboards:overview')!
   const dashboard = SCREENS.find((s) => s.key === 'dashboard')!
   const bySection = SECTION_ORDER.map((section) => ({
     section,
@@ -70,6 +73,7 @@ function AppShellInner() {
         </div>
 
         <nav className="sidebar-nav">
+          {can(overview) && link(overview)}
           {can(dashboard) && link(dashboard)}
           {bySection.map((g) => {
             const isOpen = open.includes(g.section)
