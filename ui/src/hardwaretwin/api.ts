@@ -105,6 +105,66 @@ export async function listAmrFleet(warehouseId: string): Promise<AmrFleet> {
 }
 
 // ----------------------------------------------------------------------------------------------------
+// Live-twin ASRS cranes — each storage-and-retrieval crane's current world position + lift height +
+// status (item: in-aisle crane motion).
+//
+// The flow-orchestrator owns the crane telemetry; it returns each crane's world XZ (same metres frame
+// as the placed equipment, tote paths and AMR fleet) plus its lift height y (metres) so the renderer
+// can glide the carriage up and down the rack, its status and the HU it is carrying (if any).
+// Best-effort: absent/empty telemetry just renders no cranes (the page never crashes on a missing
+// endpoint or a 404 on a warehouse without ASRS cranes).
+// ----------------------------------------------------------------------------------------------------
+
+/** ASRS crane runtime status — reuses the twin's three live states so the existing palette applies. */
+export type AsrsCraneStatus = 'idle' | 'moving' | 'faulted'
+
+export interface AsrsCrane {
+  craneId: string
+  /** World metres (XZ along/across the aisle) and lift height y in metres. */
+  x: number
+  y: number
+  z: number
+  status: AsrsCraneStatus
+  /** The handling unit the crane is carrying, if any (shown on hover). */
+  huCode: string | null
+}
+
+export interface AsrsCranes {
+  serverTimeMs: number
+  cranes: AsrsCrane[]
+}
+
+/** Normalise the backend status (IDLE/MOVING/FAULTED, any case) to the twin's lower-case palette key. */
+function normaliseCraneStatus(raw: unknown): AsrsCraneStatus {
+  const s = typeof raw === 'string' ? raw.toLowerCase() : ''
+  if (s === 'moving') return 'moving'
+  if (s === 'faulted') return 'faulted'
+  return 'idle'
+}
+
+/** The live ASRS cranes for a warehouse. Best-effort: returns an empty list when telemetry is absent. */
+export async function getAsrsCranes(warehouseId: string): Promise<AsrsCranes> {
+  const res = await fetch(`/api/flow/twin/asrs-cranes?warehouseId=${encodeURIComponent(warehouseId)}`)
+  if (!res.ok) throw new Error(`Failed to load ASRS cranes: ${res.status}`)
+  const body = (await res.json()) as Partial<AsrsCranes> | null
+  const raw = Array.isArray(body?.cranes) ? (body!.cranes as Array<Partial<AsrsCrane>>) : []
+  const cranes: AsrsCrane[] = raw
+    .filter((c) => typeof c?.craneId === 'string')
+    .map((c) => ({
+      craneId: c.craneId as string,
+      x: typeof c.x === 'number' ? c.x : 0,
+      y: typeof c.y === 'number' ? c.y : 0,
+      z: typeof c.z === 'number' ? c.z : 0,
+      status: normaliseCraneStatus(c.status),
+      huCode: typeof c.huCode === 'string' ? c.huCode : null,
+    }))
+  return {
+    serverTimeMs: typeof body?.serverTimeMs === 'number' ? body.serverTimeMs : Date.now(),
+    cranes,
+  }
+}
+
+// ----------------------------------------------------------------------------------------------------
 // Live-twin AutoStore — grid fill + port activity (item 3).
 //
 // The grid carries the bin occupancy headline (occupied / total → fill %); each port reports its world
