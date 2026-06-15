@@ -283,6 +283,8 @@ services:
       # Ask slotting for relocation plans before retrieving out of multi-deep channels (ADR-0009)
       # and for the return-leg put-away destination (slotting-only store-back).
       OPENWCS_SLOTTING_BASE_URL: http://slotting:8093
+      # Append-only audit of physical HU moves (HandlingUnitMoved) to the txlog system-of-record.
+      OPENWCS_TXLOG_BASE_URL: http://txlog:8086
 
   txlog:
     restart: unless-stopped

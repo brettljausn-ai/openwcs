@@ -2,16 +2,24 @@ package org.openwcs.flow;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.openwcs.flow.api.DeviceTaskNotFoundException;
 import org.openwcs.flow.api.DeviceTaskView;
 import org.openwcs.flow.api.RequestDeviceTask;
 import org.openwcs.flow.client.DeviceClient;
+import org.openwcs.flow.client.TxLogClient;
 import org.openwcs.flow.service.DeviceTaskService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -44,6 +52,9 @@ class DeviceTaskServiceTest {
 
     @MockBean
     DeviceClient deviceClient;
+
+    @MockBean
+    TxLogClient txlog;
 
     @Autowired
     DeviceTaskService service;
@@ -156,5 +167,127 @@ class DeviceTaskServiceTest {
 
         assertThat(service.get(view.id()).status()).isEqualTo("FAILED");
         assertThat(service.get(view.id()).detail()).isEqualTo("fault");
+    }
+
+    @Test
+    void completedStoreEmitsHandlingUnitMovedWithDestination() {
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("COMPLETED", "stored", Map.of()));
+
+        UUID warehouse = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        UUID locationId = UUID.randomUUID();
+        service.request(new RequestDeviceTask(warehouse, "ASRS", null, "STORE",
+                Map.of("huId", huId, "huCode", "TTE-1", "locationId", locationId), null), "tester");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<String> stream = ArgumentCaptor.forClass(String.class);
+        verify(txlog).append(stream.capture(), eq(TxLogClient.HANDLING_UNIT_MOVED), any(),
+                eq("tester"), payload.capture());
+
+        assertThat(stream.getValue()).isEqualTo("hu-" + huId);
+        Map<String, Object> p = payload.getValue();
+        assertThat(p).containsEntry("command", "STORE")
+                .containsEntry("status", "COMPLETED")
+                .containsEntry("huId", huId)
+                .containsEntry("huCode", "TTE-1")
+                .containsEntry("toLocationId", locationId)
+                .containsEntry("fromLocationId", null);
+    }
+
+    @Test
+    void completedRetrieveRecordsSourceLocation() {
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("COMPLETED", "retrieved", Map.of()));
+
+        UUID huId = UUID.randomUUID();
+        UUID locationId = UUID.randomUUID();
+        service.request(new RequestDeviceTask(UUID.randomUUID(), "ASRS", null, "RETRIEVE",
+                Map.of("huId", huId, "locationId", locationId), null), "tester");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
+        verify(txlog).append(anyString(), eq(TxLogClient.HANDLING_UNIT_MOVED), any(), anyString(),
+                payload.capture());
+        assertThat(payload.getValue()).containsEntry("command", "RETRIEVE")
+                .containsEntry("fromLocationId", locationId)
+                .containsEntry("toLocationId", null);
+    }
+
+    @Test
+    void completedRelocateRecordsBothEnds() {
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("COMPLETED", "relocated", Map.of()));
+
+        UUID huId = UUID.randomUUID();
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+        service.request(new RequestDeviceTask(UUID.randomUUID(), "ASRS", null, "RELOCATE",
+                Map.of("huId", huId, "fromLocationId", from, "toLocationId", to), null), "tester");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
+        verify(txlog).append(anyString(), eq(TxLogClient.HANDLING_UNIT_MOVED), any(), anyString(),
+                payload.capture());
+        assertThat(payload.getValue())
+                .containsEntry("fromLocationId", from)
+                .containsEntry("toLocationId", to);
+    }
+
+    @Test
+    void asyncMoveAuditsOnceOnCallbackNotOnDispatchOrDuplicate() {
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("ACCEPTED", "dispatched", null));
+        DeviceTaskView view = service.request(new RequestDeviceTask(UUID.randomUUID(), "ASRS", null,
+                "STORE", Map.of("huId", UUID.randomUUID(), "locationId", UUID.randomUUID()), null), "tester");
+        // Still DISPATCHED: no audit yet.
+        verify(txlog, never()).append(anyString(), anyString(), any(), any(), anyMap());
+
+        service.completeFromCallback(view.id(), "COMPLETED", "stored", Map.of());
+        // A late duplicate callback must not re-audit.
+        service.completeFromCallback(view.id(), "FAILED", "too late", null);
+
+        verify(txlog, times(1)).append(anyString(), eq(TxLogClient.HANDLING_UNIT_MOVED), any(),
+                anyString(), anyMap());
+    }
+
+    @Test
+    void failedMoveIsAuditedWithFailedStatus() {
+        when(deviceClient.execute(any())).thenThrow(new RestClientException("crane offline"));
+
+        service.request(new RequestDeviceTask(UUID.randomUUID(), "ASRS", null, "STORE",
+                Map.of("huId", UUID.randomUUID(), "locationId", UUID.randomUUID()), null), "tester");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
+        verify(txlog).append(anyString(), eq(TxLogClient.HANDLING_UNIT_MOVED), any(), anyString(),
+                payload.capture());
+        assertThat(payload.getValue()).containsEntry("status", "FAILED");
+    }
+
+    @Test
+    void conveyTransportIsNotAuditedAsAMove() {
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("COMPLETED", "conveyed", Map.of()));
+
+        service.request(new RequestDeviceTask(UUID.randomUUID(), "CONVEYOR", null, "CONVEY",
+                Map.of("huId", UUID.randomUUID()), null), "tester");
+
+        verify(txlog, never()).append(anyString(), anyString(), any(), any(), anyMap());
+    }
+
+    @Test
+    void txlogFailureDoesNotFailTheMove() {
+        when(deviceClient.execute(any())).thenReturn(
+                new DeviceClient.DeviceResult("COMPLETED", "stored", Map.of()));
+        when(txlog.append(anyString(), anyString(), any(), any(), anyMap()))
+                .thenThrow(new RestClientException("txlog down"));
+
+        DeviceTaskView view = service.request(new RequestDeviceTask(UUID.randomUUID(), "ASRS", null,
+                "STORE", Map.of("huId", UUID.randomUUID(), "locationId", UUID.randomUUID()), null), "tester");
+
+        assertThat(view.status()).isEqualTo("COMPLETED");
+        assertThat(service.get(view.id()).status()).isEqualTo("COMPLETED");
     }
 }

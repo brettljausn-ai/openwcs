@@ -49,6 +49,10 @@ public class StockProjectionService {
     private static final String DEFAULT_STATUS = "AVAILABLE";
     private static final String DEFAULT_UOM = "EACH";
 
+    // Note: flow-orchestrator's HandlingUnitMoved is an audit-only event (system-of-record trail for
+    // physical moves) and is DELIBERATELY absent here — the HU's stock location is already maintained
+    // by the registry booking (PUT /handling-units/{id}/location) and HU-following bucket resolution,
+    // so projecting HandlingUnitMoved too would double-apply the move. Do not add it.
     private static final Set<String> STOCK_EVENTS = Set.of(
             GOODS_RECEIVED, PUTAWAY_COMPLETED, STOCK_MOVED, PICKED, STOCK_ADJUSTED, STOCK_STATUS_CHANGED);
 
