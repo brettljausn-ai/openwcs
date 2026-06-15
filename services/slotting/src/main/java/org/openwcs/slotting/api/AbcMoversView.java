@@ -7,20 +7,20 @@ import java.util.UUID;
 /**
  * Read-only ABC velocity / movers snapshot for one warehouse (Dashboards &amp; alerting epic).
  *
- * <p>The slotting velocity store persists only a decayed EWMA pick-frequency score per SKU (no raw
- * windowed pick counts), so {@code picks} throughout this view is that decayed score used as the
- * trailing pick-frequency proxy. {@code risers}/{@code fallers} approximate the 14d-vs-90d trend
- * from the un-folded recent picks against the established score — see
- * {@code VelocityDashboardService} for the exact derivation.
+ * <p>{@code picks} throughout this view is the decayed EWMA pick-frequency score the classifier
+ * ranks on (so the dashboard agrees with the assigned A/B/C labels). {@code risers}/{@code fallers}
+ * carry the <em>exact</em> trailing-window shares summed from the daily pick tallies
+ * ({@code sku_pick_daily}): {@code pct14d} is the SKU's last-14-day picks as a percent of the
+ * warehouse 14-day total, {@code pct90d} the same over 90 days — see {@code VelocityDashboardService}.
  *
  * @param a       number of A-class SKUs
  * @param b       number of B-class SKUs
  * @param c       number of C-class SKUs
- * @param pareto  every SKU ranked by descending pick-frequency proxy with a running cumulative %
+ * @param pareto  every SKU ranked by descending pick-frequency score with a running cumulative %
  * @param top     up to 10 fastest movers
  * @param bottom  up to 10 slowest movers (with any observed velocity)
- * @param risers  up to 10 SKUs whose short-window rate most exceeds their long-window rate
- * @param fallers up to 10 SKUs whose short-window rate most trails their long-window rate
+ * @param risers  up to 10 SKUs whose trailing 14d pick share most exceeds their 90d share
+ * @param fallers up to 10 SKUs whose trailing 14d pick share most trails their 90d share
  */
 public record AbcMoversView(
         long a,
@@ -40,7 +40,7 @@ public record AbcMoversView(
     public record Mover(UUID skuId, BigDecimal picks) {
     }
 
-    /** A trend: a SKU's short-window vs long-window rate as percentages of total warehouse activity. */
+    /** A trend: a SKU's trailing 14d vs 90d pick share as percentages of total warehouse activity. */
     public record Trend(UUID skuId, BigDecimal pct14d, BigDecimal pct90d) {
     }
 }
