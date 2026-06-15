@@ -3,6 +3,7 @@ package org.openwcs.orders.api;
 import java.util.UUID;
 import org.openwcs.common.security.Permission;
 import org.openwcs.orders.domain.OrderType;
+import org.openwcs.orders.service.OrderDashboardService;
 import org.openwcs.orders.service.OrderFlowReportService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,10 +24,13 @@ public class OrderReportController {
     private static final String ROLES = "X-Auth-Roles";
 
     private final OrderFlowReportService reports;
+    private final OrderDashboardService dashboards;
     private final AccessGuard guard;
 
-    public OrderReportController(OrderFlowReportService reports, AccessGuard guard) {
+    public OrderReportController(
+            OrderFlowReportService reports, OrderDashboardService dashboards, AccessGuard guard) {
         this.reports = reports;
+        this.dashboards = dashboards;
         this.guard = guard;
     }
 
@@ -47,5 +51,29 @@ public class OrderReportController {
                     HttpStatus.BAD_REQUEST, "direction must be INBOUND or OUTBOUND");
         }
         return reports.flow(warehouseId, direction, days);
+    }
+
+    /**
+     * Live operations dashboard: inbound / outbound headline figures for today plus a per-hour
+     * intake-vs-throughput split. Best-effort — partial data / nulls instead of failing.
+     */
+    @GetMapping("/dashboard")
+    public OrderDashboardReport dashboard(
+            @RequestHeader(name = ROLES, required = false) String roles,
+            @RequestParam UUID warehouseId) {
+        guard.require(roles, Permission.ORDER_VIEW);
+        return dashboards.dashboard(warehouseId);
+    }
+
+    /**
+     * Dispatch board derived purely from open outbound orders grouped by route + cut-off
+     * ({@code dispatchBy}). No new dispatch entity; best-effort.
+     */
+    @GetMapping("/dispatch")
+    public DispatchReport dispatch(
+            @RequestHeader(name = ROLES, required = false) String roles,
+            @RequestParam UUID warehouseId) {
+        guard.require(roles, Permission.ORDER_VIEW);
+        return dashboards.dispatch(warehouseId);
     }
 }
