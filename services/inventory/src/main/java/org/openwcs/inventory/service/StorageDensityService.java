@@ -6,8 +6,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.openwcs.inventory.api.StorageDensityRow;
 import org.openwcs.inventory.client.MasterDataClient;
+import org.openwcs.inventory.client.MasterDataClient.StorageBlockRef;
 import org.openwcs.inventory.client.MasterDataUnavailableException;
 import org.openwcs.inventory.domain.StorageDensitySnapshot;
 import org.openwcs.inventory.repo.HandlingUnitRepository;
@@ -32,6 +34,10 @@ public class StorageDensityService {
 
     /** Chunk size for the occupied-locations IN queries (keeps bind-parameter counts sane). */
     private static final int LOCATION_CHUNK = 1000;
+
+    /** Automated storage-block types whose fill level is the ASRS utilisation (master-data ADR 0003). */
+    private static final Set<String> ASRS_TYPES =
+            Set.of("SHUTTLE_ASRS", "CRANE_ASRS", "AUTOSTORE", "AMR_GTP");
 
     private final StorageDensitySnapshotRepository snapshots;
     private final StockRepository stock;
@@ -72,6 +78,46 @@ public class StorageDensityService {
                         s.getBlockId(), s.getDay(), s.getOccupiedCells(), s.getTotalCells(),
                         pct(s.getOccupiedCells(), s.getTotalCells())))
                 .toList();
+    }
+
+    /**
+     * Today's live storage utilisation for the dashboard: occupied vs total cells across all
+     * storage blocks (overall) and across the automated ASRS blocks only. Reuses the same
+     * occupied-cell computation as the snapshot sweep, measured fresh (no snapshot needed).
+     * Best-effort: with master-data down both percentages are null.
+     */
+    public Utilisation todayUtilisation(UUID warehouseId) {
+        List<StorageBlockRef> blocks;
+        try {
+            blocks = masterData.storageBlocks(warehouseId);
+        } catch (MasterDataUnavailableException e) {
+            log.warn("dashboard utilisation skipped for warehouse {} because master-data is"
+                    + " unreachable ({}); returning null percentages", warehouseId, e.getMessage());
+            return new Utilisation(null, null);
+        }
+        int overallOccupied = 0;
+        int overallTotal = 0;
+        int asrsOccupied = 0;
+        int asrsTotal = 0;
+        for (StorageBlockRef block : blocks) {
+            List<UUID> cells = masterData.blockLocationIds(warehouseId, block.id());
+            int occupied = countOccupied(cells);
+            overallOccupied += occupied;
+            overallTotal += cells.size();
+            if (block.storageType() != null && ASRS_TYPES.contains(block.storageType())) {
+                asrsOccupied += occupied;
+                asrsTotal += cells.size();
+            }
+        }
+        return new Utilisation(pctOrNull(overallOccupied, overallTotal), pctOrNull(asrsOccupied, asrsTotal));
+    }
+
+    /** Overall vs ASRS-only fill percentage; either is null when there are no cells to measure. */
+    public record Utilisation(Double overallPct, Double asrsPct) {
+    }
+
+    private static Double pctOrNull(int occupied, int total) {
+        return total == 0 ? null : occupied * 100.0 / total;
     }
 
     /**

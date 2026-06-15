@@ -38,4 +38,24 @@ public interface MasterDataClient {
      * @throws MasterDataUnavailableException when master-data cannot be reached
      */
     List<UUID> blockLocationIds(UUID warehouseId, UUID blockId);
+
+    /**
+     * The warehouse's storage blocks with their storage type (e.g. {@code SHUTTLE_ASRS}); the
+     * dashboard needs the type to scope ASRS utilisation to the automated blocks only.
+     *
+     * @throws MasterDataUnavailableException when master-data cannot be reached
+     */
+    List<StorageBlockRef> storageBlocks(UUID warehouseId);
+
+    /**
+     * The ids of the warehouse's RECEIVING-purpose locations (where put-away starts); the
+     * dashboard counts HUs parked here, plus the UNKNOWN location, as the put-away backlog.
+     *
+     * @throws MasterDataUnavailableException when master-data cannot be reached
+     */
+    List<UUID> receivingLocationIds(UUID warehouseId);
+
+    /** A storage block reduced to the fields the dashboard needs (id + storage type). */
+    record StorageBlockRef(UUID id, String storageType) {
+    }
 }
