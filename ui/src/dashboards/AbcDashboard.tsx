@@ -6,6 +6,7 @@
 import { useMemo } from 'react'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import { useT } from '../i18n/useT'
+import { useCatalog } from '../lib/useCatalog'
 import { usePoll } from './usePoll'
 import { Hero, ParetoChart, WorstFirstStrip, type ParetoDatum } from './components'
 import { ChartCard, ChartRow, HeroRow, NoWarehouse, PageHead } from './DashboardPage'
@@ -16,18 +17,20 @@ const POLL = 60_000
 export default function AbcDashboard() {
   const t = useT('dashboards')
   const { currentWarehouseId: wh } = useWarehouse()
+  const cat = useCatalog(wh)
   const abc = usePoll(wh, loadAbc, POLL)
 
   // Classify each Pareto point by its cumulative-% position (A ≤ ~80%, B ≤ ~95%, C the rest).
+  // Show the SKU code (never the raw UUID); the catalog resolves it once it loads.
   const pareto: ParetoDatum[] = useMemo(() => {
     const pts = abc.data?.pareto ?? []
     return pts.map((p) => ({
-      label: p.skuId,
+      label: cat.skuCode(p.skuId),
       picks: p.picks,
       cumPct: p.cumPct,
       cls: p.cumPct <= 80 ? 'A' : p.cumPct <= 95 ? 'B' : 'C',
     }))
-  }, [abc.data])
+  }, [abc.data, cat])
 
   if (!wh) return <NoWarehouse />
 
@@ -60,12 +63,12 @@ export default function AbcDashboard() {
       <ChartRow>
         <ChartCard title={t('topMovers', 'Top 10 movers')} subtitle={t('topMoversSub', 'Most-picked SKUs over the window.')} minWidth={340}>
           <div style={{ paddingTop: '.5rem' }}>
-            <WorstFirstStrip entries={(d?.top ?? []).slice(0, 10).map((m) => ({ label: m.skuId, value: m.picks, display: String(m.picks) }))} max={topMax} />
+            <WorstFirstStrip entries={(d?.top ?? []).slice(0, 10).map((m) => ({ label: cat.skuLabel(m.skuId), value: m.picks, display: String(m.picks) }))} max={topMax} />
           </div>
         </ChartCard>
         <ChartCard title={t('bottomMovers', 'Bottom 10 movers')} subtitle={t('bottomMoversSub', 'Least-picked SKUs with any movement.')} minWidth={340}>
           <div style={{ paddingTop: '.5rem' }}>
-            <WorstFirstStrip entries={(d?.bottom ?? []).slice(0, 10).map((m) => ({ label: m.skuId, value: m.picks, display: String(m.picks) }))} max={Math.max(1, ...(d?.bottom ?? []).map((m) => m.picks))} />
+            <WorstFirstStrip entries={(d?.bottom ?? []).slice(0, 10).map((m) => ({ label: cat.skuLabel(m.skuId), value: m.picks, display: String(m.picks) }))} max={Math.max(1, ...(d?.bottom ?? []).map((m) => m.picks))} />
           </div>
         </ChartCard>
       </ChartRow>
@@ -74,14 +77,14 @@ export default function AbcDashboard() {
         <ChartCard title={t('risers', 'Risers')} subtitle={t('risersSub', 'SKUs whose 14-day pick rate most exceeds their 90-day rate.')} minWidth={340}>
           <div style={{ paddingTop: '.5rem' }}>
             <WorstFirstStrip
-              entries={(d?.risers ?? []).slice(0, 10).map((r) => ({ label: r.skuId, value: Math.max(0, r.pct14d - r.pct90d), display: `+${Math.round(r.pct14d - r.pct90d)}%`, state: 'warning' }))}
+              entries={(d?.risers ?? []).slice(0, 10).map((r) => ({ label: cat.skuLabel(r.skuId), value: Math.max(0, r.pct14d - r.pct90d), display: `+${Math.round(r.pct14d - r.pct90d)}%`, state: 'warning' }))}
             />
           </div>
         </ChartCard>
         <ChartCard title={t('fallers', 'Fallers')} subtitle={t('fallersSub', 'SKUs whose 14-day pick rate most lags their 90-day rate.')} minWidth={340}>
           <div style={{ paddingTop: '.5rem' }}>
             <WorstFirstStrip
-              entries={(d?.fallers ?? []).slice(0, 10).map((r) => ({ label: r.skuId, value: Math.max(0, r.pct90d - r.pct14d), display: `−${Math.round(r.pct90d - r.pct14d)}%` }))}
+              entries={(d?.fallers ?? []).slice(0, 10).map((r) => ({ label: cat.skuLabel(r.skuId), value: Math.max(0, r.pct90d - r.pct14d), display: `−${Math.round(r.pct90d - r.pct14d)}%` }))}
             />
           </div>
         </ChartCard>
