@@ -329,6 +329,27 @@ paths:
               schema: { $ref: '#/components/schemas/Autostore' }
         "403":
           description: Missing DEVICE_VIEW
+  /twin/asrs-cranes:
+    get:
+      tags: [Twin]
+      summary: Live ASRS crane positions, status and carried HU
+      description: >
+        Per ASRS crane, its world coordinates (x/z metres aisle floor position, y the lift height in
+        metres), status (IDLE/MOVING/FAULTED) and carried handling unit if any, read from the
+        equipment-emulator's crane telemetry (world coords resolve from placed_equipment by code where
+        the emulator omits them). Best-effort, it returns an empty list when the emulator is off or
+        unreachable. Requires DEVICE_VIEW.
+      operationId: twinAsrsCranes
+      parameters:
+        - $ref: '#/components/parameters/TwinWarehouseId'
+      responses:
+        "200":
+          description: ASRS crane snapshot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AsrsCranes' }
+        "403":
+          description: Missing DEVICE_VIEW
 
   /reports/scan-quality:
     get:
@@ -841,3 +862,20 @@ components:
         z: { type: number, format: double, description: World Z (depth) in metres. }
         busy: { type: boolean, description: Whether the port is presenting/working a bin. }
         huCode: { type: string, nullable: true, description: "Handling unit at the port, or null." }
+    AsrsCranes:
+      type: object
+      description: "Live ASRS crane snapshot: per crane, world coordinates, status and carried HU."
+      properties:
+        serverTimeMs: { type: integer, format: int64, description: Server clock at response time. }
+        cranes:
+          type: array
+          items: { $ref: '#/components/schemas/Crane' }
+    Crane:
+      type: object
+      properties:
+        craneId: { type: string }
+        x: { type: number, format: double, description: World X in metres. }
+        y: { type: number, format: double, description: "Lift height in metres (vertical axis)." }
+        z: { type: number, format: double, description: World Z (depth) in metres. }
+        status: { type: string, enum: [IDLE, MOVING, FAULTED] }
+        huCode: { type: string, nullable: true, description: "Carried handling unit code, or null when empty." }

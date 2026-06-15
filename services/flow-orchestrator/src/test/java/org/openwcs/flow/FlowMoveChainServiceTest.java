@@ -167,6 +167,64 @@ class FlowMoveChainServiceTest {
     }
 
     @Test
+    void crossSystemMoveIntoAutostoreDestResolvesBinStoreEvenWhenSourceFamilyDiffers() {
+        asyncAdapter();
+        UUID warehouse = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+        UUID toBlock = UUID.randomUUID();
+        // Source is ASRS; destination block resolves to AUTOSTORE ⇒ the STORE leg must be BIN_STORE
+        // (AUTOSTORE family), NOT the source family, with no explicit destFamily on the request.
+        when(masterData.blockId(warehouse, from)).thenReturn(UUID.randomUUID());
+        when(masterData.blockId(warehouse, to)).thenReturn(toBlock);
+        when(masterData.blockStorageType(warehouse, toBlock)).thenReturn("AUTOSTORE");
+
+        FlowMoveResult result = moveService.move(
+                new FlowMoveRequest(warehouse, huId, "TTE-AS", from, to, "ASRS", null, null, "rebalance"), "op");
+
+        // Leg 1: source family ASRS ⇒ plain RETRIEVE.
+        assertThat(deviceTasks.get(result.deviceTaskId()).command()).isEqualTo("RETRIEVE");
+        deviceTasks.completeFromCallback(result.deviceTaskId(), "COMPLETED", "retrieved", Map.of());
+        UUID convey = lastTask(warehouse, "CONVEY").id();
+        deviceTasks.completeFromCallback(convey, "COMPLETED", "conveyed", Map.of());
+
+        // Leg 3: the destination block resolved AUTOSTORE ⇒ BIN_STORE on the AUTOSTORE family.
+        DeviceTaskView store = lastTask(warehouse, "BIN_STORE");
+        assertThat(store.command()).isEqualTo("BIN_STORE");
+        assertThat(store.family()).isEqualTo("AUTOSTORE");
+        assertThat(store.payload()).containsEntry("locationId", to.toString());
+    }
+
+    @Test
+    void crossSystemMoveWithUnresolvableDestBlockFallsBackToSourceFamily() {
+        asyncAdapter();
+        UUID warehouse = UUID.randomUUID();
+        UUID huId = UUID.randomUUID();
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+        UUID toBlock = UUID.randomUUID();
+        // Destination block exists but its storage type can't be mapped to a device family (master-data
+        // down / non-automated) ⇒ the STORE leg falls back to the source family (AUTOSTORE ⇒ BIN_STORE).
+        when(masterData.blockId(warehouse, from)).thenReturn(UUID.randomUUID());
+        when(masterData.blockId(warehouse, to)).thenReturn(toBlock);
+        when(masterData.blockStorageType(warehouse, toBlock)).thenReturn(null);
+
+        FlowMoveResult result = moveService.move(
+                new FlowMoveRequest(warehouse, huId, "TTE-FB", from, to, "AUTOSTORE", null, null, null), "op");
+
+        // Source family AUTOSTORE ⇒ BIN_RETRIEVE on leg 1.
+        assertThat(deviceTasks.get(result.deviceTaskId()).command()).isEqualTo("BIN_RETRIEVE");
+        deviceTasks.completeFromCallback(result.deviceTaskId(), "COMPLETED", "retrieved", Map.of());
+        UUID convey = lastTask(warehouse, "CONVEY").id();
+        deviceTasks.completeFromCallback(convey, "COMPLETED", "conveyed", Map.of());
+
+        // Fallback to the source AUTOSTORE family ⇒ BIN_STORE.
+        DeviceTaskView store = lastTask(warehouse, "BIN_STORE");
+        assertThat(store.family()).isEqualTo("AUTOSTORE");
+    }
+
+    @Test
     void destinationWithoutABlockIsCrossSystem() {
         asyncAdapter();
         UUID warehouse = UUID.randomUUID();

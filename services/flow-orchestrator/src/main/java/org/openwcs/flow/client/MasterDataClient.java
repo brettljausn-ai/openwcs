@@ -91,6 +91,52 @@ public class MasterDataClient {
     private record FullLocation(UUID id, UUID blockId) {
     }
 
+    /**
+     * The {@code storageType} of a storage block ({@code SHUTTLE_ASRS | CRANE_ASRS | AUTOSTORE |
+     * AMR_GTP | MANUAL_PICK | RESERVE_RACK}), used to resolve the destination device family of a
+     * cross-system move. Returns {@code null} when the block can't be resolved (no id, master-data
+     * down, or unknown) — callers then fall back to the source family.
+     */
+    public String blockStorageType(UUID warehouseId, UUID blockId) {
+        if (blockId == null) {
+            return null;
+        }
+        try {
+            Block block = http.get()
+                    .uri("/api/master-data/storage-blocks/{id}", blockId)
+                    .retrieve()
+                    .body(Block.class);
+            return block == null ? null : block.storageType();
+        } catch (RestClientException e) {
+            log.warn("storage-block lookup failed for {} in warehouse {} (treating as unresolved): {}",
+                    blockId, warehouseId, e.toString());
+            return null;
+        }
+    }
+
+    /** Subset of the master-data storage block carrying its type. */
+    private record Block(UUID id, String storageType) {
+    }
+
+    /**
+     * Map a storage-block type to the device-adapter family that services it (the flow-orchestrator
+     * adapter key: {@code ASRS | AUTOSTORE | AMR}). Returns {@code null} for non-automated storage
+     * ({@code MANUAL_PICK}, {@code RESERVE_RACK}) or an unknown type — there is no device family.
+     * Shuttle and crane ASRS share the one {@code ASRS} adapter. Mirrors the same mapping used by the
+     * counting and gtp master-data clients.
+     */
+    public static String deviceFamilyOf(String storageType) {
+        if (storageType == null) {
+            return null;
+        }
+        return switch (storageType) {
+            case "SHUTTLE_ASRS", "CRANE_ASRS" -> "ASRS";
+            case "AUTOSTORE" -> "AUTOSTORE";
+            case "AMR_GTP" -> "AMR";
+            default -> null;
+        };
+    }
+
     /** Whether master-data demo mode (DEMO_MODE_ENABLED) is currently ON; false on any error. */
     public boolean demoEnabled() {
         try {
