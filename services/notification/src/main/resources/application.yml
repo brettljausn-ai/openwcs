@@ -3,6 +3,64 @@ server:
 spring:
   application:
     name: notification
+  # Service-local store: an isolated `notification` schema in dev.
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/openwcs}
+    username: ${SPRING_DATASOURCE_USERNAME:openwcs}
+    password: ${SPRING_DATASOURCE_PASSWORD:openwcs}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: notification
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    schemas: notification
+    default-schema: notification
+    create-schemas: true
+  # SMTP for the email delivery channel. Left blank by default so the service (and its tests)
+  # boot without a mail server; AlertEmailSender then logs-and-skips. Set SPRING_MAIL_HOST etc.
+  # (and openwcs.notification.mail.* below) to enable.
+  mail:
+    host: ${SPRING_MAIL_HOST:}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SPRING_MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${SPRING_MAIL_SMTP_STARTTLS:true}
+
+openwcs:
+  # Per-endpoint RBAC (build.md §4.8); off by default so the stack runs before a Keycloak realm.
+  security:
+    enabled: ${OPENWCS_SECURITY_ENABLED:false}
+  notification:
+    # Metric + threshold sources. Defaults are localhost (host-run dev); compose/k8s override.
+    master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
+    inventory-base-url: ${OPENWCS_INVENTORY_BASE_URL:http://localhost:8082}
+    order-management-base-url: ${OPENWCS_ORDER_MANAGEMENT_BASE_URL:http://localhost:8084}
+    flow-base-url: ${OPENWCS_FLOW_ORCHESTRATOR_BASE_URL:http://localhost:8085}
+    allocation-base-url: ${OPENWCS_ALLOCATION_BASE_URL:http://localhost:8091}
+    slotting-base-url: ${OPENWCS_SLOTTING_BASE_URL:http://localhost:8093}
+    # How often the evaluator fires (ms). Default 60s.
+    evaluate-interval-ms: ${OPENWCS_NOTIFICATION_EVALUATE_INTERVAL_MS:60000}
+    # Which warehouses to scan. Empty = discover from master-data (GET /warehouses). A
+    # comma-separated list of UUIDs restricts the scan to those (useful in tests / pinned envs).
+    warehouse-ids: ${OPENWCS_NOTIFICATION_WAREHOUSE_IDS:}
+    mail:
+      # Comma-separated recipients. When blank (or no SPRING_MAIL_HOST) email is logged and skipped.
+      to: ${OPENWCS_NOTIFICATION_MAIL_TO:}
+      from: ${OPENWCS_NOTIFICATION_MAIL_FROM:openwcs-alerts@localhost}
+    # Outbound webhook for OPEN/CLEAR events. Unset = webhook channel skipped.
+    webhook-url: ${ALERT_WEBHOOK_URL:}
+
 management:
   endpoints:
     web:

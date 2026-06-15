@@ -28,6 +28,16 @@ data:
   OPENWCS_EMULATOR_URL: http://equipment-emulator:9097
   OPENWCS_IAM_BASE_URL: http://iam:8087
   OPENWCS_ALLOCATION_HOST_LABEL_BASE_URL: http://integration-sap:8089
+  # notification service (Dashboards & alerting): evaluator cadence + warehouse scope (blank =
+  # discover from master-data). Email/webhook delivery left unconfigured by default → log-and-skip;
+  # set SPRING_MAIL_HOST + OPENWCS_NOTIFICATION_MAIL_TO (and/or ALERT_WEBHOOK_URL) to enable.
+  OPENWCS_NOTIFICATION_EVALUATE_INTERVAL_MS: "60000"
+  OPENWCS_NOTIFICATION_WAREHOUSE_IDS: ""
+  SPRING_MAIL_HOST: ""
+  SPRING_MAIL_PORT: "587"
+  OPENWCS_NOTIFICATION_MAIL_FROM: openwcs-alerts@localhost
+  OPENWCS_NOTIFICATION_MAIL_TO: ""
+  ALERT_WEBHOOK_URL: ""
 ---
 # DB credentials. PLACEHOLDER — replace with a real Secret (or wire to your secrets manager / a
 # SealedSecret). Never commit real credentials.

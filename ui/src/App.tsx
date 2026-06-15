@@ -37,9 +37,21 @@ import OrderFlowReport from './reporting/OrderFlowReport'
 import SystemInfoScreen from './systeminfo/SystemInfoScreen'
 import LogsPage from './systeminfo/LogsPage'
 import DatabaseScreen from './admindb/DatabaseScreen'
+import DashboardsOverview from './dashboards/Overview'
+import DashboardsInbound from './dashboards/InboundDashboard'
+import DashboardsOutbound from './dashboards/OutboundDashboard'
+import DashboardsReplenishment from './dashboards/ReplenishmentDashboard'
+import DashboardsStock from './dashboards/StockDashboard'
+import DashboardsAbc from './dashboards/AbcDashboard'
 
 const COMPONENTS: Record<string, JSX.Element> = {
   dashboard: <Dashboard />,
+  'dashboards:overview': <DashboardsOverview />,
+  'dashboards:inbound': <DashboardsInbound />,
+  'dashboards:outbound': <DashboardsOutbound />,
+  'dashboards:replenishment': <DashboardsReplenishment />,
+  'dashboards:stock': <DashboardsStock />,
+  'dashboards:abc': <DashboardsAbc />,
   topology: <TopologyEditor />,
   processes: <ProcessDesigner />,
   slotting: <SlottingScreen />,

@@ -44,14 +44,16 @@ import {
   saveFulfillmentConfig,
   updateShipper,
 } from './api'
+import { getAlertThresholds, saveAlertThresholds, type AlertThresholds } from '../dashboards/api'
 
-type Tab = 'slotting' | 'cubing' | 'counting' | 'stockrules' | 'integration' | 'system' | 'demo' | 'emulator'
+type Tab = 'slotting' | 'cubing' | 'counting' | 'stockrules' | 'alerts' | 'integration' | 'system' | 'demo' | 'emulator'
 
 const TABS: { key: Tab; labelKey: string; label: string }[] = [
   { key: 'slotting', labelKey: 'tabSlotting', label: 'Slotting policy' },
   { key: 'cubing', labelKey: 'tabCubing', label: 'Cubing' },
   { key: 'counting', labelKey: 'tabCounting', label: 'Counting' },
   { key: 'stockrules', labelKey: 'tabStockRules', label: 'Stock rules' },
+  { key: 'alerts', labelKey: 'tabAlerts', label: 'Alerts' },
   { key: 'integration', labelKey: 'tabIntegrations', label: 'Integrations' },
   { key: 'system', labelKey: 'tabSystemStatus', label: 'System status' },
   { key: 'demo', labelKey: 'tabDemoMode', label: 'Demo mode' },
@@ -143,6 +145,7 @@ export default function SettingsScreen() {
           {tab === 'cubing' && <CubingSettings warehouseId={warehouseId} />}
           {tab === 'counting' && <CountingSettings warehouseId={warehouseId} />}
           {tab === 'stockrules' && <StockRulesSettings />}
+          {tab === 'alerts' && <AlertThresholdsSettings />}
           {tab === 'integration' && <Integrations />}
           {tab === 'system' && <SystemStatus />}
           {tab === 'demo' && <DemoMode warehouseId={warehouseId} />}
@@ -1219,6 +1222,114 @@ function StockRulesSettings() {
           </span>
         </div>
       </div>
+    </section>
+  )
+}
+
+// Alert thresholds (ADMIN). The configurable defaults that drive every dashboard's computed state
+// and the notification alert evaluator. Grey-base / colour-on-breach doctrine: these numbers decide
+// when a dashboard tile turns amber/red and when an alert is raised. All are configurable per the
+// spec (no hard-coded industry truths). Mirrors StockRulesSettings: NumberField + settings-write gate.
+function AlertThresholdsSettings() {
+  const t = useT('settings')
+  const canWrite = useSettingsWrite()
+  const [thr, setThr] = useState<AlertThresholds | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    getAlertThresholds()
+      .then(setThr)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }, [])
+
+  function patch(p: Partial<AlertThresholds>) {
+    setThr((c) => (c ? { ...c, ...p } : c))
+    setSaved(false)
+  }
+
+  async function save() {
+    if (!thr) return
+    setSaving(true)
+    setError(null)
+    try {
+      setThr(await saveAlertThresholds(thr))
+      setSaved(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className={`glass ${styles.section}`}>
+      <div className={styles.sectionHead}>
+        <div>
+          <h2>{t('alertsHeading', 'Alert thresholds')}</h2>
+          <p>
+            {t(
+              'alertsIntro',
+              'The configurable limits that decide when a dashboard tile turns amber or red and when an alert is raised. These are openWCS defaults, not fixed industry standards — tune them to your floor.',
+            )}
+          </p>
+        </div>
+      </div>
+
+      {error && <div className="alert-danger" style={{ marginBottom: '1rem' }}>{error}</div>}
+      {!thr && !error && <p className={styles.muted}>{t('loading', 'Loading…')}</p>}
+
+      {thr && (
+        <>
+          <div className={styles.grid}>
+            <NumberField
+              label={<>{t('scanNoReadPct', 'Scan no-read % (max)')} <InfoTip text={t('tipScanNoReadPct', 'Automation alerts above this scanner no-read rate for the day. Vendors display sub-1% as healthy; 1% is the openWCS default.')} example="1" /></>}
+              value={thr.scanNoReadPct}
+              step="0.1"
+              onChange={(v) => patch({ scanNoReadPct: v })}
+              hint={t('hintScanNoReadPct', 'Today’s scanner no-read rate alerts above this %.')}
+            />
+            <NumberField
+              label={<>{t('receiveErrorsDay', 'Receive errors / day (max)')} <InfoTip text={t('tipReceiveErrorsDay', 'Inbound goes critical when receive errors today exceed this count.')} example="5" /></>}
+              value={thr.receiveErrorsDay}
+              step="1"
+              onChange={(v) => patch({ receiveErrorsDay: v })}
+            />
+            <NumberField
+              label={<>{t('asrsUtilisationPct', 'ASRS utilisation % (warn)')} <InfoTip text={t('tipAsrsUtilisationPct', 'Stock utilisation warns at this % and goes critical at 95%. Industry-typical honest-capacity guidance, configurable.')} example="85" /></>}
+              value={thr.asrsUtilisationPct}
+              step="1"
+              onChange={(v) => patch({ asrsUtilisationPct: v })}
+            />
+            <NumberField
+              label={<>{t('blockedLinesPct', 'Blocked outbound lines % (crit)')} <InfoTip text={t('tipBlockedLinesPct', 'Stock-blocking goes critical when more than this % of today’s open outbound lines are unfulfillable.')} example="5" /></>}
+              value={thr.blockedLinesPct}
+              step="0.5"
+              onChange={(v) => patch({ blockedLinesPct: v })}
+            />
+            <NumberField
+              label={<>{t('putawayBacklogAgeMin', 'Putaway backlog age (min, warn)')} <InfoTip text={t('tipPutawayBacklogAgeMin', 'Putaway backlog warns when the oldest waiting HU passes this age and goes critical at double it. Default 120 min (2 h).')} example="120" /></>}
+              value={thr.putawayBacklogAgeMin}
+              step="5"
+              onChange={(v) => patch({ putawayBacklogAgeMin: v })}
+            />
+            <NumberField
+              label={<>{t('replenishmentOldestAgeMin', 'Replenishment task age (min, warn)')} <InfoTip text={t('tipReplenishmentOldestAgeMin', 'Open replenishment tasks warn when the oldest passes this age and go critical at double it.')} example="120" /></>}
+              value={thr.replenishmentOldestAgeMin}
+              step="5"
+              onChange={(v) => patch({ replenishmentOldestAgeMin: v })}
+            />
+          </div>
+
+          <div className={styles.actions}>
+            <button className="btn btn-primary" type="button" onClick={save} disabled={saving || !canWrite}>
+              {saving ? t('saving', 'Saving…') : t('saveThresholds', 'Save thresholds')}
+            </button>
+            {saved && <span className={styles.savedNote}>{t('saved', 'Saved.')}</span>}
+          </div>
+        </>
+      )}
     </section>
   )
 }

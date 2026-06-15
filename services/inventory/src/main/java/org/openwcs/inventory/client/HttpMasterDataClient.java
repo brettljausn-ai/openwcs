@@ -94,6 +94,33 @@ public class HttpMasterDataClient implements MasterDataClient {
     }
 
     @Override
+    public List<StorageBlockRef> storageBlocks(UUID warehouseId) {
+        try {
+            List<BlockRow> blocks = http.get()
+                    .uri(uri -> uri.path("/api/master-data/storage-blocks")
+                            .queryParam("warehouseId", warehouseId)
+                            .build())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<BlockRow>>() { });
+            return blocks == null ? List.of()
+                    : blocks.stream().map(b -> new StorageBlockRef(b.id(), b.storageType())).toList();
+        } catch (RestClientException e) {
+            throw unavailable("storage blocks of warehouse " + warehouseId, e);
+        }
+    }
+
+    @Override
+    public List<UUID> receivingLocationIds(UUID warehouseId) {
+        return pageThrough("RECEIVING locations of warehouse " + warehouseId,
+                page -> uri -> uri.path("/api/master-data/locations")
+                        .queryParam("warehouseId", warehouseId)
+                        .queryParam("locationType", "RECEIVING")
+                        .queryParam("page", page)
+                        .queryParam("size", PAGE_SIZE)
+                        .build());
+    }
+
+    @Override
     public List<UUID> blockLocationIds(UUID warehouseId, UUID blockId) {
         return pageThrough("locations of block " + blockId,
                 page -> uri -> uri.path("/api/master-data/locations")
@@ -142,6 +169,11 @@ public class HttpMasterDataClient implements MasterDataClient {
 
     /** Any master-data row of which only the id matters here (warehouse / block / location). */
     private record IdOnly(UUID id) {
+    }
+
+    /** Subset of a master-data storage block (id + storage type) for ASRS-scoped utilisation. */
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    private record BlockRow(UUID id, String storageType) {
     }
 
     /** Subset of master-data's page envelope (content rows + page count). */

@@ -1,5 +1,6 @@
 package org.openwcs.inventory.repo;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,6 +13,24 @@ import org.springframework.data.repository.query.Param;
 public interface HandlingUnitRepository extends JpaRepository<HandlingUnit, UUID> {
 
     List<HandlingUnit> findByWarehouseId(UUID warehouseId);
+
+    // ------------------------------------------------------------------ Dashboard aggregates
+
+    /** Total handling units in a warehouse (dashboard huCount). */
+    long countByWarehouseId(UUID warehouseId);
+
+    /** Handling units created in a warehouse since an instant (dashboard husReceivedToday). */
+    long countByWarehouseIdAndCreatedAtGreaterThanEqual(UUID warehouseId, Instant since);
+
+    /**
+     * Handling units of a warehouse parked at any of the given (receiving / UNKNOWN-ish)
+     * locations, oldest first — the putaway backlog: received but not yet stored away.
+     */
+    @Query("select h from HandlingUnit h where h.warehouseId = :warehouseId"
+            + " and h.locationId in :locationIds order by h.createdAt asc")
+    List<HandlingUnit> findBacklogByWarehouseIdAndLocationIdIn(
+            @Param("warehouseId") UUID warehouseId,
+            @Param("locationIds") java.util.Collection<UUID> locationIds);
 
     Optional<HandlingUnit> findByWarehouseIdAndCode(UUID warehouseId, String code);
 

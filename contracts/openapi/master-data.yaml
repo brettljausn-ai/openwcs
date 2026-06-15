@@ -112,6 +112,41 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/StockRules' }
         "403": { description: Not an ADMIN }
+  /alert-thresholds:
+    get:
+      tags: [Equipment]
+      summary: Dashboard alert thresholds
+      description: >
+        The central store for every threshold the dashboards/alerting epic watches (scan no-read
+        rate, daily receive errors, ASRS utilisation, blocked order lines, putaway backlog age,
+        replenishment oldest age). Returns the baked defaults merged with any stored overrides, so
+        new threshold keys appear automatically. Reads are open.
+      operationId: getAlertThresholds
+      responses:
+        "200":
+          description: Effective alert thresholds (defaults merged with stored overrides)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertThresholds' }
+    put:
+      tags: [Equipment]
+      summary: Replace the dashboard alert thresholds (admin-only)
+      description: >
+        Stores the given thresholds (merged over the baked defaults) and returns the effective set.
+        ADMIN only; audited with X-Auth-User.
+      operationId: putAlertThresholds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlertThresholds' }
+      responses:
+        "200":
+          description: Effective alert thresholds after the update
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertThresholds' }
+        "403": { description: Not an ADMIN }
   # ---------------------------------------------------------------- Warehouses
   /warehouses:
     get:
@@ -1183,6 +1218,32 @@ components:
           type: boolean
           description: One HU compartment holds exactly one SKU (default true).
       required: [singleSkuPerCompartment]
+    AlertThresholds:
+      type: object
+      description: >
+        Dashboard alert thresholds (defaults merged with stored overrides). Baked defaults:
+        scanNoReadPct 1.0, receiveErrorsDay 5, asrsUtilisationPct 85, blockedLinesPct 5,
+        putawayBacklogAgeMin 120, replenishmentOldestAgeMin 120.
+      properties:
+        scanNoReadPct:
+          type: number
+          format: double
+          description: Scanner no-read rate alert threshold, percent (default 1.0).
+        receiveErrorsDay:
+          type: integer
+          description: Daily receiving-error count alert threshold (default 5).
+        asrsUtilisationPct:
+          type: integer
+          description: ASRS storage utilisation alert threshold, percent (default 85).
+        blockedLinesPct:
+          type: integer
+          description: Blocked order-line share alert threshold, percent (default 5).
+        putawayBacklogAgeMin:
+          type: integer
+          description: Oldest putaway-backlog age alert threshold, minutes (default 120).
+        replenishmentOldestAgeMin:
+          type: integer
+          description: Oldest open replenishment age alert threshold, minutes (default 120).
     # --------------------------------------------------------------- Enumerations
     LifecycleStatus:
       type: string

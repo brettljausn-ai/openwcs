@@ -1,6 +1,12 @@
 // French (Français) — sidebar navigation labels + section headers (keys = screen `key`s).
 export default {
-  dashboard: 'Tableau de bord',
+  dashboard: 'Liens rapides',
+  'dashboards:overview': 'Vue d’ensemble',
+  'dashboards:inbound': 'Réception',
+  'dashboards:outbound': 'Expédition',
+  'dashboards:replenishment': 'Réapprovisionnement',
+  'dashboards:stock': 'Niveaux de stock',
+  'dashboards:abc': 'Mouvements ABC',
   inbound: 'Réceptions',
   outbound: 'Expéditions',
   counting: 'Comptage des stocks',
@@ -32,6 +38,7 @@ export default {
   'warehouse-access': 'Accès aux entrepôts',
   'system-info': 'Infos système',
   'admin-database': 'Base de données',
+  'section:Dashboards': 'Tableaux de bord',
   'section:Master data': 'Données de base',
   'section:Operations': 'Exploitation',
   'section:Reporting': 'Rapports',

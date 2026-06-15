@@ -1,6 +1,12 @@
 // German (Deutsch) — sidebar navigation labels + section headers (keys = screen `key`s).
 export default {
-  dashboard: 'Dashboard',
+  dashboard: 'Schnellzugriff',
+  'dashboards:overview': 'Übersicht',
+  'dashboards:inbound': 'Wareneingang',
+  'dashboards:outbound': 'Warenausgang',
+  'dashboards:replenishment': 'Nachschub',
+  'dashboards:stock': 'Bestandsfüllgrad',
+  'dashboards:abc': 'ABC-Renner',
   inbound: 'Wareneingangsaufträge',
   outbound: 'Warenausgangsaufträge',
   counting: 'Bestandszählung',
@@ -32,6 +38,7 @@ export default {
   'warehouse-access': 'Lagerzugriff',
   'system-info': 'Systeminfo',
   'admin-database': 'Datenbank',
+  'section:Dashboards': 'Dashboards',
   'section:Master data': 'Stammdaten',
   'section:Operations': 'Betrieb',
   'section:Reporting': 'Berichte',

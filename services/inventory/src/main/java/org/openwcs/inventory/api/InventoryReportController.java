@@ -32,6 +32,16 @@ public class InventoryReportController {
     }
 
     /**
+     * Dashboard KPIs for one warehouse: HUs received today, HU count, SKUs with stock, overall
+     * and ASRS storage utilisation, and the put-away backlog. Best-effort (partial / nulls over
+     * 500s when a dependency is degraded).
+     */
+    @GetMapping("/dashboard")
+    public InventoryDashboard dashboard(@RequestParam UUID warehouseId) {
+        return reports.dashboard(warehouseId);
+    }
+
+    /**
      * Storage-density history: per storage block and day, occupied vs total cells and the
      * fill percentage. Today is snapshotted on demand when the daily sweep has not run yet.
      */
