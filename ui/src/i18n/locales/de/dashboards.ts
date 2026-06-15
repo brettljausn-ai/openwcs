@@ -130,4 +130,39 @@ export default {
   topMoversSub: 'Am häufigsten gepickte SKUs im Zeitraum.',
   bottomMovers: 'Unterste 10 Renner',
   bottomMoversSub: 'Am seltensten gepickte SKUs mit Bewegung.',
+  // wired metrics (receive errors, dock-to-stock, SLA)
+  threshold: 'Schwelle',
+  target: 'Ziel',
+  samples: 'Messwerte heute',
+  dockToStock: 'Wareneingang bis Lager (Median)',
+  onTimeToCutoff: 'Pünktlich zum Annahmeschluss',
+  cycleTimeMedian: 'Auftragsdurchlaufzeit (Median)',
+  // andon board
+  andonTitle: 'Andon-Tafel',
+  andonIntro:
+    'Live-Alarmtafel des Leitstands für Wandanzeigen. Kritisches zuerst, dann Warnungen; Farbe und Form markieren die Dringlichkeit. Eine ruhige, graue Tafel bedeutet einen gesunden Betrieb.',
+  andonAllClear: 'Alles in Ordnung',
+  andonAllClearSub: 'Keine aktiven Alarme. Ein gesunder Betrieb wirkt ruhig.',
+  // alert-system health
+  alertHealthTitle: 'Zustand des Alarmsystems',
+  alertHealthIntro:
+    'Wie sich das Alarmsystem selbst verhält. Ein Alarm ist nur nützlich, wenn er eine Reaktion erfordert, daher beobachten wir die Last: aktive Anzahl, das tägliche Verhältnis von eröffnet zu geklärt, ständig flatternde (chattering) Alarme und veraltete Alarme.',
+  activeCritical: 'Aktiv kritisch',
+  activeWarning: 'Aktiv Warnung',
+  chatteringCount: 'Flatternde Alarme',
+  chatteringHint: 'wechseln offen/geklärt',
+  staleCount: 'Veraltete Alarme',
+  staleHint: 'lange offen',
+  openedCleared: 'Eröffnet vs. geklärt pro Tag',
+  openedClearedSub:
+    'Ein gesundes System klärt etwa so viele Alarme, wie es eröffnet; eine wachsende Lücke bedeutet Alarmstau.',
+  noAlertHistory: 'Noch keine Alarmhistorie in diesem Zeitraum.',
+  opened: 'Eröffnet',
+  cleared: 'Geklärt',
+  chatteringTitle: 'Flatternde Alarme',
+  chatteringSub:
+    'Alarme, die zwischen offen und geklärt wechseln; die schlimmsten verschwenden Aufmerksamkeit und sollten neu eingestellt werden.',
+  staleTitle: 'Veraltete Alarme',
+  staleSub:
+    'Am längsten offene Alarme; älteste zuerst. Langlebige Alarme bedeuten meist eine fehlende Reaktion oder eine falsch gesetzte Schwelle.',
 }

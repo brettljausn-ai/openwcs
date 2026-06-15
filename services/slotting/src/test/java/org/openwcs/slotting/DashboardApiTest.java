@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -19,6 +21,7 @@ import org.openwcs.slotting.domain.ReplenishmentTask;
 import org.openwcs.slotting.domain.SkuVelocity;
 import org.openwcs.slotting.repo.PickSlotRepository;
 import org.openwcs.slotting.repo.ReplenishmentTaskRepository;
+import org.openwcs.slotting.repo.SkuPickDailyRepository;
 import org.openwcs.slotting.repo.SkuVelocityRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -64,6 +67,9 @@ class DashboardApiTest {
 
     @Autowired
     SkuVelocityRepository velocity;
+
+    @Autowired
+    SkuPickDailyRepository dailyPicks;
 
     @Autowired
     JdbcTemplate jdbc;
@@ -190,20 +196,68 @@ class DashboardApiTest {
     }
 
     @Test
-    void abcRisersAndFallersByShortVsLongWindow() throws Exception {
+    void abcRisersAndFallersByRealTrailingWindows() throws Exception {
         UUID wh = UUID.randomUUID();
-        UUID riser = UUID.randomUUID();   // big recent pending, small established score
-        UUID faller = UUID.randomUUID();  // no recent pending, big established score
-        UUID steady = UUID.randomUUID();
+        UUID riser = UUID.randomUUID();   // concentrated in the last 14d -> 14d share >> 90d share
+        UUID faller = UUID.randomUUID();  // all picks 60-80d ago, none recent -> 14d share << 90d share
+        UUID steady = UUID.randomUUID();  // evenly spread -> shares roughly equal
 
-        vel(wh, riser, "B", "10", "90");   // short share high, long share low -> riser
-        vel(wh, faller, "A", "90", "0");   // short share 0, long share high -> faller
-        vel(wh, steady, "B", "20", "10");
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+
+        // Riser: 80 picks inside the 14d window, nothing older.
+        dailyPicks.addPicks(wh, riser, today.minusDays(2), 40);
+        dailyPicks.addPicks(wh, riser, today.minusDays(5), 40);
+
+        // Faller: 100 picks all 60-80d ago (inside 90d but outside 14d).
+        dailyPicks.addPicks(wh, faller, today.minusDays(60), 50);
+        dailyPicks.addPicks(wh, faller, today.minusDays(80), 50);
+
+        // Steady: a few picks now and a comparable amount earlier, so the two shares track.
+        dailyPicks.addPicks(wh, steady, today.minusDays(3), 10);
+        dailyPicks.addPicks(wh, steady, today.minusDays(40), 10);
+        dailyPicks.addPicks(wh, steady, today.minusDays(70), 10);
 
         mockMvc.perform(get("/api/slotting/velocity/abc").param("warehouseId", wh.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.risers[0].skuId").value(riser.toString()))
-                .andExpect(jsonPath("$.fallers[0].skuId").value(faller.toString()));
+                .andExpect(jsonPath("$.fallers[0].skuId").value(faller.toString()))
+                // pct14d / pct90d are real windowed shares, not the EWMA proxy.
+                .andExpect(jsonPath("$.risers[0].pct14d")
+                        .value(org.hamcrest.Matchers.greaterThan(0.0)))
+                .andExpect(jsonPath("$.fallers[0].pct14d").value(0.0))
+                .andExpect(jsonPath("$.fallers[0].pct90d")
+                        .value(org.hamcrest.Matchers.greaterThan(0.0)));
+    }
+
+    @Test
+    void dailyPickUpsertAccumulatesAndIsIdempotentPerWindow() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+
+        // Same day, multiple calls accumulate.
+        dailyPicks.addPicks(wh, sku, today, 1);
+        dailyPicks.addPicks(wh, sku, today, 1);
+        dailyPicks.addPicks(wh, sku, today, 3);
+
+        // A pick on a different day in the 14d window.
+        dailyPicks.addPicks(wh, sku, today.minusDays(7), 2);
+
+        LocalDate from14 = today.minusDays(13);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                7L, dailyPicks.windowPicksBySku(wh, from14, today).getOrDefault(sku, 0L),
+                "same-day upserts accumulate (5) plus the older in-window day (2)");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                7L, dailyPicks.windowTotal(wh, from14, today));
+
+        // Days outside the 14d window are excluded from that window's sum.
+        dailyPicks.addPicks(wh, sku, today.minusDays(40), 9);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                7L, dailyPicks.windowTotal(wh, from14, today),
+                "out-of-window day must not leak into the 14d total");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                16L, dailyPicks.windowTotal(wh, today.minusDays(89), today),
+                "but it is counted inside the 90d window");
     }
 
     @Test

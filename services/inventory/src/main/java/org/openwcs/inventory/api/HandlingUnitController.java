@@ -102,6 +102,14 @@ public class HandlingUnitController {
             targetLocationId = masterData.unknownLocationId(existing.getWarehouseId());
         }
         existing.setLocationId(targetLocationId);
+        // Dock-to-stock timing: the first time an HU lands in a real STORAGE slot (not UNKNOWN, not
+        // a receiving location) we stamp stored_at = now(). First store wins (a later move between
+        // storage slots does not reset it), and re-booking back to receiving / UNKNOWN does not
+        // clear it. Best-effort: if master-data can't tell us the receiving locations we skip the
+        // stamp rather than failing the booking (the timing sample is simply not recorded).
+        if (!unknownPosition && existing.getStoredAt() == null && isStorageLocation(existing.getWarehouseId(), targetLocationId)) {
+            existing.setStoredAt(java.time.Instant.now());
+        }
         // The stock RIDES IN the tote: its rows' location must follow the HU, or the stock overview
         // keeps pointing at the slot the tote left (observed live after retrieves and dig-out moves).
         //
@@ -151,5 +159,23 @@ public class HandlingUnitController {
                 saved.getCode(), id, fromLocationId, targetLocationId,
                 unknownPosition ? " (UNKNOWN: the caller did not know the position)" : "", followed);
         return saved;
+    }
+
+    /**
+     * True when {@code locationId} is a real STORAGE slot: neither the warehouse's UNKNOWN location
+     * nor one of its receiving locations. Best-effort — if master-data cannot resolve those it
+     * returns false (we don't stamp a dock-to-stock sample we can't trust).
+     */
+    private boolean isStorageLocation(UUID warehouseId, UUID locationId) {
+        try {
+            if (locationId.equals(masterData.unknownLocationId(warehouseId))) {
+                return false;
+            }
+            return !masterData.receivingLocationIds(warehouseId).contains(locationId);
+        } catch (RuntimeException e) {
+            log.warn("dock-to-stock stamp skipped for warehouse {} location {}: master-data could not"
+                    + " classify the location ({})", warehouseId, locationId, e.getMessage());
+            return false;
+        }
     }
 }

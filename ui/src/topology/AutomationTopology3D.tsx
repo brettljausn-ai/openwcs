@@ -3996,6 +3996,11 @@ export function EquipmentMesh({
   const highlight = connectMode ? connectSource : selected
   const highlightColor = connectMode ? '#f0a85a' : '#8DC63F'
 
+  // Captured at drag start so cumulative gizmo deltas apply to a fixed base, not live state.
+  // Must be declared before any early return so the hook count stays stable across renders
+  // (React error #310 — "rendered more hooks than during the previous render").
+  const dragBase = useRef<{ x: number; z: number; rotDeg: number } | null>(null)
+
   // Conveyor with a usable section graph → render directed sections + arrows + junction/decision
   // markers + (when editable) draggable handles. While connecting we suppress handles so clicks
   // register as connect picks.
@@ -4020,8 +4025,6 @@ export function EquipmentMesh({
     )
   }
 
-  // Captured at drag start so cumulative gizmo deltas apply to a fixed base, not live state.
-  const dragBase = useRef<{ x: number; z: number; rotDeg: number } | null>(null)
   const y = eq.heightM / 2 + eq.posYM
   // The per-category body, all origin-centred (y spans −H/2..H/2) like the old boxGeometry:
   //   conveyor       — two-tone rounded body.

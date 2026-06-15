@@ -3,10 +3,13 @@ package org.openwcs.slotting.velocity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import org.openwcs.common.EventEnvelope;
 import org.openwcs.slotting.domain.SkuVelocity;
 import org.openwcs.slotting.domain.VelocityOffset;
 import org.openwcs.slotting.domain.VelocityProcessedEvent;
+import org.openwcs.slotting.repo.SkuPickDailyRepository;
 import org.openwcs.slotting.repo.SkuVelocityRepository;
 import org.openwcs.slotting.repo.VelocityOffsetRepository;
 import org.openwcs.slotting.repo.VelocityProcessedEventRepository;
@@ -25,6 +28,11 @@ import org.springframework.transaction.annotation.Transactional;
  * into the EWMA score</em> (done by {@link VelocityClassifier} at recompute time). Each event
  * therefore just increments {@code pending_picks} and stamps {@code last_pick_at}; the recency
  * weighting is applied when the score is next decayed.
+ *
+ * <p>In the same per-event transaction it also upserts an exact daily tally into
+ * {@code sku_pick_daily} (one bucket per calendar day) so the ABC movers dashboard can sum true
+ * trailing 14d/90d windows. Both writes sit behind the {@code velocity_processed_event} inbox, so
+ * a redelivery/replay neither re-folds the EWMA nor double-counts the daily bucket.
  */
 @Service
 public class VelocityProjectionService {
@@ -35,15 +43,18 @@ public class VelocityProjectionService {
     static final String VELOCITY_PROJECTION = "sku-velocity";
 
     private final SkuVelocityRepository velocity;
+    private final SkuPickDailyRepository dailyPicks;
     private final VelocityProcessedEventRepository processedEvents;
     private final VelocityOffsetRepository offsets;
     private final ObjectMapper objectMapper;
 
     public VelocityProjectionService(SkuVelocityRepository velocity,
+                                     SkuPickDailyRepository dailyPicks,
                                      VelocityProcessedEventRepository processedEvents,
                                      VelocityOffsetRepository offsets,
                                      ObjectMapper objectMapper) {
         this.velocity = velocity;
+        this.dailyPicks = dailyPicks;
         this.processedEvents = processedEvents;
         this.offsets = offsets;
         this.objectMapper = objectMapper;
@@ -89,6 +100,11 @@ public class VelocityProjectionService {
             row.setLastPickAt(when);
         }
         velocity.save(row);
+
+        // Exact daily tally for the trailing-window ABC movers dashboard. Same transaction +
+        // same inbox dedupe as the EWMA fold above, so a replay does not double count.
+        LocalDate day = when.atZone(ZoneOffset.UTC).toLocalDate();
+        dailyPicks.addPicks(p.warehouseId(), p.skuId(), day, 1L);
     }
 
     private void advanceOffset(EventEnvelope env) {

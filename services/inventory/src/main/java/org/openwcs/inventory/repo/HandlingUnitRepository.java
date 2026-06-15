@@ -32,6 +32,16 @@ public interface HandlingUnitRepository extends JpaRepository<HandlingUnit, UUID
             @Param("warehouseId") UUID warehouseId,
             @Param("locationIds") java.util.Collection<UUID> locationIds);
 
+    /**
+     * Handling units of a warehouse that were stored (booked into a storage slot) on or after the
+     * given instant — the dock-to-stock sample for "today". The dashboard derives each HU's timing
+     * from {@code storedAt - createdAt} and computes the median in Java.
+     */
+    @Query("select h from HandlingUnit h where h.warehouseId = :warehouseId"
+            + " and h.storedAt is not null and h.storedAt >= :since")
+    List<HandlingUnit> findStoredSince(
+            @Param("warehouseId") UUID warehouseId, @Param("since") Instant since);
+
     Optional<HandlingUnit> findByWarehouseIdAndCode(UUID warehouseId, String code);
 
     /** Active handling units of a given type, across all warehouses (guards HU-type archiving). */

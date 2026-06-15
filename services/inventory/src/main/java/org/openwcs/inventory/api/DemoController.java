@@ -37,6 +37,18 @@ public class DemoController {
     }
 
     /**
+     * Seed demo DASHBOARD inventory (admin-only): occupancy HUs + stock, dock-to-stock-timed HUs
+     * and a couple of put-away-backlog HUs so /reports/dashboard shows plausible numbers. Demo-only.
+     */
+    @PostMapping("/seed-dashboard")
+    public DemoDashboardSeedResult seedDashboard(
+            @RequestBody DemoDashboardSeedRequest request,
+            @RequestHeader(name = "X-Auth-Roles", required = false) String roles) {
+        requireAdmin(roles);
+        return demo.seedDashboard(request);
+    }
+
+    /**
      * Full operational reset for a warehouse (admin-only): purge all transactional inventory
      * state (reservations, stock, handling units, serial units, batches), keeping infrastructure
      * and master-data references. Invoked when demo mode is turned off.

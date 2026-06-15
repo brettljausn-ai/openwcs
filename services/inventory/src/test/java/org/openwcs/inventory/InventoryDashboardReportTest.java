@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -19,6 +22,7 @@ import org.openwcs.inventory.service.InventoryReportService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -56,6 +60,9 @@ class InventoryDashboardReportTest {
     @Autowired
     HandlingUnitRepository handlingUnits;
 
+    @Autowired
+    JdbcTemplate jdbc;
+
     @MockBean
     MasterDataClient masterData;
 
@@ -76,6 +83,19 @@ class InventoryDashboardReportTest {
         hu.setLocationId(location);
         hu.setStatus("ACTIVE");
         return handlingUnits.save(hu);
+    }
+
+    /** Seed an HU at a storage location with explicit received (created) and stored timestamps. */
+    private void seedStoredHu(UUID wh, UUID location, Instant createdAt, Instant storedAt) {
+        HandlingUnit hu = seedHuAt(wh, location);
+        jdbc.update("update inventory.handling_unit set created_at = ?, stored_at = ? where hu_id = ?",
+                Timestamp.from(createdAt), Timestamp.from(storedAt), hu.getHuId());
+    }
+
+    /** Force an HU's created_at (to age the put-away backlog). */
+    private void backdateCreatedAt(UUID huId, Instant createdAt) {
+        jdbc.update("update inventory.handling_unit set created_at = ? where hu_id = ?",
+                Timestamp.from(createdAt), huId);
     }
 
     @Test
@@ -122,6 +142,54 @@ class InventoryDashboardReportTest {
         assertThat(d.putawayBacklog().count()).isEqualTo(2);
         assertThat(d.putawayBacklog().oldestAgeMin()).isNotNull();
         assertThat(d.putawayBacklog().oldestAgeMin()).isGreaterThanOrEqualTo(0L);
+    }
+
+    @Test
+    void dockToStockMedianAndBacklogAgeFromTimestamps() {
+        UUID wh = UUID.randomUUID();
+        UUID unknown = UUID.randomUUID();
+        UUID receiving = UUID.randomUUID();
+        UUID storageCell = UUID.randomUUID();
+
+        when(masterData.unknownLocationId(wh)).thenReturn(unknown);
+        when(masterData.receivingLocationIds(wh)).thenReturn(List.of(receiving));
+        when(masterData.storageBlocks(wh)).thenReturn(List.of());
+
+        Instant now = Instant.now();
+        // Three HUs stored today, spans of 10, 20 and 30 minutes from received -> stored.
+        // Odd sample count -> median is the middle value, 20 minutes.
+        seedStoredHu(wh, storageCell, now.minus(40, ChronoUnit.MINUTES), now.minus(30, ChronoUnit.MINUTES));
+        seedStoredHu(wh, storageCell, now.minus(50, ChronoUnit.MINUTES), now.minus(30, ChronoUnit.MINUTES));
+        seedStoredHu(wh, storageCell, now.minus(60, ChronoUnit.MINUTES), now.minus(30, ChronoUnit.MINUTES));
+
+        // A backlog HU received 90 minutes ago, still parked at receiving (no stored_at).
+        HandlingUnit backlogHu = seedHuAt(wh, receiving);
+        backdateCreatedAt(backlogHu.getHuId(), now.minus(90, ChronoUnit.MINUTES));
+
+        InventoryDashboard d = reports.dashboard(wh);
+
+        // dock-to-stock: spans 10/20/30 min -> median 20, 3 samples.
+        assertThat(d.dockToStock().samples()).isEqualTo(3);
+        assertThat(d.dockToStock().medianMin()).isEqualTo(20L);
+
+        // Put-away backlog age: the one un-stored HU, received ~90 min ago.
+        assertThat(d.putawayBacklog().count()).isEqualTo(1);
+        assertThat(d.putawayBacklog().oldestAgeMin()).isGreaterThanOrEqualTo(89L);
+    }
+
+    @Test
+    void dockToStockIsEmptyWhenNothingStoredToday() {
+        UUID wh = UUID.randomUUID();
+        when(masterData.unknownLocationId(wh)).thenReturn(UUID.randomUUID());
+        when(masterData.receivingLocationIds(wh)).thenReturn(List.of());
+        when(masterData.storageBlocks(wh)).thenReturn(List.of());
+
+        seedHuAt(wh, UUID.randomUUID()); // an HU exists but has no stored_at
+
+        InventoryDashboard d = reports.dashboard(wh);
+
+        assertThat(d.dockToStock().samples()).isZero();
+        assertThat(d.dockToStock().medianMin()).isNull();
     }
 
     @Test

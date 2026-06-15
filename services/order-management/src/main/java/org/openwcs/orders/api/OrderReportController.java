@@ -76,4 +76,18 @@ public class OrderReportController {
         guard.require(roles, Permission.ORDER_VIEW);
         return dashboards.dispatch(warehouseId);
     }
+
+    /**
+     * Service-level report over shipped outbound orders: on-time-to-cutoff percent and median
+     * created -> shipped cycle time, for today plus per UTC day over the window. Best-effort —
+     * null figures where nothing shipped.
+     */
+    @GetMapping("/sla")
+    public SlaReport sla(
+            @RequestHeader(name = ROLES, required = false) String roles,
+            @RequestParam UUID warehouseId,
+            @RequestParam(defaultValue = "30") int days) {
+        guard.require(roles, Permission.ORDER_VIEW);
+        return dashboards.sla(warehouseId, days);
+    }
 }

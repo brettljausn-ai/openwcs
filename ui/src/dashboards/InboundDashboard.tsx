@@ -33,6 +33,9 @@ export default function InboundDashboard() {
   const oldest = iv?.putawayBacklog.oldestAgeMin ?? 0
   const backlogState: DashState = oldest > T.putawayBacklogAgeMin * 2 ? 'critical' : oldest > T.putawayBacklogAgeMin ? 'warning' : (iv?.putawayBacklog.count ?? 0) > 0 ? 'warning' : 'ok'
   const openState: DashState = (ob?.inbound.open ?? 0) > 0 ? 'warning' : 'ok'
+  const recvErrors = ob?.inbound.receiveErrorsToday ?? 0
+  const recvErrorsState: DashState = recvErrors > T.receiveErrorsDay ? 'critical' : recvErrors > 0 ? 'warning' : 'ok'
+  const d2s = iv?.dockToStock.medianMin ?? 0
 
   const hourData = (ob?.perHour ?? []).map((h) => ({ hour: h.hour, inbound: h.inbound }))
 
@@ -50,6 +53,18 @@ export default function InboundDashboard() {
         <Hero label={t('expectedToday', 'Expected today')} value={ob?.inbound.expectedToday ?? 0} state="ok" />
         <Hero label={t('projFinishLabel', 'Projected finish')} value={timeHm(ob?.inbound.projectedFinishIso)} state="ok" />
         <Hero label={t('husReceived', 'HUs received today')} value={iv?.husReceivedToday ?? 0} state="ok" />
+        <Hero
+          label={t('dockToStock', 'Dock-to-stock (median)')}
+          value={minsLabel(d2s)}
+          state="ok"
+          context={`${iv?.dockToStock.samples ?? 0} ${t('samples', 'samples today')}`}
+        />
+        <Hero
+          label={t('receiveErrors', 'Receive errors today')}
+          value={recvErrors}
+          state={recvErrorsState}
+          context={`${t('threshold', 'threshold')} ${T.receiveErrorsDay}`}
+        />
         <Hero
           label={t('putawayBacklog', 'Putaway backlog')}
           value={iv?.putawayBacklog.count ?? 0}

@@ -52,6 +52,21 @@ export default function Overview() {
   const thr = usePoll(wh ? 'global' : '', () => getAlertThresholds().catch(() => DEFAULT_THRESHOLDS), 60_000)
   const T = thr.data ?? DEFAULT_THRESHOLDS
 
+  // ---- automation (state from highest active alert severity) ----
+  // NOTE: every hook must run before the `if (!wh)` early return below, or the hook count changes
+  // between renders (React error #310 — "rendered more hooks than during the previous render").
+  const alertList = alerts.data ?? []
+  const alertCounts = useMemo(() => {
+    const c = { critical: 0, warning: 0, info: 0 }
+    for (const a of alertList) {
+      const st = severityState(a.severity)
+      if (st === 'critical') c.critical++
+      else if (st === 'warning') c.warning++
+      else c.info++
+    }
+    return c
+  }, [alertList])
+
   if (!wh) {
     return (
       <div className="app-content">
@@ -75,8 +90,14 @@ export default function Overview() {
 
   // ---- inbound ----
   const ob = orders.data
-  const inboundErrors = 0 // receive-error count is not in the orders dashboard contract; see note below
-  const inboundState: DashState = !ob ? 'ok' : ob.inbound.open > 0 ? 'warning' : 'ok'
+  const inboundErrors = ob?.inbound.receiveErrorsToday ?? 0
+  const inboundState: DashState = !ob
+    ? 'ok'
+    : inboundErrors > T.receiveErrorsDay
+      ? 'critical'
+      : inboundErrors > 0 || ob.inbound.open > 0
+        ? 'warning'
+        : 'ok'
 
   // ---- outbound ----
   const outboundState: DashState = !ob ? 'ok' : ob.outbound.shortsToday > 0 ? 'warning' : 'ok'
@@ -93,17 +114,6 @@ export default function Overview() {
 
   // ---- automation (state from highest active alert severity) ----
   const au = automation.data
-  const alertList = alerts.data ?? []
-  const alertCounts = useMemo(() => {
-    const c = { critical: 0, warning: 0, info: 0 }
-    for (const a of alertList) {
-      const st = severityState(a.severity)
-      if (st === 'critical') c.critical++
-      else if (st === 'warning') c.warning++
-      else c.info++
-    }
-    return c
-  }, [alertList])
   const automationState: DashState = alertCounts.critical > 0 ? 'critical' : alertCounts.warning > 0 ? 'warning' : 'ok'
 
   return (
@@ -142,7 +152,7 @@ export default function Overview() {
           <SecondaryRow
             items={[
               { label: t('husReceived', 'HUs received'), value: inv.data?.husReceivedToday ?? 0 },
-              { label: t('receiveErrors', 'Receive errors'), value: inboundErrors },
+              { label: t('receiveErrors', 'Receive errors'), value: inboundErrors, alert: inboundErrors > 0 },
             ]}
           />
         </Tile>
