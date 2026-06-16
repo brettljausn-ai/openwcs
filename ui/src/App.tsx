@@ -16,6 +16,8 @@ import { LanguageProvider } from './i18n/LanguageContext'
 // Existing feature screens (re-homed into the shell).
 import TopologyEditor from './topology/TopologyEditor'
 import ProcessDesigner from './process/ProcessDesigner'
+import ProcessDesignScreen from './process-designer/designer/ProcessDesignScreen'
+import ProcessRuntimeScreen from './process-designer/runtime/ProcessRuntimeScreen'
 import SlottingScreen from './slotting/SlottingScreen'
 
 // Reserved screens — built by follow-up agents (each owns its own file).
@@ -63,6 +65,7 @@ const COMPONENTS: Record<string, JSX.Element> = {
   'dashboards:alert-health': <DashboardsAlertHealth />,
   topology: <TopologyEditor />,
   processes: <ProcessDesigner />,
+  'process:design': <ProcessDesignScreen />,
   slotting: <SlottingScreen />,
   inbound: <InboundScreen />,
   outbound: <OutboundScreen />,
@@ -193,9 +196,13 @@ function OperatorRoutes() {
       >
         {/* Post-login landing in handheld mode is the operator menu (not the dashboard). */}
         <Route index element={<OperatorMenu />} />
+        {/* Static, hand-coded operator processes from the catalog (Picking, Stock Check, …). These
+            literal paths (e.g. /process/goods-in) take precedence over the dynamic :key route. */}
         {PROCESS_SCREENS.map((s) => (
           <Route key={s.key} path={s.path} element={<GuardedProcess screen={s} />} />
         ))}
+        {/* Client-driven runtime for any ACTIVE configurable process. */}
+        <Route path="/process/:key" element={<ProcessRuntimeScreen />} />
       </Route>
       {/* A non-process URL hit in handheld mode redirects to the menu. */}
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -185,6 +185,51 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: process-designer
+  namespace: openwcs
+  labels: { app: process-designer }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: process-designer }
+  template:
+    metadata:
+      labels: { app: process-designer }
+    spec:
+      containers:
+        - name: process-designer
+          image: REGISTRY/openwcs-process-designer:TAG
+          ports:
+            - containerPort: 8097
+          envFrom:
+            - configMapRef: { name: openwcs-config }
+            - secretRef: { name: openwcs-db }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8097 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8097 }
+            initialDelaySeconds: 45
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: process-designer
+  namespace: openwcs
+spec:
+  selector: { app: process-designer }
+  ports:
+    - port: 8097
+      targetPort: 8097
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: order-management
   namespace: openwcs
   labels: { app: order-management }

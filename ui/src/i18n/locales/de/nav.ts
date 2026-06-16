@@ -29,6 +29,7 @@ export default {
   'reporting:outbound': 'Warenausgang',
   topology: 'Automationstopologie',
   processes: 'Prozesse',
+  'process:design': 'Prozess-Designer',
   slotting: 'Slotting',
   'master-data:equipment': 'Geräte',
   'master-data:warehouses': 'Lager',

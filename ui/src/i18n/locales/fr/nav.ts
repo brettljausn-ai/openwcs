@@ -29,6 +29,7 @@ export default {
   'reporting:outbound': 'Expédition',
   topology: 'Topologie d\'automatisation',
   processes: 'Processus',
+  'process:design': 'Concepteur de processus',
   slotting: 'Slotting',
   'master-data:equipment': 'Équipements',
   'master-data:warehouses': 'Entrepôts',
