@@ -51,6 +51,8 @@
 - [done] Cycle counting :: Count tasks with blind and variance modes and ABC-cadence scheduling, at-station blind counting via the GTP console, and a standalone count-capture screen with variances, recounts and reconciliation.
 - [done] Operational reporting :: A Reporting section with five screens: scan quality per scan point with predictive error trends, a 3D conveyor traffic heatmap, ASRS storage density and movements with 90-day history and 14-day forecasts, per-SKU stock availability split, and inbound/outbound flow with hour-of-day peak maps.
 - [done] Multilanguage UI :: The operator and management SPA ships in English, German, French, Spanish and Chinese with a per-user language preference — no add-on required.
+- [done] Dashboards & alerting :: A landing situation dashboard (Stock-blocking, Inbound, Outbound, Dispatch, Automation, Putaway heroes) plus five deeper screens (inbound/outbound/replenishment/stock/ABC movers with SLA metrics, dock-to-stock timing, and a Pareto chart); a full-screen andon board; ISA-18.2 alert-system-health screen; and threshold-based operator alerting (email + webhook delivery, deduped and cleared automatically).
+- [done] AI assistant :: An in-app chat widget answers questions about orders, transports, stock and handling units by calling the WCS's own read-only APIs under the user's permissions — powered by the Anthropic Claude Messages API tool-use loop. Configured via Settings → AI Assistant (Anthropic key, model, enable/disable). Disabled until an admin sets a key.
 
 ## In progress
 > Active development
@@ -59,8 +61,6 @@
 
 ## Next up
 > Designed, build queued
-
-- [planned] Dashboards & alerting :: Landing-page state heroes and a Dashboards menu (inbound/outbound deep dives, replenishment urgency, ABC movers) per the dashboard spec, plus alerting/andon and SLA metrics.
 
 ## Exploring
 > On the horizon
