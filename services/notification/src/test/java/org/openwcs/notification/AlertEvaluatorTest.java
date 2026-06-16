@@ -1,7 +1,7 @@
 package org.openwcs.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -78,6 +78,16 @@ class AlertEvaluatorTest {
                 .thenReturn(new MetricsClient.AutomationSummary(pct, 99.0));
     }
 
+    /**
+     * A delivery matcher scoped to THIS test's warehouse. The {@code delivery} mock is shared across
+     * the class's test methods via the Spring context, so an unscoped {@code onOpen(any())} could
+     * count a sibling method's invocation (each test uses its own random warehouse). Matching on the
+     * warehouse keeps every verification deterministic regardless of execution order / isolation.
+     */
+    private AlertEvent ours() {
+        return argThat(a -> a != null && warehouse.equals(a.getWarehouseId()));
+    }
+
     @Test
     void breachOpensThenRecoveryClears() {
         thresholds();
@@ -90,14 +100,14 @@ class AlertEvaluatorTest {
         assertThat(active).hasSize(1);
         assertThat(active.get(0).getMetric()).isEqualTo("scanNoReadPct");
         assertThat(active.get(0).getSeverity()).isEqualTo("CRITICAL");
-        verify(delivery, times(1)).onOpen(any());
+        verify(delivery, times(1)).onOpen(ours());
 
         // Metric recovers under threshold → clears + one clear delivery.
         scanNoRead(2.0);
         evaluator.evaluateAll();
         assertThat(alerts.findByWarehouseIdAndStateInOrderByOpenedAtDesc(
                 warehouse, List.of("OPEN", "ACKED"))).isEmpty();
-        verify(delivery, times(1)).onClear(any());
+        verify(delivery, times(1)).onClear(ours());
     }
 
     @Test
@@ -112,7 +122,7 @@ class AlertEvaluatorTest {
         assertThat(active).hasSize(1);
         assertThat(active.get(0).getSeverity()).isEqualTo("WARNING");
         // Delivery fires once (on the initial open), not on the dedup'd re-breach.
-        verify(delivery, times(1)).onOpen(any());
+        verify(delivery, times(1)).onOpen(ours());
     }
 
     @Test
@@ -120,7 +130,7 @@ class AlertEvaluatorTest {
         when(metrics.warehouseIds()).thenReturn(List.of(warehouse));
         when(metrics.thresholds()).thenReturn(null);
         evaluator.evaluateAll();
-        verify(delivery, never()).onOpen(any());
+        verify(delivery, never()).onOpen(ours());
     }
 
     @Test
@@ -130,9 +140,9 @@ class AlertEvaluatorTest {
         evaluator.evaluateAll();
         assertThat(alerts.findByWarehouseIdAndStateInOrderByOpenedAtDesc(
                 warehouse, List.of("OPEN", "ACKED"))).isEmpty();
-        verify(delivery, never()).onOpen(any());
+        verify(delivery, never()).onOpen(ours());
         // A clear on a non-existent alert is a no-op (no delivery).
-        verify(delivery, never()).onClear(any());
+        verify(delivery, never()).onClear(ours());
     }
 
     @Test
