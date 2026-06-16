@@ -29,6 +29,7 @@ export default {
   'reporting:outbound': '出库',
   topology: '自动化拓扑',
   processes: '流程',
+  'process:design': '流程设计器',
   slotting: '库位分配',
   'master-data:equipment': '设备',
   'master-data:warehouses': '仓库',
