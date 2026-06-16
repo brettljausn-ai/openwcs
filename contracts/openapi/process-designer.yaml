@@ -374,8 +374,10 @@ paths:
         The handheld runtime posts a scanned/typed value for a screen "Verify" step; the proxy
         resolves it against master-data (forwarding the operator identity, so the handheld never hits
         master-data directly) and returns a normalised result the runtime branches on and stores from.
-        kind selects the resolve: barcode (match a barcode to its SKU), sku (match a SKU by code), or
-        location (match a location by code). Read-only and stateless (no instance/ledger persistence).
+        kind selects the resolve: barcode (match a barcode to its SKU), sku (match a SKU by code),
+        location (match a location by code), or skuScan (combined: try the value as a product barcode
+        first, else as a SKU code, and signal whether the operator must pick a UOM).
+        Read-only and stateless (no instance/ledger persistence).
         Gated by PROCESS_DESIGN_VIEW (the permission operators use to run processes). A miss is a clean
         200 with found:false (never 404); a downstream failure is 502.
       operationId: verify
@@ -660,7 +662,7 @@ components:
           description: "Whether the caller may author script steps (holds PROCESS_SCRIPT_AUTHOR)."
         verifyKinds:
           type: array
-          items: { type: string, enum: [barcode, sku, location] }
+          items: { type: string, enum: [barcode, sku, location, skuScan] }
           description: >
             The server-driven list of scan-verify kinds the screen "Verify" picker offers. A constant
             list so the designer does not hard-code it.
@@ -675,7 +677,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [barcode, sku, location]
+          enum: [barcode, sku, location, skuScan]
           description: "Which master-data resolve to run for the submitted value."
         write:
           type: object
@@ -705,7 +707,7 @@ components:
         warehouseId: { type: string, format: uuid }
         kind:
           type: string
-          enum: [barcode, sku, location]
+          enum: [barcode, sku, location, skuScan]
           description: "Which master-data resolve to run."
         code:
           type: string
@@ -740,15 +742,40 @@ components:
         uomCode:
           type: string
           nullable: true
-          description: "matchedBarcode.uomCode (barcode) or the base uom code (sku); null for location."
+          description: >
+            "matchedBarcode.uomCode (barcode) or the base uom code (sku); null for location, and null
+            for a skuScan that matched a SKU code with more than one UOM (operator must pick)."
         schemaCategory:
           type: string
           nullable: true
           description: "attributeSchema.category (barcode/sku); null otherwise."
+        matchedAs:
+          type: string
+          nullable: true
+          enum: [barcode, sku]
+          description: >
+            "How the value resolved: barcode (a product barcode matched) or sku (a SKU code matched);
+            null for location and not-found. For the combined skuScan kind this signals which path fired."
+        uoms:
+          type: array
+          description: >
+            "The resolved SKU's full UOM list for the runtime's UOM picker. Empty for location and
+            not-found."
+          items:
+            type: object
+            properties:
+              code: { type: string, nullable: true }
+              baseUnit: { type: boolean }
+        needsUomChoice:
+          type: boolean
+          description: >
+            "True only for a skuScan that matched a SKU code with more than one UOM (the runtime must
+            prompt the operator). False otherwise: a barcode pins its UOM, a single-UOM SKU auto-picks,
+            and the plain sku kind never prompts."
         detail:
           type: object
           additionalProperties: true
           description: >
             "The full master-data graph for the kind: uoms, barcodes, attributeSchema, matchedBarcode
             for sku/barcode; the location object for location. Empty when not found."
-      required: [found, detail]
+      required: [found, uoms, needsUomChoice, detail]

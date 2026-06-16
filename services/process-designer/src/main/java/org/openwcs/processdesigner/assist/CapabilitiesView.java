@@ -7,7 +7,8 @@ import java.util.List;
  * Feature C). {@code scriptingEnabled} = the off-by-default scripting flag; {@code aiAssistEnabled} =
  * an Anthropic key is configured; {@code canAuthorScript} = the CALLER holds PROCESS_SCRIPT_AUTHOR
  * (always true when security is disabled); {@code verifyKinds} = the server-driven list of scan-verify
- * kinds the screen "Verify" picker offers ({@code barcode}, {@code sku}, {@code location}).
+ * kinds the screen "Verify" picker offers ({@code barcode}, {@code sku}, {@code location},
+ * {@code skuScan}).
  */
 public record CapabilitiesView(boolean scriptingEnabled, boolean aiAssistEnabled, boolean canAuthorScript,
                                List<String> verifyKinds) {

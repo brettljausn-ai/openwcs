@@ -83,6 +83,8 @@ export default {
   verifyKind_barcode: 'Code-barres',
   verifyKind_sku: 'Article (SKU)',
   verifyKind_location: 'Emplacement',
+  verifyKind_skuScan: 'Scanner un code article ou un code-barres',
+  verifySkuScanHelp: 'Un code-barres fixe l’unité de mesure ; un code article avec plusieurs unités demande à l’opérateur d’en choisir une. Associez "uomCode" à une variable pour stocker l’unité choisie/résolue.',
   verifyWrite: 'Stocker les valeurs résolues dans des variables',
   verifyNoVars: 'Ajoutez des variables d\'objet de données ci-dessous pour stocker les identifiants résolus.',
   verifyDontStore: '(ne pas stocker)',

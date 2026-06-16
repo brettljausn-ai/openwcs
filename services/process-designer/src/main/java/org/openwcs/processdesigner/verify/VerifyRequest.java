@@ -8,8 +8,9 @@ import java.util.UUID;
  * Request to the scan-verify proxy ({@code POST /api/process-designer/verify}). The handheld runtime
  * posts a scanned/typed value to be resolved against master-data so a flow can confirm it exists and
  * branch on / store the linked ids. {@code kind} selects the master-data resolve endpoint:
- * {@code barcode} (match a barcode to its SKU), {@code sku} (match a SKU by code), or
- * {@code location} (match a location by code).
+ * {@code barcode} (match a barcode to its SKU), {@code sku} (match a SKU by code),
+ * {@code location} (match a location by code), or {@code skuScan} (combined: try the value as a
+ * product barcode first, then as a SKU code, and signal whether the operator must pick a UOM).
  */
 public record VerifyRequest(
         @NotNull UUID warehouseId,

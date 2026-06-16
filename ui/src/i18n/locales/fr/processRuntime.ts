@@ -16,4 +16,8 @@ export default {
   verifyNotFound: 'Introuvable, scannez à nouveau',
   verifyOffline: 'La vérification nécessite une connexion',
   verifyAmbiguous: 'Plusieurs correspondances trouvées.',
+  // skuScan : choix de l’unité de mesure
+  uomTitle: 'Choisir une unité de mesure',
+  uomBody: 'Cet article peut être enregistré dans plusieurs unités. Choisissez celle que vous manipulez.',
+  uomBase: 'unité de base',
 }

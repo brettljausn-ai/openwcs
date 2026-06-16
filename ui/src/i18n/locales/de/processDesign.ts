@@ -83,6 +83,8 @@ export default {
   verifyKind_barcode: 'Barcode',
   verifyKind_sku: 'Artikel (SKU)',
   verifyKind_location: 'Lagerplatz',
+  verifyKind_skuScan: 'Artikelnummer oder Barcode scannen',
+  verifySkuScanHelp: 'Ein Barcode legt die Mengeneinheit fest; eine Artikelnummer mit mehreren Einheiten fordert den Bediener auf, eine auszuwählen. Ordnen Sie "uomCode" einer Variablen zu, um die gewählte/aufgelöste Einheit zu speichern.',
   verifyWrite: 'Aufgelöste Werte in Variablen speichern',
   verifyNoVars: 'Fügen Sie unten Datenobjekt-Variablen hinzu, um aufgelöste IDs zu speichern.',
   verifyDontStore: '(nicht speichern)',

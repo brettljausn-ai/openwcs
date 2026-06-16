@@ -49,8 +49,10 @@ export interface ChoiceOption {
 }
 
 /** The kinds of value a Verify block can resolve against master-data. Mirrors the server's
- *  capabilities.verifyKinds; the picker is populated from the live list, this is only the type. */
-export type VerifyKind = 'barcode' | 'sku' | 'location'
+ *  capabilities.verifyKinds; the picker is populated from the live list, this is only the type.
+ *  `skuScan` resolves a scan as either a product BARCODE (UOM pinned, no prompt) or a SKU CODE (when
+ *  the SKU has several UOMs the operator picks one at runtime). */
+export type VerifyKind = 'barcode' | 'sku' | 'location' | 'skuScan'
 
 /** The resolved fields a successful /verify returns and that a Verify block may write into a
  *  data-object variable (so a later task that needs the UUID gets it from `id`, etc.). */
@@ -77,6 +79,13 @@ export interface VerifyConfig {
   onNotFound: VerifyOnNotFound
 }
 
+/** One unit of measure a scanned SKU can be booked in (skuScan). */
+export interface VerifyUom {
+  code: string
+  /** True when this is the SKU's base unit. */
+  baseUnit?: boolean
+}
+
 /** The /verify response (POST /api/process-designer/verify). Read-only; needs connectivity. */
 export interface VerifyResult {
   found: boolean
@@ -88,6 +97,12 @@ export interface VerifyResult {
   uomCode: string | null
   schemaCategory: string | null
   detail: Record<string, unknown>
+  /** skuScan: how the scan resolved — pinned via a product barcode, or via a SKU code. */
+  matchedAs?: 'barcode' | 'sku' | null
+  /** skuScan: the SKU's available units of measure (drives the runtime UOM picker). */
+  uoms?: VerifyUom[]
+  /** skuScan: true when the SKU has >1 UOM and the operator must pick one before continuing. */
+  needsUomChoice?: boolean
 }
 
 /** A screen step's config (the bit a designer edits). Every screen has header/detail + writeTo. */

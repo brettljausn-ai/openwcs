@@ -86,6 +86,10 @@ class VerifyProxyTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.name").value("Widget"))
                 .andExpect(jsonPath("$.uomCode").value("EA"))
                 .andExpect(jsonPath("$.schemaCategory").value("HAZMAT"))
+                .andExpect(jsonPath("$.matchedAs").value("barcode"))
+                .andExpect(jsonPath("$.needsUomChoice").value(false))
+                .andExpect(jsonPath("$.uoms[0].code").value("EA"))
+                .andExpect(jsonPath("$.uoms[0].baseUnit").value(true))
                 .andExpect(jsonPath("$.detail.matchedBarcode.uomCode").value("EA"))
                 .andExpect(jsonPath("$.detail.uoms[0].code").value("EA"));
     }
@@ -106,5 +110,157 @@ class VerifyProxyTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.found").value(false))
                 .andExpect(jsonPath("$.id").value(Matchers.nullValue()));
+    }
+
+    // --- skuScan: combined barcode-or-SKU-code resolve with UOM-choice signalling --------------------
+
+    @Test
+    void skuScanMatchedByBarcodePinsUomNoChoice() throws Exception {
+        // The value matches a product barcode: master-data sku-by-barcode resolves -> matchedAs=barcode,
+        // uom pinned by the barcode, no prompt.
+        String body = """
+            {
+              "found": true,
+              "matchedBarcode": { "value": "5012345", "uomId": "u2", "uomCode": "CASE", "type": "EAN" },
+              "sku": { "skuId": "sku-1", "code": "SKU-001", "description": "Widget", "status": "ACTIVE" },
+              "uoms": [
+                { "uomId": "u1", "code": "EA", "baseUnit": true, "parentUomId": null, "qtyInParent": 1 },
+                { "uomId": "u2", "code": "CASE", "baseUnit": false, "parentUomId": "u1", "qtyInParent": 12 }
+              ],
+              "barcodes": [ { "value": "5012345", "uomCode": "CASE", "type": "EAN" } ],
+              "attributeSchema": { "attributeSchemaId": "as-1", "category": "GENERAL", "version": 1, "jsonSchema": {} }
+            }
+            """;
+        mockServerCustomizer.getServers().values().forEach(s ->
+                s.expect(ExpectedCount.manyTimes(), requestTo(Matchers.containsString(
+                                "/api/master-data/resolve/sku-by-barcode")))
+                        .andExpect(method(HttpMethod.GET))
+                        .andExpect(header("X-Auth-User", "carol"))
+                        .andRespond(withSuccess(body, MediaType.APPLICATION_JSON)));
+
+        mvc.perform(post("/api/process-designer/verify")
+                        .header("X-Auth-Roles", OPERATOR)
+                        .header("X-Auth-User", "carol")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"warehouseId\":\"" + WAREHOUSE + "\",\"kind\":\"skuScan\",\"code\":\"5012345\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.found").value(true))
+                .andExpect(jsonPath("$.matchedAs").value("barcode"))
+                .andExpect(jsonPath("$.id").value("sku-1"))
+                .andExpect(jsonPath("$.uomCode").value("CASE"))
+                .andExpect(jsonPath("$.needsUomChoice").value(false))
+                .andExpect(jsonPath("$.uoms.length()").value(2));
+    }
+
+    @Test
+    void skuScanMatchedBySkuCodeWithMultipleUomsNeedsChoice() throws Exception {
+        // Not a barcode -> sku-by-barcode found:false; then matches a SKU code with 2 UOMs ->
+        // matchedAs=sku, uomCode null, needsUomChoice=true, uoms lists both.
+        String skuBody = """
+            {
+              "found": true,
+              "matchedBarcode": null,
+              "sku": { "skuId": "sku-2", "code": "SKU-002", "description": "Gadget", "status": "ACTIVE" },
+              "uoms": [
+                { "uomId": "u1", "code": "EA", "baseUnit": true, "parentUomId": null, "qtyInParent": 1 },
+                { "uomId": "u2", "code": "CASE", "baseUnit": false, "parentUomId": "u1", "qtyInParent": 6 }
+              ],
+              "barcodes": [],
+              "attributeSchema": { "attributeSchemaId": "as-1", "category": "GENERAL", "version": 1, "jsonSchema": {} }
+            }
+            """;
+        mockServerCustomizer.getServers().values().forEach(s -> {
+            s.expect(ExpectedCount.manyTimes(), requestTo(Matchers.containsString(
+                            "/api/master-data/resolve/sku-by-barcode")))
+                    .andExpect(method(HttpMethod.GET))
+                    .andRespond(withSuccess("{\"found\":false}", MediaType.APPLICATION_JSON));
+            s.expect(ExpectedCount.manyTimes(), requestTo(Matchers.allOf(
+                            Matchers.containsString("/api/master-data/resolve/sku"),
+                            Matchers.not(Matchers.containsString("sku-by-barcode")))))
+                    .andExpect(method(HttpMethod.GET))
+                    .andRespond(withSuccess(skuBody, MediaType.APPLICATION_JSON));
+        });
+
+        mvc.perform(post("/api/process-designer/verify")
+                        .header("X-Auth-Roles", OPERATOR)
+                        .header("X-Auth-User", "carol")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"warehouseId\":\"" + WAREHOUSE + "\",\"kind\":\"skuScan\",\"code\":\"SKU-002\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.found").value(true))
+                .andExpect(jsonPath("$.matchedAs").value("sku"))
+                .andExpect(jsonPath("$.id").value("sku-2"))
+                .andExpect(jsonPath("$.uomCode").value(Matchers.nullValue()))
+                .andExpect(jsonPath("$.needsUomChoice").value(true))
+                .andExpect(jsonPath("$.uoms.length()").value(2))
+                .andExpect(jsonPath("$.uoms[0].code").value("EA"))
+                .andExpect(jsonPath("$.uoms[1].code").value("CASE"));
+    }
+
+    @Test
+    void skuScanMatchedBySkuCodeWithSingleUomAutoPicks() throws Exception {
+        // Not a barcode; matches a SKU code with exactly 1 UOM -> matchedAs=sku, uomCode set,
+        // needsUomChoice=false.
+        String skuBody = """
+            {
+              "found": true,
+              "matchedBarcode": null,
+              "sku": { "skuId": "sku-3", "code": "SKU-003", "description": "Gizmo", "status": "ACTIVE" },
+              "uoms": [ { "uomId": "u1", "code": "EA", "baseUnit": true, "parentUomId": null, "qtyInParent": 1 } ],
+              "barcodes": [],
+              "attributeSchema": { "attributeSchemaId": "as-1", "category": "GENERAL", "version": 1, "jsonSchema": {} }
+            }
+            """;
+        mockServerCustomizer.getServers().values().forEach(s -> {
+            s.expect(ExpectedCount.manyTimes(), requestTo(Matchers.containsString(
+                            "/api/master-data/resolve/sku-by-barcode")))
+                    .andExpect(method(HttpMethod.GET))
+                    .andRespond(withSuccess("{\"found\":false}", MediaType.APPLICATION_JSON));
+            s.expect(ExpectedCount.manyTimes(), requestTo(Matchers.allOf(
+                            Matchers.containsString("/api/master-data/resolve/sku"),
+                            Matchers.not(Matchers.containsString("sku-by-barcode")))))
+                    .andExpect(method(HttpMethod.GET))
+                    .andRespond(withSuccess(skuBody, MediaType.APPLICATION_JSON));
+        });
+
+        mvc.perform(post("/api/process-designer/verify")
+                        .header("X-Auth-Roles", OPERATOR)
+                        .header("X-Auth-User", "carol")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"warehouseId\":\"" + WAREHOUSE + "\",\"kind\":\"skuScan\",\"code\":\"SKU-003\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.found").value(true))
+                .andExpect(jsonPath("$.matchedAs").value("sku"))
+                .andExpect(jsonPath("$.id").value("sku-3"))
+                .andExpect(jsonPath("$.uomCode").value("EA"))
+                .andExpect(jsonPath("$.needsUomChoice").value(false))
+                .andExpect(jsonPath("$.uoms.length()").value(1));
+    }
+
+    @Test
+    void skuScanNoMatchIsCleanPassthrough() throws Exception {
+        // Neither a barcode nor a SKU code matches -> found:false.
+        mockServerCustomizer.getServers().values().forEach(s -> {
+            s.expect(ExpectedCount.manyTimes(), requestTo(Matchers.containsString(
+                            "/api/master-data/resolve/sku-by-barcode")))
+                    .andExpect(method(HttpMethod.GET))
+                    .andRespond(withSuccess("{\"found\":false}", MediaType.APPLICATION_JSON));
+            s.expect(ExpectedCount.manyTimes(), requestTo(Matchers.allOf(
+                            Matchers.containsString("/api/master-data/resolve/sku"),
+                            Matchers.not(Matchers.containsString("sku-by-barcode")))))
+                    .andExpect(method(HttpMethod.GET))
+                    .andRespond(withSuccess("{\"found\":false}", MediaType.APPLICATION_JSON));
+        });
+
+        mvc.perform(post("/api/process-designer/verify")
+                        .header("X-Auth-Roles", OPERATOR)
+                        .header("X-Auth-User", "carol")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"warehouseId\":\"" + WAREHOUSE + "\",\"kind\":\"skuScan\",\"code\":\"nope\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.found").value(false))
+                .andExpect(jsonPath("$.matchedAs").value(Matchers.nullValue()))
+                .andExpect(jsonPath("$.needsUomChoice").value(false))
+                .andExpect(jsonPath("$.uoms.length()").value(0));
     }
 }

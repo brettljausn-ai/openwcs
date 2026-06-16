@@ -16,4 +16,8 @@ export default {
   verifyNotFound: 'No encontrado, vuelva a escanear',
   verifyOffline: 'La verificación necesita conexión',
   verifyAmbiguous: 'Se encontraron varias coincidencias.',
+  // skuScan: selección de unidad de medida
+  uomTitle: 'Elegir una unidad de medida',
+  uomBody: 'Este artículo se puede registrar en varias unidades. Elija la que está manejando.',
+  uomBase: 'unidad base',
 }

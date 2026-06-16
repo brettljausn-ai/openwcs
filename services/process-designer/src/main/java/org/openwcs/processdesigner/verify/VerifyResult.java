@@ -1,5 +1,6 @@
 package org.openwcs.processdesigner.verify;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -14,8 +15,17 @@ import java.util.Map;
  *   <li>{@code id} — sku.skuId (barcode/sku) or location.locationId (location); null when not found.</li>
  *   <li>{@code code} — sku.code or location.code; null when not found.</li>
  *   <li>{@code name} — sku.description (barcode/sku); null for location.</li>
- *   <li>{@code uomCode} — matchedBarcode.uomCode (barcode) or the base uom code (sku); null for location.</li>
+ *   <li>{@code uomCode} — matchedBarcode.uomCode (barcode) or the base uom code (sku); null for location,
+ *       and null for a skuScan that matched a SKU code with more than one UOM (operator must pick).</li>
  *   <li>{@code schemaCategory} — attributeSchema.category (barcode/sku); null otherwise.</li>
+ *   <li>{@code matchedAs} — how the value resolved: {@code "barcode"} (a product barcode matched) or
+ *       {@code "sku"} (a SKU code matched); null for location and not-found. For the combined
+ *       {@code skuScan} kind this tells the runtime which path fired.</li>
+ *   <li>{@code uoms} — the resolved SKU's full UOM list as {@code {code, baseUnit}} entries, for the
+ *       runtime's UOM picker. Empty for location and not-found.</li>
+ *   <li>{@code needsUomChoice} — true only for a {@code skuScan} that matched a SKU code with more than
+ *       one UOM (the runtime must prompt the operator to pick a UOM). False otherwise: a barcode pins
+ *       its UOM, a single-UOM SKU auto-picks, and the plain {@code sku} kind never prompts.</li>
  *   <li>{@code detail} — the full master-data graph for the kind (uoms/barcodes/attributeSchema/
  *       matchedBarcode for sku, the location object for location). Empty map when not found.</li>
  * </ul>
@@ -28,5 +38,8 @@ public record VerifyResult(
         String name,
         String uomCode,
         String schemaCategory,
+        String matchedAs,
+        List<Map<String, Object>> uoms,
+        boolean needsUomChoice,
         Map<String, Object> detail) {
 }
