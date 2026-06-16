@@ -35,6 +35,15 @@ public class TxLogPostTask implements ProcessTask {
     }
 
     @Override
+    public TaskSpec spec() {
+        // streamId + eventType are required; any other mapped input becomes the event payload.
+        return new TaskSpec("txlog.post", "Post stock transaction",
+                java.util.List.of(TaskSpec.req("streamId"), TaskSpec.req("eventType"),
+                        TaskSpec.opt("actor")),
+                java.util.List.of(TaskSpec.out("eventId")));
+    }
+
+    @Override
     public Map<String, Object> execute(Map<String, Object> in) {
         Map<String, Object> body = new HashMap<>();
         body.put("streamId", TaskInputs.requireString(in, "streamId"));

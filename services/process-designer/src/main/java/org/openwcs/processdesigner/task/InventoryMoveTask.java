@@ -29,6 +29,16 @@ public class InventoryMoveTask implements ProcessTask {
     }
 
     @Override
+    public TaskSpec spec() {
+        return new TaskSpec("inventory.move", "Move handling unit",
+                java.util.List.of(TaskSpec.req("warehouseId"), TaskSpec.req("huId"),
+                        TaskSpec.req("toLocationId"), TaskSpec.opt("huCode"),
+                        TaskSpec.opt("fromLocationId"), TaskSpec.opt("family"),
+                        TaskSpec.opt("destFamily"), TaskSpec.opt("reason")),
+                java.util.List.of(TaskSpec.out("moveId"), TaskSpec.out("status")));
+    }
+
+    @Override
     public Map<String, Object> execute(Map<String, Object> in) {
         Map<String, Object> body = new HashMap<>();
         body.put("warehouseId", TaskInputs.requireUuid(in, "warehouseId").toString());

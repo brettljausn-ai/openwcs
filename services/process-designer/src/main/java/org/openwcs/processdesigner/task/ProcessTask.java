@@ -1,5 +1,6 @@
 package org.openwcs.processdesigner.task;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -24,4 +25,14 @@ public interface ProcessTask {
      * @return named outputs to merge back into the data object (may be empty)
      */
     Map<String, Object> execute(Map<String, Object> inputs);
+
+    /**
+     * Self-describing catalog metadata (label + named inputs/outputs) served by
+     * {@code GET /api/process-designer/tasks} so the designer's task picker is driven by the real
+     * registry. The default is a bare spec (label = type, no declared inputs/outputs) for internal /
+     * test-only tasks; curated tasks override it.
+     */
+    default TaskSpec spec() {
+        return new TaskSpec(type(), type(), List.of(), List.of());
+    }
 }

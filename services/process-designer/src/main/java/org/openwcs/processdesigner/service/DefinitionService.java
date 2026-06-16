@@ -116,6 +116,85 @@ public class DefinitionService {
         return saved;
     }
 
+    /**
+     * Duplicate a version into a fresh DRAFT of the same process key (spec §14 "copy/duplicate
+     * version"). The source version's full model JSON is cloned; the new draft gets the next version
+     * number and its {@code version}/{@code status} fields are overridden to the new version / DRAFT.
+     * Lets a user iterate from a published (or any) version without mutating it.
+     */
+    @Transactional
+    public ProcessDefinition duplicate(String key, int sourceVersion) {
+        ProcessDefinition source = get(key, sourceVersion);
+        int next = repo.maxVersionForKey(key) + 1;
+
+        ObjectNode json = source.getJson() != null && source.getJson().isObject()
+                ? source.getJson().deepCopy()
+                : mapper.createObjectNode();
+        json.put("processKey", key);
+        json.put("version", next);
+        json.put("status", ProcessDefinition.DRAFT);
+
+        ProcessDefinition def = new ProcessDefinition();
+        def.setProcessKey(key);
+        def.setVersion(next);
+        def.setStatus(ProcessDefinition.DRAFT);
+        def.setTitle(source.getTitle());
+        def.setIcon(source.getIcon());
+        def.setJson(json);
+        ProcessDefinition saved = repo.save(def);
+        log.info("process definition duplicated: {} v{} -> new DRAFT v{}", key, sourceVersion, next);
+        return saved;
+    }
+
+    /**
+     * Import a full model document as a new DRAFT (spec §15 "definition portability"). Reads the
+     * {@code processKey} + {@code title}/{@code icon} from the document, validates the model shape,
+     * and stores it under a fresh version for that key. Any incoming {@code version}/{@code status}
+     * is ignored and overridden (a new DRAFT). Lets definitions move between environments.
+     */
+    @Transactional
+    public ProcessDefinition importDefinition(JsonNode incoming) {
+        if (incoming == null || !incoming.isObject()) {
+            throw new IllegalArgumentException("Import body must be a process model object.");
+        }
+        String key = textOf(incoming, "processKey");
+        if (key == null || key.isBlank()) {
+            throw new IllegalArgumentException("Imported definition is missing processKey.");
+        }
+        String title = textOf(incoming, "title");
+        if (title == null || title.isBlank()) {
+            throw new IllegalArgumentException("Imported definition is missing title.");
+        }
+        // Validate the model shape (steps/start/transitions/tasks) before storing.
+        List<String> problems = validator.validate(incoming);
+        if (!problems.isEmpty()) {
+            throw new DefinitionInvalidException(problems);
+        }
+
+        int next = repo.maxVersionForKey(key) + 1;
+        ObjectNode json = ((ObjectNode) incoming).deepCopy();
+        json.put("processKey", key);
+        json.put("version", next);
+        json.put("status", ProcessDefinition.DRAFT);
+
+        String icon = textOf(incoming, "icon");
+        ProcessDefinition def = new ProcessDefinition();
+        def.setProcessKey(key);
+        def.setVersion(next);
+        def.setStatus(ProcessDefinition.DRAFT);
+        def.setTitle(title);
+        def.setIcon(icon);
+        def.setJson(json);
+        ProcessDefinition saved = repo.save(def);
+        log.info("process definition imported as new DRAFT: {} v{} ('{}')", key, next, title);
+        return saved;
+    }
+
+    private static String textOf(JsonNode node, String field) {
+        JsonNode v = node.get(field);
+        return v == null || v.isNull() || !v.isTextual() ? null : v.asText();
+    }
+
     /** Replace a DRAFT's JSON body. 409 if the version is not DRAFT. */
     @Transactional
     public ProcessDefinition updateDraft(String key, int version, JsonNode json) {

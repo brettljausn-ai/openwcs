@@ -23,7 +23,7 @@ import { useCatalog } from '../../lib/useCatalog'
 import ProcessScreenView from '../screens/ProcessScreenView'
 import { isScreenStep, isTaskStep, type CheckpointResult, type ProcessInstance } from '../model'
 import { getActiveDef, getInstance, startInstance } from '../api'
-import { nextStepId, stepOf, writeValue } from './walker'
+import { nextStepId, resolveLandingStep, stepOf, writeValue } from './walker'
 import {
   enqueueCheckpoint,
   failedFor,
@@ -121,9 +121,26 @@ export default function ProcessRuntimeScreen() {
   void queue // re-render trigger via subscription
 
   // Advance helper: set currentStep to id (or done) — shared by screen submit + task advance.
+  // Honours `skipWhen`: resolve through any steps whose skip condition is true so we never render a
+  // skipped step (loop-guarded by resolveLandingStep).
   const advanceTo = useCallback((nextId: string | null, data: Record<string, unknown>) => {
-    setInstance((prev) => (prev ? { ...prev, data, currentStep: nextId ?? '' } : prev))
+    setInstance((prev) => {
+      if (!prev) return prev
+      const landed = resolveLandingStep(prev.def, nextId, data)
+      return { ...prev, data, currentStep: landed ?? '' }
+    })
   }, [])
+
+  // When an instance is first started/resumed, the server-provided currentStep may itself carry a
+  // true skipWhen — resolve it once so the first rendered screen is never a skipped one.
+  useEffect(() => {
+    if (!instance || !instance.currentStep) return
+    const landed = resolveLandingStep(instance.def, instance.currentStep, instance.data)
+    if ((landed ?? '') !== instance.currentStep) {
+      setInstance((prev) => (prev ? { ...prev, currentStep: landed ?? '' } : prev))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instance?.instanceId])
 
   // SCREEN submit: write value, compute next, advance (purely local).
   const onScreenSubmit = useCallback(

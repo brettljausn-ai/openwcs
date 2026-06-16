@@ -982,3 +982,37 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-issues ul { margin: .4rem 0 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: .2rem; }
 .op-pd-issue-err { color: var(--danger); }
 .op-pd-issue-warn { color: var(--warning); }
+
+/* Phase 2: version management + read-only badge */
+.op-pd-readonly-badge { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; padding: .15rem .4rem; border-radius: 6px; background: rgba(244,184,96,.16); border: 1px solid var(--warning); color: var(--warning); }
+.op-pd-versions { margin: .6rem 0; }
+.op-pd-versions-head { font-size: .8rem; color: var(--text-dim); margin-bottom: .35rem; }
+.op-pd-versions ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .35rem; }
+.op-pd-version-btn { display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .5rem; border: 1px solid var(--glass-border); border-radius: 8px; background: rgba(255,255,255,.02); color: var(--text); cursor: pointer; font-size: .8rem; }
+.op-pd-version-btn.is-current { border-color: var(--herbal-lime); box-shadow: 0 0 0 2px rgba(141,198,63,.15); }
+.op-pd-version-status { font-size: .65rem; text-transform: uppercase; letter-spacing: .03em; color: var(--text-dim); }
+.op-pd-version-status.status-active { color: var(--herbal-lime); }
+.op-pd-version-status.status-archived { color: var(--text-dim); }
+.op-pd-version-lock { font-size: .7rem; opacity: .7; }
+
+/* Phase 2: instance monitoring */
+.op-pd-instances-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.op-pd-instances-filters { display: flex; gap: .6rem; align-items: flex-end; flex-wrap: wrap; }
+.op-pd-instances-grid { display: grid; grid-template-columns: 1fr 360px; gap: 1rem; align-items: start; }
+.op-pd-instances-table { overflow: auto; }
+.op-pd-instances-table table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.op-pd-instances-table th, .op-pd-instances-table td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--glass-border); white-space: nowrap; }
+.op-pd-instances-table tbody tr:hover { background: rgba(255,255,255,.03); }
+.op-pd-instances-table tbody tr.is-selected { background: rgba(141,198,63,.10); }
+.op-pd-instance-status { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; padding: .12rem .4rem; border-radius: 6px; border: 1px solid var(--glass-border); }
+.op-pd-instance-status.status-running { color: var(--herbal-lime); border-color: var(--herbal-lime); }
+.op-pd-instance-status.status-completed { color: var(--text-dim); }
+.op-pd-instance-status.status-failed, .op-pd-instance-status.status-cancelled { color: var(--danger); border-color: var(--danger); }
+.op-pd-instance-detail h4 { margin: 1rem 0 .35rem; font-size: .82rem; text-transform: uppercase; letter-spacing: .03em; color: var(--text-dim); }
+.op-pd-trail { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: .2rem; font-size: .85rem; }
+.op-pd-trail li.is-current { font-weight: 600; }
+.op-pd-trail-here { color: var(--herbal-lime); }
+.op-pd-dataobj-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.op-pd-dataobj-table th { text-align: left; padding: .3rem .5rem; color: var(--text-dim); white-space: nowrap; vertical-align: top; }
+.op-pd-dataobj-table td { padding: .3rem .5rem; word-break: break-word; }
+@media (max-width: 900px) { .op-pd-instances-grid { grid-template-columns: 1fr; } }

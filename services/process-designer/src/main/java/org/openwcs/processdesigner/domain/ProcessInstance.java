@@ -129,4 +129,8 @@ public class ProcessInstance {
     public Instant getStartedAt() {
         return startedAt;
     }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
 }

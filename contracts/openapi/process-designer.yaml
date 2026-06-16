@@ -57,6 +57,71 @@ paths:
         "400": { description: Invalid request }
         "403": { description: "Missing PROCESS_DESIGN_EDIT permission" }
 
+  /defs/import:
+    post:
+      tags: [Definitions]
+      summary: Import a full model document as a new DRAFT
+      description: >
+        Body is a full process model document (processKey, title, icon, dataSchema, start, steps).
+        Creates a new DRAFT version for that processKey after validating the model shape; any incoming
+        version or status is ignored and overridden. Lets definitions move between environments.
+      operationId: importDefinition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProcessModel' }
+      responses:
+        "201":
+          description: Created DRAFT summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DefinitionSummary' }
+        "400": { description: "Missing processKey or title" }
+        "403": { description: "Missing PROCESS_DESIGN_EDIT permission" }
+        "422":
+          description: "The imported model failed validation, with the list of problems"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidationProblem' }
+
+  /defs/{key}/{version}/duplicate:
+    post:
+      tags: [Definitions]
+      summary: Duplicate a version into a new DRAFT
+      description: >
+        Clones the source version's model JSON into a fresh DRAFT of the same process key with the
+        next version number. Lets a user iterate from a published version without mutating it.
+      operationId: duplicateDefinition
+      parameters:
+        - { name: key, in: path, required: true, schema: { type: string } }
+        - { name: version, in: path, required: true, schema: { type: integer } }
+      responses:
+        "201":
+          description: New DRAFT summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DefinitionSummary' }
+        "403": { description: "Missing PROCESS_DESIGN_EDIT permission" }
+        "404": { description: Source version not found }
+
+  /tasks:
+    get:
+      tags: [Definitions]
+      summary: The curated task catalog
+      description: >
+        The registered curated task types with their label and named inputs/outputs, so the
+        designer's task picker and input/output mapping is driven by the real server registry.
+      operationId: listTasks
+      responses:
+        "200":
+          description: Task specs
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TaskSpec' }
+
   /defs/{key}/{version}:
     get:
       tags: [Definitions]
@@ -169,6 +234,29 @@ paths:
                 items: { $ref: '#/components/schemas/ProcessMenuEntry' }
 
   /instances:
+    get:
+      tags: [Instances]
+      summary: List instance summaries (monitoring)
+      description: >
+        Newest-first instance summaries for the monitoring view, optionally filtered by processKey,
+        status, and warehouseId, capped at limit (default 50, max 500).
+      operationId: listInstances
+      parameters:
+        - { name: processKey, in: query, required: false, schema: { type: string } }
+        - name: status
+          in: query
+          required: false
+          schema: { type: string, enum: [RUNNING, DONE] }
+        - { name: warehouseId, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 50 } }
+      responses:
+        "200":
+          description: Instance summaries (newest first)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/InstanceSummary' }
     post:
       tags: [Instances]
       summary: Start an instance of a process key's ACTIVE definition
@@ -273,7 +361,7 @@ components:
           additionalProperties: true
         task:
           type: string
-          description: "Curated task type, e.g. inventory.move, slotting.putaway, picking.confirm, inventory.lookup, txlog.post."
+          description: "Curated task type, e.g. inventory.move, slotting.putaway, picking.confirm, inventory.lookup, txlog.post, host.confirm, inventory.adjust, counting.capture, order.lookup."
         input:
           type: object
           additionalProperties: { type: string }
@@ -288,6 +376,12 @@ components:
         next:
           type: string
           description: "Default next step; null or no matching transition ends the instance."
+        skipWhen:
+          type: string
+          description: >
+            Optional restricted condition (same grammar as a transition when). When it evaluates
+            true the client skips this step and continues via the onward path. The server validates
+            it at publish time (it must parse and the step must still have a reachable onward path).
       additionalProperties: true
 
     Transition:
@@ -380,3 +474,39 @@ components:
           additionalProperties: true
         currentStep: { type: string, nullable: true }
         done: { type: boolean }
+
+    TaskSpec:
+      type: object
+      description: "A curated task type's self-describing metadata for the designer's task picker."
+      properties:
+        type:
+          type: string
+          description: "The task-type string used in a step's task field, e.g. inventory.move."
+        label: { type: string }
+        inputs:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              required: { type: boolean }
+        outputs:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+
+    InstanceSummary:
+      type: object
+      description: "A lightweight instance summary for the monitoring list (no data object or definition body)."
+      properties:
+        instanceId: { type: string, format: uuid }
+        processKey: { type: string }
+        defVersion: { type: integer }
+        status: { type: string, enum: [RUNNING, DONE] }
+        currentStep: { type: string, nullable: true }
+        startedBy: { type: string }
+        warehouseId: { type: string, format: uuid, nullable: true }
+        startedAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
