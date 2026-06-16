@@ -27,5 +27,11 @@ public enum Permission {
     // definitions + the operator process menu vs. authoring/publishing definitions.
     PROCESS_DESIGN_VIEW,
     PROCESS_DESIGN_EDIT,
+    // Phase 3 sandboxed scripting escape hatch (spec §7.2): authoring a script task step. Distinct
+    // from PROCESS_DESIGN_EDIT so the dangerous capability is granted narrowly (admin only by
+    // default) and is defense-in-depth alongside the openwcs.process-designer.scripting.enabled flag.
+    // Saving/publishing a definition that carries a script step requires BOTH this permission and the
+    // flag; a sandboxed snippet still runs in a locked-down GraalJS context, never as host Java.
+    PROCESS_SCRIPT_AUTHOR,
     IAM_ADMIN
 }

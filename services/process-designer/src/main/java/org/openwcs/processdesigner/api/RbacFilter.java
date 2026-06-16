@@ -52,6 +52,8 @@ public class RbacFilter extends OncePerRequestFilter {
         // Definition writes (create draft / edit draft / publish / archive) need the edit permission.
         boolean defWrite = uri.startsWith("/api/process-designer/defs")
                 && !HttpMethod.GET.matches(request.getMethod());
-        return defWrite ? Permission.PROCESS_DESIGN_EDIT : Permission.PROCESS_DESIGN_VIEW;
+        // AI task-assist (spec §7.3) is a design-time authoring aid -> edit permission.
+        boolean assist = uri.startsWith("/api/process-designer/assist");
+        return defWrite || assist ? Permission.PROCESS_DESIGN_EDIT : Permission.PROCESS_DESIGN_VIEW;
     }
 }

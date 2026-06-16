@@ -25,8 +25,11 @@ public final class RoleCatalog {
             // Operators run active handheld processes (read the def + start/checkpoint instances).
             Permission.PROCESS_DESIGN_VIEW);
 
+    // Supervisor gets everything except IAM administration and the sandboxed-scripting escape hatch.
+    // PROCESS_SCRIPT_AUTHOR (spec §7.2) is reserved for ADMIN so designer-authored JS snippets are a
+    // narrowly-granted capability, on top of the off-by-default scripting flag (defense in depth).
     private static final Set<Permission> SUPERVISOR = EnumSet.complementOf(
-            EnumSet.of(Permission.IAM_ADMIN));
+            EnumSet.of(Permission.IAM_ADMIN, Permission.PROCESS_SCRIPT_AUTHOR));
 
     private static final Set<Permission> ADMIN = EnumSet.allOf(Permission.class);
 

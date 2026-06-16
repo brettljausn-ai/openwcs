@@ -16,6 +16,18 @@ dependencies {
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
 
+    // Phase 3 sandboxed script task (spec §7.2). GraalVM polyglot COMMUNITY coordinates: runs the
+    // designer-authored JS snippet in a locked-down GraalJS context (no host/Java access, statement +
+    // wall-clock limits). js-community works on a stock Temurin JDK 21 (interpreter/fallback mode is
+    // fine for short snippets; CI uses a stock JDK). NEVER compiles designer code to host bytecode.
+    implementation 'org.graalvm.polyglot:polyglot:24.1.1'
+    implementation 'org.graalvm.polyglot:js-community:24.1.1'
+
+    // Phase 3 AI task-assist (spec §7.3, design-time only): the official Anthropic Java SDK, same
+    // dependency + graceful "not configured" handling as services/assistant. The model output is a
+    // suggestion the designer reviews; it is NEVER saved, compiled, or executed by the server.
+    implementation 'com.anthropic:anthropic-java:2.34.0'
+
     runtimeOnly 'org.postgresql:postgresql'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
