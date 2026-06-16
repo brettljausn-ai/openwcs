@@ -5,4 +5,6 @@ export default {
   loadingWarehouses: 'Lager werden geladen…',
   noWarehouseAccess: 'Kein Lagerzugriff',
   signOut: 'Abmelden',
+  online: 'Online',
+  offline: 'Offline',
 }
