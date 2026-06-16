@@ -1,0 +1,153 @@
+<section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="hpd.eyebrow1">Function · Handheld process designer <span class="pill pill-built" data-i18n="hpd.pill1">Built</span></p>
+      <h1 data-i18n="hpd.h1">Design the operator's flow, <span class="lime">no code required.</span></h1>
+      <p class="lead" data-i18n="hpd.lead1">
+        A no-code, WYSIWYG designer for the handheld. Build a flow of screens and task steps, watch
+        it run in a live phone-frame preview, validate and simulate it, then publish it as the active
+        version operators see. The handheld PWA walks the screens offline and only checks in with the
+        server for real task steps.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="hpd.eyebrow2">How it works</p>
+        <h2 data-i18n="hpd.h2">Drag screens, drop tasks, publish a process.</h2>
+        <p data-i18n="hpd.p1">
+          A process is a flow of handheld <strong>screens</strong> (what the operator sees) and
+          <strong>task steps</strong> (work the server performs). You design it visually, the preview
+          renders the real handheld, and the flow list draws the actual execution graph, branches and
+          loops included. When it validates, you publish it.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.tag1">WYSIWYG designer</div><span class="pill pill-built" data-i18n="hpd.pill2">Built</span></div>
+          <h3 data-i18n="hpd.h5">Build screens visually</h3>
+          <p data-i18n="hpd.p2">Assemble handheld screens from a palette: text, number and date input, an acknowledge step, a yes/no question, and a multiple-choice question. A live phone-frame preview shows exactly what the operator will see as you build.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.tag2">Flow graph</div><span class="pill pill-built" data-i18n="hpd.pill3">Built</span></div>
+          <h3 data-i18n="hpd.h6">See the real execution path</h3>
+          <p data-i18n="hpd.p3">The flow list renders the true execution graph, not just a list of steps: branches (when a condition is met, jump to a step) and detected loops are drawn out, so you can read the whole path before anyone runs it.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.tag3">Validate &amp; simulate</div><span class="pill pill-built" data-i18n="hpd.pill4">Built</span></div>
+          <h3 data-i18n="hpd.h7">Check it before you ship it</h3>
+          <p data-i18n="hpd.p4">Validate flags dangling branches and broken references. Simulate walks the flow with sample answers so you can see where each path leads, then publish promotes the draft to the one active version operators receive.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.tag4">Data &amp; branching</div><span class="pill pill-built" data-i18n="hpd.pill5">Built</span></div>
+          <h3 data-i18n="hpd.h8">Placeholders &amp; conditions</h3>
+          <p data-i18n="hpd.p5">Each step writes into a typed data object you can reuse via placeholders in later screens. Branches route on a condition (when → to) and steps can be skipped conditionally, so one process covers several real cases.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.tag5">Versioning</div><span class="pill pill-built" data-i18n="hpd.pill6">Built</span></div>
+          <h3 data-i18n="hpd.h9">Draft, active, clone</h3>
+          <p data-i18n="hpd.p6">Exactly one version of a process is ACTIVE at a time; the rest are drafts. Duplicate or clone a process to start a variant, import and export the whole thing as JSON, and watch running instances read-only as they progress.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.tag6">Task library</div><span class="pill pill-built" data-i18n="hpd.pill7">Built</span></div>
+          <h3 data-i18n="hpd.h10">Curated, audited tasks</h3>
+          <p data-i18n="hpd.p7">Task steps pick from a curated server-side library that calls existing, audited openWCS services with the operator's forwarded identity, so the same RBAC applies. The designer never runs arbitrary code, it composes vetted tasks.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="hpd.eyebrow3">Offline by design</p>
+        <h2 data-i18n="hpd.h3">Walks the screens offline, checks in only when it matters.</h2>
+        <p data-i18n="hpd.p8">
+          The runtime is client-driven. The handheld PWA renders the screens, captures input and
+          evaluates branches locally, with no round trip per tap. It queues a server checkpoint only at
+          task steps (the real work), so a connection blip or a device swap mid-process resumes cleanly.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.tag7">Offline runtime</div><span class="pill pill-built" data-i18n="hpd.pill8">Built</span></div>
+          <h3 data-i18n="hpd.h11">Local screen walk</h3>
+          <p data-i18n="hpd.p9">Screens and branch logic run on the device. The operator keeps moving through input, acknowledge and question screens even when the network drops; only task-step checkpoints need the server.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.tag8">Resumable</div><span class="pill pill-built" data-i18n="hpd.pill9">Built</span></div>
+          <h3 data-i18n="hpd.h12">Survives a blip or swap</h3>
+          <p data-i18n="hpd.p10">Because checkpoints are queued at task steps, a process resumes after a connection blip and can even be picked up on a different device, continuing from the last confirmed checkpoint rather than starting over.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.tag9">Scan verification</div><span class="pill pill-built" data-i18n="hpd.pill10">Built</span></div>
+          <h3 data-i18n="hpd.h13">Confirm a scan against master data</h3>
+          <p data-i18n="hpd.p11">A scanned location, SKU or barcode is resolved against master data to confirm it exists and to pull its linked ids. A SKU code with several units of measure prompts the operator to choose one; a barcode pins the UoM directly. Not found re-prompts or routes.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="hpd.eyebrow4">Two controlled escape hatches</p>
+        <h2 data-i18n="hpd.h4">When a curated task is not enough, safely.</h2>
+        <p data-i18n="hpd.p12">
+          Most processes need only the curated tasks. For the rare case that does not fit, there are two
+          opt-in, gated escape hatches, both designed so nothing arbitrary ever runs unreviewed.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.tag10">Sandboxed script</div><span class="pill pill-built" data-i18n="hpd.pill11">Built</span></div>
+          <h3 data-i18n="hpd.h14">Locked-down GraalJS step</h3>
+          <p data-i18n="hpd.p13">A sandboxed script step runs on a locked-down GraalJS engine: no host access, no network, no filesystem, with CPU and time limits. It is gated and opt-in, for the case a curated task cannot express.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.tag11">AI task-assist</div><span class="pill pill-built" data-i18n="hpd.pill12">Built</span></div>
+          <h3 data-i18n="hpd.h15">Plain English to a curated task</h3>
+          <p data-i18n="hpd.p14">A design-time AI assist maps a plain-English description to a curated task, or drafts a snippet for a developer to review. It is a design aid only: it never auto-deploys generated code.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.tag12">Honest framing</div><span class="pill pill-built" data-i18n="hpd.pill13">Built</span></div>
+          <h3 data-i18n="hpd.h16">Complements the BPMN engine</h3>
+          <p data-i18n="hpd.p15">This complements the <a href="/process-designer">BPMN process engine</a>, it does not replace it. BPMN is backend orchestration of the warehouse; this is the operator-facing handheld flow. Different layer, same warehouse.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="hpd.eyebrow5">At a glance</p>
+        <h2 data-i18n="hpd.h17">A handheld flow, designed and shipped.</h2>
+      </div>
+      <div class="arch">
+<pre>  designer (WYSIWYG) ─► screens + task steps ─► validate ─► simulate ─► <b>publish (active)</b>
+                                                                              │
+   handheld PWA pulls active version
+        │
+        ├─ screen   ─► input / acknowledge / question     (walked <b>offline</b>, branches local)
+        ├─ scan     ─► resolve vs master data ─► confirm exists, pull ids, pick UoM
+        ├─ task step ─► <b>checkpoint</b> ─► curated library ─► audited service (forwarded identity, RBAC)
+        └─ resume after blip / device swap ─► continue from last checkpoint</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow" data-i18n="hpd.eyebrow6">Built &amp; open</p>
+        <h2 data-i18n="hpd.h18">Design your operators' screens, yourself.</h2>
+        <p data-i18n="hpd.p16">The designer, the offline runtime and the curated task library are in the repo today. Build a handheld process, simulate it, publish it as the active version, and watch instances run. Read it, run it, change it.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+          <a class="btn btn-ghost" href="/functions" data-i18n="hpd.btn1">Back to functions</a>
+        </div>
+      </div>
+    </div>
+  </section>
