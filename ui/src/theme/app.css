@@ -930,7 +930,7 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-status-badge { font-size: .75rem; padding: .2rem .5rem; border-radius: 6px; background: rgba(141,198,63,.14); color: var(--herbal-lime); font-weight: 600; }
 .op-pd-statusline { font-size: .85rem; color: var(--text-dim); }
 
-.op-pd-grid { display: grid; grid-template-columns: 280px minmax(360px, 1fr) minmax(480px, 1.3fr); gap: .8rem; align-items: start; }
+.op-pd-grid { display: grid; grid-template-columns: 320px minmax(340px, 1fr) minmax(460px, 1.25fr); gap: .8rem; align-items: start; }
 @media (max-width: 1100px) { .op-pd-grid { grid-template-columns: 1fr; } }
 
 /* Left flow pane */
@@ -951,6 +951,22 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-branch { font-size: .72rem; color: var(--text-dim); }
 .op-pd-branch code { color: var(--herbal-lime); }
 .op-pd-branch-arrow { color: var(--glass-border-bright, #555); }
+.op-pd-step.is-orphan { border-style: dashed; border-color: var(--warning); opacity: .92; }
+.op-pd-verify-tag { font-size: .68rem; color: var(--herbal-lime); font-weight: 600; }
+/* Outgoing edges under each step: clickable targets, loop badges. */
+.op-pd-edges { list-style: none; margin: .15rem 0 .25rem 1rem; padding: 0; display: flex; flex-direction: column; gap: .1rem; }
+.op-pd-edge { font-size: .72rem; color: var(--text-dim); display: flex; align-items: center; gap: .25rem; flex-wrap: wrap; }
+.op-pd-edge code { color: var(--herbal-lime); }
+.op-pd-edge-target { background: none; border: 0; padding: 0; font: inherit; color: var(--text); font-weight: 600; cursor: pointer; border-bottom: 1px dotted var(--glass-border-bright, #777); }
+.op-pd-edge-target:hover { color: var(--herbal-lime); border-bottom-color: var(--herbal-lime); }
+.op-pd-edge.is-loop { color: var(--warning); }
+.op-pd-edge-end { font-style: italic; }
+.op-pd-loop-badge { font-size: .62rem; font-weight: 700; color: var(--warning); border: 1px solid var(--warning); border-radius: 4px; padding: 0 .3rem; }
+/* Loop summary banner above the step list. */
+.op-pd-flow-loops { font-size: .74rem; color: var(--warning); border: 1px solid var(--warning); border-radius: 8px; padding: .35rem .5rem; display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.op-pd-loop-link { background: none; border: 1px solid var(--warning); border-radius: 5px; color: var(--warning); cursor: pointer; font: inherit; font-size: .68rem; padding: .05rem .35rem; }
+.op-pd-loop-link:hover { background: rgba(244,184,96,.14); }
+.op-pd-unreachable-head { font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: var(--warning); margin-top: .5rem; padding: .15rem .2rem; }
 .op-pd-defs summary { cursor: pointer; font-size: .85rem; color: var(--text-dim); }
 .op-pd-defs ul { list-style: none; margin: 0; padding: 0; }
 .op-pd-link { background: none; border: 0; color: var(--herbal-lime); cursor: pointer; padding: .2rem 0; font-size: .82rem; }
