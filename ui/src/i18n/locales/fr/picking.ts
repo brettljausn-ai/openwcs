@@ -28,4 +28,16 @@ export default {
   loadingQueue: 'Chargement de la file…',
   noPicks: 'Aucun prélèvement ouvert dans cet entrepôt pour le moment.',
   checking: 'Vérification de la file…',
+  // Scanner RF : invites de scan et incohérences.
+  scanLocation: 'Scanner l’emplacement {code}',
+  scanItem: 'Scanner l’article {code}',
+  scanConfirm: 'Confirmer {n}',
+  wrongLocation: 'Mauvais emplacement — scanner {code}',
+  wrongItem: 'Mauvais article — attendu {code}',
+  // File de confirmations hors ligne.
+  online: 'En ligne',
+  offline: 'Hors ligne',
+  pendingConfirms: '{n} en attente',
+  failedConfirms: '{n} en échec — intervention requise',
+  retryNow: 'Réessayer maintenant',
 }

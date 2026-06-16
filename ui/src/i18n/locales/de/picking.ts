@@ -28,4 +28,16 @@ export default {
   loadingQueue: 'Kommissionierliste wird geladen…',
   noPicks: 'Derzeit keine offenen Picks in diesem Lager.',
   checking: 'Warteschlange wird geprüft…',
+  // RF-Scanner: Scan-Aufforderungen und Fehlanpassungen.
+  scanLocation: 'Lagerplatz {code} scannen',
+  scanItem: 'Artikel {code} scannen',
+  scanConfirm: '{n} bestätigen',
+  wrongLocation: 'Falscher Lagerplatz — {code} scannen',
+  wrongItem: 'Falscher Artikel — erwartet {code}',
+  // Offline-Bestätigungswarteschlange.
+  online: 'Online',
+  offline: 'Offline',
+  pendingConfirms: '{n} ausstehend',
+  failedConfirms: '{n} fehlgeschlagen — Aufmerksamkeit erforderlich',
+  retryNow: 'Jetzt erneut versuchen',
 }

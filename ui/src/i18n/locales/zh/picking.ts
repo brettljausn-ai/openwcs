@@ -28,4 +28,16 @@ export default {
   loadingQueue: '正在加载拣货队列…',
   noPicks: '此仓库当前没有未完成的拣货。',
   checking: '正在检查队列…',
+  // RF 扫描器：扫描提示与不匹配。
+  scanLocation: '扫描库位 {code}',
+  scanItem: '扫描商品 {code}',
+  scanConfirm: '确认 {n}',
+  wrongLocation: '库位错误 — 请扫描 {code}',
+  wrongItem: '商品错误 — 应为 {code}',
+  // 离线确认队列。
+  online: '在线',
+  offline: '离线',
+  pendingConfirms: '{n} 项待发送',
+  failedConfirms: '{n} 项失败 — 需要处理',
+  retryNow: '立即重试',
 }
