@@ -28,6 +28,14 @@ public class SlottingPutawayTask implements ProcessTask {
     }
 
     @Override
+    public TaskSpec spec() {
+        return new TaskSpec("slotting.putaway", "Slot + put away",
+                java.util.List.of(TaskSpec.req("warehouseId"), TaskSpec.req("huId"),
+                        TaskSpec.req("skuId"), TaskSpec.req("qty"), TaskSpec.opt("fromLocationId")),
+                java.util.List.of(TaskSpec.out("toLocationId"), TaskSpec.out("moveId")));
+    }
+
+    @Override
     public Map<String, Object> execute(Map<String, Object> in) {
         Map<String, Object> body = new HashMap<>();
         body.put("warehouseId", TaskInputs.requireUuid(in, "warehouseId").toString());

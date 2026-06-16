@@ -28,6 +28,14 @@ public class PickingConfirmTask implements ProcessTask {
     }
 
     @Override
+    public TaskSpec spec() {
+        return new TaskSpec("picking.confirm", "Confirm pick",
+                java.util.List.of(TaskSpec.req("lineId"), TaskSpec.req("pickedQty"),
+                        TaskSpec.opt("short"), TaskSpec.opt("locationId")),
+                java.util.List.of(TaskSpec.out("pickStatus")));
+    }
+
+    @Override
     public Map<String, Object> execute(Map<String, Object> in) {
         String lineId = TaskInputs.requireUuid(in, "lineId").toString();
         Map<String, Object> body = new HashMap<>();

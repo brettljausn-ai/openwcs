@@ -7,7 +7,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
+import java.util.List;
 import org.openwcs.processdesigner.api.CheckpointResult;
+import org.openwcs.processdesigner.api.InstanceSummary;
 import org.openwcs.processdesigner.api.InstanceView;
 import org.openwcs.processdesigner.api.NotFoundException;
 import org.openwcs.processdesigner.domain.ProcessDefinition;
@@ -73,6 +75,23 @@ public class InstanceService {
         log.info("process instance {} started: {} v{} at step '{}'",
                 saved.getId(), processKey, def.getVersion(), start);
         return view(saved, defJson);
+    }
+
+    /**
+     * Instance monitoring list (spec §14): newest-first summaries, optionally filtered by processKey /
+     * status / warehouseId, capped at {@code limit} (clamped 1..500, default 50).
+     */
+    @Transactional(readOnly = true)
+    public List<InstanceSummary> list(String processKey, String status, UUID warehouseId, Integer limit) {
+        int capped = limit == null ? 50 : Math.max(1, Math.min(limit, 500));
+        String key = blankToNull(processKey);
+        String st = status == null || status.isBlank() ? null : status.toUpperCase();
+        return instances.search(key, st, warehouseId, org.springframework.data.domain.PageRequest.of(0, capped))
+                .stream().map(InstanceSummary::from).toList();
+    }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s;
     }
 
     @Transactional(readOnly = true)

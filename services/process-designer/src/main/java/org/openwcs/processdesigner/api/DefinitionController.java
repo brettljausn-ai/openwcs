@@ -5,6 +5,8 @@ import jakarta.validation.Valid;
 import java.util.List;
 import org.openwcs.processdesigner.domain.ProcessDefinition;
 import org.openwcs.processdesigner.service.DefinitionService;
+import org.openwcs.processdesigner.task.TaskRegistry;
+import org.openwcs.processdesigner.task.TaskSpec;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,9 +29,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class DefinitionController {
 
     private final DefinitionService service;
+    private final TaskRegistry taskRegistry;
 
-    public DefinitionController(DefinitionService service) {
+    public DefinitionController(DefinitionService service, TaskRegistry taskRegistry) {
         this.service = service;
+        this.taskRegistry = taskRegistry;
     }
 
     /** List definition summaries, optionally filtered by status (DRAFT|ACTIVE|ARCHIVED). */
@@ -56,10 +60,36 @@ public class DefinitionController {
         return service.processes();
     }
 
+    /** The curated task catalog (type, label, inputs, outputs) for the designer's task picker. */
+    @GetMapping("/tasks")
+    public List<TaskSpec> tasks() {
+        return taskRegistry.catalog();
+    }
+
     /** Create a DRAFT (auto-incremented version per key). */
     @PostMapping("/defs")
     public ResponseEntity<DefinitionSummary> create(@Valid @RequestBody CreateDefinitionRequest req) {
         ProcessDefinition def = service.createDraft(req);
+        return ResponseEntity.status(HttpStatus.CREATED).body(DefinitionSummary.from(def));
+    }
+
+    /**
+     * Duplicate a version into a fresh DRAFT of the same key (clone its model JSON). Lets a user
+     * iterate from a published version. Returns the new DRAFT summary.
+     */
+    @PostMapping("/defs/{key}/{version}/duplicate")
+    public ResponseEntity<DefinitionSummary> duplicate(@PathVariable String key, @PathVariable int version) {
+        ProcessDefinition def = service.duplicate(key, version);
+        return ResponseEntity.status(HttpStatus.CREATED).body(DefinitionSummary.from(def));
+    }
+
+    /**
+     * Import a full model document as a new DRAFT for its processKey (validates the model shape;
+     * ignores/overrides any incoming version/status). Lets definitions move between environments.
+     */
+    @PostMapping("/defs/import")
+    public ResponseEntity<DefinitionSummary> importDefinition(@RequestBody JsonNode body) {
+        ProcessDefinition def = service.importDefinition(body);
         return ResponseEntity.status(HttpStatus.CREATED).body(DefinitionSummary.from(def));
     }
 
