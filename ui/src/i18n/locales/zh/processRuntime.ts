@@ -16,4 +16,8 @@ export default {
   verifyNotFound: '未找到，请重新扫描',
   verifyOffline: '校验需要网络连接',
   verifyAmbiguous: '找到多个匹配项。',
+  // skuScan 计量单位选择
+  uomTitle: '选择计量单位',
+  uomBody: '该商品可以多种单位记账。请选择您正在处理的单位。',
+  uomBase: '基本单位',
 }

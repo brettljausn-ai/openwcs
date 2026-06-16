@@ -21,7 +21,7 @@ import { useT } from '../../i18n/useT'
 import { useWarehouse } from '../../warehouse/WarehouseContext'
 import { useCatalog } from '../../lib/useCatalog'
 import ProcessScreenView from '../screens/ProcessScreenView'
-import { isScreenStep, isTaskStep, type CheckpointResult, type ProcessInstance, type VerifyResult } from '../model'
+import { isScreenStep, isTaskStep, type CheckpointResult, type ProcessInstance, type VerifyConfig, type VerifyResult } from '../model'
 import { getActiveDef, getInstance, startInstance, verifyCode } from '../api'
 import { applyVerifyWrites, nextStepId, resolveLandingStep, stepOf, writeValue } from './walker'
 import {
@@ -64,6 +64,10 @@ export default function ProcessRuntimeScreen() {
   const [verifyNote, setVerifyNote] = useState<string | null>(null)
   const [resetSignal, setResetSignal] = useState(0)
   const verifyingRef = useRef(false)
+
+  // skuScan: when a resolved SKU has several UOMs the operator must pick one BEFORE we advance. We
+  // hold the resolved result + the post-write data here and render a UOM picker over the screen.
+  const [uomChoice, setUomChoice] = useState<{ result: VerifyResult; verify: VerifyConfig; baseData: Record<string, unknown> } | null>(null)
 
   // Subscribe to the checkpoint queue + start the drainer once.
   useEffect(() => {
@@ -152,6 +156,7 @@ export default function ProcessRuntimeScreen() {
   useEffect(() => {
     setVerifyState('idle')
     setVerifyNote(null)
+    setUomChoice(null)
   }, [currentStep])
 
   // SCREEN submit: write value, then either advance (no verify) or resolve the scan against
@@ -199,6 +204,13 @@ export default function ProcessRuntimeScreen() {
             onNotVerified()
             return
           }
+          // skuScan with several UOMs: hold and let the operator pick one before advancing.
+          if (res.needsUomChoice && (res.uoms?.length ?? 0) > 0) {
+            setVerifyState('idle')
+            setVerifyNote(res.ambiguous ? '__ambiguous__' : null)
+            setUomChoice({ result: res, verify, baseData })
+            return
+          }
           const data = applyVerifyWrites(baseData, verify, res)
           setVerifyState('idle')
           setVerifyNote(res.ambiguous ? '__ambiguous__' : null)
@@ -215,6 +227,20 @@ export default function ProcessRuntimeScreen() {
         .finally(finish)
     },
     [instance, step, advanceTo, warehouseId],
+  )
+
+  // skuScan UOM picker: the operator picked a unit — write it into the uomCode-mapped variable, apply
+  // the other resolved write mappings, then continue to the next step. Idempotent: a no-op if there
+  // is no pending choice / the step changed underneath us.
+  const onPickUom = useCallback(
+    (uomCode: string) => {
+      if (!uomChoice || !step || !isScreenStep(step)) return
+      const { result, verify, baseData } = uomChoice
+      const data = applyVerifyWrites(baseData, verify, result, uomCode)
+      setUomChoice(null)
+      advanceTo(nextStepId(step, data), data)
+    },
+    [uomChoice, step, advanceTo],
   )
 
   // TASK run: POST checkpoint; on success merge + advance; on network failure queue + HOLD.
@@ -304,7 +330,7 @@ export default function ProcessRuntimeScreen() {
         <RuntimeBanner pending={pending} failed={failed} error={error} t={t} />
       )}
 
-      {step && isScreenStep(step) && (
+      {step && isScreenStep(step) && !uomChoice && (
         <ProcessScreenView
           step={step}
           config={step.config}
@@ -321,6 +347,34 @@ export default function ProcessRuntimeScreen() {
             offline: t('verifyOffline', 'Verification needs a connection'),
           }}
         />
+      )}
+
+      {uomChoice && (
+        <div className="op-pd-uom-picker glass" style={{ marginTop: '1rem', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+            <h2 style={{ margin: 0, fontSize: '1.4rem' }}>{t('uomTitle', 'Choose a unit of measure')}</h2>
+            <p className="muted" style={{ margin: 0 }}>
+              {t('uomBody', 'This item can be booked in several units. Pick the one you are handling.')}
+            </p>
+            {uomChoice.result.name && (
+              <p className="muted" style={{ margin: 0, fontSize: '.9rem' }}>{uomChoice.result.name}</p>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
+            {(uomChoice.result.uoms ?? []).map((u) => (
+              <button
+                key={u.code}
+                type="button"
+                className="btn btn-ghost btn-lg"
+                style={{ minHeight: 60, fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                onClick={() => onPickUom(u.code)}
+              >
+                <span>{u.code}</span>
+                {u.baseUnit && <span className="badge" style={{ fontSize: '.75rem' }}>{t('uomBase', 'base unit')}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {step && isTaskStep(step) && (

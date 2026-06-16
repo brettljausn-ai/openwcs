@@ -984,6 +984,42 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-chips { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .25rem; }
 .op-pd-chip { font-size: .68rem; font-family: var(--font-mono); padding: .1rem .35rem; border: 1px solid var(--glass-border); border-radius: 5px; background: transparent; color: var(--herbal-lime); cursor: pointer; }
 .op-pd-dataobj { margin-top: .4rem; }
+/* Data-object row: a readable NAME input (flex), a fixed-width TYPE select, a compact remove button.
+   Without these the global ".op-pd-fieldset select { width:100% }" balloons the type select and
+   squishes the name input to an unreadable sliver. */
+.op-pd-dataobj-row { display: flex; gap: .4rem; align-items: center; margin-bottom: .4rem; }
+.op-pd-dataobj-row .op-pd-dataobj-name { flex: 1 1 auto; min-width: 0; }
+.op-pd-dataobj-row .op-pd-dataobj-type { flex: 0 0 130px; width: 130px; }
+.op-pd-dataobj-row .op-pd-dataobj-del { flex: 0 0 auto; padding-left: .5rem; padding-right: .5rem; }
+
+/* VarCombobox: type-to-filter variable picker (replaces long <select> dropdowns). */
+.op-pd-combobox { position: relative; width: 100%; }
+.op-pd-combobox-control { position: relative; display: flex; align-items: center; }
+.op-pd-combobox-input {
+  width: 100%; padding: .4rem .55rem; padding-right: 1.7rem; background: var(--glass-bg, rgba(255,255,255,.04));
+  border: 1px solid var(--glass-border); border-radius: 7px; color: var(--text); font-size: .85rem;
+}
+.op-pd-combobox-clear {
+  position: absolute; right: .3rem; top: 50%; transform: translateY(-50%); width: 1.2rem; height: 1.2rem;
+  display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 4px;
+  background: transparent; color: var(--text-dim); cursor: pointer; font-size: .75rem; line-height: 1;
+}
+.op-pd-combobox-clear:hover { color: var(--text); background: rgba(255,255,255,.06); }
+.op-pd-combobox-list {
+  position: absolute; z-index: 40; top: calc(100% + 2px); left: 0; right: 0; max-height: 220px; overflow-y: auto;
+  margin: 0; padding: .2rem; list-style: none; border: 1px solid var(--glass-border); border-radius: 8px;
+  background: var(--surface, #1b1f24); box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+.op-pd-combobox-opt {
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .35rem .5rem;
+  border-radius: 6px; cursor: pointer; font-size: .85rem;
+}
+.op-pd-combobox-opt.is-active { background: rgba(141,198,63,.16); }
+.op-pd-combobox-opt.is-selected { color: var(--herbal-lime); }
+.op-pd-combobox-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.op-pd-combobox-type { flex: 0 0 auto; font-size: .72rem; color: var(--text-dim); font-family: var(--font-mono); }
+.op-pd-combobox-none { color: var(--text-dim); font-style: italic; }
+.op-pd-combobox-empty { padding: .35rem .5rem; color: var(--text-dim); font-size: .8rem; }
 
 /* Validation issue list */
 .op-pd-issues { border: 1px solid var(--glass-border); border-radius: 9px; padding: .7rem .9rem; font-size: .85rem; }

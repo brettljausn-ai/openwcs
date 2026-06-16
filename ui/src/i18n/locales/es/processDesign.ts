@@ -83,6 +83,8 @@ export default {
   verifyKind_barcode: 'Código de barras',
   verifyKind_sku: 'Artículo (SKU)',
   verifyKind_location: 'Ubicación',
+  verifyKind_skuScan: 'Escanear código de artículo o código de barras',
+  verifySkuScanHelp: 'Un código de barras fija la unidad de medida; un código de artículo con varias unidades pide al operario que elija una. Asigne "uomCode" a una variable para guardar la unidad elegida o resuelta.',
   verifyWrite: 'Guardar los valores resueltos en variables',
   verifyNoVars: 'Agregue variables del objeto de datos abajo para guardar los identificadores resueltos.',
   verifyDontStore: '(no guardar)',
