@@ -38,6 +38,23 @@ openwcs:
     txlog-base-url: ${OPENWCS_TXLOG_BASE_URL:http://localhost:8086}
     integration-host-base-url: ${OPENWCS_INTEGRATION_HOST_BASE_URL:http://localhost:8092}
     counting-base-url: ${OPENWCS_COUNTING_BASE_URL:http://localhost:8095}
+    # Phase 3 sandboxed scripting escape hatch (spec §7.2). OFF by default: a definition that carries
+    # a script step can be saved/published ONLY when this is true AND the caller holds
+    # PROCESS_SCRIPT_AUTHOR (defense in depth). The snippet runs in a locked-down GraalJS sandbox
+    # (no host/Java access) with a statement limit + wall-clock timeout; it is NEVER compiled to host
+    # bytecode. No AI-generated code is ever auto-deployed or executed by the server.
+    scripting:
+      enabled: ${OPENWCS_PROCESS_SCRIPTING_ENABLED:false}
+      statement-limit: ${OPENWCS_PROCESS_SCRIPT_STATEMENT_LIMIT:100000}
+      timeout-ms: ${OPENWCS_PROCESS_SCRIPT_TIMEOUT_MS:2000}
+      max-output-bytes: ${OPENWCS_PROCESS_SCRIPT_MAX_OUTPUT_BYTES:65536}
+    # Phase 3 AI task-assist (spec §7.3, design-time only). The Anthropic key comes from the
+    # ANTHROPIC_API_KEY env (same convention as the assistant service); absent -> /assist/task is 503
+    # and the context still starts. The model output is a suggestion the designer reviews; it is never
+    # saved, compiled, or executed by the server.
+    assist:
+      api-key: ${ANTHROPIC_API_KEY:}
+      model: ${OPENWCS_PROCESS_ASSIST_MODEL:claude-haiku-4-5}
 
 management:
   endpoints:

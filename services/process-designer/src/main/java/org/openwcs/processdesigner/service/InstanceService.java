@@ -133,7 +133,11 @@ public class InstanceService {
         ObjectNode data = mergedData(instance.getData(), posted);
 
         // Resolve the step's input mapping (variable/literal -> value) into the task's named inputs.
-        Map<String, Object> inputs = resolveInputs(step.get("input"), data);
+        // The sandboxed script task is special: its payload (script + declared outputs) lives in the
+        // step config and it reads the whole data object, so feed it through reserved input keys.
+        Map<String, Object> inputs = "script".equals(taskType)
+                ? scriptInputs(step.get("config"), data)
+                : resolveInputs(step.get("input"), data);
 
         // Run the curated task. A failure aborts the transaction (no ledger row, no advance) -> 502.
         Map<String, Object> outputs = task.execute(inputs);
@@ -157,6 +161,30 @@ public class InstanceService {
         log.info("checkpoint {}#{} ran task '{}' -> next '{}'{}",
                 instanceId, stepId, taskType, next, done ? " (instance done)" : "");
         return new CheckpointResult(data, instance.getCurrentStep(), done);
+    }
+
+    /**
+     * Build the reserved inputs for the sandboxed script task (spec §7.2) from the step's config:
+     * the snippet text ({@code config.script}), the declared output names ({@code config.outputs}, a
+     * list of {@code {name}}), and a read-only copy of the current data object. The runner exposes
+     * {@code data} to the snippet and merges the snippet's returned object back as outputs.
+     */
+    private Map<String, Object> scriptInputs(JsonNode config, ObjectNode data) {
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put(org.openwcs.processdesigner.task.ScriptTask.SCRIPT_KEY, text(config, "script"));
+        inputs.put(org.openwcs.processdesigner.task.ScriptTask.DATA_KEY, data.deepCopy());
+        List<String> outputs = new java.util.ArrayList<>();
+        JsonNode declared = config == null ? null : config.get("outputs");
+        if (declared != null && declared.isArray()) {
+            for (JsonNode o : declared) {
+                String name = text(o, "name");
+                if (name != null) {
+                    outputs.add(name);
+                }
+            }
+        }
+        inputs.put(org.openwcs.processdesigner.task.ScriptTask.OUTPUTS_KEY, outputs);
+        return inputs;
     }
 
     private ProcessInstance load(UUID instanceId) {

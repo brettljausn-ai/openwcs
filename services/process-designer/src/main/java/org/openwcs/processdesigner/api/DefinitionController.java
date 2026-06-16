@@ -1,10 +1,13 @@
 package org.openwcs.processdesigner.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.openwcs.processdesigner.domain.ProcessDefinition;
 import org.openwcs.processdesigner.service.DefinitionService;
+import org.openwcs.processdesigner.service.ScriptGovernance;
 import org.openwcs.processdesigner.task.TaskRegistry;
 import org.openwcs.processdesigner.task.TaskSpec;
 import org.springframework.http.HttpStatus;
@@ -30,10 +33,15 @@ public class DefinitionController {
 
     private final DefinitionService service;
     private final TaskRegistry taskRegistry;
+    private final ScriptGovernance scriptGovernance;
+    private final ObjectMapper mapper;
 
-    public DefinitionController(DefinitionService service, TaskRegistry taskRegistry) {
+    public DefinitionController(DefinitionService service, TaskRegistry taskRegistry,
+                               ScriptGovernance scriptGovernance, ObjectMapper mapper) {
         this.service = service;
         this.taskRegistry = taskRegistry;
+        this.scriptGovernance = scriptGovernance;
+        this.mapper = mapper;
     }
 
     /** List definition summaries, optionally filtered by status (DRAFT|ACTIVE|ARCHIVED). */
@@ -68,7 +76,15 @@ public class DefinitionController {
 
     /** Create a DRAFT (auto-incremented version per key). */
     @PostMapping("/defs")
-    public ResponseEntity<DefinitionSummary> create(@Valid @RequestBody CreateDefinitionRequest req) {
+    public ResponseEntity<DefinitionSummary> create(@Valid @RequestBody CreateDefinitionRequest req,
+            @RequestHeader(name = "X-Auth-Roles", required = false) String roles) {
+        // Script-step governance (spec §7.2): if the new draft carries a script step, require the
+        // scripting flag (422) and PROCESS_SCRIPT_AUTHOR (403). Most creates carry no steps -> no-op.
+        if (req.steps() != null) {
+            ObjectNode probe = mapper.createObjectNode();
+            probe.set("steps", req.steps());
+            scriptGovernance.enforceSave(probe, roles);
+        }
         ProcessDefinition def = service.createDraft(req);
         return ResponseEntity.status(HttpStatus.CREATED).body(DefinitionSummary.from(def));
     }
@@ -88,21 +104,32 @@ public class DefinitionController {
      * ignores/overrides any incoming version/status). Lets definitions move between environments.
      */
     @PostMapping("/defs/import")
-    public ResponseEntity<DefinitionSummary> importDefinition(@RequestBody JsonNode body) {
+    public ResponseEntity<DefinitionSummary> importDefinition(@RequestBody JsonNode body,
+            @RequestHeader(name = "X-Auth-Roles", required = false) String roles) {
+        // Imported models with a script step are subject to the same flag/permission gates.
+        scriptGovernance.enforceSave(body, roles);
         ProcessDefinition def = service.importDefinition(body);
         return ResponseEntity.status(HttpStatus.CREATED).body(DefinitionSummary.from(def));
     }
 
     /** Replace a DRAFT's model JSON (409 if not DRAFT). */
     @PutMapping("/defs/{key}/{version}")
-    public JsonNode update(@PathVariable String key, @PathVariable int version, @RequestBody JsonNode json) {
+    public JsonNode update(@PathVariable String key, @PathVariable int version, @RequestBody JsonNode json,
+            @RequestHeader(name = "X-Auth-Roles", required = false) String roles) {
+        // Saving a draft that carries a script step requires the flag (422) + permission (403).
+        scriptGovernance.enforceSave(json, roles);
         return service.updateDraft(key, version, json).getJson();
     }
 
     /** Publish a DRAFT: validate (422 with problems if invalid), set ACTIVE, archive prior ACTIVE. */
     @PostMapping("/defs/{key}/{version}/publish")
     public DefinitionSummary publish(@PathVariable String key, @PathVariable int version,
-                                     @RequestHeader(name = "X-Auth-User", required = false) String actor) {
+                                     @RequestHeader(name = "X-Auth-User", required = false) String actor,
+                                     @RequestHeader(name = "X-Auth-Roles", required = false) String roles) {
+        // Re-check the script gates at publish (the flag could have been turned off after the draft
+        // was saved, or the actor may lack PROCESS_SCRIPT_AUTHOR); publish also validates each script
+        // parses in the sandbox (DefinitionService -> ScriptGovernance.parseProblems, 422).
+        scriptGovernance.enforceSave(service.get(key, version).getJson(), roles);
         return DefinitionSummary.from(service.publish(key, version, actor == null ? "system" : actor));
     }
 

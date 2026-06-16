@@ -32,11 +32,14 @@ public class DefinitionService {
 
     private final ProcessDefinitionRepository repo;
     private final DefinitionValidator validator;
+    private final ScriptGovernance scriptGovernance;
     private final ObjectMapper mapper;
 
-    public DefinitionService(ProcessDefinitionRepository repo, DefinitionValidator validator, ObjectMapper mapper) {
+    public DefinitionService(ProcessDefinitionRepository repo, DefinitionValidator validator,
+                             ScriptGovernance scriptGovernance, ObjectMapper mapper) {
         this.repo = repo;
         this.validator = validator;
+        this.scriptGovernance = scriptGovernance;
         this.mapper = mapper;
     }
 
@@ -227,7 +230,9 @@ public class DefinitionService {
             throw new IllegalStateException("Definition " + key + " v" + version + " is "
                     + def.getStatus() + ", only DRAFT can be published");
         }
-        List<String> problems = validator.validate(def.getJson());
+        List<String> problems = new java.util.ArrayList<>(validator.validate(def.getJson()));
+        // Phase 3: every script step must parse in the sandbox (parse-only, no execution).
+        problems.addAll(scriptGovernance.parseProblems(def.getJson()));
         if (!problems.isEmpty()) {
             throw new DefinitionInvalidException(problems);
         }
