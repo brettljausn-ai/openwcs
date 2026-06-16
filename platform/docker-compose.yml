@@ -275,6 +275,8 @@ services:
       OPENWCS_ORDER_MANAGEMENT_BASE_URL: http://order-management:8084
       OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
       OPENWCS_TXLOG_BASE_URL: http://txlog:8086
+      OPENWCS_INTEGRATION_HOST_BASE_URL: http://integration-host:8092
+      OPENWCS_COUNTING_BASE_URL: http://counting:8095
 
   flow-orchestrator:
     restart: unless-stopped

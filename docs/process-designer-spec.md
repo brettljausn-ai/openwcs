@@ -1,9 +1,14 @@
 # Mobile Process Designer and Engine — Specification
 
-Status: Phase 1 implemented on branch `feat/process-designer-p1` (process-designer service :8097 +
-the WYSIWYG designer and client-driven handheld runtime in the UI). Author intent captured
-2026-06-16. This is a build spec, the sibling of [`dashboardScope.md`](./dashboardScope.md). It will
-be promoted to an ADR once the model decisions below are accepted; the sections below remain the spec.
+Status: Phase 1 and Phase 2 implemented (process-designer service :8097 + the WYSIWYG designer and
+client-driven handheld runtime in the UI). Phase 2 added version management (duplicate/clone,
+JSON import/export), step-level `skipWhen` conditions (validated at publish by a recursive-descent
+ConditionParser, no eval), four more curated task types (`host.confirm`, `inventory.adjust`,
+`counting.capture`, `order.lookup`) plus a live task catalog, and read-only instance
+history/monitoring. Phase 3 (AI task-assist, sandboxed scripting escape hatch) remains. Author
+intent captured 2026-06-16. This is a build spec, the sibling of
+[`dashboardScope.md`](./dashboardScope.md). It will be promoted to an ADR once the model decisions
+below are accepted; the sections below remain the spec.
 
 ## 1. Context and goal
 
@@ -258,8 +263,16 @@ Lives in a new `process-designer` service or the existing `process-engine` (deci
    client-driven offline runtime in the handheld PWA; draft/active versioning; the WYSIWYG designer
    (live preview + flow list + properties + simulate + publish). Wire one real process end-to-end
    (Goods In or Stock Check).
-2. **Phase 2**: richer designer (more validation, copy/duplicate version, conditional skips), more
-   task types, instance history/monitoring.
+2. **Phase 2 (implemented)**: richer designer (more validation: unreachable steps, skip-with-no-onward-path,
+   malformed conditions, task steps missing required inputs per the live catalog, duplicate ids),
+   copy/duplicate version (`POST /defs/{key}/{version}/duplicate` -> new DRAFT), JSON import/export
+   (`POST /defs/import` -> DRAFT; export = `GET /defs/{key}/{version}`), step-level conditional skips
+   (`skipWhen`, validated at publish by a recursive-descent ConditionParser, 422 on malformed or a
+   skippable step with no onward path), four more curated task types (`host.confirm`,
+   `inventory.adjust`, `counting.capture`, `order.lookup`) plus a live task catalog
+   (`GET /api/process-designer/tasks`) driving the designer's task picker, and instance
+   history/monitoring (`GET /api/process-designer/instances` list + existing detail; migration V2
+   monitoring indexes; read-only desktop "Process instances" screen at `/process-instances`).
 3. **Phase 3**: AI task-assist (description -> curated task mapping; developer-reviewed snippet
    generation), sandboxed scripting escape hatch.
 
@@ -270,7 +283,8 @@ Lives in a new `process-designer` service or the existing `process-engine` (deci
 - **Flowable reuse**: whether task steps optionally trigger Flowable backend processes (e.g. a
   goods-in screen flow that, at putaway, kicks the existing goods-in BPMN). Likely yes via the
   curated `host`/`flow` task types, not by embedding the screen flow in BPMN.
-- **Definition portability**: export/import a definition JSON between environments (useful; Phase 2).
+- **Definition portability**: export/import a definition JSON between environments (implemented in
+  Phase 2 via `POST /defs/import` and `GET /defs/{key}/{version}`).
 
 ## 16. Verification (when built)
 - Designer: build a Goods In flow (scan ASN -> scan SKU -> qty -> damaged? -> putaway/quarantine ->
