@@ -6,7 +6,7 @@
 // match + no next = the instance ends (returns null).
 
 import { safeEvaluate } from '../condition'
-import type { ProcessDefinition, Step } from '../model'
+import { VERIFY_FIELDS, type ProcessDefinition, type Step, type VerifyConfig, type VerifyResult } from '../model'
 
 /** Write a captured screen value to the data object under config.writeTo (returns a NEW object). */
 export function writeValue(
@@ -16,6 +16,24 @@ export function writeValue(
 ): Record<string, unknown> {
   if (!writeTo) return data
   return { ...data, [writeTo]: value }
+}
+
+/** Merge a successful /verify result's resolved fields into the data object per the verify block's
+ *  `write` mappings (resolvedField -> variable). Returns a NEW object. Unmapped fields are ignored;
+ *  this is how a later task that needs the resolved UUID gets it (write id -> someVar). */
+export function applyVerifyWrites(
+  data: Record<string, unknown>,
+  verify: VerifyConfig,
+  result: Pick<VerifyResult, 'id' | 'code' | 'name' | 'uomCode' | 'schemaCategory'>,
+): Record<string, unknown> {
+  const write = verify.write
+  if (!write) return data
+  const out = { ...data }
+  for (const field of VERIFY_FIELDS) {
+    const target = write[field]
+    if (target) out[target] = result[field] ?? null
+  }
+  return out
 }
 
 /** The next step id after `step` given `data`, or null when the instance ends. */

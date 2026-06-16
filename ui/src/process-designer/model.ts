@@ -48,6 +48,48 @@ export interface ChoiceOption {
   label: string
 }
 
+/** The kinds of value a Verify block can resolve against master-data. Mirrors the server's
+ *  capabilities.verifyKinds; the picker is populated from the live list, this is only the type. */
+export type VerifyKind = 'barcode' | 'sku' | 'location'
+
+/** The resolved fields a successful /verify returns and that a Verify block may write into a
+ *  data-object variable (so a later task that needs the UUID gets it from `id`, etc.). */
+export const VERIFY_FIELDS = ['id', 'code', 'name', 'uomCode', 'schemaCategory'] as const
+export type VerifyField = (typeof VERIFY_FIELDS)[number]
+
+/** What to do when /verify reports the scanned value does not exist (or the call errors). */
+export interface VerifyOnNotFound {
+  /** "reprompt" = clear + refocus the input and ask again; "goto" = jump to `step`. */
+  mode: 'reprompt' | 'goto'
+  /** Target step id when mode === 'goto'. */
+  step?: string
+}
+
+/** First-class "Verify" attached to a text/number input screen (spec: resolve the scan, branch on
+ *  not-found, write resolved ids). On submit the runtime POSTs /verify {warehouseId, kind, code};
+ *  on `found` it merges the `write` mappings into the data object and continues; otherwise it
+ *  applies `onNotFound`. */
+export interface VerifyConfig {
+  kind: VerifyKind
+  /** Map each resolved field (id/code/name/uomCode/schemaCategory) to a data-object variable to
+   *  store it into. Only mapped fields are written. This is how the resolved UUID is captured. */
+  write?: Partial<Record<VerifyField, string>>
+  onNotFound: VerifyOnNotFound
+}
+
+/** The /verify response (POST /api/process-designer/verify). Read-only; needs connectivity. */
+export interface VerifyResult {
+  found: boolean
+  /** Multiple master-data matches resolved the same code; the runtime still proceeds. */
+  ambiguous?: boolean
+  id: string | null
+  code: string | null
+  name: string | null
+  uomCode: string | null
+  schemaCategory: string | null
+  detail: Record<string, unknown>
+}
+
 /** A screen step's config (the bit a designer edits). Every screen has header/detail + writeTo. */
 export interface ScreenConfig {
   /** Big prompt; supports {{placeholder}}. */
@@ -59,6 +101,9 @@ export interface ScreenConfig {
   /** True = value captured from a keyboard-wedge scan rather than typed. */
   scanBinding?: boolean
   validation?: Validation
+  /** text/number input: verify the scanned value EXISTS against master-data on submit, write the
+   *  resolved ids into variables, and branch when it is not found. */
+  verify?: VerifyConfig
   /** acknowledge: the continue button label + an optional required checkbox. */
   confirmLabel?: string
   requireCheckbox?: boolean
@@ -256,6 +301,9 @@ export interface Capabilities {
   aiAssistEnabled: boolean
   /** The caller is allowed to author script steps (RBAC). */
   canAuthorScript: boolean
+  /** The verify kinds the server can resolve (e.g. ["barcode","sku","location"]). Empty/absent =
+   *  the Verify feature is hidden in the designer. */
+  verifyKinds: string[]
 }
 
 /** Conservative default when /capabilities is unreachable: everything off (features simply hidden). */
@@ -263,6 +311,7 @@ export const DISABLED_CAPABILITIES: Capabilities = {
   scriptingEnabled: false,
   aiAssistEnabled: false,
   canAuthorScript: false,
+  verifyKinds: [],
 }
 
 /** Phase 3: a data-object variable as sent to POST /assist/task ({ name, type }). */

@@ -39,6 +39,20 @@ export interface ProcessScreenViewProps {
   disabled?: boolean
   /** Compact = inside the designer's phone frame (tighter paddings, no document-level scan capture). */
   compact?: boolean
+  /** Verify-on-submit state driven by the runtime (the screen has a `verify` block). 'checking' shows
+   *  a spinner + disables the action; 'notfound' shows a "scan again" error; 'offline' shows the
+   *  connection-needed message. 'idle' (or absent) is the normal state. */
+  verifyState?: 'idle' | 'checking' | 'notfound' | 'offline'
+  /** A subtle note surfaced under the input (e.g. "multiple matches" when verify is ambiguous). */
+  verifyNote?: string | null
+  /** Bump this number to clear + refocus the input (used by the runtime's verify re-prompt). */
+  resetSignal?: number
+  /** Optional translated labels for the verify states (runtime supplies these; English defaults). */
+  verifyLabels?: {
+    checking?: string
+    notFound?: string
+    offline?: string
+  }
 }
 
 function validate(type: ScreenType, cfg: ScreenConfig, value: unknown, data: Record<string, unknown>): string | null {
@@ -107,8 +121,15 @@ export default function ProcessScreenView({
   onBack,
   disabled,
   compact,
+  verifyState = 'idle',
+  verifyNote,
+  resetSignal,
+  verifyLabels,
 }: ProcessScreenViewProps) {
   const type = step.screen
+  const lblChecking = verifyLabels?.checking ?? 'Checking…'
+  const lblNotFound = verifyLabels?.notFound ?? 'Not found, scan again'
+  const lblOffline = verifyLabels?.offline ?? 'Verification needs a connection'
   const resolveCtx = useMemo(() => ({ data, schema, catalog }), [data, schema, catalog])
   const header = resolvePlaceholders(config.header, resolveCtx)
   const detail = resolvePlaceholders(config.detail, resolveCtx)
@@ -137,7 +158,21 @@ export default function ProcessScreenView({
     if (type === 'textInput' || type === 'numberInput') inputRef.current?.focus({ preventScroll: true })
   }, [type, compact, disabled, step])
 
+  // Verify re-prompt: when the runtime bumps resetSignal (scan not found, mode=reprompt), clear the
+  // captured value and refocus so the operator can scan again immediately.
+  useEffect(() => {
+    if (resetSignal === undefined) return
+    setText('')
+    setNum('')
+    if (!compact && !disabled && (type === 'textInput' || type === 'numberInput')) {
+      inputRef.current?.focus({ preventScroll: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetSignal])
+
   // --- everything below renders from state; no hooks past this point -------------------------------
+
+  const checking = verifyState === 'checking'
 
   const submit = (raw: unknown, vtype: ScreenType = type) => {
     if (disabled) return
@@ -245,11 +280,27 @@ export default function ProcessScreenView({
         <div className="badge badge-danger" style={{ alignSelf: 'flex-start', fontSize: '.95rem' }}>{error}</div>
       )}
 
+      {/* Verify feedback (the runtime drives verifyState for screens with a `verify` block). */}
+      {checking && (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.5rem', alignSelf: 'flex-start', color: 'var(--text-dim)', fontSize: '.95rem' }}>
+          <span className="op-pd-spinner" aria-hidden="true" /> {lblChecking}
+        </div>
+      )}
+      {verifyState === 'notfound' && !error && (
+        <div className="badge badge-danger" style={{ alignSelf: 'flex-start', fontSize: '.95rem' }}>{lblNotFound}</div>
+      )}
+      {verifyState === 'offline' && (
+        <div className="badge badge-warning" style={{ alignSelf: 'flex-start', fontSize: '.95rem' }}>{lblOffline}</div>
+      )}
+      {verifyNote && (
+        <div className="muted" style={{ alignSelf: 'flex-start', fontSize: '.85rem' }}>{verifyNote}</div>
+      )}
+
       {/* Action row per type */}
       {(type === 'textInput' || type === 'numberInput' || type === 'dateInput') && (
         <PrimaryButton
-          label="Confirm"
-          disabled={disabled}
+          label={checking ? lblChecking : 'Confirm'}
+          disabled={disabled || checking}
           compact={compact}
           onClick={() => submit(type === 'numberInput' ? (num === '' ? '' : Number(num)) : type === 'dateInput' ? date : text)}
         />

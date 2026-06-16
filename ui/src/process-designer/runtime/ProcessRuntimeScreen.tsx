@@ -21,9 +21,9 @@ import { useT } from '../../i18n/useT'
 import { useWarehouse } from '../../warehouse/WarehouseContext'
 import { useCatalog } from '../../lib/useCatalog'
 import ProcessScreenView from '../screens/ProcessScreenView'
-import { isScreenStep, isTaskStep, type CheckpointResult, type ProcessInstance } from '../model'
-import { getActiveDef, getInstance, startInstance } from '../api'
-import { nextStepId, resolveLandingStep, stepOf, writeValue } from './walker'
+import { isScreenStep, isTaskStep, type CheckpointResult, type ProcessInstance, type VerifyResult } from '../model'
+import { getActiveDef, getInstance, startInstance, verifyCode } from '../api'
+import { applyVerifyWrites, nextStepId, resolveLandingStep, stepOf, writeValue } from './walker'
 import {
   enqueueCheckpoint,
   failedFor,
@@ -58,6 +58,12 @@ export default function ProcessRuntimeScreen() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [queue, setQueue] = useState<QueuedCheckpoint[]>([])
+
+  // Verify-on-submit state for the current input screen (screens carrying a `verify` block).
+  const [verifyState, setVerifyState] = useState<'idle' | 'checking' | 'notfound' | 'offline'>('idle')
+  const [verifyNote, setVerifyNote] = useState<string | null>(null)
+  const [resetSignal, setResetSignal] = useState(0)
+  const verifyingRef = useRef(false)
 
   // Subscribe to the checkpoint queue + start the drainer once.
   useEffect(() => {
@@ -142,15 +148,73 @@ export default function ProcessRuntimeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance?.instanceId])
 
-  // SCREEN submit: write value, compute next, advance (purely local).
+  // Reset verify feedback whenever we land on a new step.
+  useEffect(() => {
+    setVerifyState('idle')
+    setVerifyNote(null)
+  }, [currentStep])
+
+  // SCREEN submit: write value, then either advance (no verify) or resolve the scan against
+  // master-data and branch on the outcome (verify block present).
   const onScreenSubmit = useCallback(
     (value: unknown) => {
       if (!instance || !step || !isScreenStep(step)) return
-      const data = writeValue(instance.data, step.config.writeTo, value)
-      const next = nextStepId(step, data)
-      advanceTo(next, data)
+      const cfg = step.config
+      const baseData = writeValue(instance.data, cfg.writeTo, value)
+
+      // No verify block: the original purely-local advance.
+      if (!cfg.verify) {
+        advanceTo(nextStepId(step, baseData), baseData)
+        return
+      }
+
+      const verify = cfg.verify
+      const code = value == null ? '' : String(value)
+
+      // Offline: hold (mirror task-step offline behaviour) — do NOT advance.
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        setVerifyState('offline')
+        setVerifyNote(null)
+        return
+      }
+      if (verifyingRef.current) return
+      verifyingRef.current = true
+      setVerifyState('checking')
+      setVerifyNote(null)
+
+      const finish = () => { verifyingRef.current = false }
+      const onNotVerified = () => {
+        if (verify.onNotFound.mode === 'goto' && verify.onNotFound.step) {
+          setVerifyState('idle')
+          advanceTo(verify.onNotFound.step, baseData)
+        } else {
+          setVerifyState('notfound')
+          setResetSignal((n) => n + 1) // clear + refocus the input
+        }
+      }
+
+      void verifyCode(warehouseId, verify.kind, code)
+        .then((res: VerifyResult) => {
+          if (!res.found) {
+            onNotVerified()
+            return
+          }
+          const data = applyVerifyWrites(baseData, verify, res)
+          setVerifyState('idle')
+          setVerifyNote(res.ambiguous ? '__ambiguous__' : null)
+          advanceTo(nextStepId(step, data), data)
+        })
+        .catch((e) => {
+          // 502 / downstream error / any failure = treat as not-verified (offline if no connection).
+          if (isNetworkFailure(e)) {
+            setVerifyState('offline')
+          } else {
+            onNotVerified()
+          }
+        })
+        .finally(finish)
     },
-    [instance, step, advanceTo],
+    [instance, step, advanceTo, warehouseId],
   )
 
   // TASK run: POST checkpoint; on success merge + advance; on network failure queue + HOLD.
@@ -248,6 +312,14 @@ export default function ProcessRuntimeScreen() {
           schema={def.dataSchema}
           catalog={catalog}
           onSubmit={onScreenSubmit}
+          verifyState={verifyState}
+          verifyNote={verifyNote === '__ambiguous__' ? t('verifyAmbiguous', 'Multiple matches found.') : verifyNote}
+          resetSignal={resetSignal}
+          verifyLabels={{
+            checking: t('verifyChecking', 'Checking…'),
+            notFound: t('verifyNotFound', 'Not found, scan again'),
+            offline: t('verifyOffline', 'Verification needs a connection'),
+          }}
         />
       )}
 

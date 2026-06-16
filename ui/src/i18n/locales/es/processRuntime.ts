@@ -11,4 +11,9 @@ export default {
   willSyncWhenOnline: 'Este paso se ejecuta en el servidor. Se sincronizará automáticamente al volver a estar en línea.',
   syncFailed: 'Error de sincronización',
   taskRejected: 'Tarea rechazada',
+  // Verificación al enviar
+  verifyChecking: 'Comprobando…',
+  verifyNotFound: 'No encontrado, vuelva a escanear',
+  verifyOffline: 'La verificación necesita conexión',
+  verifyAmbiguous: 'Se encontraron varias coincidencias.',
 }
