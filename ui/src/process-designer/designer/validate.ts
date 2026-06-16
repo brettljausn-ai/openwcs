@@ -3,9 +3,12 @@
 // and malformed `when` expressions. Publish is blocked until this returns no errors.
 
 import { validateCondition } from '../condition'
-import { isScreenStep, taskTypeById, type ProcessDefinition, type TaskTypeDef } from '../model'
+import { isScreenStep, isScriptStep, taskTypeById, type ProcessDefinition, type TaskTypeDef } from '../model'
 import { placeholderRefs } from '../placeholders'
 import { reachableSteps } from '../runtime/walker'
+
+/** A valid JS identifier (the only allowed shape for a declared script-step output name). */
+const IDENT_RE = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 
 export interface ValidationIssue {
   level: 'error' | 'warning'
@@ -79,6 +82,32 @@ export function validateDefinition(def: ProcessDefinition, catalog?: TaskTypeDef
       // questionChoice needs options
       if (step.screen === 'questionChoice' && (cfg.options ?? []).length === 0) {
         issues.push({ level: 'warning', stepId: id, message: `"${id}" is a choice question with no options.` })
+      }
+    } else if (isScriptStep(step)) {
+      // Sandboxed-script step (spec §7.2). Light client-side checks only — the server does the
+      // authoritative parse + sandbox-limit enforcement.
+      const sc = step.config
+      if (!sc || !sc.script || !sc.script.trim()) {
+        issues.push({ level: 'error', stepId: id, message: `"${id}" script step has an empty script.` })
+      }
+      const seenOut = new Set<string>()
+      for (const out of sc?.outputs ?? []) {
+        const name = (out.name ?? '').trim()
+        if (!name) {
+          issues.push({ level: 'error', stepId: id, message: `"${id}" script step has an unnamed output.` })
+          continue
+        }
+        if (!IDENT_RE.test(name)) {
+          issues.push({ level: 'error', stepId: id, message: `"${id}" script output "${name}" is not a valid identifier.` })
+        }
+        if (seenOut.has(name)) {
+          issues.push({ level: 'error', stepId: id, message: `"${id}" script step declares output "${name}" twice.` })
+        }
+        seenOut.add(name)
+        // A declared output that is not mapped to a data-object variable is silently dropped at runtime.
+        if (!schemaNames.has(name)) {
+          issues.push({ level: 'warning', stepId: id, message: `"${id}" script output "${name}" is not a declared data-object variable.` })
+        }
       }
     } else {
       // task step: input/output mappings should reference declared variables

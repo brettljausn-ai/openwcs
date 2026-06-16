@@ -3,6 +3,9 @@
 // interceptor attaches the Bearer token, so plain fetch is fine here.
 
 import type {
+  AssistSuggestion,
+  AssistVariable,
+  Capabilities,
   CheckpointResult,
   DefinitionSummary,
   InstanceSummary,
@@ -153,6 +156,28 @@ export async function exportDef(key: string, version: number): Promise<ProcessDe
 /** The REAL server task catalog (drives the designer task picker + input/output mapping). */
 export async function listTasks(): Promise<ServerTaskType[]> {
   return json(await fetch(`${BASE}/tasks`))
+}
+
+// --- Phase 3: capabilities + AI task-assist -----------------------------------------------------
+
+/** Server feature flags (scripting / AI assist / can-author-script). Gates the Phase 3 UI. */
+export async function getCapabilities(): Promise<Capabilities> {
+  return json(await fetch(`${BASE}/capabilities`))
+}
+
+/** AI "describe the task" assist. Maps a description (+ the data-object schema) to a curated task
+ *  type, a drafted script, or "none". Throws with httpStatus 503 when AI is not configured. */
+export async function assistTask(
+  description: string,
+  variables: AssistVariable[],
+): Promise<AssistSuggestion> {
+  return json(
+    await fetch(`${BASE}/assist/task`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description, variables }),
+    }),
+  )
 }
 
 // --- Phase 2: instance monitoring ---------------------------------------------------------------
