@@ -17,6 +17,9 @@ include 'services:order-management'
 include 'services:counting'
 include 'services:flow-orchestrator'
 
+// configurable handheld operator processes (designer storage/versioning + task-step engine)
+include 'services:process-designer'
+
 // platform services
 include 'services:txlog'
 include 'services:iam'

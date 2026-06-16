@@ -86,6 +86,7 @@ services:
       OPENWCS_URI_GTP: http://gtp:8094
       OPENWCS_URI_COUNTING: http://counting:8095
       OPENWCS_URI_ASSISTANT: http://assistant:8096
+      OPENWCS_URI_PROCESS_DESIGNER: http://process-designer:8097
       # Go device adapters — reached by the System info aggregator (GET /api/system/services).
       OPENWCS_URI_CONVEYOR_ADAPTER: http://conveyor-adapter:9091
       OPENWCS_URI_AMR_GEEKPLUS_ADAPTER: http://amr-geekplus-adapter:9093
@@ -252,6 +253,28 @@ services:
       OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
       OPENWCS_GTP_BASE_URL: http://gtp:8094
       OPENWCS_FLOW_ORCHESTRATOR_BASE_URL: http://flow-orchestrator:8085
+
+  process-designer:
+    restart: unless-stopped
+    profiles: ["apps"]
+    volumes:
+      - openwcs-logs:/var/log/openwcs
+    build: ../services/process-designer
+    ports: ["8097:8097"]
+    depends_on: [postgres, master-data]
+    environment:
+      # Service-local `process_designer` schema: stores versioned process definitions + running
+      # instances. The curated task library calls existing audited services with the operator's
+      # forwarded identity, so set their in-cluster base URLs (without these a task call no-ops/errors).
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
+      SPRING_DATASOURCE_USERNAME: openwcs
+      SPRING_DATASOURCE_PASSWORD: openwcs
+      OPENWCS_MASTER_DATA_BASE_URL: http://master-data:8081
+      OPENWCS_FLOW_ORCHESTRATOR_BASE_URL: http://flow-orchestrator:8085
+      OPENWCS_SLOTTING_BASE_URL: http://slotting:8093
+      OPENWCS_ORDER_MANAGEMENT_BASE_URL: http://order-management:8084
+      OPENWCS_INVENTORY_BASE_URL: http://inventory:8082
+      OPENWCS_TXLOG_BASE_URL: http://txlog:8086
 
   flow-orchestrator:
     restart: unless-stopped

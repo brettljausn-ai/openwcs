@@ -23,6 +23,12 @@ data:
   OPENWCS_SLOTTING_BASE_URL: http://slotting:8093
   OPENWCS_GTP_BASE_URL: http://gtp:8094
   OPENWCS_COUNTING_BASE_URL: http://counting:8095
+  # Configurable handheld process designer + engine. OPENWCS_URI_PROCESS_DESIGNER is the gateway's
+  # route target for /api/process-designer/**; the service reuses the inter-service base URLs above
+  # (master-data / flow-orchestrator / slotting / order-management / inventory / txlog) for the
+  # curated task library, with the operator's identity forwarded.
+  OPENWCS_PROCESS_DESIGNER_BASE_URL: http://process-designer:8097
+  OPENWCS_URI_PROCESS_DESIGNER: http://process-designer:8097
   # AI assistant (chat over warehouse data via Anthropic Claude). Stateless; the Anthropic key +
   # model + enabled flag are owned by master-data and fetched server-side (never logged). The
   # assistant's tools call the order-management / inventory / flow-orchestrator / allocation base

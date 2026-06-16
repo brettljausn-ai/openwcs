@@ -1,0 +1,382 @@
+openapi: 3.0.3
+info:
+  title: openWCS Process Designer API
+  version: 0.1.0
+  description: >
+    Engine + storage for configurable handheld operator processes. A process is a versioned JSON
+    definition (a flow of handheld screens plus task steps); exactly one version is ACTIVE per
+    process key. The handheld client walks the screen flow and evaluates branch conditions locally
+    (so it works offline); the server owns definition storage and versioning, instance
+    checkpointing for device-swap resume, and task-step execution. Task steps run a curated library
+    of pre-built handlers that call existing audited openWCS services with the operator's forwarded
+    identity, so downstream RBAC and warehouse scope apply. See docs/process-designer-spec.md.
+servers:
+  - url: /api/process-designer
+    description: Via the API gateway
+
+tags:
+  - name: Definitions
+  - name: Instances
+
+paths:
+  /defs:
+    get:
+      tags: [Definitions]
+      summary: List definition summaries
+      operationId: listDefinitions
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: "Optional status filter: DRAFT, ACTIVE, or ARCHIVED."
+          schema: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
+      responses:
+        "200":
+          description: Definition summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DefinitionSummary' }
+    post:
+      tags: [Definitions]
+      summary: Create a DRAFT definition
+      description: "Creates a DRAFT with an auto-incremented version for the process key (max existing + 1)."
+      operationId: createDefinition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateDefinitionRequest' }
+      responses:
+        "201":
+          description: Created DRAFT summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DefinitionSummary' }
+        "400": { description: Invalid request }
+        "403": { description: "Missing PROCESS_DESIGN_EDIT permission" }
+
+  /defs/{key}/{version}:
+    get:
+      tags: [Definitions]
+      summary: Get one version's full model JSON
+      operationId: getDefinition
+      parameters:
+        - { name: key, in: path, required: true, schema: { type: string } }
+        - { name: version, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The process model document
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProcessModel' }
+        "404": { description: Not found }
+    put:
+      tags: [Definitions]
+      summary: Replace a DRAFT's model JSON
+      description: "Updates the DRAFT body. Returns 409 if the version is not DRAFT (published/archived versions are immutable)."
+      operationId: updateDefinition
+      parameters:
+        - { name: key, in: path, required: true, schema: { type: string } }
+        - { name: version, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProcessModel' }
+      responses:
+        "200":
+          description: Updated model
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProcessModel' }
+        "404": { description: Not found }
+        "409": { description: "Not a DRAFT, cannot edit" }
+
+  /defs/{key}/active:
+    get:
+      tags: [Definitions]
+      summary: Get the ACTIVE version's full model JSON
+      operationId: getActiveDefinition
+      parameters:
+        - { name: key, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The ACTIVE process model document
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProcessModel' }
+        "404": { description: "No active definition for this key" }
+
+  /defs/{key}/{version}/publish:
+    post:
+      tags: [Definitions]
+      summary: Publish a DRAFT (set ACTIVE, archive prior ACTIVE)
+      description: >
+        Validates the definition (every step reachable, transitions and next point to existing
+        steps, screen writeTo and task references resolve, start exists). On success the version
+        becomes ACTIVE and the previously ACTIVE version for the key is archived atomically. On
+        failure returns 422 with the list of problems.
+      operationId: publishDefinition
+      parameters:
+        - { name: key, in: path, required: true, schema: { type: string } }
+        - { name: version, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Published summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DefinitionSummary' }
+        "403": { description: "Missing PROCESS_DESIGN_EDIT permission" }
+        "404": { description: Not found }
+        "409": { description: "Not a DRAFT, cannot publish" }
+        "422":
+          description: "Validation failed, with the list of problems"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidationProblem' }
+
+  /defs/{key}/{version}/archive:
+    post:
+      tags: [Definitions]
+      summary: Archive a version
+      operationId: archiveDefinition
+      parameters:
+        - { name: key, in: path, required: true, schema: { type: string } }
+        - { name: version, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Archived summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DefinitionSummary' }
+        "404": { description: Not found }
+
+  /processes:
+    get:
+      tags: [Definitions]
+      summary: List distinct process keys with their active version
+      description: "Distinct process keys with the active version (null if none) plus title and icon, for the operator menu and the designer process list."
+      operationId: listProcesses
+      responses:
+        "200":
+          description: Process menu entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProcessMenuEntry' }
+
+  /instances:
+    post:
+      tags: [Instances]
+      summary: Start an instance of a process key's ACTIVE definition
+      description: "Creates a RUNNING instance pinned to the ACTIVE definition version and returns the full model JSON, an empty data object, and the start step."
+      operationId: startInstance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartInstanceRequest' }
+      responses:
+        "201":
+          description: Started instance
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InstanceView' }
+        "404": { description: "No active definition for this key" }
+
+  /instances/{id}:
+    get:
+      tags: [Instances]
+      summary: Resume an instance
+      description: "Returns the pinned definition, the current data object, the current step, and the status, so a device swap or reload resumes mid-flow."
+      operationId: getInstance
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Instance state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InstanceView' }
+        "404": { description: Not found }
+
+  /instances/{id}/checkpoint:
+    post:
+      tags: [Instances]
+      summary: Run a task-step checkpoint
+      description: >
+        The step must be a task step. The posted data object is merged into the instance, the
+        curated task for that step runs (with the operator's identity forwarded), its outputs merge
+        back, and the instance is persisted and advanced to the step's next. Idempotent on
+        (instanceId, stepId): re-posting the same checkpoint returns the stored result without
+        re-running side effects. A failing task returns 502 and does not advance the instance.
+      operationId: checkpointInstance
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CheckpointRequest' }
+      responses:
+        "200":
+          description: Merged data plus next step and done flag
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CheckpointResult' }
+        "400": { description: "Step is not a task step or is unknown" }
+        "404": { description: Instance or step not found }
+        "502": { description: "The curated task failed, the instance did not advance" }
+
+components:
+  schemas:
+    ProcessModel:
+      type: object
+      description: "The process model document: data-object schema, ordered steps with transitions, and the start step."
+      properties:
+        processKey: { type: string }
+        version: { type: integer }
+        status: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
+        title: { type: string }
+        icon: { type: string }
+        dataSchema:
+          type: array
+          items: { $ref: '#/components/schemas/DataField' }
+        start: { type: string }
+        steps:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/Step' }
+      additionalProperties: true
+
+    DataField:
+      type: object
+      properties:
+        name: { type: string }
+        type:
+          type: string
+          description: "Primitive (string, number, boolean, date) or domain type (sku, location, hu)."
+      required: [name, type]
+
+    Step:
+      type: object
+      description: "A screen step (renders a handheld screen, captures input) or a task step (runs server-side work)."
+      properties:
+        type: { type: string, enum: [screen, task] }
+        screen:
+          type: string
+          enum: [textInput, numberInput, dateInput, acknowledge, questionYesNo, questionChoice]
+        config:
+          type: object
+          additionalProperties: true
+        task:
+          type: string
+          description: "Curated task type, e.g. inventory.move, slotting.putaway, picking.confirm, inventory.lookup, txlog.post."
+        input:
+          type: object
+          additionalProperties: { type: string }
+          description: "Task input name to a data-object variable name, or literal:VALUE for a constant."
+        output:
+          type: object
+          additionalProperties: { type: string }
+          description: "Data-object variable name to a task output name (renames the task output as it merges back)."
+        transitions:
+          type: array
+          items: { $ref: '#/components/schemas/Transition' }
+        next:
+          type: string
+          description: "Default next step; null or no matching transition ends the instance."
+      additionalProperties: true
+
+    Transition:
+      type: object
+      properties:
+        when:
+          type: string
+          description: "Restricted boolean expression over data-object variables, evaluated client-side."
+        to: { type: string }
+      required: [to]
+
+    DefinitionSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        processKey: { type: string }
+        version: { type: integer }
+        status: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
+        title: { type: string }
+        icon: { type: string }
+        publishedAt: { type: string, format: date-time }
+        publishedBy: { type: string }
+        updatedAt: { type: string, format: date-time }
+
+    ProcessMenuEntry:
+      type: object
+      properties:
+        processKey: { type: string }
+        activeVersion: { type: integer, nullable: true }
+        title: { type: string }
+        icon: { type: string }
+
+    CreateDefinitionRequest:
+      type: object
+      properties:
+        processKey: { type: string }
+        title: { type: string }
+        icon: { type: string }
+        dataSchema:
+          type: array
+          items: { $ref: '#/components/schemas/DataField' }
+        steps:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/Step' }
+        start: { type: string }
+      required: [processKey, title]
+
+    ValidationProblem:
+      type: object
+      properties:
+        error: { type: string }
+        problems:
+          type: array
+          items: { type: string }
+
+    StartInstanceRequest:
+      type: object
+      properties:
+        processKey: { type: string }
+        warehouseId: { type: string, format: uuid, nullable: true }
+      required: [processKey]
+
+    InstanceView:
+      type: object
+      properties:
+        instanceId: { type: string, format: uuid }
+        processKey: { type: string }
+        defVersion: { type: integer }
+        status: { type: string, enum: [RUNNING, DONE] }
+        def: { $ref: '#/components/schemas/ProcessModel' }
+        data:
+          type: object
+          additionalProperties: true
+        currentStep: { type: string, nullable: true }
+
+    CheckpointRequest:
+      type: object
+      properties:
+        stepId: { type: string }
+        data:
+          type: object
+          additionalProperties: true
+      required: [stepId]
+
+    CheckpointResult:
+      type: object
+      properties:
+        data:
+          type: object
+          additionalProperties: true
+        currentStep: { type: string, nullable: true }
+        done: { type: boolean }

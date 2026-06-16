@@ -23,5 +23,9 @@ public enum Permission {
     TXLOG_APPEND,
     DEVICE_VIEW,
     DEVICE_OPERATE,
+    // Configurable handheld process designer (process-designer service): viewing process
+    // definitions + the operator process menu vs. authoring/publishing definitions.
+    PROCESS_DESIGN_VIEW,
+    PROCESS_DESIGN_EDIT,
     IAM_ADMIN
 }
