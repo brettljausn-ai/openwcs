@@ -40,7 +40,12 @@ class AssistAndCapabilitiesDefaultTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.scriptingEnabled").value(false))
                 .andExpect(jsonPath("$.aiAssistEnabled").value(false))
-                .andExpect(jsonPath("$.canAuthorScript").value(true));
+                .andExpect(jsonPath("$.canAuthorScript").value(true))
+                // Server-driven scan-verify kinds for the designer's Verify picker.
+                .andExpect(jsonPath("$.verifyKinds").isArray())
+                .andExpect(jsonPath("$.verifyKinds[0]").value("barcode"))
+                .andExpect(jsonPath("$.verifyKinds[1]").value("sku"))
+                .andExpect(jsonPath("$.verifyKinds[2]").value("location"));
 
         // SUPERVISOR can view (PROCESS_DESIGN_VIEW) but cannot author scripts.
         mvc.perform(get("/api/process-designer/capabilities").header("X-Auth-Roles", "SUPERVISOR"))

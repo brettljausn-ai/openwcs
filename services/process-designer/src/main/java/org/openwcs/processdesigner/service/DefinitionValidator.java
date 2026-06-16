@@ -34,6 +34,10 @@ public class DefinitionValidator {
     private static final Set<String> CAPTURING_SCREENS =
             Set.of("textInput", "numberInput", "dateInput", "questionYesNo", "questionChoice");
 
+    /** Resolved fields a screen verify.write may map to a data-object variable. */
+    private static final Set<String> VERIFY_RESOLVED_FIELDS =
+            Set.of("id", "code", "name", "uomCode", "schemaCategory");
+
     private final TaskRegistry taskRegistry;
 
     public DefinitionValidator(TaskRegistry taskRegistry) {
@@ -135,6 +139,7 @@ public class DefinitionValidator {
                                 + "' is not a declared data-object variable.");
                     }
                 }
+                validateVerify(problems, id, step.get("config"), variables, stepIds);
             } else if ("task".equals(stepType)) {
                 String task = text(step, "task");
                 if (task == null) {
@@ -175,6 +180,85 @@ public class DefinitionValidator {
         return problems;
     }
 
+    /**
+     * Validates an optional screen {@code config.verify} block (scan-verify step): {@code kind} must
+     * be one of the three resolve kinds; each {@code write} entry's key must be a known resolved field
+     * and its target must be a declared data-object variable; and {@code onNotFound.mode=="goto"} must
+     * name an existing step. The frontend handles the actual branch + writes at runtime; the server
+     * only validates the shape at publish time (malformed -> the caller surfaces 422).
+     */
+    private static void validateVerify(List<String> problems, String id, JsonNode config,
+                                       Set<String> variables, Set<String> stepIds) {
+        if (config == null || !config.isObject()) {
+            return;
+        }
+        JsonNode verify = config.get("verify");
+        if (verify == null || verify.isNull()) {
+            return;
+        }
+        if (!verify.isObject()) {
+            problems.add("Screen step '" + id + "' verify is not an object.");
+            return;
+        }
+
+        String kind = text(verify, "kind");
+        if (kind == null) {
+            problems.add("Screen step '" + id + "' verify has no kind.");
+        } else if (!org.openwcs.processdesigner.verify.VerifyKinds.isValid(kind)) {
+            problems.add("Screen step '" + id + "' verify kind '" + kind
+                    + "' is not one of " + org.openwcs.processdesigner.verify.VerifyKinds.ALL + ".");
+        }
+
+        JsonNode write = verify.get("write");
+        if (write != null && !write.isNull()) {
+            if (!write.isObject()) {
+                problems.add("Screen step '" + id + "' verify write is not an object.");
+            } else {
+                Iterator<Map.Entry<String, JsonNode>> wit = write.fields();
+                while (wit.hasNext()) {
+                    Map.Entry<String, JsonNode> w = wit.next();
+                    String field = w.getKey();
+                    if (!VERIFY_RESOLVED_FIELDS.contains(field)) {
+                        problems.add("Screen step '" + id + "' verify write key '" + field
+                                + "' is not a resolved field " + VERIFY_RESOLVED_FIELDS + ".");
+                    }
+                    JsonNode targetNode = w.getValue();
+                    String target = targetNode != null && targetNode.isTextual() ? targetNode.asText() : null;
+                    if (target == null) {
+                        problems.add("Screen step '" + id + "' verify write '" + field
+                                + "' has no target variable.");
+                    } else if (!variables.contains(target)) {
+                        problems.add("Screen step '" + id + "' verify write '" + field + "' -> '" + target
+                                + "' is not a declared data-object variable.");
+                    }
+                }
+            }
+        }
+
+        JsonNode onNotFound = verify.get("onNotFound");
+        if (onNotFound != null && !onNotFound.isNull()) {
+            if (!onNotFound.isObject()) {
+                problems.add("Screen step '" + id + "' verify onNotFound is not an object.");
+            } else {
+                String mode = text(onNotFound, "mode");
+                if (mode == null) {
+                    problems.add("Screen step '" + id + "' verify onNotFound has no mode.");
+                } else if (!"reprompt".equals(mode) && !"goto".equals(mode)) {
+                    problems.add("Screen step '" + id + "' verify onNotFound mode '" + mode
+                            + "' is not one of [reprompt, goto].");
+                } else if ("goto".equals(mode)) {
+                    String target = text(onNotFound, "step");
+                    if (target == null) {
+                        problems.add("Screen step '" + id + "' verify onNotFound mode=goto has no step.");
+                    } else if (!stepIds.contains(target)) {
+                        problems.add("Screen step '" + id + "' verify onNotFound goto -> '" + target
+                                + "' does not exist.");
+                    }
+                }
+            }
+        }
+    }
+
     private static List<String> targets(JsonNode step) {
         List<String> out = new ArrayList<>();
         String next = text(step, "next");
@@ -185,6 +269,17 @@ public class DefinitionValidator {
         if (transitions != null && transitions.isArray()) {
             for (JsonNode t : transitions) {
                 String to = text(t, "to");
+                if (to != null) {
+                    out.add(to);
+                }
+            }
+        }
+        // A screen verify onNotFound goto is a reachable onward path.
+        JsonNode config = step.get("config");
+        if (config != null) {
+            JsonNode onNotFound = config.path("verify").path("onNotFound");
+            if ("goto".equals(text(onNotFound, "mode"))) {
+                String to = text(onNotFound, "step");
                 if (to != null) {
                     out.add(to);
                 }
