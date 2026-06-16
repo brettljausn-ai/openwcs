@@ -1,12 +1,15 @@
 # Mobile Process Designer and Engine — Specification
 
-Status: Phase 1 and Phase 2 implemented (process-designer service :8097 + the WYSIWYG designer and
+Status: all three phases implemented (process-designer service :8097 + the WYSIWYG designer and
 client-driven handheld runtime in the UI). Phase 2 added version management (duplicate/clone,
 JSON import/export), step-level `skipWhen` conditions (validated at publish by a recursive-descent
 ConditionParser, no eval), four more curated task types (`host.confirm`, `inventory.adjust`,
 `counting.capture`, `order.lookup`) plus a live task catalog, and read-only instance
-history/monitoring. Phase 3 (AI task-assist, sandboxed scripting escape hatch) remains. Author
-intent captured 2026-06-16. This is a build spec, the sibling of
+history/monitoring. Phase 3 (the final phase) added the two §7.2/§7.3 tiers: a sandboxed scripting
+escape hatch (a `script` task type running in a locked-down GraalJS sandbox, gated by a config flag
+plus the new `PROCESS_SCRIPT_AUTHOR` permission) and design-time AI task-assist (describe a task,
+get a curated-task mapping or a draft sandboxed snippet for a human to review; never auto-deployed).
+The feature is now complete. Author intent captured 2026-06-16. This is a build spec, the sibling of
 [`dashboardScope.md`](./dashboardScope.md). It will be promoted to an ADR once the model decisions
 below are accepted; the sections below remain the spec.
 
@@ -151,22 +154,42 @@ maps data-object variables to its inputs/outputs. openWCS already exposes most o
 New task types are added in code, reviewed, and shipped via the normal PR/CI pipeline. This is the
 90% path and the only one needed for Phase 1.
 
-### 7.2 Sandboxed script (controlled escape hatch, later phase)
-For logic not covered by the library: a **sandboxed Groovy/GraalVM** snippet with a whitelisted API
-surface, CPU/memory/time limits, and no filesystem/network beyond the exposed client. Never
+### 7.2 Sandboxed script (controlled escape hatch — implemented in Phase 3)
+For logic not covered by the library: a built-in **`script`** task type. The step config is
+`{ "script": "<js>", "outputs": [{ "name": "..." }] }`. The snippet runs server-side in a
+**locked-down GraalJS sandbox** (org.graalvm.polyglot community 24.1.1): `allowAllAccess(false)`,
+`HostAccess.NONE`, no host class lookup/loading, no native, no threads, no process, `IOAccess.NONE`,
+no environment, `PolyglotAccess.NONE`. It is **interpreted guest JS, never compiled to host JVM
+bytecode**. Resource limits: a `ResourceLimits` statement limit (default 100000), a watchdog
+wall-clock timeout (default 2000 ms), and an output size cap (default 65536 bytes). The script sees
+only a **deep-frozen, read-only `data` global** (the process data object) and returns an object
+whose fields become the declared outputs. Tunable via
+`openwcs.process-designer.scripting.{statement-limit,timeout-ms,max-output-bytes}`.
+
+Governance is **defense in depth**: a new permission `PROCESS_SCRIPT_AUTHOR` (granted to ADMIN only)
+and a config flag `openwcs.process-designer.scripting.enabled` (default **false**). A definition
+containing a `script` step can be saved or published **only when BOTH the flag is on AND the caller
+holds `PROCESS_SCRIPT_AUTHOR`** (else 422 when scripting is disabled / 403 when the permission is
+missing). Each script is **parse-validated in the sandbox at publish** (malformed → 422). Never
 free-form Java compiled into the running JVM.
 
-### 7.3 AI task-assist (assistive, never auto-deploy)
-"Describe what the task should achieve" is supported as a **design-time assistant**, not a runtime
-code generator:
-1. Map the description to **existing curated task types + variable mappings** (deterministic, no new
-   code runs). This is the target for Phase 3.
-2. If the library is insufficient, the assistant **drafts** a new task type or a sandboxed snippet
-   that a **developer reviews, tests, and lands via PR/CI**. Human-in-the-loop, gated by the same
-   CI we use everywhere.
+### 7.3 AI task-assist (assistive, never auto-deploy — implemented in Phase 3, design-time only)
+"Describe what the task should achieve" is a **design-time assistant**, not a runtime code generator.
+`POST /api/process-designer/assist/task` `{description, variables:[{name,type}]}` returns
+`{kind:"curated"|"script"|"none", taskType?, inputs?, outputs?, script?, rationale, confidence}`
+(gated by `PROCESS_DESIGN_EDIT`). It uses the Anthropic Java SDK
+(`com.anthropic:anthropic-java`, default model `claude-haiku-4-5`, key from the `ANTHROPIC_API_KEY`
+env), grounded with the **live task catalog plus the available variables**, and either:
+1. Maps the description to an **existing curated task type + variable mappings** (`kind:"curated"`,
+   no new code runs); or
+2. **Drafts a sandboxed JS snippet** (`kind:"script"`) for a **human to review** and insert into a
+   `script` step. The suggestion is never saved, compiled, or executed by the server.
 
-Explicitly rejected: AI text -> compiled Java -> hot-deployed to a live server. That is remote code
-execution by configuration and is out of scope permanently.
+Absent key → 503 (the context still starts). The designer surfaces a drafted snippet clearly
+labelled as an AI draft for review; nothing is deployed automatically.
+
+Explicitly rejected and permanently out of scope: AI text -> compiled Java -> hot-deployed to a
+live server. That is remote code execution by configuration. The AI never auto-deploys.
 
 ## 8. Versioning and activation
 - A process key has many versions; each is immutable once published.
@@ -234,7 +257,15 @@ Requirements:
   new `process-design` screen permission (admin/engineer).
 
 ## 11. Security model
-- No designer-authored Java executes in-process (§7).
+- No designer-authored Java executes in-process (§7). A `script` step runs only **interpreted guest
+  JS in a locked-down GraalJS sandbox** (no host/Java access, no IO/threads/process/native/env,
+  statement + wall-clock + output limits, a deep-frozen read-only `data` global), never compiled to
+  host bytecode (§7.2).
+- A `script` step can be saved/published only when the `scripting.enabled` flag is on **and** the
+  caller holds `PROCESS_SCRIPT_AUTHOR` (ADMIN only); else 422 (disabled) / 403 (no permission). Each
+  script is parse-validated in the sandbox at publish (malformed → 422).
+- AI task-assist is **design-time only**: it returns a suggestion the designer reviews; it never
+  saves, compiles, or executes code, and never auto-deploys (§7.3).
 - Task steps run with the operator's forwarded identity + warehouse scope; they can only do what
   that user is allowed to do via the existing service RBAC.
 - `when` conditions and `{{placeholders}}` are parsed/whitelisted, never `eval`'d.
@@ -273,8 +304,21 @@ Lives in a new `process-designer` service or the existing `process-engine` (deci
    (`GET /api/process-designer/tasks`) driving the designer's task picker, and instance
    history/monitoring (`GET /api/process-designer/instances` list + existing detail; migration V2
    monitoring indexes; read-only desktop "Process instances" screen at `/process-instances`).
-3. **Phase 3**: AI task-assist (description -> curated task mapping; developer-reviewed snippet
-   generation), sandboxed scripting escape hatch.
+3. **Phase 3 (implemented — final phase)**: the **sandboxed scripting escape hatch** (§7.2 — a
+   `script` task type running in a locked-down GraalJS sandbox with statement/wall-clock/output
+   limits over a deep-frozen read-only `data` global, never compiled to host bytecode; gated by the
+   `openwcs.process-designer.scripting.enabled` flag (default false) AND the new `PROCESS_SCRIPT_AUTHOR`
+   permission (ADMIN only), parse-validated at publish), **design-time AI task-assist** (§7.3 —
+   `POST /api/process-designer/assist/task` returns a curated-task mapping or a draft sandboxed
+   snippet for a human to review; Anthropic Java SDK, default `claude-haiku-4-5`, `ANTHROPIC_API_KEY`;
+   503 when no key; the AI never auto-deploys), a **capabilities** endpoint
+   (`GET /api/process-designer/capabilities` → `{scriptingEnabled, aiAssistEnabled, canAuthorScript}`,
+   `PROCESS_DESIGN_VIEW`) driving the designer's show/hide of the script editor + assist panel, and
+   the frontend script-step code editor (with a declared-outputs editor + sandbox-limit help) plus
+   the "describe what this task should do" assist panel (Apply a curated suggestion, or Insert an
+   AI-drafted snippet as a `script` step clearly labelled "AI draft, for your review"). Compose env on
+   process-designer: `OPENWCS_PROCESS_SCRIPTING_ENABLED` (default false), `ANTHROPIC_API_KEY` (opt-in),
+   `OPENWCS_PROCESS_ASSIST_MODEL`. i18n de/fr/es/zh. All three phases are now implemented.
 
 ## 15. Open decisions
 - **Engine home**: extend `process-engine` (Flowable service) vs a new `process-designer` service.

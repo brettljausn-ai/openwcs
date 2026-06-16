@@ -277,6 +277,16 @@ services:
       OPENWCS_TXLOG_BASE_URL: http://txlog:8086
       OPENWCS_INTEGRATION_HOST_BASE_URL: http://integration-host:8092
       OPENWCS_COUNTING_BASE_URL: http://counting:8095
+      # Phase 3 sandboxed scripting escape hatch (spec §7.2): OFF by default. A definition with a
+      # script step can be saved/published only when this is true AND the caller holds
+      # PROCESS_SCRIPT_AUTHOR; the snippet runs in a locked-down GraalJS sandbox (no host/Java/IO,
+      # statement + time limits), never compiled to host bytecode.
+      OPENWCS_PROCESS_SCRIPTING_ENABLED: ${OPENWCS_PROCESS_SCRIPTING_ENABLED:-false}
+      # Phase 3 AI task-assist (spec §7.3, design-time only): set ANTHROPIC_API_KEY to enable
+      # POST /assist/task (absent leaves it 503). Output is a suggestion the designer reviews; it is
+      # never saved, compiled, or executed by the server.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENWCS_PROCESS_ASSIST_MODEL: ${OPENWCS_PROCESS_ASSIST_MODEL:-claude-haiku-4-5}
 
   flow-orchestrator:
     restart: unless-stopped
