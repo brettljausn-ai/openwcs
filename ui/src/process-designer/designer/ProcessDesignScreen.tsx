@@ -27,9 +27,10 @@ import {
   type Step,
   type TaskStep,
 } from '../model'
-import { createDef, getDef, listDefs, publishDef, updateDef } from '../api'
+import { createDef, duplicateDef, exportDef, getDef, importDef, listDefs, publishDef, updateDef } from '../api'
+import { useTasks } from '../useProcesses'
 import { hasErrors, validateDefinition, type ValidationIssue } from './validate'
-import { nextStepId, writeValue } from '../runtime/walker'
+import { nextStepId, resolveLandingStep, writeValue } from '../runtime/walker'
 import { PREVIEW_CATALOG, sampleDataFor } from './sampleData'
 import PropertiesPanel from './PropertiesPanel'
 
@@ -48,9 +49,9 @@ function emptyDef(): ProcessDefinition {
   }
 }
 
-function newStep(type: ScreenType | 'task'): Step {
+function newStep(type: ScreenType | 'task', defaultTask: string): Step {
   if (type === 'task') {
-    return { type: 'task', task: 'inventory.lookup', input: {}, output: {} } satisfies TaskStep
+    return { type: 'task', task: defaultTask, input: {}, output: {} } satisfies TaskStep
   }
   const cfg: ScreenStep['config'] = { header: SCREEN_TYPE_LABELS[type] }
   return { type: 'screen', screen: type, config: cfg } satisfies ScreenStep
@@ -83,6 +84,7 @@ function orderedStepIds(def: ProcessDefinition): string[] {
 
 export default function ProcessDesignScreen() {
   const t = useT('processDesign')
+  const { tasks } = useTasks()
 
   const [def, setDef] = useState<ProcessDefinition>(() => emptyDef())
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -91,6 +93,7 @@ export default function ProcessDesignScreen() {
   const [issues, setIssues] = useState<ValidationIssue[] | null>(null)
   const [dirty, setDirty] = useState(false)
   const [persisted, setPersisted] = useState(false) // has a server version (created/loaded)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Simulate mode state.
   const [simulating, setSimulating] = useState(false)
@@ -99,6 +102,18 @@ export default function ProcessDesignScreen() {
 
   const sampleData = useMemo(() => sampleDataFor(def.dataSchema), [def.dataSchema])
   const orderedIds = useMemo(() => orderedStepIds(def), [def])
+
+  // Version management: all versions of the currently-edited process key, newest first, with status.
+  const versionsForKey = useMemo(
+    () =>
+      defs
+        .filter((d) => d.processKey === def.processKey)
+        .slice()
+        .sort((a, b) => (b.version ?? 0) - (a.version ?? 0)),
+    [defs, def.processKey],
+  )
+  // Only a DRAFT version is editable; viewing an ACTIVE/ARCHIVED version is read-only.
+  const editable = (def.status ?? 'DRAFT') === 'DRAFT'
 
   const loadList = useCallback(async () => {
     try {
@@ -126,15 +141,16 @@ export default function ProcessDesignScreen() {
   const changeSchema = useCallback((schema: DataVar[]) => patchDef({ dataSchema: schema }), [patchDef])
 
   const addStep = useCallback((type: ScreenType | 'task') => {
+    const defaultTask = tasks[0]?.id ?? 'inventory.lookup'
     setDef((d) => {
       const id = uniqueId(type === 'task' ? 'task' : type, new Set(Object.keys(d.steps)))
-      const steps = { ...d.steps, [id]: newStep(type) }
+      const steps = { ...d.steps, [id]: newStep(type, defaultTask) }
       const start = d.start || id
       return { ...d, steps, start }
     })
     setDirty(true)
     setIssues(null)
-  }, [])
+  }, [tasks])
 
   const renameStep = useCallback((oldId: string, newId: string) => {
     setDef((d) => {
@@ -232,11 +248,11 @@ export default function ProcessDesignScreen() {
   }, [def, persisted, loadList, t])
 
   const runValidate = useCallback(() => {
-    const found = validateDefinition(def)
+    const found = validateDefinition(def, tasks)
     setIssues(found)
     setStatus(found.length === 0 ? t('valid', 'No issues') : `${found.length} ${t('issues', 'issues')}`)
     return found
-  }, [def, t])
+  }, [def, tasks, t])
 
   const publish = useCallback(async () => {
     const found = runValidate()
@@ -262,12 +278,81 @@ export default function ProcessDesignScreen() {
     }
   }, [def, persisted, dirty, runValidate, loadList, t])
 
+  // --- Phase 2: duplicate / export / import -------------------------------------------------------
+
+  // Clone the current (e.g. published) version into a new DRAFT and switch to it for editing.
+  const duplicate = useCallback(async () => {
+    if (!persisted || def.version == null) {
+      setStatus(t('saveFirst', 'Save the definition first.'))
+      return
+    }
+    try {
+      const summary = await duplicateDef(def.processKey, def.version)
+      await loadList()
+      await loadDef(summary.processKey, summary.version)
+      setStatus(`${t('duplicated', 'Duplicated to draft')} ${summary.processKey} v${summary.version}`)
+    } catch (e) {
+      setStatus(String(e instanceof Error ? e.message : e))
+    }
+    // loadDef is defined below; declared via the ref pattern is unnecessary — it is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [def.processKey, def.version, persisted, loadList, t])
+
+  // Download the current (saved) version as an importable JSON file.
+  const exportJson = useCallback(async () => {
+    if (!persisted || def.version == null) {
+      setStatus(t('saveFirst', 'Save the definition first.'))
+      return
+    }
+    try {
+      const full = await exportDef(def.processKey, def.version)
+      const blob = new Blob([JSON.stringify(full, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${full.processKey}-v${full.version}.json`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      setStatus(`${t('exported', 'Exported')} ${full.processKey} v${full.version}`)
+    } catch (e) {
+      setStatus(String(e instanceof Error ? e.message : e))
+    }
+  }, [def.processKey, def.version, persisted, t])
+
+  // Upload a JSON file → POST /defs/import → switch to the created draft.
+  const onImportFile = useCallback(async (file: File) => {
+    try {
+      const text = await file.text()
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        setStatus(t('importBadJson', 'That file is not valid JSON.'))
+        return
+      }
+      const summary = await importDef(parsed)
+      await loadList()
+      await loadDef(summary.processKey, summary.version)
+      setStatus(`${t('imported', 'Imported as draft')} ${summary.processKey} v${summary.version}`)
+    } catch (e) {
+      const err = e as Error & { httpStatus?: number }
+      if (err.httpStatus === 422) setStatus(`${t('importInvalid', 'Import rejected — the model is invalid')}: ${err.message}`)
+      else if (err.httpStatus === 400) setStatus(`${t('importMissing', 'Import rejected — missing processKey or title')}: ${err.message}`)
+      else setStatus(String(err instanceof Error ? err.message : err))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadList, t])
+
   // --- simulate -----------------------------------------------------------------------------------
 
   const startSim = useCallback(() => {
+    const data = sampleDataFor(def.dataSchema)
     setSimulating(true)
-    setSimData(sampleDataFor(def.dataSchema))
-    setSimStep(def.start)
+    setSimData(data)
+    // Honour skipWhen from the very first step too.
+    setSimStep(resolveLandingStep(def, def.start, data) ?? '')
   }, [def])
 
   const stopSim = useCallback(() => { setSimulating(false); setSimStep('') }, [])
@@ -277,13 +362,14 @@ export default function ProcessDesignScreen() {
     if (!step || !isScreenStep(step)) return
     const data = writeValue(simData, step.config.writeTo, value)
     setSimData(data)
-    setSimStep(nextStepId(step, data) ?? '')
+    setSimStep(resolveLandingStep(def, nextStepId(step, data), data) ?? '')
   }, [def, simStep, simData])
 
   const simAdvanceTask = useCallback(() => {
     const step = def.steps[simStep]
     if (!step) return
-    setSimStep(nextStepId(step, simData) ?? '') // dry-run: no backend, just follow next/transitions
+    // dry-run: no backend, just follow next/transitions, skipping any skipWhen steps.
+    setSimStep(resolveLandingStep(def, nextStepId(step, simData), simData) ?? '')
   }, [def, simStep, simData])
 
   // --- render (all hooks above) -------------------------------------------------------------------
@@ -301,12 +387,27 @@ export default function ProcessDesignScreen() {
         <input className="op-pd-title" value={def.title} onChange={(e) => patchDef({ title: e.target.value })} placeholder={t('title', 'Title')} />
         <input className="op-pd-icon" value={def.icon ?? ''} onChange={(e) => patchDef({ icon: e.target.value })} placeholder="icon" title={t('icon', 'Icon')} />
         <span className="op-pd-status-badge">{def.status ?? 'DRAFT'}{dirty ? ' *' : ''}</span>
+        {!editable && <span className="op-pd-readonly-badge" title={t('readonlyHint', 'Only DRAFT versions are editable. Duplicate to a new draft to change this.')}>{t('readonly', 'read-only')}</span>}
         <span style={{ flex: 1 }} />
         <button className="btn btn-ghost btn-sm" onClick={newDraft}>{t('new', 'New')}</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => void save()}>{t('save', 'Save')}</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => void save()} disabled={!editable}>{t('save', 'Save')}</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => void duplicate()} disabled={!persisted}>{t('duplicate', 'Duplicate')}</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => void exportJson()} disabled={!persisted}>{t('export', 'Export')}</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()}>{t('import', 'Import')}</button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) void onImportFile(f)
+            e.target.value = '' // allow re-importing the same file
+          }}
+        />
         <button className="btn btn-ghost btn-sm" onClick={runValidate}>{t('validate', 'Validate')}</button>
         <button className="btn btn-ghost btn-sm" onClick={simulating ? stopSim : startSim} disabled={!def.start}>{simulating ? t('stopSim', 'Stop simulate') : t('simulate', 'Simulate')}</button>
-        <button className="btn btn-primary btn-sm" onClick={() => void publish()}>{t('publish', 'Publish')}</button>
+        <button className="btn btn-primary btn-sm" onClick={() => void publish()} disabled={!editable}>{t('publish', 'Publish')}</button>
       </div>
       {status && <div className="op-pd-statusline">{status}</div>}
 
@@ -338,6 +439,31 @@ export default function ProcessDesignScreen() {
               />
             ))}
           </ul>
+
+          {/* Version management for the current process key. */}
+          {versionsForKey.length > 0 && (
+            <div className="op-pd-versions">
+              <div className="op-pd-versions-head">{t('versions', 'Versions of')} <code>{def.processKey}</code></div>
+              <ul>
+                {versionsForKey.map((d) => {
+                  const isCurrent = d.version === def.version
+                  return (
+                    <li key={d.version}>
+                      <button
+                        className={`op-pd-version-btn${isCurrent ? ' is-current' : ''}`}
+                        onClick={() => void loadDef(d.processKey, d.version ?? 1)}
+                        title={d.status === 'DRAFT' ? t('editThis', 'Edit this draft') : t('viewThis', 'View (read-only)')}
+                      >
+                        v{d.version}
+                        <span className={`op-pd-version-status status-${(d.status ?? 'DRAFT').toLowerCase()}`}>{d.status}</span>
+                        {d.status !== 'DRAFT' && <span className="op-pd-version-lock" aria-hidden="true">🔒</span>}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
 
           <details className="op-pd-defs">
             <summary>{t('existing', 'Existing definitions')}</summary>
@@ -390,7 +516,7 @@ export default function ProcessDesignScreen() {
         {simulating ? (
           <aside className="op-pd-props"><p className="muted" style={{ padding: '1rem' }}>{t('simHint', 'Step through the flow in the phone frame. Stop simulate to edit.')}</p></aside>
         ) : (
-          <PropertiesPanel def={def} selectedId={selectedId} onChangeStep={changeStep} onChangeSchema={changeSchema} onRenameStep={renameStep} />
+          <PropertiesPanel def={def} selectedId={selectedId} tasks={tasks} onChangeStep={changeStep} onChangeSchema={changeSchema} onRenameStep={renameStep} />
         )}
       </div>
 

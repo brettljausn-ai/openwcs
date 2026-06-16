@@ -17,6 +17,7 @@ import { LanguageProvider } from './i18n/LanguageContext'
 import TopologyEditor from './topology/TopologyEditor'
 import ProcessDesigner from './process/ProcessDesigner'
 import ProcessDesignScreen from './process-designer/designer/ProcessDesignScreen'
+import ProcessInstancesScreen from './process-designer/instances/ProcessInstancesScreen'
 import ProcessRuntimeScreen from './process-designer/runtime/ProcessRuntimeScreen'
 import SlottingScreen from './slotting/SlottingScreen'
 
@@ -66,6 +67,7 @@ const COMPONENTS: Record<string, JSX.Element> = {
   topology: <TopologyEditor />,
   processes: <ProcessDesigner />,
   'process:design': <ProcessDesignScreen />,
+  'process:instances': <ProcessInstancesScreen />,
   slotting: <SlottingScreen />,
   inbound: <InboundScreen />,
   outbound: <OutboundScreen />,

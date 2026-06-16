@@ -33,6 +33,33 @@ export function stepOf(def: ProcessDefinition, id: string | null): Step | undefi
   return id ? def.steps[id] : undefined
 }
 
+/**
+ * Resolve the step id we should actually LAND on, honouring `skipWhen` (spec/Phase 2 conditional
+ * skips): starting from `id`, while the step's `skipWhen` evaluates true against `data`, advance to
+ * its next/first-matching transition WITHOUT rendering it. Returns the first id whose step does not
+ * skip (or null when the chain ends / a skipped step has no onward path).
+ *
+ * Guards against infinite loops: a step that skips back onto an already-seen id terminates the chain
+ * (returns null) rather than spinning. Used by both the runtime and the designer simulate.
+ */
+export function resolveLandingStep(
+  def: ProcessDefinition,
+  id: string | null,
+  data: Record<string, unknown>,
+): string | null {
+  const seen = new Set<string>()
+  let cur = id
+  while (cur) {
+    const step = def.steps[cur]
+    if (!step) return null // dangling id ends the instance
+    if (!step.skipWhen || !safeEvaluate(step.skipWhen, data)) return cur
+    if (seen.has(cur)) return null // skip-loop guard: would cycle forever
+    seen.add(cur)
+    cur = nextStepId(step, data) // a skipped step with no onward path -> null (instance ends)
+  }
+  return null
+}
+
 /** Step ids reachable from start (BFS over next + transition targets). For validation + simulate. */
 export function reachableSteps(def: ProcessDefinition): Set<string> {
   const seen = new Set<string>()
