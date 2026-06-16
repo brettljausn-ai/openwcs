@@ -69,6 +69,7 @@ export const SCREENS: ScreenDef[] = [
   // Engineering — design & modelling
   { key: 'topology', label: 'Automation topology', path: '/topology', section: 'Engineering', icon: '⊹', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Place, size and connect automation equipment (conveyors, ASRS, sorters) on warehouse levels.' },
   { key: 'processes', label: 'Processes', path: '/processes', section: 'Engineering', icon: '⇉', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Design and deploy BPMN processes; run instances and tasks.' },
+  { key: 'process:design', label: 'Process designer', path: '/process-design', section: 'Engineering', icon: '◰', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'WYSIWYG designer for handheld operator processes: build a flow of screen + task steps, preview each as the real handheld screen, simulate branches, and publish an active version.' },
   { key: 'slotting', label: 'Slotting', path: '/slotting', section: 'Engineering', icon: '▦', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Pick-face and automated-block slotting & replenishment policy.' },
   { key: 'master-data:equipment', label: 'Equipment', path: '/master-data/equipment', section: 'Engineering', icon: '⚙', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Devices (conveyors, ASRS, sorters) and the adapter endpoints the WCS drives.' },
 
