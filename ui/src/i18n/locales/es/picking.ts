@@ -28,4 +28,16 @@ export default {
   loadingQueue: 'Cargando cola de preparación…',
   noPicks: 'No hay recogidas abiertas en este almacén ahora mismo.',
   checking: 'Comprobando la cola…',
+  // Escáner RF: indicaciones de escaneo e incoherencias.
+  scanLocation: 'Escanee la ubicación {code}',
+  scanItem: 'Escanee el artículo {code}',
+  scanConfirm: 'Confirmar {n}',
+  wrongLocation: 'Ubicación incorrecta — escanee {code}',
+  wrongItem: 'Artículo incorrecto — se esperaba {code}',
+  // Cola de confirmaciones sin conexión.
+  online: 'En línea',
+  offline: 'Sin conexión',
+  pendingConfirms: '{n} pendientes',
+  failedConfirms: '{n} con error — requiere atención',
+  retryNow: 'Reintentar ahora',
 }
