@@ -5,4 +5,6 @@ export default {
   loadingWarehouses: '正在加载仓库…',
   noWarehouseAccess: '无仓库访问权限',
   signOut: '退出登录',
+  online: '在线',
+  offline: '离线',
 }
