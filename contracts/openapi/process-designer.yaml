@@ -17,6 +17,7 @@ servers:
 tags:
   - name: Definitions
   - name: Instances
+  - name: Assist
 
 paths:
   /defs:
@@ -319,6 +320,51 @@ paths:
         "404": { description: Instance or step not found }
         "502": { description: "The curated task failed, the instance did not advance" }
 
+  /assist/task:
+    post:
+      tags: [Assist]
+      summary: AI task-assist (design-time suggestion, never auto-deploy)
+      description: >
+        Design-time only (spec §7.3). Given a plain-language description and the available data-object
+        variables, the model returns a SUGGESTION the designer may apply: either the best-fit curated
+        task type with proposed input/output mappings, or, if nothing fits, a DRAFT sandboxed JS
+        snippet for the user to review and insert into a script step. This endpoint NEVER changes
+        server state, never saves, and never runs code. Gated by PROCESS_DESIGN_EDIT. Returns 503 when
+        no Anthropic key is configured (ANTHROPIC_API_KEY). The drafted script is unreviewed text.
+      operationId: assistTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskAssistRequest' }
+      responses:
+        "200":
+          description: A structured suggestion (curated mapping, script draft, or none)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskAssistResult' }
+        "403": { description: "Missing PROCESS_DESIGN_EDIT permission" }
+        "502": { description: "The AI model call failed" }
+        "503": { description: "AI assist not configured (no Anthropic key)" }
+
+  /capabilities:
+    get:
+      tags: [Assist]
+      summary: Phase 3 capabilities for the frontend
+      description: >
+        What the designer UI should show/hide (spec §7.2/§7.3): whether the sandboxed-scripting flag
+        is enabled, whether AI assist is configured, and whether the caller may author script steps
+        (holds PROCESS_SCRIPT_AUTHOR; always true when security is disabled). Gated by
+        PROCESS_DESIGN_VIEW.
+      operationId: getCapabilities
+      responses:
+        "200":
+          description: Capabilities
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CapabilitiesView' }
+        "403": { description: "Missing PROCESS_DESIGN_VIEW permission" }
+
 components:
   schemas:
     ProcessModel:
@@ -359,9 +405,19 @@ components:
         config:
           type: object
           additionalProperties: true
+          description: >
+            "Per-step config. For a screen step: header, detail, writeTo, validation, scanBinding.
+            For a script task step (task = script): { script: <js>, outputs: [{ name }] } — the snippet
+            reads a frozen global data object and returns a plain object whose declared outputs merge
+            back into the data object."
         task:
           type: string
-          description: "Curated task type, e.g. inventory.move, slotting.putaway, picking.confirm, inventory.lookup, txlog.post, host.confirm, inventory.adjust, counting.capture, order.lookup."
+          description: >
+            "Curated task type, e.g. inventory.move, slotting.putaway, picking.confirm,
+            inventory.lookup, txlog.post, host.confirm, inventory.adjust, counting.capture,
+            order.lookup. The special type 'script' (spec §7.2) runs a sandboxed JS snippet from
+            config.script and merges config.outputs back; authoring it requires the scripting flag
+            plus PROCESS_SCRIPT_AUTHOR (enforced at save/publish)."
         input:
           type: object
           additionalProperties: { type: string }
@@ -510,3 +566,64 @@ components:
         warehouseId: { type: string, format: uuid, nullable: true }
         startedAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+
+    TaskAssistRequest:
+      type: object
+      description: "AI task-assist input (spec §7.3): a description plus the available data variables."
+      properties:
+        description:
+          type: string
+          description: "Plain-language description of what the task step should achieve."
+        variables:
+          type: array
+          description: "The data-object variables available to map to (or for a script to read)."
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              type: { type: string }
+      required: [description]
+
+    TaskAssistResult:
+      type: object
+      description: >
+        "A design-time suggestion (spec §7.3). NEVER saved or executed by the server. kind=curated
+        proposes a curated task type with input/output mappings; kind=script returns a DRAFT sandboxed
+        JS snippet for human review; kind=none means nothing fits."
+      properties:
+        kind: { type: string, enum: [curated, script, none] }
+        taskType:
+          type: string
+          nullable: true
+          description: "When kind=curated, the chosen curated task type id."
+        inputs:
+          type: object
+          nullable: true
+          additionalProperties: { type: string }
+          description: "When kind=curated, taskInputName to a data variable name or literal:VALUE."
+        outputs:
+          type: object
+          nullable: true
+          additionalProperties: { type: string }
+          description: "When kind=curated, taskOutputName to a data variable name."
+        script:
+          type: string
+          nullable: true
+          description: "When kind=script, a DRAFT JS snippet for human review (not executed)."
+        rationale: { type: string }
+        confidence: { type: number, description: "Confidence 0..1." }
+      required: [kind, rationale, confidence]
+
+    CapabilitiesView:
+      type: object
+      description: "Phase 3 capabilities for the designer UI (spec §7.2/§7.3)."
+      properties:
+        scriptingEnabled:
+          type: boolean
+          description: "Whether the sandboxed-scripting flag is enabled (off by default)."
+        aiAssistEnabled:
+          type: boolean
+          description: "Whether AI task-assist is configured (an Anthropic key is present)."
+        canAuthorScript:
+          type: boolean
+          description: "Whether the caller may author script steps (holds PROCESS_SCRIPT_AUTHOR)."

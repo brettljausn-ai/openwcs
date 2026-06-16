@@ -18,6 +18,7 @@ import ProcessScreenView from '../screens/ProcessScreenView'
 import {
   SCREEN_TYPE_ICONS,
   SCREEN_TYPE_LABELS,
+  SCRIPT_TASK_TYPE,
   isScreenStep,
   isTaskStep,
   type DataVar,
@@ -28,7 +29,7 @@ import {
   type TaskStep,
 } from '../model'
 import { createDef, duplicateDef, exportDef, getDef, importDef, listDefs, publishDef, updateDef } from '../api'
-import { useTasks } from '../useProcesses'
+import { useCapabilities, useTasks } from '../useProcesses'
 import { hasErrors, validateDefinition, type ValidationIssue } from './validate'
 import { nextStepId, resolveLandingStep, writeValue } from '../runtime/walker'
 import { PREVIEW_CATALOG, sampleDataFor } from './sampleData'
@@ -85,6 +86,7 @@ function orderedStepIds(def: ProcessDefinition): string[] {
 export default function ProcessDesignScreen() {
   const t = useT('processDesign')
   const { tasks } = useTasks()
+  const { capabilities } = useCapabilities()
 
   const [def, setDef] = useState<ProcessDefinition>(() => emptyDef())
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -141,7 +143,9 @@ export default function ProcessDesignScreen() {
   const changeSchema = useCallback((schema: DataVar[]) => patchDef({ dataSchema: schema }), [patchDef])
 
   const addStep = useCallback((type: ScreenType | 'task') => {
-    const defaultTask = tasks[0]?.id ?? 'inventory.lookup'
+    // Default a new Task step to the first NON-script curated task (the script type is opt-in via the
+    // task-type picker / AI assist, gated by capabilities).
+    const defaultTask = tasks.find((tt) => tt.id !== SCRIPT_TASK_TYPE)?.id ?? 'inventory.lookup'
     setDef((d) => {
       const id = uniqueId(type === 'task' ? 'task' : type, new Set(Object.keys(d.steps)))
       const steps = { ...d.steps, [id]: newStep(type, defaultTask) }
@@ -498,8 +502,8 @@ export default function ProcessDesignScreen() {
                 />
               ) : previewStep && isTaskStep(previewStep) ? (
                 <div className="glass" style={{ padding: '1.5rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '2rem' }}>⚙</div>
-                  <h3 style={{ margin: '.5rem 0' }}>{t('taskStep', 'Task')}: {previewStep.task}</h3>
+                  <div style={{ fontSize: '2rem' }}>{previewStep.task === SCRIPT_TASK_TYPE ? '〈/〉' : '⚙'}</div>
+                  <h3 style={{ margin: '.5rem 0' }}>{previewStep.task === SCRIPT_TASK_TYPE ? t('scriptStep', 'Sandboxed script') : `${t('taskStep', 'Task')}: ${previewStep.task}`}</h3>
                   <p className="muted" style={{ fontSize: '.85rem' }}>{t('taskRunsServer', 'Runs on the server (checkpoint).')}</p>
                   {simulating && <button className="btn btn-primary" onClick={simAdvanceTask}>{t('simRunTask', 'Run task (dry-run) →')}</button>}
                 </div>
@@ -516,7 +520,7 @@ export default function ProcessDesignScreen() {
         {simulating ? (
           <aside className="op-pd-props"><p className="muted" style={{ padding: '1rem' }}>{t('simHint', 'Step through the flow in the phone frame. Stop simulate to edit.')}</p></aside>
         ) : (
-          <PropertiesPanel def={def} selectedId={selectedId} tasks={tasks} onChangeStep={changeStep} onChangeSchema={changeSchema} onRenameStep={renameStep} />
+          <PropertiesPanel def={def} selectedId={selectedId} tasks={tasks} capabilities={capabilities} onChangeStep={changeStep} onChangeSchema={changeSchema} onRenameStep={renameStep} />
         )}
       </div>
 

@@ -1,7 +1,12 @@
 package org.openwcs.processdesigner.api;
 
 import java.util.Map;
+import org.openwcs.processdesigner.assist.AssistNotConfiguredException;
+import org.openwcs.processdesigner.assist.TaskAssistException;
+import org.openwcs.processdesigner.script.ScriptExecutionException;
 import org.openwcs.processdesigner.service.DefinitionInvalidException;
+import org.openwcs.processdesigner.service.ScriptingForbiddenException;
+import org.openwcs.processdesigner.service.ScriptingNotEnabledException;
 import org.openwcs.processdesigner.task.TaskExecutionException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -37,6 +42,40 @@ public class ApiExceptionHandler {
     /** A curated task step failed: 502 so the client queues/retries; the instance did not advance. */
     @ExceptionHandler(TaskExecutionException.class)
     public ResponseEntity<Map<String, Object>> taskFailed(TaskExecutionException e) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", e.getMessage()));
+    }
+
+    /**
+     * A sandboxed script (spec §7.2) failed cleanly — syntax error, statement-limit breach, timeout,
+     * sandbox-escape attempt, or invalid/oversized output. 502 (the task did not advance the
+     * instance); the service stays up.
+     */
+    @ExceptionHandler(ScriptExecutionException.class)
+    public ResponseEntity<Map<String, Object>> scriptFailed(ScriptExecutionException e) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", e.getMessage()));
+    }
+
+    /** Saving/publishing a script-bearing definition without PROCESS_SCRIPT_AUTHOR: 403. */
+    @ExceptionHandler(ScriptingForbiddenException.class)
+    public ResponseEntity<Map<String, Object>> scriptingForbidden(ScriptingForbiddenException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+    }
+
+    /** Saving/publishing a script-bearing definition while scripting is disabled by config: 422. */
+    @ExceptionHandler(ScriptingNotEnabledException.class)
+    public ResponseEntity<Map<String, Object>> scriptingDisabled(ScriptingNotEnabledException e) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(Map.of("error", e.getMessage()));
+    }
+
+    /** AI task-assist invoked with no Anthropic key configured: 503 (the context still starts). */
+    @ExceptionHandler(AssistNotConfiguredException.class)
+    public ResponseEntity<Map<String, Object>> assistNotConfigured(AssistNotConfiguredException e) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("error", e.getMessage()));
+    }
+
+    /** The AI task-assist model call failed (e.g. Anthropic API error): 502. */
+    @ExceptionHandler(TaskAssistException.class)
+    public ResponseEntity<Map<String, Object>> assistFailed(TaskAssistException e) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", e.getMessage()));
     }
 }

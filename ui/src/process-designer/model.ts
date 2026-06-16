@@ -86,19 +86,46 @@ export interface ScreenStep {
   skipWhen?: string
 }
 
-/** A task step: server-side work via the curated task library (spec §7.1). Runs as a checkpoint. */
+/** The built-in task type id for the sandboxed-script escape hatch (spec §7.2). A task step whose
+ *  `task` equals this carries its snippet + declared outputs in `config` (NOT in input/output). */
+export const SCRIPT_TASK_TYPE = 'script'
+
+/** One declared output of a script step (its field on the returned object → a data-object var). */
+export interface ScriptOutput {
+  name: string
+}
+
+/** Config for a sandboxed-script task step (spec §7.2). The snippet runs server-side with a
+ *  read-only `data` (the process data object) in scope and returns/assigns an object whose fields
+ *  become the declared `outputs`. No network/host/filesystem; CPU/time limited (enforced server-side). */
+export interface ScriptConfig {
+  script: string
+  outputs: ScriptOutput[]
+}
+
+/** A task step: server-side work via the curated task library (spec §7.1), OR the sandboxed-script
+ *  escape hatch (spec §7.2) when `task === SCRIPT_TASK_TYPE` (then `config` carries the snippet).
+ *  Runs as a checkpoint. */
 export interface TaskStep {
   type: 'task'
-  /** Curated task type id, e.g. "slotting.putaway". */
+  /** Curated task type id, e.g. "slotting.putaway", or SCRIPT_TASK_TYPE for a sandboxed snippet. */
   task: string
   /** Maps data-object variable names to the task's named inputs. */
   input?: Record<string, string>
   /** Maps the task's named outputs back to data-object variable names. */
   output?: Record<string, string>
+  /** Script-step payload (only when task === SCRIPT_TASK_TYPE): the JS snippet + declared outputs. */
+  config?: ScriptConfig
   next?: string
   transitions?: Transition[]
   /** Conditional-skip (same grammar as transition `when`); true = the step is skipped at runtime. */
   skipWhen?: string
+}
+
+/** True when the step is the sandboxed-script escape hatch. NOTE: returns a plain boolean (NOT a
+ *  type guard) so it never narrows the union away — a script step IS a TaskStep, not a subtype. */
+export function isScriptStep(step: Step): boolean {
+  return step.type === 'task' && step.task === SCRIPT_TASK_TYPE
 }
 
 export type Step = ScreenStep | TaskStep
@@ -218,6 +245,48 @@ export interface DefinitionSummary {
   status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED'
   title?: string
   icon?: string
+}
+
+/** Phase 3: server-advertised capabilities (GET /capabilities). Gates the new UI; degrade gracefully
+ *  (feature hidden) when a field is false or the fetch fails. */
+export interface Capabilities {
+  /** The sandboxed-script runtime is available server-side. */
+  scriptingEnabled: boolean
+  /** The AI "describe the task" assist is configured (an Anthropic key is present). */
+  aiAssistEnabled: boolean
+  /** The caller is allowed to author script steps (RBAC). */
+  canAuthorScript: boolean
+}
+
+/** Conservative default when /capabilities is unreachable: everything off (features simply hidden). */
+export const DISABLED_CAPABILITIES: Capabilities = {
+  scriptingEnabled: false,
+  aiAssistEnabled: false,
+  canAuthorScript: false,
+}
+
+/** Phase 3: a data-object variable as sent to POST /assist/task ({ name, type }). */
+export interface AssistVariable {
+  name: string
+  type: VarType
+}
+
+/** Phase 3: the AI task-assist suggestion (POST /assist/task response). */
+export interface AssistSuggestion {
+  /** "curated" = map to a curated task type; "script" = a drafted snippet; "none" = nothing fits. */
+  kind: 'curated' | 'script' | 'none'
+  /** curated: the chosen curated task type id. */
+  taskType?: string
+  /** curated: proposed input mappings (inputName → data-object var name or literal). */
+  inputs?: Record<string, string>
+  /** curated: proposed output mappings (outputName → data-object var name). */
+  outputs?: Record<string, string>
+  /** script: the drafted JS snippet (for review, never auto-deployed). */
+  script?: string
+  /** Human-readable explanation of the suggestion (always present). */
+  rationale?: string
+  /** 0..1 confidence the model reports. */
+  confidence?: number
 }
 
 export const SCREEN_TYPE_ICONS: Record<ScreenType | 'task', string> = {
