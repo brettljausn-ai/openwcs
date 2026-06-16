@@ -81,6 +81,9 @@ export interface ScreenStep {
   next?: string
   /** Optional guarded edges; first matching `when` wins, evaluated before `next`. */
   transitions?: Transition[]
+  /** When this condition (same grammar as transition `when`) is true at runtime, the step is skipped
+   *  (the runtime advances past it without rendering). Phase 2 conditional-skip. */
+  skipWhen?: string
 }
 
 /** A task step: server-side work via the curated task library (spec §7.1). Runs as a checkpoint. */
@@ -94,6 +97,8 @@ export interface TaskStep {
   output?: Record<string, string>
   next?: string
   transitions?: Transition[]
+  /** Conditional-skip (same grammar as transition `when`); true = the step is skipped at runtime. */
+  skipWhen?: string
 }
 
 export type Step = ScreenStep | TaskStep
@@ -134,30 +139,85 @@ export interface CheckpointResult {
   done: boolean
 }
 
-/** The curated task library shown in the designer's task picker. Mirrors spec §7.1. Display-only on
- *  the client; the server holds the authoritative registry and runs them. */
+/** A task input as advertised by the server task catalog (GET /tasks). */
+export interface TaskInputDef {
+  name: string
+  required?: boolean
+}
+
+/** A task output as advertised by the server task catalog. */
+export interface TaskOutputDef {
+  name: string
+}
+
+/** The curated task library shown in the designer's task picker. The authoritative source is the
+ *  server catalog (GET /api/process-designer/tasks → [{ type, label, inputs:[{name,required}],
+ *  outputs:[{name}] }]); the constant below is only a graceful fallback when that fetch fails.
+ *
+ *  `id` mirrors the server `type`; inputs/outputs are normalised to {name,required}/{name}. */
 export interface TaskTypeDef {
   id: string
   label: string
-  /** Named inputs the task reads (designer maps data vars -> these). */
-  inputs: string[]
-  /** Named outputs the task writes (designer maps these -> data vars). */
-  outputs: string[]
-  description: string
+  inputs: TaskInputDef[]
+  outputs: TaskOutputDef[]
+  description?: string
 }
 
+/** Wire shape of one entry from GET /api/process-designer/tasks. */
+export interface ServerTaskType {
+  type: string
+  label?: string
+  description?: string
+  inputs?: TaskInputDef[]
+  outputs?: TaskOutputDef[]
+}
+
+/** Normalise a server task entry to the client TaskTypeDef the designer UI consumes. */
+export function normalizeServerTask(s: ServerTaskType): TaskTypeDef {
+  return {
+    id: s.type,
+    label: s.label || s.type,
+    description: s.description,
+    inputs: (s.inputs ?? []).map((i) => ({ name: i.name, required: i.required })),
+    outputs: (s.outputs ?? []).map((o) => ({ name: o.name })),
+  }
+}
+
+/** Fallback catalog used only when GET /tasks is unreachable; mirrors spec §7.1. */
 export const TASK_LIBRARY: TaskTypeDef[] = [
-  { id: 'slotting.putaway', label: 'Putaway (slotting)', inputs: ['sku', 'qty', 'hu'], outputs: ['location'], description: 'Score + dispatch a putaway move.' },
-  { id: 'inventory.move', label: 'Move stock', inputs: ['hu', 'from', 'to'], outputs: ['moveId'], description: 'Create an inventory move.' },
-  { id: 'picking.confirm', label: 'Confirm pick', inputs: ['lineId', 'qty', 'short'], outputs: [], description: 'Confirm a pick task.' },
-  { id: 'counting.capture', label: 'Capture count', inputs: ['location', 'sku', 'qty'], outputs: ['variance'], description: 'Capture a stock count.' },
-  { id: 'inventory.lookup', label: 'Lookup inventory', inputs: ['sku', 'location'], outputs: ['qty', 'hu'], description: 'Read inventory into a variable.' },
-  { id: 'host.confirm', label: 'Host confirm', inputs: ['ref'], outputs: [], description: 'Confirm to the host API.' },
-  { id: 'txlog.post', label: 'Post stock transaction', inputs: ['sku', 'qty', 'location'], outputs: ['txId'], description: 'Append a stock transaction.' },
+  { id: 'slotting.putaway', label: 'Putaway (slotting)', inputs: [{ name: 'sku', required: true }, { name: 'qty', required: true }, { name: 'hu' }], outputs: [{ name: 'location' }], description: 'Score + dispatch a putaway move.' },
+  { id: 'inventory.move', label: 'Move stock', inputs: [{ name: 'hu', required: true }, { name: 'from' }, { name: 'to', required: true }], outputs: [{ name: 'moveId' }], description: 'Create an inventory move.' },
+  { id: 'picking.confirm', label: 'Confirm pick', inputs: [{ name: 'lineId', required: true }, { name: 'qty', required: true }, { name: 'short' }], outputs: [], description: 'Confirm a pick task.' },
+  { id: 'counting.capture', label: 'Capture count', inputs: [{ name: 'location', required: true }, { name: 'sku', required: true }, { name: 'qty', required: true }], outputs: [{ name: 'variance' }], description: 'Capture a stock count.' },
+  { id: 'inventory.lookup', label: 'Lookup inventory', inputs: [{ name: 'sku' }, { name: 'location' }], outputs: [{ name: 'qty' }, { name: 'hu' }], description: 'Read inventory into a variable.' },
+  { id: 'host.confirm', label: 'Host confirm', inputs: [{ name: 'ref', required: true }], outputs: [], description: 'Confirm to the host API.' },
+  { id: 'txlog.post', label: 'Post stock transaction', inputs: [{ name: 'sku', required: true }, { name: 'qty', required: true }, { name: 'location' }], outputs: [{ name: 'txId' }], description: 'Append a stock transaction.' },
 ]
 
-export function taskTypeById(id: string): TaskTypeDef | undefined {
-  return TASK_LIBRARY.find((t) => t.id === id)
+export function taskTypeById(id: string, catalog: TaskTypeDef[] = TASK_LIBRARY): TaskTypeDef | undefined {
+  return catalog.find((t) => t.id === id)
+}
+
+/** A running/finished instance row (GET /api/process-designer/instances). */
+export interface InstanceSummary {
+  instanceId: string
+  processKey: string
+  defVersion: number
+  status: string
+  currentStep?: string | null
+  startedBy?: string | null
+  warehouseId?: string | null
+  startedAt?: string | null
+  updatedAt?: string | null
+}
+
+/** A definition list row (GET /defs, duplicate/import responses). */
+export interface DefinitionSummary {
+  processKey: string
+  version: number
+  status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED'
+  title?: string
+  icon?: string
 }
 
 export const SCREEN_TYPE_ICONS: Record<ScreenType | 'task', string> = {

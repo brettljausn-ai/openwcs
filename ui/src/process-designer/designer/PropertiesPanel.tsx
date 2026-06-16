@@ -9,8 +9,9 @@
 // the top (Rules of Hooks).
 
 import { useState } from 'react'
+import { useT } from '../../i18n/useT'
+import { validateCondition } from '../condition'
 import {
-  TASK_LIBRARY,
   taskTypeById,
   type ChoiceOption,
   type DataVar,
@@ -18,6 +19,7 @@ import {
   type ScreenStep,
   type Step,
   type TaskStep,
+  type TaskTypeDef,
   type Transition,
   type VarType,
 } from '../model'
@@ -25,6 +27,8 @@ import {
 interface Props {
   def: ProcessDefinition
   selectedId: string | null
+  /** The live server task catalog (falls back to the static library); drives the task picker. */
+  tasks: TaskTypeDef[]
   onChangeStep: (id: string, step: Step) => void
   onChangeSchema: (schema: DataVar[]) => void
   /** Rename a step id (updates references). */
@@ -33,7 +37,7 @@ interface Props {
 
 const VAR_TYPES: VarType[] = ['string', 'number', 'boolean', 'date', 'sku', 'location', 'hu']
 
-export default function PropertiesPanel({ def, selectedId, onChangeStep, onChangeSchema, onRenameStep }: Props) {
+export default function PropertiesPanel({ def, selectedId, tasks, onChangeStep, onChangeSchema, onRenameStep }: Props) {
   const step = selectedId ? def.steps[selectedId] : undefined
   const stepIds = Object.keys(def.steps)
 
@@ -55,6 +59,7 @@ export default function PropertiesPanel({ def, selectedId, onChangeStep, onChang
             id={selectedId}
             step={step}
             stepIds={stepIds}
+            tasks={tasks}
             onChange={(s) => onChangeStep(selectedId, s)}
             onRename={(n) => onRenameStep(selectedId, n)}
           />
@@ -257,7 +262,26 @@ function ScreenProps({
       </Field>
 
       <TransitionsEditor step={step} stepIds={stepIds.filter((s) => s !== id)} onChange={(transitions) => set({ transitions })} />
+
+      <SkipWhenField value={step.skipWhen ?? ''} onChange={(v) => set({ skipWhen: v || undefined })} />
     </div>
+  )
+}
+
+/** "Skip this step when…" — a condition (same grammar as a transition `when`). True at runtime ->
+ *  the step is skipped without rendering. Live-validated so the designer sees a malformed expression. */
+function SkipWhenField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const t = useT('processDesign')
+  const err = value ? validateCondition(value) : null
+  return (
+    <fieldset className="op-pd-fieldset">
+      <legend>{t('skipWhen', 'Skip this step when…')}</legend>
+      <p className="muted" style={{ fontSize: '.75rem', margin: '0 0 .4rem' }}>
+        {t('skipWhenHint', 'A condition over the data object (e.g. damaged == false). When true at runtime the step is skipped.')}
+      </p>
+      <input placeholder="e.g. qty == 0" value={value} onChange={(e) => onChange(e.target.value)} />
+      {err && <span className="op-pd-issue-err" style={{ fontSize: '.75rem' }}>⚠ {err}</span>}
+    </fieldset>
   )
 }
 
@@ -305,6 +329,7 @@ function TaskProps({
   id,
   step,
   stepIds,
+  tasks,
   onChange,
   onRename,
 }: {
@@ -312,10 +337,13 @@ function TaskProps({
   id: string
   step: TaskStep
   stepIds: string[]
+  tasks: TaskTypeDef[]
   onChange: (s: TaskStep) => void
   onRename: (n: string) => void
 }) {
-  const taskDef = taskTypeById(step.task)
+  // The selected task may not be in the live catalog (e.g. a def authored against a newer server);
+  // resolve from the catalog, else show the raw id so it is still editable.
+  const taskDef = taskTypeById(step.task, tasks)
   const set = (patch: Partial<TaskStep>) => onChange({ ...step, ...patch })
 
   return (
@@ -325,17 +353,19 @@ function TaskProps({
 
       <Field label="Task type">
         <select value={step.task} onChange={(e) => set({ task: e.target.value, input: {}, output: {} })}>
-          {TASK_LIBRARY.map((tt) => (<option key={tt.id} value={tt.id}>{tt.label}</option>))}
+          {/* Keep the current value selectable even if the catalog no longer lists it. */}
+          {!taskDef && <option value={step.task}>{step.task}</option>}
+          {tasks.map((tt) => (<option key={tt.id} value={tt.id}>{tt.label}</option>))}
         </select>
       </Field>
-      {taskDef && <p className="muted" style={{ fontSize: '.78rem', margin: '0 0 .5rem' }}>{taskDef.description}</p>}
+      {taskDef?.description && <p className="muted" style={{ fontSize: '.78rem', margin: '0 0 .5rem' }}>{taskDef.description}</p>}
 
       {taskDef && taskDef.inputs.length > 0 && (
         <fieldset className="op-pd-fieldset">
           <legend>Inputs (task ← variable)</legend>
           {taskDef.inputs.map((inp) => (
-            <Field key={inp} label={inp}>
-              <select value={step.input?.[inp] ?? ''} onChange={(e) => set({ input: { ...step.input, [inp]: e.target.value } })}>
+            <Field key={inp.name} label={inp.required ? `${inp.name} *` : inp.name}>
+              <select value={step.input?.[inp.name] ?? ''} onChange={(e) => set({ input: { ...step.input, [inp.name]: e.target.value } })}>
                 <option value="">(none)</option>
                 {def.dataSchema.map((v) => (<option key={v.name} value={v.name}>{v.name}</option>))}
               </select>
@@ -348,8 +378,8 @@ function TaskProps({
         <fieldset className="op-pd-fieldset">
           <legend>Outputs (task → variable)</legend>
           {taskDef.outputs.map((out) => (
-            <Field key={out} label={out}>
-              <select value={step.output?.[out] ?? ''} onChange={(e) => set({ output: { ...step.output, [out]: e.target.value } })}>
+            <Field key={out.name} label={out.name}>
+              <select value={step.output?.[out.name] ?? ''} onChange={(e) => set({ output: { ...step.output, [out.name]: e.target.value } })}>
                 <option value="">(none)</option>
                 {def.dataSchema.map((v) => (<option key={v.name} value={v.name}>{v.name}</option>))}
               </select>
@@ -365,6 +395,8 @@ function TaskProps({
         </select>
       </Field>
       <TransitionsEditor step={step} stepIds={stepIds.filter((s) => s !== id)} onChange={(transitions) => set({ transitions })} />
+
+      <SkipWhenField value={step.skipWhen ?? ''} onChange={(v) => set({ skipWhen: v || undefined })} />
     </div>
   )
 }

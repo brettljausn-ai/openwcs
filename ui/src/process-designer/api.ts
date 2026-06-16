@@ -4,9 +4,12 @@
 
 import type {
   CheckpointResult,
+  DefinitionSummary,
+  InstanceSummary,
   ProcessDefinition,
   ProcessInstance,
   ProcessSummary,
+  ServerTaskType,
 } from './model'
 
 const BASE = '/api/process-designer'
@@ -118,4 +121,56 @@ export async function archiveDef(key: string, version: number): Promise<ProcessD
   return json(
     await fetch(`${BASE}/defs/${encodeURIComponent(key)}/${version}/archive`, { method: 'POST' }),
   )
+}
+
+// --- Phase 2: duplicate / import / export -------------------------------------------------------
+
+/** Clone {key}/{version} into a NEW DRAFT (e.g. iterate from a published version). */
+export async function duplicateDef(key: string, version: number): Promise<DefinitionSummary> {
+  return json(
+    await fetch(`${BASE}/defs/${encodeURIComponent(key)}/${version}/duplicate`, { method: 'POST' }),
+  )
+}
+
+/** Import a full definition JSON as a new DRAFT. 422 = model invalid, 400 = missing key/title. */
+export async function importDef(def: unknown): Promise<DefinitionSummary> {
+  return json(
+    await fetch(`${BASE}/defs/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(def),
+    }),
+  )
+}
+
+/** The full importable definition JSON for a version (used for the EXPORT download). */
+export async function exportDef(key: string, version: number): Promise<ProcessDefinition> {
+  return getDef(key, version)
+}
+
+// --- Phase 2: server task catalog ---------------------------------------------------------------
+
+/** The REAL server task catalog (drives the designer task picker + input/output mapping). */
+export async function listTasks(): Promise<ServerTaskType[]> {
+  return json(await fetch(`${BASE}/tasks`))
+}
+
+// --- Phase 2: instance monitoring ---------------------------------------------------------------
+
+export interface InstanceQuery {
+  processKey?: string
+  status?: string
+  warehouseId?: string
+  limit?: number
+}
+
+/** Instances newest-first, optionally filtered (read-only monitoring screen). */
+export async function listInstances(q: InstanceQuery = {}): Promise<InstanceSummary[]> {
+  const params = new URLSearchParams()
+  if (q.processKey) params.set('processKey', q.processKey)
+  if (q.status) params.set('status', q.status)
+  if (q.warehouseId) params.set('warehouseId', q.warehouseId)
+  if (q.limit != null) params.set('limit', String(q.limit))
+  const qs = params.toString()
+  return json(await fetch(`${BASE}/instances${qs ? `?${qs}` : ''}`))
 }

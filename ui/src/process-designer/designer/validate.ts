@@ -3,7 +3,7 @@
 // and malformed `when` expressions. Publish is blocked until this returns no errors.
 
 import { validateCondition } from '../condition'
-import { isScreenStep, type ProcessDefinition } from '../model'
+import { isScreenStep, taskTypeById, type ProcessDefinition, type TaskTypeDef } from '../model'
 import { placeholderRefs } from '../placeholders'
 import { reachableSteps } from '../runtime/walker'
 
@@ -13,10 +13,23 @@ export interface ValidationIssue {
   message: string
 }
 
-export function validateDefinition(def: ProcessDefinition): ValidationIssue[] {
+/**
+ * Validate a definition before publish. `catalog` is the live server task catalog (falls back to the
+ * static library) so task steps can be checked for missing REQUIRED inputs.
+ */
+export function validateDefinition(def: ProcessDefinition, catalog?: TaskTypeDef[]): ValidationIssue[] {
   const issues: ValidationIssue[] = []
   const ids = Object.keys(def.steps)
   const schemaNames = new Set(def.dataSchema.map((v) => v.name))
+
+  // Duplicate step ids: the step map keys are unique by construction, but a duplicate variable name
+  // in the data object is the realistic "duplicate id" mistake — flag it (a later var shadows the
+  // earlier one in lookups).
+  const seenVars = new Set<string>()
+  for (const v of def.dataSchema) {
+    if (seenVars.has(v.name)) issues.push({ level: 'error', message: `Duplicate data-object variable "${v.name}".` })
+    seenVars.add(v.name)
+  }
 
   if (!def.start) issues.push({ level: 'error', message: 'No start step set.' })
   else if (!def.steps[def.start]) issues.push({ level: 'error', message: `Start step "${def.start}" does not exist.` })
@@ -38,6 +51,15 @@ export function validateDefinition(def: ProcessDefinition): ValidationIssue[] {
       if (!def.steps[tr.to]) issues.push({ level: 'error', stepId: id, message: `"${id}" → transition to "${tr.to}" does not exist.` })
       const condErr = validateCondition(tr.when)
       if (condErr) issues.push({ level: 'error', stepId: id, message: `"${id}" condition "${tr.when}": ${condErr}` })
+    }
+
+    // skipWhen: must be a valid condition; a step that can be skipped must have somewhere to go,
+    // otherwise a true skipWhen silently ends the instance (likely a mistake).
+    if (step.skipWhen != null && step.skipWhen !== '') {
+      const skipErr = validateCondition(step.skipWhen)
+      if (skipErr) issues.push({ level: 'error', stepId: id, message: `"${id}" skip-when "${step.skipWhen}": ${skipErr}` })
+      const hasOnward = !!step.next || (step.transitions ?? []).some((tr) => !!tr.to)
+      if (!hasOnward) issues.push({ level: 'warning', stepId: id, message: `"${id}" is skippable but has no onward step — skipping it ends the process.` })
     }
 
     if (isScreenStep(step)) {
@@ -65,6 +87,17 @@ export function validateDefinition(def: ProcessDefinition): ValidationIssue[] {
       }
       for (const v of Object.values(step.output ?? {})) {
         if (v && !schemaNames.has(v)) issues.push({ level: 'warning', stepId: id, message: `"${id}" task output writes undeclared variable "${v}".` })
+      }
+      // required inputs per the live catalog: every required input must be mapped to a variable.
+      const taskDef = taskTypeById(step.task, catalog)
+      if (!taskDef) {
+        issues.push({ level: 'warning', stepId: id, message: `"${id}" uses unknown task type "${step.task}".` })
+      } else {
+        for (const inp of taskDef.inputs) {
+          if (inp.required && !step.input?.[inp.name]) {
+            issues.push({ level: 'error', stepId: id, message: `"${id}" task "${step.task}" is missing required input "${inp.name}".` })
+          }
+        }
       }
     }
   }
