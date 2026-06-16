@@ -25,13 +25,17 @@ export function applyVerifyWrites(
   data: Record<string, unknown>,
   verify: VerifyConfig,
   result: Pick<VerifyResult, 'id' | 'code' | 'name' | 'uomCode' | 'schemaCategory'>,
+  /** skuScan: the UOM the operator picked (or the auto-resolved one) — overrides result.uomCode. */
+  chosenUomCode?: string | null,
 ): Record<string, unknown> {
   const write = verify.write
   if (!write) return data
   const out = { ...data }
   for (const field of VERIFY_FIELDS) {
     const target = write[field]
-    if (target) out[target] = result[field] ?? null
+    if (!target) continue
+    if (field === 'uomCode' && chosenUomCode != null) out[target] = chosenUomCode
+    else out[target] = result[field] ?? null
   }
   return out
 }

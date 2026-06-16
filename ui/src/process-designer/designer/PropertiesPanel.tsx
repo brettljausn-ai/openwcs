@@ -33,6 +33,7 @@ import {
 } from '../model'
 import ScriptEditor from './ScriptEditor'
 import TaskAssist from './TaskAssist'
+import VarCombobox from './VarCombobox'
 
 interface Props {
   def: ProcessDefinition
@@ -48,6 +49,17 @@ interface Props {
 }
 
 const VAR_TYPES: VarType[] = ['string', 'number', 'boolean', 'date', 'sku', 'location', 'hu']
+
+/** English fallback labels for the server-driven verify kinds (the i18n key still overrides these). */
+const VERIFY_KIND_LABELS: Record<string, string> = {
+  barcode: 'Barcode',
+  sku: 'SKU code',
+  location: 'Location',
+  skuScan: 'Scan SKU code or barcode',
+}
+function verifyKindLabel(kind: string): string {
+  return VERIFY_KIND_LABELS[kind] ?? kind
+}
 
 export default function PropertiesPanel({ def, selectedId, tasks, capabilities, onChangeStep, onChangeSchema, onRenameStep }: Props) {
   const step = selectedId ? def.steps[selectedId] : undefined
@@ -188,12 +200,7 @@ function ScreenProps({
 
       {captures && !isQuestion && (
         <Field label="Write to (variable)">
-          <select value={cfg.writeTo ?? ''} onChange={(e) => setCfg({ writeTo: e.target.value || undefined })}>
-            <option value="">(none)</option>
-            {def.dataSchema.map((v) => (
-              <option key={v.name} value={v.name}>{v.name} ({v.type})</option>
-            ))}
-          </select>
+          <VarCombobox value={cfg.writeTo ?? ''} options={def.dataSchema} onChange={(name) => setCfg({ writeTo: name || undefined })} />
         </Field>
       )}
 
@@ -271,10 +278,7 @@ function ScreenProps({
 
       {isQuestion && (
         <Field label="Question writes to (variable)">
-          <select value={cfg.writeTo ?? ''} onChange={(e) => setCfg({ writeTo: e.target.value || undefined })}>
-            <option value="">(none)</option>
-            {def.dataSchema.map((v) => (<option key={v.name} value={v.name}>{v.name} ({v.type})</option>))}
-          </select>
+          <VarCombobox value={cfg.writeTo ?? ''} options={def.dataSchema} onChange={(name) => setCfg({ writeTo: name || undefined })} />
         </Field>
       )}
 
@@ -359,10 +363,16 @@ function VerifyEditor({
           <Field label={t('verifyKind', 'Resolve as')}>
             <select value={v.kind} onChange={(e) => setV({ kind: e.target.value as VerifyKind })}>
               {kinds.map((k) => (
-                <option key={k} value={k}>{t(`verifyKind_${k}`, k)}</option>
+                <option key={k} value={k}>{t(`verifyKind_${k}`, verifyKindLabel(k))}</option>
               ))}
             </select>
           </Field>
+
+          {v.kind === 'skuScan' && (
+            <p className="muted op-pd-wide" style={{ fontSize: '.75rem', margin: '0 0 .2rem' }}>
+              {t('verifySkuScanHelp', 'A barcode pins the unit of measure; a SKU code with several units prompts the operator to pick one. Map "uomCode" to a variable to store the chosen/resolved unit.')}
+            </p>
+          )}
 
           <div className="op-pd-field">
             <span className="op-pd-field-label">{t('verifyWrite', 'Store resolved values into variables')}</span>
@@ -373,14 +383,14 @@ function VerifyEditor({
                 <div key={field} style={{ display: 'flex', gap: '.4rem', alignItems: 'center', marginBottom: '.3rem' }}>
                   <code style={{ flex: '0 0 110px', fontSize: '.8rem' }}>{field}</code>
                   <span aria-hidden="true">→</span>
-                  <select
-                    style={{ flex: 1 }}
-                    value={v.write?.[field] ?? ''}
-                    onChange={(e) => setWrite(field, e.target.value)}
-                  >
-                    <option value="">{t('verifyDontStore', '(do not store)')}</option>
-                    {vars.map((dv) => (<option key={dv.name} value={dv.name}>{dv.name} ({dv.type})</option>))}
-                  </select>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <VarCombobox
+                      value={v.write?.[field] ?? ''}
+                      options={vars}
+                      placeholder={t('verifyDontStore', '(do not store)')}
+                      onChange={(name) => setWrite(field, name)}
+                    />
+                  </div>
                 </div>
               ))
             )}
@@ -537,10 +547,7 @@ function TaskProps({
           <legend>Inputs (task ← variable)</legend>
           {taskDef.inputs.map((inp) => (
             <Field key={inp.name} label={inp.required ? `${inp.name} *` : inp.name}>
-              <select value={step.input?.[inp.name] ?? ''} onChange={(e) => set({ input: { ...step.input, [inp.name]: e.target.value } })}>
-                <option value="">(none)</option>
-                {def.dataSchema.map((v) => (<option key={v.name} value={v.name}>{v.name}</option>))}
-              </select>
+              <VarCombobox value={step.input?.[inp.name] ?? ''} options={def.dataSchema} onChange={(name) => set({ input: { ...step.input, [inp.name]: name } })} />
             </Field>
           ))}
         </fieldset>
@@ -551,10 +558,7 @@ function TaskProps({
           <legend>Outputs (task → variable)</legend>
           {taskDef.outputs.map((out) => (
             <Field key={out.name} label={out.name}>
-              <select value={step.output?.[out.name] ?? ''} onChange={(e) => set({ output: { ...step.output, [out.name]: e.target.value } })}>
-                <option value="">(none)</option>
-                {def.dataSchema.map((v) => (<option key={v.name} value={v.name}>{v.name}</option>))}
-              </select>
+              <VarCombobox value={step.output?.[out.name] ?? ''} options={def.dataSchema} onChange={(name) => set({ output: { ...step.output, [out.name]: name } })} />
             </Field>
           ))}
         </fieldset>
@@ -592,12 +596,12 @@ function DataObjectPanel({ schema, onChange }: { schema: DataVar[]; onChange: (s
     <fieldset className="op-pd-fieldset op-pd-dataobj">
       <legend>Data object</legend>
       {schema.map((v, i) => (
-        <div key={i} style={{ display: 'flex', gap: '.4rem', marginBottom: '.4rem' }}>
-          <input value={v.name} placeholder="name" style={{ flex: 1 }} onChange={(e) => onChange(schema.map((x, j) => (j === i ? { ...x, name: e.target.value.replace(/[^A-Za-z0-9_]/g, '') } : x)))} />
-          <select value={v.type} onChange={(e) => onChange(schema.map((x, j) => (j === i ? { ...x, type: e.target.value as VarType } : x)))}>
+        <div key={i} className="op-pd-dataobj-row">
+          <input className="op-pd-dataobj-name" value={v.name} placeholder="name" onChange={(e) => onChange(schema.map((x, j) => (j === i ? { ...x, name: e.target.value.replace(/[^A-Za-z0-9_]/g, '') } : x)))} />
+          <select className="op-pd-dataobj-type" value={v.type} onChange={(e) => onChange(schema.map((x, j) => (j === i ? { ...x, type: e.target.value as VarType } : x)))}>
             {VAR_TYPES.map((t) => (<option key={t} value={t}>{t}</option>))}
           </select>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange(schema.filter((_, j) => j !== i))}>✕</button>
+          <button type="button" className="btn btn-ghost btn-sm op-pd-dataobj-del" onClick={() => onChange(schema.filter((_, j) => j !== i))}>✕</button>
         </div>
       ))}
       <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange([...schema, { name: `var${schema.length + 1}`, type: 'string' }])}>+ Add variable</button>

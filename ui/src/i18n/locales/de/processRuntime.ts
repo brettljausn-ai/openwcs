@@ -16,4 +16,8 @@ export default {
   verifyNotFound: 'Nicht gefunden, erneut scannen',
   verifyOffline: 'Die Prüfung benötigt eine Verbindung',
   verifyAmbiguous: 'Mehrere Treffer gefunden.',
+  // skuScan UOM-Auswahl
+  uomTitle: 'Mengeneinheit wählen',
+  uomBody: 'Dieser Artikel kann in mehreren Einheiten gebucht werden. Wählen Sie die passende.',
+  uomBase: 'Basiseinheit',
 }

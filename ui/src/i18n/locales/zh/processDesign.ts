@@ -83,6 +83,8 @@ export default {
   verifyKind_barcode: '条码',
   verifyKind_sku: '物料 (SKU)',
   verifyKind_location: '库位',
+  verifyKind_skuScan: '扫描商品编码或条码',
+  verifySkuScanHelp: '条码会固定计量单位；当商品编码对应多个单位时，会提示操作员选择其一。将 "uomCode" 映射到变量以保存所选或解析出的单位。',
   verifyWrite: '将解析的值存入变量',
   verifyNoVars: '请在下方添加数据对象变量以存储解析得到的 ID。',
   verifyDontStore: '（不存储）',
