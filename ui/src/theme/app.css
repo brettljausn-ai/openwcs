@@ -930,7 +930,7 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-status-badge { font-size: .75rem; padding: .2rem .5rem; border-radius: 6px; background: rgba(141,198,63,.14); color: var(--herbal-lime); font-weight: 600; }
 .op-pd-statusline { font-size: .85rem; color: var(--text-dim); }
 
-.op-pd-grid { display: grid; grid-template-columns: 320px 1fr 340px; gap: .8rem; align-items: start; }
+.op-pd-grid { display: grid; grid-template-columns: 280px minmax(360px, 1fr) minmax(480px, 1.3fr); gap: .8rem; align-items: start; }
 @media (max-width: 1100px) { .op-pd-grid { grid-template-columns: 1fr; } }
 
 /* Left flow pane */
@@ -963,13 +963,21 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 
 /* Right properties pane */
 .op-pd-props { display: flex; flex-direction: column; gap: .6rem; }
-.op-pd-props-body { display: flex; flex-direction: column; gap: .5rem; }
+/* Two-column form: small fields pack side by side; wide items (textareas, list editors,
+   transitions) span the full width. Validation + Verify sit next to each other instead of
+   pushing Verify below the fold. Collapses to one column when the whole grid stacks. */
+.op-pd-props-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem .7rem; align-content: start; }
+.op-pd-props-body > h3 { grid-column: 1 / -1; }
+.op-pd-wide { grid-column: 1 / -1; }
+@media (max-width: 1100px) { .op-pd-props-body { grid-template-columns: 1fr; } }
 .op-pd-props-body h3 { margin: 0; font-size: 1rem; text-transform: capitalize; }
 .op-pd-field { display: flex; flex-direction: column; gap: .2rem; }
 .op-pd-field-label { font-size: .72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; }
 .op-pd-field input, .op-pd-field select, .op-pd-field textarea, .op-pd-fieldset input, .op-pd-fieldset select {
   padding: .4rem .55rem; background: var(--glass-bg, rgba(255,255,255,.04)); border: 1px solid var(--glass-border); border-radius: 7px; color: var(--text); font-size: .85rem; width: 100%;
 }
+/* Checkboxes must never stretch to 100% (the fieldset rule above would otherwise blow them up). */
+.op-pd-field input[type="checkbox"], .op-pd-fieldset input[type="checkbox"], .op-pd-toggle input[type="checkbox"] { width: auto; flex: 0 0 auto; margin: 0; }
 .op-pd-toggle { display: flex; align-items: center; gap: .4rem; font-size: .82rem; }
 .op-pd-fieldset { border: 1px solid var(--glass-border); border-radius: 8px; padding: .55rem .65rem; }
 .op-pd-fieldset legend { font-size: .72rem; color: var(--text-dim); padding: 0 .3rem; text-transform: uppercase; letter-spacing: .06em; }
