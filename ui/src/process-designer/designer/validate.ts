@@ -3,7 +3,7 @@
 // and malformed `when` expressions. Publish is blocked until this returns no errors.
 
 import { validateCondition } from '../condition'
-import { isScreenStep, isScriptStep, taskTypeById, type ProcessDefinition, type TaskTypeDef } from '../model'
+import { VERIFY_FIELDS, isScreenStep, isScriptStep, taskTypeById, type ProcessDefinition, type TaskTypeDef } from '../model'
 import { placeholderRefs } from '../placeholders'
 import { reachableSteps } from '../runtime/walker'
 
@@ -82,6 +82,29 @@ export function validateDefinition(def: ProcessDefinition, catalog?: TaskTypeDef
       // questionChoice needs options
       if (step.screen === 'questionChoice' && (cfg.options ?? []).length === 0) {
         issues.push({ level: 'warning', stepId: id, message: `"${id}" is a choice question with no options.` })
+      }
+      // verify block (light client-side checks; the server is authoritative).
+      if (cfg.verify) {
+        const ver = cfg.verify
+        if (step.screen !== 'textInput' && step.screen !== 'numberInput') {
+          issues.push({ level: 'error', stepId: id, message: `"${id}" has a verify block but is not a text/number input.` })
+        }
+        if (!ver.kind) {
+          issues.push({ level: 'error', stepId: id, message: `"${id}" verify is missing a kind.` })
+        }
+        if (ver.onNotFound?.mode === 'goto') {
+          if (!ver.onNotFound.step) {
+            issues.push({ level: 'error', stepId: id, message: `"${id}" verify "go to step" has no target step.` })
+          } else if (!def.steps[ver.onNotFound.step]) {
+            issues.push({ level: 'error', stepId: id, message: `"${id}" verify go-to step "${ver.onNotFound.step}" does not exist.` })
+          }
+        }
+        for (const field of VERIFY_FIELDS) {
+          const target = ver.write?.[field]
+          if (target && !schemaNames.has(target)) {
+            issues.push({ level: 'error', stepId: id, message: `"${id}" verify writes "${field}" to undeclared variable "${target}".` })
+          }
+        }
       }
     } else if (isScriptStep(step)) {
       // Sandboxed-script step (spec §7.2). Light client-side checks only — the server does the
