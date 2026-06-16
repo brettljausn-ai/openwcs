@@ -105,4 +105,5 @@ export default {
   endsFlow: '→ finaliza el proceso',
   unreachable: 'No conectado al flujo',
   unreachableHint: 'Estos pasos no se alcanzan desde el inicio. Apunte un siguiente / una rama hacia ellos, o haga que uno sea el inicio.',
+  more: 'Más',
 }

@@ -105,4 +105,5 @@ export default {
   endsFlow: '→ beendet den Prozess',
   unreachable: 'Nicht mit dem Ablauf verbunden',
   unreachableHint: 'Diese Schritte werden vom Start nicht erreicht. Richten Sie ein Nächstes / eine Verzweigung darauf, oder machen Sie einen davon zum Start.',
+  more: 'Mehr',
 }

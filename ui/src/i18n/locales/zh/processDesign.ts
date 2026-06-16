@@ -105,4 +105,5 @@ export default {
   endsFlow: '→ 结束流程',
   unreachable: '未连接到流程',
   unreachableHint: '这些步骤无法从起始到达。将某个下一步/分支指向它们，或将其中一个设为起始。',
+  more: '更多',
 }

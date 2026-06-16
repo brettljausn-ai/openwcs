@@ -426,19 +426,29 @@ export default function ProcessDesignScreen() {
 
   return (
     <div className="app-content op-pd-designer">
-      {/* Toolbar */}
+      {/* Toolbar: identity on the left, a compact action group on the right (secondary actions
+          tucked into a "More" menu so the bar is not a wall of buttons). */}
       <div className="op-pd-toolbar">
-        <input className="op-pd-key" value={def.processKey} onChange={(e) => patchDef({ processKey: e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase() })} placeholder="process-key" title={t('processKey', 'Process key')} />
-        <input className="op-pd-title" value={def.title} onChange={(e) => patchDef({ title: e.target.value })} placeholder={t('title', 'Title')} />
-        <input className="op-pd-icon" value={def.icon ?? ''} onChange={(e) => patchDef({ icon: e.target.value })} placeholder="icon" title={t('icon', 'Icon')} />
-        <span className="op-pd-status-badge">{def.status ?? 'DRAFT'}{dirty ? ' *' : ''}</span>
-        {!editable && <span className="op-pd-readonly-badge" title={t('readonlyHint', 'Only DRAFT versions are editable. Duplicate to a new draft to change this.')}>{t('readonly', 'read-only')}</span>}
+        <div className="op-pd-toolbar-id">
+          <input className="op-pd-title" value={def.title} onChange={(e) => patchDef({ title: e.target.value })} placeholder={t('title', 'Title')} />
+          <input className="op-pd-key" value={def.processKey} onChange={(e) => patchDef({ processKey: e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase() })} placeholder="process-key" title={t('processKey', 'Process key')} />
+          <input className="op-pd-icon" value={def.icon ?? ''} onChange={(e) => patchDef({ icon: e.target.value })} placeholder="icon" title={t('icon', 'Icon')} />
+          <span className="op-pd-status-badge">{def.status ?? 'DRAFT'}{dirty ? ' *' : ''}</span>
+          {!editable && <span className="op-pd-readonly-badge" title={t('readonlyHint', 'Only DRAFT versions are editable. Duplicate to a new draft to change this.')}>{t('readonly', 'read-only')}</span>}
+        </div>
         <span style={{ flex: 1 }} />
-        <button className="btn btn-ghost btn-sm" onClick={newDraft}>{t('new', 'New')}</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => void save()} disabled={!editable}>{t('save', 'Save')}</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => void duplicate()} disabled={!persisted}>{t('duplicate', 'Duplicate')}</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => void exportJson()} disabled={!persisted}>{t('export', 'Export')}</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()}>{t('import', 'Import')}</button>
+        <div className="op-pd-toolbar-actions">
+          <button className="btn btn-ghost btn-sm" onClick={runValidate}>{t('validate', 'Validate')}</button>
+          <button className="btn btn-ghost btn-sm" onClick={simulating ? stopSim : startSim} disabled={!def.start}>{simulating ? t('stopSim', 'Stop simulate') : t('simulate', 'Simulate')}</button>
+          <ToolbarMenu label={t('more', 'More')}>
+            <button className="btn btn-ghost btn-sm" onClick={newDraft}>{t('new', 'New')}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => void duplicate()} disabled={!persisted}>{t('duplicate', 'Duplicate')}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => void exportJson()} disabled={!persisted}>{t('export', 'Export')}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()}>{t('import', 'Import')}</button>
+          </ToolbarMenu>
+          <button className="btn btn-ghost btn-sm" onClick={() => void save()} disabled={!editable}>{t('save', 'Save')}</button>
+          <button className="btn btn-primary btn-sm" onClick={() => void publish()} disabled={!editable}>{t('publish', 'Publish')}</button>
+        </div>
         <input
           ref={fileInputRef}
           type="file"
@@ -450,9 +460,6 @@ export default function ProcessDesignScreen() {
             e.target.value = '' // allow re-importing the same file
           }}
         />
-        <button className="btn btn-ghost btn-sm" onClick={runValidate}>{t('validate', 'Validate')}</button>
-        <button className="btn btn-ghost btn-sm" onClick={simulating ? stopSim : startSim} disabled={!def.start}>{simulating ? t('stopSim', 'Stop simulate') : t('simulate', 'Simulate')}</button>
-        <button className="btn btn-primary btn-sm" onClick={() => void publish()} disabled={!editable}>{t('publish', 'Publish')}</button>
       </div>
       {status && <div className="op-pd-statusline">{status}</div>}
 
@@ -629,6 +636,33 @@ export default function ProcessDesignScreen() {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** A compact overflow menu for secondary toolbar actions. Closes on outside click or after an
+ *  action inside it is chosen, so the toolbar stays uncluttered. */
+function ToolbarMenu({ label, children }: { label: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+  return (
+    <div className="op-pd-menu" ref={ref}>
+      <button className="btn btn-ghost btn-sm" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>
+        {label} <span aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div className="op-pd-menu-pop" role="menu" onClick={() => setOpen(false)}>
+          {children}
         </div>
       )}
     </div>

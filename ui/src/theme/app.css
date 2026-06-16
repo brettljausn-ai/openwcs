@@ -924,9 +924,22 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-designer { display: flex; flex-direction: column; gap: .6rem; }
 .op-pd-toolbar { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
 .op-pd-toolbar input { padding: .4rem .6rem; background: var(--glass-bg, rgba(255,255,255,.04)); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text); }
-.op-pd-key { width: 150px; font-family: var(--font-mono); }
-.op-pd-title { width: 200px; }
+/* Identity group: title leads, key + icon are secondary. */
+.op-pd-toolbar-id { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; min-width: 0; }
+.op-pd-key { width: 150px; font-family: var(--font-mono); font-size: .82rem; color: var(--text-dim); }
+.op-pd-title { width: 220px; font-weight: 600; }
 .op-pd-icon { width: 56px; text-align: center; }
+/* Action group: keep the buttons together, right-aligned. */
+.op-pd-toolbar-actions { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+/* Overflow "More" menu. */
+.op-pd-menu { position: relative; }
+.op-pd-menu-pop {
+  position: absolute; right: 0; top: calc(100% + .3rem); z-index: 50;
+  display: flex; flex-direction: column; gap: .25rem; padding: .35rem;
+  background: rgba(8,30,22,.97); border: 1px solid var(--glass-border-bright, #2c4a3a); border-radius: 10px;
+  box-shadow: 0 16px 40px -12px rgba(0,0,0,.6); min-width: 150px;
+}
+.op-pd-menu-pop .btn { justify-content: flex-start; width: 100%; }
 .op-pd-status-badge { font-size: .75rem; padding: .2rem .5rem; border-radius: 6px; background: rgba(141,198,63,.14); color: var(--herbal-lime); font-weight: 600; }
 .op-pd-statusline { font-size: .85rem; color: var(--text-dim); }
 
