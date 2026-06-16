@@ -87,9 +87,9 @@ export default function PropertiesPanel({ def, selectedId, tasks, capabilities, 
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
   return (
-    <label className="op-pd-field">
+    <label className={wide ? 'op-pd-field op-pd-wide' : 'op-pd-field'}>
       <span className="op-pd-field-label">{label}</span>
       {children}
     </label>
@@ -123,7 +123,7 @@ function TextWithPlaceholders({
   onChange: (v: string) => void
 }) {
   return (
-    <Field label={label}>
+    <Field label={label} wide>
       <textarea value={value} rows={2} onChange={(e) => onChange(e.target.value)} />
       {vars.length > 0 && (
         <div className="op-pd-chips">
@@ -301,7 +301,7 @@ function SkipWhenField({ value, onChange }: { value: string; onChange: (v: strin
   const t = useT('processDesign')
   const err = value ? validateCondition(value) : null
   return (
-    <fieldset className="op-pd-fieldset">
+    <fieldset className="op-pd-fieldset op-pd-wide">
       <legend>{t('skipWhen', 'Skip this step when…')}</legend>
       <p className="muted" style={{ fontSize: '.75rem', margin: '0 0 .4rem' }}>
         {t('skipWhenHint', 'A condition over the data object (e.g. damaged == false). When true at runtime the step is skipped.')}
@@ -421,7 +421,7 @@ function VerifyEditor({
 
 function ChoiceOptionsEditor({ options, onChange }: { options: ChoiceOption[]; onChange: (o: ChoiceOption[]) => void }) {
   return (
-    <fieldset className="op-pd-fieldset">
+    <fieldset className="op-pd-fieldset op-pd-wide">
       <legend>Answers</legend>
       {options.map((o, i) => (
         <div key={i} style={{ display: 'flex', gap: '.4rem', marginBottom: '.4rem' }}>
@@ -438,7 +438,7 @@ function ChoiceOptionsEditor({ options, onChange }: { options: ChoiceOption[]; o
 function TransitionsEditor({ step, stepIds, onChange }: { step: Step; stepIds: string[]; onChange: (t: Transition[]) => void }) {
   const transitions = step.transitions ?? []
   return (
-    <fieldset className="op-pd-fieldset">
+    <fieldset className="op-pd-fieldset op-pd-wide">
       <legend>Branches (when → to)</legend>
       <p className="muted" style={{ fontSize: '.75rem', margin: '0 0 .5rem' }}>First matching condition wins; otherwise the default next is used.</p>
       {transitions.map((tr, i) => (
@@ -518,15 +518,17 @@ function TaskProps({
           {pickableTasks.map((tt) => (<option key={tt.id} value={tt.id}>{tt.label}</option>))}
         </select>
       </Field>
-      {!isScript && taskDef?.description && <p className="muted" style={{ fontSize: '.78rem', margin: '0 0 .5rem' }}>{taskDef.description}</p>}
+      {!isScript && taskDef?.description && <p className="muted op-pd-wide" style={{ fontSize: '.78rem', margin: '0 0 .5rem' }}>{taskDef.description}</p>}
 
       {/* Sandboxed-script editor (only reachable when scripting is allowed). */}
       {isScript && scriptAllowed && (
-        <ScriptEditor config={step.config} onChange={(config) => set({ config })} />
+        <div className="op-pd-wide">
+          <ScriptEditor config={step.config} onChange={(config) => set({ config })} />
+        </div>
       )}
       {/* A script step authored elsewhere but scripting is now disabled: show it read-only-ish note. */}
       {isScript && !scriptAllowed && (
-        <p className="muted op-pd-assist-note">{t('scriptDisabled', 'Scripting is disabled on this server. This script step cannot be edited here.')}</p>
+        <p className="muted op-pd-assist-note op-pd-wide">{t('scriptDisabled', 'Scripting is disabled on this server. This script step cannot be edited here.')}</p>
       )}
 
       {/* Curated input/output mapping (not for script steps). */}
@@ -560,12 +562,14 @@ function TaskProps({
 
       {/* AI "describe the task" assist (spec §7.3); only when configured server-side. */}
       {capabilities.aiAssistEnabled && (
-        <TaskAssist
-          schema={def.dataSchema}
-          canInsertScript={scriptAllowed}
-          onApplyCurated={applyCurated}
-          onInsertScript={insertScript}
-        />
+        <div className="op-pd-wide">
+          <TaskAssist
+            schema={def.dataSchema}
+            canInsertScript={scriptAllowed}
+            onApplyCurated={applyCurated}
+            onInsertScript={insertScript}
+          />
+        </div>
       )}
 
       <Field label="Default next step">
