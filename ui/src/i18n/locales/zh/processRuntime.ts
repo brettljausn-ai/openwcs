@@ -11,4 +11,9 @@ export default {
   willSyncWhenOnline: '此步骤在服务器上运行。恢复联网后将自动同步。',
   syncFailed: '同步失败',
   taskRejected: '任务被拒绝',
+  // 提交时校验
+  verifyChecking: '正在检查…',
+  verifyNotFound: '未找到，请重新扫描',
+  verifyOffline: '校验需要网络连接',
+  verifyAmbiguous: '找到多个匹配项。',
 }

@@ -8,7 +8,10 @@ ConditionParser, no eval), four more curated task types (`host.confirm`, `invent
 history/monitoring. Phase 3 (the final phase) added the two §7.2/§7.3 tiers: a sandboxed scripting
 escape hatch (a `script` task type running in a locked-down GraalJS sandbox, gated by a config flag
 plus the new `PROCESS_SCRIPT_AUTHOR` permission) and design-time AI task-assist (describe a task,
-get a curated-task mapping or a draft sandboxed snippet for a human to review; never auto-deployed).
+get a curated-task mapping or a draft sandboxed snippet for a human to review; never auto-deployed). A later increment added **scan
+verification** (§4.1): a per-screen `verify` block that resolves a scanned/typed value against new
+read-only master-data resolve endpoints, branches on not-found, and writes the resolved ids
+(including the resolved UUID) into data-object variables, on the curated-API path (no raw SQL).
 The feature is now complete. Author intent captured 2026-06-16. This is a build spec, the sibling of
 [`dashboardScope.md`](./dashboardScope.md). It will be promoted to an ADR once the model decisions
 below are accepted; the sections below remain the spec.
@@ -111,6 +114,66 @@ placeholders), optional `scanBinding` (true = value captured from a wedge scan, 
 
 All screens render glove-friendly, high-contrast, one-handed, consistent with the picking screen,
 and support an optional scanner capture (keyboard-wedge) where `scanBinding` is set.
+
+### 4.1 Scan verification (implemented)
+
+The per-screen `validation` (regex / maxLength / mustEqual) only checks the **shape** of an entered
+value. **Verification** confirms the code actually **EXISTS** in master data and pulls its linked
+ids (so a later task that needs a UUID gets it). `textInput` / `numberInput` screens may carry an
+optional `verify` block in their `config`:
+
+```jsonc
+"config": {
+  "header": "Scan location",
+  "writeTo": "locationCode",
+  "verify": {
+    "kind": "location",                 // "barcode" | "sku" | "location"
+    "write": {                          // map resolved fields -> data-object variables
+      "id":   "locationId",             // resolved UUID
+      "code": "locationCode"
+    },
+    "onNotFound": { "mode": "reprompt" } // or { "mode": "goto", "step": "<stepId>" }
+  }
+}
+```
+
+- **`kind`** picks the resolve endpoint: `barcode` (resolve a scanned barcode → SKU + UOMs +
+  attribute-schema graph), `sku` (resolve a SKU code), `location` (resolve a location code). The
+  designer's kind picker is **server-driven**: `GET /api/process-designer/capabilities` returns
+  `verifyKinds:["barcode","sku","location"]`.
+- **`write`** maps the normalised resolved fields (`id`, `code`, `name`, `uomCode`,
+  `schemaCategory`) to declared data-object variables. `id` is the resolved UUID. Validated at
+  publish: each write key must be a known resolved field and each target must be a declared variable.
+- **`onNotFound`** = `reprompt` (clear and ask again) or `goto` a named step. A `goto` target must
+  exist and **counts toward step reachability** (so the validator does not flag it as unreachable).
+
+**Resolve endpoints (master-data, read-only, RBAC `MASTER_DATA_VIEW`).** Each returns HTTP **200**
+with `found:false` on a miss (never 404), so a flow can branch instead of erroring:
+- `GET /api/master-data/resolve/sku-by-barcode?warehouseId=&code=` →
+  `{found, ambiguous, matchedBarcode{value,uomId,uomCode,type}, sku{skuId,code,description,status},`
+  ` uoms[{uomId,code,baseUnit,parentUomId,qtyInParent}], barcodes[{value,uomCode,type}],`
+  ` attributeSchema{attributeSchemaId,category,version,jsonSchema}}` (the full barcode → UOMs → SKU
+  → attribute-schema graph; `ambiguous:true` when a value spans more than one SKU).
+- `GET /api/master-data/resolve/sku?warehouseId=&code=` → same body, resolved by SKU code
+  (`matchedBarcode` null).
+- `GET /api/master-data/resolve/location?warehouseId=&code=` →
+  `{found, location{locationId,code,locationType,purpose,status}}`.
+
+**Proxy.** `POST /api/process-designer/verify {warehouseId, kind, code}` (RBAC
+`PROCESS_DESIGN_VIEW`) proxies to the matching master-data endpoint with the **operator's forwarded
+identity** (`X-Auth-*`, so master-data RBAC + warehouse scope apply) and returns a normalised
+`{found, ambiguous, id, code, name, uomCode, schemaCategory, detail}`. A clean `found:false` is a
+200 passthrough; a downstream transport/4xx/5xx failure becomes a 502. Configured by
+`OPENWCS_MASTER_DATA_BASE_URL` (`openwcs.process-designer.master-data-base-url`).
+
+**Runtime.** On submit the client resolves via the proxy: **offline holds** ("verification needs a
+connection"); `found:false` re-prompts or routes per `onNotFound`; `found:true` merges the `write`
+mappings into the data object and continues; `ambiguous:true` shows a subtle note. **Simulate mode**
+resolves locally with no backend (a "simulate not found" toggle).
+
+**Why curated-no-SQL.** Verification stays on the curated-API path: resolve endpoints reuse the same
+master-data repositories the SKU/location card reads use and the proxy forwards the operator's
+identity, so RBAC + audit + service boundaries stay intact (no raw SQL, no direct DB access).
 
 ## 5. Data object and placeholders
 
@@ -281,6 +344,9 @@ Lives in a new `process-designer` service or the existing `process-engine` (deci
   `POST /api/process/instances/{id}/checkpoint {stepId, data}` (run a task step, returns updated
   data + next step), `GET /api/process/instances/{id}` (resume)
 - Curated task registry is server-side code (not an API to author tasks).
+- **Scan verification** (§4.1): `POST /api/process-designer/verify {warehouseId, kind, code}`
+  (proxies the read-only master-data resolve endpoints with forwarded identity);
+  `GET /api/process-designer/capabilities` also returns `verifyKinds:["barcode","sku","location"]`.
 
 ## 13. Persistence
 - `process_definition` (process_key, version, status, json, published_at, published_by) — one ACTIVE

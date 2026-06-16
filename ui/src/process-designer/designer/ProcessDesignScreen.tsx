@@ -31,7 +31,7 @@ import {
 import { createDef, duplicateDef, exportDef, getDef, importDef, listDefs, publishDef, updateDef } from '../api'
 import { useCapabilities, useTasks } from '../useProcesses'
 import { hasErrors, validateDefinition, type ValidationIssue } from './validate'
-import { nextStepId, resolveLandingStep, writeValue } from '../runtime/walker'
+import { applyVerifyWrites, nextStepId, resolveLandingStep, writeValue } from '../runtime/walker'
 import { PREVIEW_CATALOG, sampleDataFor } from './sampleData'
 import PropertiesPanel from './PropertiesPanel'
 
@@ -101,6 +101,9 @@ export default function ProcessDesignScreen() {
   const [simulating, setSimulating] = useState(false)
   const [simStep, setSimStep] = useState<string>('')
   const [simData, setSimData] = useState<Record<string, unknown>>({})
+  // Simulate has no backend: a verify screen normally treats the scan as found; toggle this to
+  // exercise the onNotFound (re-prompt / goto) path instead.
+  const [simVerifyNotFound, setSimVerifyNotFound] = useState(false)
 
   const sampleData = useMemo(() => sampleDataFor(def.dataSchema), [def.dataSchema])
   const orderedIds = useMemo(() => orderedStepIds(def), [def])
@@ -354,6 +357,7 @@ export default function ProcessDesignScreen() {
   const startSim = useCallback(() => {
     const data = sampleDataFor(def.dataSchema)
     setSimulating(true)
+    setSimVerifyNotFound(false)
     setSimData(data)
     // Honour skipWhen from the very first step too.
     setSimStep(resolveLandingStep(def, def.start, data) ?? '')
@@ -364,10 +368,37 @@ export default function ProcessDesignScreen() {
   const simSubmit = useCallback((value: unknown) => {
     const step = def.steps[simStep]
     if (!step || !isScreenStep(step)) return
-    const data = writeValue(simData, step.config.writeTo, value)
-    setSimData(data)
-    setSimStep(resolveLandingStep(def, nextStepId(step, data), data) ?? '')
-  }, [def, simStep, simData])
+    const baseData = writeValue(simData, step.config.writeTo, value)
+    const verify = step.config.verify
+
+    // Verify screen: no backend in simulate. By default treat the scan as found (and apply the write
+    // mappings using fake resolved values) so the flow walks; the "simulate not found" toggle drives
+    // the onNotFound path (re-prompt holds; goto jumps) so the designer can exercise both.
+    if (verify) {
+      if (simVerifyNotFound) {
+        if (verify.onNotFound.mode === 'goto' && verify.onNotFound.step) {
+          setSimData(baseData)
+          setSimStep(resolveLandingStep(def, verify.onNotFound.step, baseData) ?? '')
+        }
+        // reprompt: hold on this step (no advance) — mirrors the runtime.
+        return
+      }
+      const code = value == null ? '' : String(value)
+      const data = applyVerifyWrites(baseData, verify, {
+        id: `sim-${code || 'id'}`,
+        code,
+        name: code ? `Sample ${code}` : 'Sample',
+        uomCode: 'EA',
+        schemaCategory: 'SAMPLE',
+      })
+      setSimData(data)
+      setSimStep(resolveLandingStep(def, nextStepId(step, data), data) ?? '')
+      return
+    }
+
+    setSimData(baseData)
+    setSimStep(resolveLandingStep(def, nextStepId(step, baseData), baseData) ?? '')
+  }, [def, simStep, simData, simVerifyNotFound])
 
   const simAdvanceTask = useCallback(() => {
     const step = def.steps[simStep]
@@ -485,7 +516,24 @@ export default function ProcessDesignScreen() {
 
         {/* CENTRE: live handheld preview in a phone frame */}
         <div className="op-pd-preview-pane">
-          {simulating && <div className="op-pd-sim-banner">{t('simulating', 'Simulating')} — {simStep || t('simEnd', 'flow ended')}</div>}
+          {simulating && (
+            <div className="op-pd-sim-banner" style={{ display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap' }}>
+              <span>{t('simulating', 'Simulating')} — {simStep || t('simEnd', 'flow ended')}</span>
+              {previewStep && isScreenStep(previewStep) && previewStep.config.verify && (
+                <label className="op-pd-toggle" style={{ margin: 0, fontSize: '.8rem' }}>
+                  <input type="checkbox" checked={simVerifyNotFound} onChange={(e) => setSimVerifyNotFound(e.target.checked)} />
+                  {t('simVerifyNotFound', 'Simulate "not found"')}
+                </label>
+              )}
+            </div>
+          )}
+          {previewStep && isScreenStep(previewStep) && previewStep.config.verify && (
+            <div className="op-pd-verify-badge" style={{ alignSelf: 'flex-start', margin: '0 0 .4rem' }}>
+              <span className="badge" style={{ fontSize: '.72rem', background: 'rgba(141,198,63,.18)', border: '1px solid rgba(141,198,63,.5)' }}>
+                ✓ {t('verifyBadge', 'Verify')}: {t(`verifyKind_${previewStep.config.verify.kind}`, previewStep.config.verify.kind)}
+              </span>
+            </div>
+          )}
           <div className="op-pd-phone">
             <div className="op-pd-phone-screen">
               {previewStep && isScreenStep(previewStep) ? (
@@ -564,6 +612,7 @@ function FlowRow({
 }) {
   const icon = step.type === 'task' ? SCREEN_TYPE_ICONS.task : SCREEN_TYPE_ICONS[(step as ScreenStep).screen]
   const label = step.type === 'task' ? `Task: ${(step as TaskStep).task}` : (step as ScreenStep).screen
+  const hasVerify = step.type === 'screen' && !!(step as ScreenStep).config.verify
   const branches = step.transitions ?? []
   return (
     <li>
@@ -571,6 +620,7 @@ function FlowRow({
         <span className="op-pd-step-icon" aria-hidden="true">{icon}</span>
         <span className="op-pd-step-id">{id}{isStart && <span className="op-pd-start-badge">start</span>}</span>
         <span className="op-pd-step-type muted">{label}</span>
+        {hasVerify && <span className="op-pd-verify-tag" title="Verifies the scanned value" style={{ fontSize: '.68rem', color: 'var(--herbal-lime)', fontWeight: 600 }}>✓ verify</span>}
         <span style={{ flex: 1 }} />
         <button className="op-pd-mini" title="Up" onClick={(e) => { e.stopPropagation(); onUp() }}>↑</button>
         <button className="op-pd-mini" title="Down" onClick={(e) => { e.stopPropagation(); onDown() }}>↓</button>

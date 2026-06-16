@@ -13,6 +13,8 @@ import type {
   ProcessInstance,
   ProcessSummary,
   ServerTaskType,
+  VerifyKind,
+  VerifyResult,
 } from './model'
 
 const BASE = '/api/process-designer'
@@ -176,6 +178,26 @@ export async function assistTask(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ description, variables }),
+    }),
+  )
+}
+
+// --- Verify: resolve a scanned value against master-data ----------------------------------------
+
+/** Resolve a scanned `code` of `kind` against master-data for the current warehouse. Read-only;
+ *  requires connectivity. The server may return 502 on a downstream error (treat as not-verified).
+ *  On success `found` says whether it exists; the resolved fields (id/code/name/uomCode/
+ *  schemaCategory) can be written into data-object variables by the screen's verify block. */
+export async function verifyCode(
+  warehouseId: string,
+  kind: VerifyKind,
+  code: string,
+): Promise<VerifyResult> {
+  return json(
+    await fetch(`${BASE}/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ warehouseId, kind, code }),
     }),
   )
 }

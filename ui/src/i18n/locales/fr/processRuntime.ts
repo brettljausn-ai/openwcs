@@ -11,4 +11,9 @@ export default {
   willSyncWhenOnline: "Cette étape s'exécute sur le serveur. Elle se synchronisera automatiquement une fois en ligne.",
   syncFailed: 'Échec de la synchronisation',
   taskRejected: 'Tâche refusée',
+  // Vérification à la validation
+  verifyChecking: 'Vérification…',
+  verifyNotFound: 'Introuvable, scannez à nouveau',
+  verifyOffline: 'La vérification nécessite une connexion',
+  verifyAmbiguous: 'Plusieurs correspondances trouvées.',
 }

@@ -13,6 +13,7 @@ import { useT } from '../../i18n/useT'
 import { validateCondition } from '../condition'
 import {
   SCRIPT_TASK_TYPE,
+  VERIFY_FIELDS,
   isScriptStep,
   taskTypeById,
   type Capabilities,
@@ -26,6 +27,9 @@ import {
   type TaskTypeDef,
   type Transition,
   type VarType,
+  type VerifyConfig,
+  type VerifyField,
+  type VerifyKind,
 } from '../model'
 import ScriptEditor from './ScriptEditor'
 import TaskAssist from './TaskAssist'
@@ -58,6 +62,7 @@ export default function PropertiesPanel({ def, selectedId, tasks, capabilities, 
             id={selectedId}
             step={step}
             stepIds={stepIds}
+            capabilities={capabilities}
             onChange={(s) => onChangeStep(selectedId, s)}
             onRename={(n) => onRenameStep(selectedId, n)}
           />
@@ -147,6 +152,7 @@ function ScreenProps({
   id,
   step,
   stepIds,
+  capabilities,
   onChange,
   onRename,
 }: {
@@ -154,6 +160,7 @@ function ScreenProps({
   id: string
   step: ScreenStep
   stepIds: string[]
+  capabilities: Capabilities
   onChange: (s: ScreenStep) => void
   onRename: (n: string) => void
 }) {
@@ -238,6 +245,17 @@ function ScreenProps({
         </fieldset>
       )}
 
+      {/* Verify the scanned value exists (text/number inputs; only when the server advertises it). */}
+      {(isText || isNum) && capabilities.verifyKinds.length > 0 && (
+        <VerifyEditor
+          verify={cfg.verify}
+          kinds={capabilities.verifyKinds as VerifyKind[]}
+          vars={def.dataSchema}
+          stepIds={stepIds.filter((s) => s !== id)}
+          onChange={(verify) => setCfg({ verify })}
+        />
+      )}
+
       {isAck && (
         <>
           <Field label="Confirm button label"><input value={cfg.confirmLabel ?? ''} onChange={(e) => setCfg({ confirmLabel: e.target.value || undefined })} placeholder="Continue" /></Field>
@@ -290,6 +308,113 @@ function SkipWhenField({ value, onChange }: { value: string; onChange: (v: strin
       </p>
       <input placeholder="e.g. qty == 0" value={value} onChange={(e) => onChange(e.target.value)} />
       {err && <span className="op-pd-issue-err" style={{ fontSize: '.75rem' }}>⚠ {err}</span>}
+    </fieldset>
+  )
+}
+
+/** First-class "Verify" editor for a text/number input screen: toggle it on, pick the kind, map the
+ *  resolved fields into data-object variables (this is how the resolved UUID is captured), and choose
+ *  what happens when the scan is not found (re-prompt or go to a step). Server is authoritative. */
+function VerifyEditor({
+  verify,
+  kinds,
+  vars,
+  stepIds,
+  onChange,
+}: {
+  verify?: VerifyConfig
+  kinds: VerifyKind[]
+  vars: DataVar[]
+  stepIds: string[]
+  onChange: (v: VerifyConfig | undefined) => void
+}) {
+  const t = useT('processDesign')
+  const enabled = !!verify
+  const v: VerifyConfig = verify ?? { kind: kinds[0] ?? 'barcode', onNotFound: { mode: 'reprompt' } }
+  const setV = (patch: Partial<VerifyConfig>) => onChange({ ...v, ...patch })
+  const setWrite = (field: VerifyField, varName: string) => {
+    const write = { ...(v.write ?? {}) }
+    if (varName) write[field] = varName
+    else delete write[field]
+    onChange({ ...v, write })
+  }
+
+  return (
+    <fieldset className="op-pd-fieldset">
+      <legend>{t('verify', 'Verify')}</legend>
+      <label className="op-pd-toggle">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => onChange(e.target.checked ? v : undefined)}
+        />
+        {t('verifyEnable', 'Verify the scanned value exists')}
+      </label>
+      <p className="muted" style={{ fontSize: '.75rem', margin: '.2rem 0 .4rem' }}>
+        {t('verifyHint', 'Verification needs connectivity and runs on submit. Resolved ids can be written into variables for later steps.')}
+      </p>
+
+      {enabled && (
+        <>
+          <Field label={t('verifyKind', 'Resolve as')}>
+            <select value={v.kind} onChange={(e) => setV({ kind: e.target.value as VerifyKind })}>
+              {kinds.map((k) => (
+                <option key={k} value={k}>{t(`verifyKind_${k}`, k)}</option>
+              ))}
+            </select>
+          </Field>
+
+          <div className="op-pd-field">
+            <span className="op-pd-field-label">{t('verifyWrite', 'Store resolved values into variables')}</span>
+            {vars.length === 0 ? (
+              <p className="muted" style={{ fontSize: '.75rem', margin: 0 }}>{t('verifyNoVars', 'Add data-object variables below to store resolved ids.')}</p>
+            ) : (
+              VERIFY_FIELDS.map((field) => (
+                <div key={field} style={{ display: 'flex', gap: '.4rem', alignItems: 'center', marginBottom: '.3rem' }}>
+                  <code style={{ flex: '0 0 110px', fontSize: '.8rem' }}>{field}</code>
+                  <span aria-hidden="true">→</span>
+                  <select
+                    style={{ flex: 1 }}
+                    value={v.write?.[field] ?? ''}
+                    onChange={(e) => setWrite(field, e.target.value)}
+                  >
+                    <option value="">{t('verifyDontStore', '(do not store)')}</option>
+                    {vars.map((dv) => (<option key={dv.name} value={dv.name}>{dv.name} ({dv.type})</option>))}
+                  </select>
+                </div>
+              ))
+            )}
+          </div>
+
+          <Field label={t('verifyOnNotFound', 'When not found')}>
+            <select
+              value={v.onNotFound.mode}
+              onChange={(e) =>
+                setV({
+                  onNotFound:
+                    e.target.value === 'goto'
+                      ? { mode: 'goto', step: v.onNotFound.step }
+                      : { mode: 'reprompt' },
+                })
+              }
+            >
+              <option value="reprompt">{t('verifyReprompt', 'Re-prompt the scan')}</option>
+              <option value="goto">{t('verifyGoto', 'Go to step')}</option>
+            </select>
+          </Field>
+          {v.onNotFound.mode === 'goto' && (
+            <Field label={t('verifyGotoStep', 'Go to step')}>
+              <select
+                value={v.onNotFound.step ?? ''}
+                onChange={(e) => setV({ onNotFound: { mode: 'goto', step: e.target.value || undefined } })}
+              >
+                <option value="">{t('verifyPickStep', '(pick a step)')}</option>
+                {stepIds.map((s) => (<option key={s} value={s}>{s}</option>))}
+              </select>
+            </Field>
+          )}
+        </>
+      )}
     </fieldset>
   )
 }

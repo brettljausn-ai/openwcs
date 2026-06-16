@@ -11,4 +11,9 @@ export default {
   willSyncWhenOnline: 'Dieser Schritt läuft auf dem Server. Er wird automatisch synchronisiert, sobald wieder eine Verbindung besteht.',
   syncFailed: 'Synchronisierung fehlgeschlagen',
   taskRejected: 'Aufgabe abgelehnt',
+  // Verify beim Absenden
+  verifyChecking: 'Wird geprüft…',
+  verifyNotFound: 'Nicht gefunden, erneut scannen',
+  verifyOffline: 'Die Prüfung benötigt eine Verbindung',
+  verifyAmbiguous: 'Mehrere Treffer gefunden.',
 }

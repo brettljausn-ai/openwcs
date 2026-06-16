@@ -28,6 +28,7 @@ tags:
   - name: HandlingUnitTypes
   - name: Equipment
   - name: Dispatch
+  - name: ScanResolve
 
 paths:
   # ---------------------------------------------------------------- Hardware emulator mode
@@ -1185,6 +1186,91 @@ paths:
         "400": { description: Unsupported format }
         "404": { $ref: '#/components/responses/NotFound' }
 
+  /resolve/sku-by-barcode:
+    get:
+      tags: [ScanResolve]
+      summary: Resolve a scanned barcode to its SKU and linked graph
+      description: >
+        Handheld scan verification for process-designer scan steps. Resolves a scanned barcode
+        value to confirm it exists and returns the SKU plus its linked graph: the matched barcode
+        (value, packaging level, symbology), the SKU identity, ALL of the SKU's units of measure,
+        ALL of its barcodes, and the warehouse-scoped attribute schema (via the
+        "sku_profile(skuId, warehouseId).attributeSchemaId" overlay). Best-effort and read-only:
+        an unknown barcode returns HTTP 200 with "found:false" and a null payload (NOT 404) so a
+        process flow can branch on it. If a barcode value matches more than one SKU the first is
+        returned with "ambiguous:true". Same catalog-read RBAC as the other SKU GETs.
+      operationId: resolveSkuByBarcode
+      parameters:
+        - name: warehouseId
+          in: query
+          required: true
+          description: Warehouse whose sku_profile is used to resolve the attribute schema link.
+          schema: { type: string, format: uuid }
+        - name: code
+          in: query
+          required: true
+          description: The scanned barcode value.
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK (resolved, or a miss with "found:false")
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SkuResolveResult' }
+  /resolve/sku:
+    get:
+      tags: [ScanResolve]
+      summary: Resolve a scanned SKU code to the SKU and linked graph
+      description: >
+        Same result shape as "/resolve/sku-by-barcode" but resolves by the SKU "code" instead of a
+        barcode value, so "matchedBarcode" is null. Returns the SKU identity, ALL units of measure,
+        ALL barcodes, and the warehouse-scoped attribute schema. Best-effort and read-only: an
+        unknown SKU code returns HTTP 200 with "found:false" (NOT 404) so a process flow can branch.
+      operationId: resolveSkuByCode
+      parameters:
+        - name: warehouseId
+          in: query
+          required: true
+          description: Warehouse whose sku_profile is used to resolve the attribute schema link.
+          schema: { type: string, format: uuid }
+        - name: code
+          in: query
+          required: true
+          description: The scanned SKU code.
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK (resolved, or a miss with "found:false")
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SkuResolveResult' }
+  /resolve/location:
+    get:
+      tags: [ScanResolve]
+      summary: Resolve a scanned location code within a warehouse
+      description: >
+        Handheld scan verification for process-designer scan steps. Resolves a scanned location code
+        within a warehouse to confirm it exists. Best-effort and read-only: an unknown code returns
+        HTTP 200 with "found:false" and a null location (NOT 404) so a process flow can branch on it.
+      operationId: resolveLocation
+      parameters:
+        - name: warehouseId
+          in: query
+          required: true
+          description: Warehouse the location belongs to.
+          schema: { type: string, format: uuid }
+        - name: code
+          in: query
+          required: true
+          description: The scanned location code.
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK (resolved, or a miss with "found:false")
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocationResolveResult' }
+
 components:
   parameters:
     Page:
@@ -1244,6 +1330,135 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    SkuResolveResult:
+      type: object
+      description: >
+        Result of resolving a scanned barcode value or SKU code. "found:false" with a null payload
+        signals a miss (still HTTP 200) so a process flow can branch on it. On a hit it carries the
+        SKU plus its full linked graph. "matchedBarcode" is set only for barcode-by-value resolves
+        (null for SKU-code resolves). "ambiguous" is true only when a scanned barcode value matched
+        more than one SKU (the first is returned).
+      properties:
+        found:
+          type: boolean
+          description: True when a SKU was resolved.
+        ambiguous:
+          type: boolean
+          description: True when a scanned barcode value matched more than one SKU (first returned).
+        matchedBarcode:
+          description: The scanned barcode resolved to its packaging level and symbology; null for SKU-code resolves or a miss.
+          allOf: [ { $ref: '#/components/schemas/MatchedBarcode' } ]
+          nullable: true
+        sku:
+          description: The resolved SKU identity; null on a miss.
+          allOf: [ { $ref: '#/components/schemas/ResolvedSku' } ]
+          nullable: true
+        uoms:
+          type: array
+          description: ALL of the SKU's units of measure (empty on a miss).
+          items: { $ref: '#/components/schemas/ResolvedUom' }
+        barcodes:
+          type: array
+          description: ALL of the SKU's barcodes (empty on a miss).
+          items: { $ref: '#/components/schemas/ResolvedBarcode' }
+        attributeSchema:
+          description: The warehouse-scoped attribute schema via the SKU's profile overlay; null when none is linked or on a miss.
+          allOf: [ { $ref: '#/components/schemas/ResolvedAttributeSchema' } ]
+          nullable: true
+      required: [found, ambiguous, uoms, barcodes]
+    MatchedBarcode:
+      type: object
+      description: The exact barcode that was scanned, resolved to its packaging level and symbology.
+      properties:
+        value: { type: string, description: The scanned barcode value. }
+        uomId:
+          type: string
+          format: uuid
+          nullable: true
+          description: The packaging level (UoM id) this barcode identifies; null if the barcode has none.
+        uomCode:
+          type: string
+          nullable: true
+          description: The packaging-level code (e.g. EA, CS); null if the barcode has no UoM.
+        type:
+          type: string
+          nullable: true
+          description: Barcode symbology/type name (e.g. EAN-13); null if untyped.
+      required: [value]
+    ResolvedSku:
+      type: object
+      description: SKU identity returned by a resolve.
+      properties:
+        skuId: { type: string, format: uuid }
+        code: { type: string }
+        description: { type: string, nullable: true }
+        status: { type: string, description: 'e.g. ACTIVE, ARCHIVED.' }
+      required: [skuId, code, status]
+    ResolvedUom:
+      type: object
+      description: One of the SKU's units of measure (bundle row).
+      properties:
+        uomId: { type: string, format: uuid }
+        code: { type: string }
+        baseUnit: { type: boolean, description: True for the smallest stockable unit. }
+        parentUomId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Parent UoM in the bundle hierarchy; null for the top level.
+        qtyInParent:
+          type: number
+          nullable: true
+          description: How many of this UoM make up one parent UoM.
+      required: [uomId, code, baseUnit]
+    ResolvedBarcode:
+      type: object
+      description: One of the SKU's barcodes, with its packaging level code and symbology.
+      properties:
+        value: { type: string }
+        uomCode:
+          type: string
+          nullable: true
+          description: The packaging-level code this barcode identifies; null if it has no UoM.
+        type:
+          type: string
+          nullable: true
+          description: Barcode symbology/type name; null if untyped.
+      required: [value]
+    ResolvedAttributeSchema:
+      type: object
+      description: The warehouse-scoped attribute schema linked through the SKU's profile overlay.
+      properties:
+        attributeSchemaId: { type: string, format: uuid }
+        category: { type: string }
+        version: { type: integer, description: The business schema version. }
+        jsonSchema:
+          type: object
+          additionalProperties: true
+          description: The JSON Schema document governing the SKU's metadata for this warehouse.
+      required: [attributeSchemaId, category, version]
+    LocationResolveResult:
+      type: object
+      description: >
+        Result of resolving a scanned location code within a warehouse. "found:false" with a null
+        location signals a miss (still HTTP 200) so a process flow can branch on it.
+      properties:
+        found: { type: boolean, description: True when a location was resolved. }
+        location:
+          description: The resolved location identity; null on a miss.
+          allOf: [ { $ref: '#/components/schemas/ResolvedLocation' } ]
+          nullable: true
+      required: [found]
+    ResolvedLocation:
+      type: object
+      description: Location identity returned by a resolve.
+      properties:
+        locationId: { type: string, format: uuid }
+        code: { type: string }
+        locationType: { type: string, description: 'e.g. BIN, SHELF, ASRS_SLOT.' }
+        purpose: { type: string, description: 'e.g. PICK, STORAGE, SHIPPING.' }
+        status: { type: string, description: 'e.g. ACTIVE.' }
+      required: [locationId, code, locationType, purpose, status]
     EmulatorStatus:
       type: object
       properties:
