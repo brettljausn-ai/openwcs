@@ -5,10 +5,10 @@
       <p class="lead" data-i18n="pick.lead1">
         openWCS already plans the pick (allocation, cubing and batch planning are
         <span class="pill pill-built" data-i18n="pick.pill1">Built</span>), and now the guided operator pick screen is
-        <span class="pill pill-built" data-i18n="pick.pill5">Built</span> too: confirm or short each line, post the picked stock. Pick-by-light / voice / RF and the full goods-to-person station workflow remain
+        <span class="pill pill-built" data-i18n="pick.pill5">Built</span> too, now as an installable, scanner-first PWA for rugged RF handhelds. Pick-by-light / voice and the full goods-to-person station workflow remain
         <span class="pill pill-roadmap" data-i18n="pick.pill5b">Roadmap</span>.
       </p>
-      <p class="status-line" data-i18n="pick.status1">✓ Operator pick confirmation is built and live today. Light / voice / RF guidance and the full GTP-station workflow remain on the roadmap.</p>
+      <p class="status-line" data-i18n="pick.status1">✓ Scanner-first RF picking is built and live today: an installable PWA, keyboard-wedge scanning and an offline confirm queue. Pick-by-light / voice and the full GTP-station workflow remain on the roadmap.</p>
     </div>
   </section>
 
@@ -48,9 +48,9 @@
         <p class="eyebrow" data-i18n="pick.eyebrow3">Execution: in operators' hands</p>
         <h2 data-i18n="pick.h3">Putting the plan into operators' hands.</h2>
         <p data-i18n="pick.p5">
-          The operator pick-confirmation screen is built and live; guidance hardware (light / voice / RF)
-          and the full goods-to-person station workflow are designed but not yet built. Framed honestly so
-          you know exactly where the line is.
+          The operator picking screen is built and live as a scanner-first PWA for RF handhelds;
+          pick-by-light / voice guidance and the full goods-to-person station workflow are designed but
+          not yet built. Framed honestly so you know exactly where the line is.
         </p>
       </div>
       <div class="grid grid-3">
@@ -60,9 +60,9 @@
           <p data-i18n="pick.p6">A guided RF-style picking screen walks the operator through the pick queue: a big next-pick card with location, SKU code, name and image, and quantity, then Confirm or Short (Enter confirms) to advance. Each confirm posts a Picked transaction and decrements stock; the queue is fed by the order-management pick-task endpoints over released, allocated outbound lines.</p>
         </div>
         <div class="card">
-          <div class="card-head"><div class="tag" data-i18n="pick.tag5">Guidance</div><span class="pill pill-roadmap" data-i18n="pick.pill7">Roadmap</span></div>
-          <h3 data-i18n="pick.h10">Light / voice / RF</h3>
-          <p data-i18n="pick.p7">Planned: pick-by-light, pick-by-voice and RF-gun guidance so operators are directed line-by-line. Designed for, not yet built.</p>
+          <div class="card-head"><div class="tag" data-i18n="pick.tag5">RF handhelds</div><span class="pill pill-built" data-i18n="pick.pill7">Built</span></div>
+          <h3 data-i18n="pick.h10">Scanner-first RF picking</h3>
+          <p data-i18n="pick.p7">Built: the Picking screen is an installable PWA built for rugged Android handhelds in keyboard-wedge mode. Operators scan the location then the SKU; a wrong scan warns and vibrates, a full-quantity scan auto-confirms. An offline confirm queue holds picks through a Wi-Fi blip, so the handheld never loses work. Pick-by-light and pick-by-voice are still planned.</p>
         </div>
         <div class="card">
           <div class="card-head"><div class="tag" data-i18n="pick.tag6">GTP workflow</div><span class="pill pill-roadmap" data-i18n="pick.pill8">Roadmap</span></div>
@@ -80,10 +80,10 @@
         <h2 data-i18n="pick.h4">Plan today → operators confirm today.</h2>
       </div>
       <div class="arch">
-<pre>  order ─►  <b>allocate</b> → <b>cube</b> → <b>batch-plan</b> → <b>operator confirm pick</b>   (built)
+<pre>  order ─►  <b>allocate</b> → <b>cube</b> → <b>batch-plan</b> → <b>scanner-first RF pick (PWA)</b>   (built)
                                                          │
                                                          ▼
-                              ┄┄┄ roadmap ┄┄┄  light/voice/RF · GTP station</pre>
+                              ┄┄┄ roadmap ┄┄┄  light/voice · GTP station</pre>
       </div>
     </div>
   </section>
