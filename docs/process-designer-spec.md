@@ -1,8 +1,9 @@
 # Mobile Process Designer and Engine — Specification
 
-Status: draft (Phase 1 scope). Author intent captured 2026-06-16. This is a build spec, the
-sibling of [`dashboardScope.md`](./dashboardScope.md). It will be promoted to an ADR once the
-model decisions below are accepted.
+Status: Phase 1 implemented on branch `feat/process-designer-p1` (process-designer service :8097 +
+the WYSIWYG designer and client-driven handheld runtime in the UI). Author intent captured
+2026-06-16. This is a build spec, the sibling of [`dashboardScope.md`](./dashboardScope.md). It will
+be promoted to an ADR once the model decisions below are accepted; the sections below remain the spec.
 
 ## 1. Context and goal
 
