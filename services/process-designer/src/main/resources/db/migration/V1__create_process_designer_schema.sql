@@ -86,14 +86,9 @@ VALUES (
       "title": "Stock Check",
       "icon": "inventory",
       "dataSchema": [
-        { "name": "location",        "type": "location" },
-        { "name": "sku",             "type": "sku" },
-        { "name": "qty",             "type": "number" },
-        { "name": "skuBarcode",      "type": "string" },
-        { "name": "LocationCode",    "type": "string" },
-        { "name": "LocationBarcode", "type": "string" },
-        { "name": "HUBarcode",       "type": "string" },
-        { "name": "HUCode",          "type": "string" }
+        { "name": "location", "type": "location" },
+        { "name": "sku",      "type": "sku" },
+        { "name": "qty",      "type": "number" }
       ],
       "start": "scanLocation",
       "steps": {
