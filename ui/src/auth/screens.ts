@@ -21,6 +21,10 @@ export interface ScreenDef {
   icon: string
   defaultRoles: Role[]
   description: string
+  /** Marks an operator "process" surfaced as a big tile in the handheld/PWA operator menu. */
+  process?: boolean
+  /** A process whose handheld flow isn't built yet — tiled but dimmed with a "coming soon" badge. */
+  comingSoon?: boolean
 }
 
 export const SCREENS: ScreenDef[] = [
@@ -41,12 +45,19 @@ export const SCREENS: ScreenDef[] = [
   { key: 'outbound', label: 'Outbound orders', path: '/outbound', section: 'Operations', icon: '⇡', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'Outbound orders — release, allocate, pick and dispatch.' },
   { key: 'counting', label: 'Stock counting', path: '/counting', section: 'Operations', icon: '☑', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'Cycle / stock counting — tasks, capture, variance and reconciliation.' },
   { key: 'gtp-ops', label: 'GTP workplaces', path: '/gtp', section: 'Operations', icon: '☷', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'Goods-to-person operator consoles — one active session per workplace.' },
-  { key: 'picking', label: 'Picking', path: '/picking', section: 'Operations', icon: '◎', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'Guided picking console — an RF-style "next pick" flow that walks the operator through the pick queue (confirm full or short).' },
+  { key: 'picking', label: 'Picking', path: '/picking', section: 'Operations', icon: '◎', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'Guided picking console — an RF-style "next pick" flow that walks the operator through the pick queue (confirm full or short).', process: true },
   { key: 'transport', label: 'Transport', path: '/transport', section: 'Operations', icon: '⇄', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Live device-task / transport overview across equipment.' },
   { key: 'hardware-twin', label: 'Hardware visualisation', path: '/hardware-twin', section: 'Operations', icon: '◳', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'Live 3D view of the automation hardware — equipment activity and handling units moving through the system.' },
   { key: 'stock-transactions', label: 'Stock transactions', path: '/stock-transactions', section: 'Operations', icon: '≡', defaultRoles: ['ADMIN', 'SUPERVISOR'], description: 'Event-sourced stock movement / transaction log.' },
   { key: 'stock-overview', label: 'Stock overview', path: '/stock-overview', section: 'Operations', icon: '▥', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'What is currently in stock, by handling unit — quantities and availability.' },
   { key: 'handling-units', label: 'Handling units', path: '/handling-units', section: 'Operations', icon: '▢', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'Registry of physical handling units (cartons, pallets, totes) — code, type, location and status.' },
+
+  // Handheld operator processes — big tiles in the PWA operator menu. Picking (above) is live and
+  // RF-ready; Stock Check maps to the live counting capture flow. Goods In and Packing have no
+  // operator flow yet, so they route to a shared "coming soon" placeholder and are tiled dimmed.
+  { key: 'goods-in', label: 'Goods In', path: '/process/goods-in', section: 'Operations', icon: '⇣', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'Handheld goods-in / receiving flow (operator process).', process: true, comingSoon: true },
+  { key: 'packing', label: 'Packing', path: '/process/packing', section: 'Operations', icon: '▦', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'Handheld packing / pack-out flow (operator process).', process: true, comingSoon: true },
+  { key: 'stock-check', label: 'Stock Check', path: '/counting', section: 'Operations', icon: '☑', defaultRoles: ['ADMIN', 'SUPERVISOR', 'OPERATOR'], description: 'Handheld stock check — capture counts against tasks (maps to the stock-counting flow).', process: true },
 
   // Reporting: analytics over the accumulated operational history (read-only)
   { key: 'reporting:material-flow', label: 'Material flow', path: '/reporting/material-flow', section: 'Reporting', icon: '∿', defaultRoles: ['ADMIN', 'SUPERVISOR', 'VIEWER'], description: 'Scan quality per scan point and day, scanners needing attention, and a conveyor traffic heatmap.' },

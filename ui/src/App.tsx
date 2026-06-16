@@ -3,6 +3,10 @@ import { AuthProvider, useAuth } from './auth/AuthContext'
 import { SCREENS, ScreenDef } from './auth/screens'
 import Login from './auth/Login'
 import AppShell from './shell/AppShell'
+import OperatorShell from './shell/OperatorShell'
+import OperatorMenu from './shell/OperatorMenu'
+import ProcessComingSoon from './shell/ProcessComingSoon'
+import { useHandheldMode } from './shell/handheld'
 import ComingSoon from './shell/ComingSoon'
 import BackendOverlay from './shell/BackendOverlay'
 import Dashboard from './Dashboard'
@@ -63,6 +67,8 @@ const COMPONENTS: Record<string, JSX.Element> = {
   inbound: <InboundScreen />,
   outbound: <OutboundScreen />,
   counting: <CountingScreen />,
+  // Handheld "Stock Check" process maps to the live stock-counting capture flow.
+  'stock-check': <CountingScreen />,
   'gtp-ops': <GtpOpsScreen />,
   picking: <PickingScreen />,
   transport: <TransportScreen />,
@@ -116,41 +122,98 @@ function Guarded({ screen, element }: { screen: ScreenDef; element?: JSX.Element
 
 const SYSTEM_INFO_SCREEN = SCREENS.find((s) => s.key === 'system-info')!
 
+// The operator processes shown as tiles in the handheld menu (catalog order).
+const PROCESS_SCREENS = SCREENS.filter((s) => s.process)
+
+/** Renders a handheld process: coming-soon processes show the honest placeholder; the rest reuse
+ *  the same access guard + component map as the desktop app. */
+function GuardedProcess({ screen }: { screen: ScreenDef }) {
+  const { can } = useAuth()
+  if (!can(screen)) {
+    return <ProcessComingSoon title={screen.label} />
+  }
+  if (screen.comingSoon) {
+    return <ProcessComingSoon title={screen.label} />
+  }
+  return COMPONENTS[screen.key] ?? <ProcessComingSoon title={screen.label} />
+}
+
+/** The full desktop app (sidebar shell + every screen). Unchanged from the original App routes. */
+function DesktopRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route
+        element={
+          <RequireAuth>
+            <LanguageProvider>
+              <WarehouseProvider>
+                <AppShell />
+              </WarehouseProvider>
+            </LanguageProvider>
+          </RequireAuth>
+        }
+      >
+        {SCREENS.map((s) =>
+          s.path === '/' ? (
+            <Route key={s.key} index element={<Guarded screen={s} />} />
+          ) : (
+            <Route key={s.key} path={s.path} element={<Guarded screen={s} />} />
+          ),
+        )}
+        {/* Full-page service logs (opened from the System info modal); shares its ADMIN access. */}
+        <Route
+          path="/system-info/logs/:name"
+          element={<Guarded screen={SYSTEM_INFO_SCREEN} element={<LogsPage />} />}
+        />
+        {/* /master-data → first catalog (old links / nav land on Warehouses). */}
+        <Route path="/master-data" element={<Navigate to="/master-data/warehouses" replace />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+/** The stripped handheld/PWA operator app: a tile menu (index) + the operator-process routes only.
+ *  Any non-process URL redirects to the menu, so the desktop screens are never reachable here. */
+function OperatorRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route
+        element={
+          <RequireAuth>
+            <LanguageProvider>
+              <WarehouseProvider>
+                <OperatorShell />
+              </WarehouseProvider>
+            </LanguageProvider>
+          </RequireAuth>
+        }
+      >
+        {/* Post-login landing in handheld mode is the operator menu (not the dashboard). */}
+        <Route index element={<OperatorMenu />} />
+        {PROCESS_SCREENS.map((s) => (
+          <Route key={s.key} path={s.path} element={<GuardedProcess screen={s} />} />
+        ))}
+      </Route>
+      {/* A non-process URL hit in handheld mode redirects to the menu. */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+function Shell() {
+  const handheld = useHandheldMode()
+  return handheld ? <OperatorRoutes /> : <DesktopRoutes />
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <BackendOverlay />
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            element={
-              <RequireAuth>
-                <LanguageProvider>
-                  <WarehouseProvider>
-                    <AppShell />
-                  </WarehouseProvider>
-                </LanguageProvider>
-              </RequireAuth>
-            }
-          >
-            {SCREENS.map((s) =>
-              s.path === '/' ? (
-                <Route key={s.key} index element={<Guarded screen={s} />} />
-              ) : (
-                <Route key={s.key} path={s.path} element={<Guarded screen={s} />} />
-              ),
-            )}
-            {/* Full-page service logs (opened from the System info modal); shares its ADMIN access. */}
-            <Route
-              path="/system-info/logs/:name"
-              element={<Guarded screen={SYSTEM_INFO_SCREEN} element={<LogsPage />} />}
-            />
-            {/* /master-data → first catalog (old links / nav land on Warehouses). */}
-            <Route path="/master-data" element={<Navigate to="/master-data/warehouses" replace />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Shell />
       </AuthProvider>
     </BrowserRouter>
   )

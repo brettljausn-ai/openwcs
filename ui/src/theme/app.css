@@ -774,3 +774,127 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
   .login-orb, .eyebrow::before, .spin { animation: none; }
   .dash-card:hover, .btn-primary:hover { transform: none; }
 }
+
+/* ── Handheld / PWA operator shell ────────────────────────────────────────────
+   Stripped full-screen shell shown when openWCS runs as an installed PWA on a
+   warehouse handheld: no sidebar, a slim top bar and a big-tile process menu.
+   Large touch targets, high contrast, glove-friendly, small-viewport-first. */
+.op-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+}
+.op-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  min-height: 56px;
+  background: var(--glass-bg-strong);
+  border-bottom: 1px solid var(--glass-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.op-topbar-left { display: flex; align-items: center; min-width: 0; }
+.op-topbar-right { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.op-brand { font-family: var(--font-heading); font-weight: 800; font-size: 20px; letter-spacing: .5px; }
+.op-brand .accent { color: var(--herbal-lime); }
+.op-back {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 700;
+  font-size: 18px;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border-bright);
+  color: var(--text);
+  text-decoration: none;
+  min-height: 44px;
+}
+.op-back:active { background: var(--glass-bg-strong); }
+.op-net { display: inline-flex; align-items: center; }
+.op-net-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.op-net.is-online .op-net-dot { background: var(--success); box-shadow: 0 0 8px var(--success); }
+.op-net.is-offline .op-net-dot { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+.op-user { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
+.op-user-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 22vw; }
+.op-user-role { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .5px; }
+.op-logout {
+  font-weight: 700;
+  font-size: 15px;
+  padding: 10px 16px;
+  min-height: 44px;
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border-bright);
+  color: var(--text);
+  cursor: pointer;
+}
+.op-logout:active { background: var(--glass-bg-strong); }
+.op-body { flex: 1; min-height: 0; overflow: auto; }
+
+/* Process menu — big-tile grid */
+.op-menu { padding: 20px 16px 32px; }
+.op-menu-title { font-family: var(--font-heading); font-size: 24px; margin: 8px 4px 20px; }
+.op-menu-empty { color: var(--text-dim); padding: 16px 4px; }
+.op-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 16px;
+}
+.op-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  position: relative;
+  padding: 28px 14px;
+  min-height: 150px;
+  border-radius: 16px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border-bright);
+  color: var(--text);
+  text-decoration: none;
+  text-align: center;
+  transition: transform .08s ease, background .15s ease;
+}
+.op-tile:active { transform: scale(.97); background: var(--glass-bg-strong); }
+.op-tile-icon { font-size: 46px; line-height: 1; color: var(--herbal-lime); }
+.op-tile-label { font-weight: 800; font-size: 18px; }
+.op-tile.is-soon { opacity: .55; }
+.op-tile.is-soon .op-tile-icon { color: var(--text-dim); }
+.op-tile-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--warning);
+  color: #1a1a1a;
+}
+
+/* Process "coming soon" placeholder */
+.op-coming {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 60vh;
+  padding: 24px;
+  gap: 14px;
+}
+.op-coming-icon { font-size: 56px; }
+.op-coming-title { font-family: var(--font-heading); font-size: 26px; margin: 0; }
+.op-coming-note { color: var(--text-dim); font-size: 16px; max-width: 420px; margin: 0; }

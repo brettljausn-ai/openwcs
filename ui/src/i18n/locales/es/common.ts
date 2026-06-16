@@ -5,4 +5,6 @@ export default {
   loadingWarehouses: 'Cargando almacenes…',
   noWarehouseAccess: 'Sin acceso a almacén',
   signOut: 'Cerrar sesión',
+  online: 'En línea',
+  offline: 'Sin conexión',
 }
