@@ -1,5 +1,6 @@
 package org.openwcs.processdesigner.verify;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,10 @@ public class VerifyService {
         String warehouseId = request.warehouseId().toString();
         String code = request.code();
 
+        if (VerifyKinds.SKU_SCAN.equals(kind)) {
+            return verifySkuScan(warehouseId, code);
+        }
+
         Map<String, Object> body = switch (kind) {
             case VerifyKinds.BARCODE -> get("/api/master-data/resolve/sku-by-barcode", warehouseId, code);
             case VerifyKinds.SKU -> get("/api/master-data/resolve/sku", warehouseId, code);
@@ -50,37 +55,80 @@ public class VerifyService {
 
         boolean found = asBool(body.get("found"));
         if (!found) {
-            return new VerifyResult(false, asBoolOrNull(body.get("ambiguous")),
-                    null, null, null, null, null, Map.of());
+            return notFound(body);
         }
         return VerifyKinds.LOCATION.equals(kind) ? normaliseLocation(body) : normaliseSku(kind, body);
+    }
+
+    /**
+     * Combined SKU scan. First try the value as a product barcode (the barcode pins the UOM); if no
+     * barcode matches, try it as a SKU code (a single-UOM SKU auto-picks, a multi-UOM SKU asks the
+     * runtime to prompt).
+     */
+    private VerifyResult verifySkuScan(String warehouseId, String code) {
+        Map<String, Object> byBarcode = get("/api/master-data/resolve/sku-by-barcode", warehouseId, code);
+        if (asBool(byBarcode.get("found"))) {
+            // A barcode matched: matchedAs=barcode, UOM pinned by the barcode, no prompt.
+            return normaliseSku(VerifyKinds.BARCODE, byBarcode);
+        }
+
+        Map<String, Object> bySku = get("/api/master-data/resolve/sku", warehouseId, code);
+        if (asBool(bySku.get("found"))) {
+            // A SKU code matched: matchedAs=sku. One UOM auto-picks; more than one prompts.
+            return normaliseSku(VerifyKinds.SKU, bySku);
+        }
+
+        // Neither matched. Carry the SKU-resolve ambiguous flag if present.
+        return notFound(bySku);
     }
 
     private VerifyResult normaliseSku(String kind, Map<String, Object> body) {
         Map<String, Object> sku = asMap(body.get("sku"));
         Map<String, Object> matchedBarcode = asMap(body.get("matchedBarcode"));
         Map<String, Object> attributeSchema = asMap(body.get("attributeSchema"));
-        List<Object> uoms = asList(body.get("uoms"));
+        List<Object> rawUoms = asList(body.get("uoms"));
+        List<Map<String, Object>> uoms = uomList(rawUoms);
 
         String id = asString(sku.get("skuId"));
         String code = asString(sku.get("code"));
         String name = asString(sku.get("description"));
 
-        // uomCode: the scanned barcode's uom for a barcode scan; the SKU's base uom otherwise.
-        String uomCode = VerifyKinds.BARCODE.equals(kind) ? asString(matchedBarcode.get("uomCode")) : null;
-        if (uomCode == null) {
-            uomCode = baseUomCode(uoms);
+        boolean barcodeMatch = VerifyKinds.BARCODE.equals(kind);
+        String matchedAs = barcodeMatch ? "barcode" : "sku";
+
+        // uomCode: the scanned barcode's uom for a barcode match; otherwise the SKU's UOM, but only
+        // when it is unambiguous (single UOM -> auto-pick, preferring the base unit).
+        String uomCode;
+        boolean needsUomChoice;
+        if (barcodeMatch) {
+            // The barcode pins the UOM (fall back to the SKU's base uom if the barcode omitted it).
+            uomCode = asString(matchedBarcode.get("uomCode"));
+            if (uomCode == null) {
+                uomCode = baseUomCode(rawUoms);
+            }
+            needsUomChoice = false;
+        } else if (rawUoms.size() > 1) {
+            // A SKU code with more than one UOM: the runtime must prompt the operator.
+            uomCode = null;
+            needsUomChoice = true;
+        } else {
+            // A SKU code with a single (or zero) UOM: auto-pick it (prefer the base unit).
+            uomCode = baseUomCode(rawUoms);
+            if (uomCode == null && !rawUoms.isEmpty() && rawUoms.get(0) instanceof Map<?, ?> only) {
+                uomCode = asString(only.get("code"));
+            }
+            needsUomChoice = false;
         }
         String schemaCategory = asString(attributeSchema.get("category"));
 
         Map<String, Object> detail = new HashMap<>();
-        detail.put("uoms", uoms);
+        detail.put("uoms", rawUoms);
         detail.put("barcodes", asList(body.get("barcodes")));
         detail.put("attributeSchema", body.get("attributeSchema"));
         detail.put("matchedBarcode", body.get("matchedBarcode"));
 
         return new VerifyResult(true, asBoolOrNull(body.get("ambiguous")),
-                id, code, name, uomCode, schemaCategory, detail);
+                id, code, name, uomCode, schemaCategory, matchedAs, uoms, needsUomChoice, detail);
     }
 
     private VerifyResult normaliseLocation(Map<String, Object> body) {
@@ -88,7 +136,26 @@ public class VerifyService {
         String id = asString(location.get("locationId"));
         String code = asString(location.get("code"));
         Map<String, Object> detail = new HashMap<>(location);
-        return new VerifyResult(true, null, id, code, null, null, null, detail);
+        return new VerifyResult(true, null, id, code, null, null, null, null, List.of(), false, detail);
+    }
+
+    private static VerifyResult notFound(Map<String, Object> body) {
+        return new VerifyResult(false, asBoolOrNull(body.get("ambiguous")),
+                null, null, null, null, null, null, List.of(), false, Map.of());
+    }
+
+    /** Project the master-data UOM graph down to the {@code {code, baseUnit}} entries the picker needs. */
+    private static List<Map<String, Object>> uomList(List<Object> rawUoms) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object u : rawUoms) {
+            if (u instanceof Map<?, ?> uom) {
+                Map<String, Object> entry = new HashMap<>();
+                entry.put("code", asString(uom.get("code")));
+                entry.put("baseUnit", asBool(uom.get("baseUnit")));
+                out.add(entry);
+            }
+        }
+        return out;
     }
 
     /** The base unit's code, i.e. the uom with no parent (qtyInParent/parentUomId absent). */

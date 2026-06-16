@@ -45,7 +45,10 @@ class AssistAndCapabilitiesDefaultTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.verifyKinds").isArray())
                 .andExpect(jsonPath("$.verifyKinds[0]").value("barcode"))
                 .andExpect(jsonPath("$.verifyKinds[1]").value("sku"))
-                .andExpect(jsonPath("$.verifyKinds[2]").value("location"));
+                .andExpect(jsonPath("$.verifyKinds[2]").value("location"))
+                .andExpect(jsonPath("$.verifyKinds[3]").value("skuScan"))
+                .andExpect(jsonPath("$.verifyKinds",
+                        org.hamcrest.Matchers.hasItem("skuScan")));
 
         // SUPERVISOR can view (PROCESS_DESIGN_VIEW) but cannot author scripts.
         mvc.perform(get("/api/process-designer/capabilities").header("X-Auth-Roles", "SUPERVISOR"))
