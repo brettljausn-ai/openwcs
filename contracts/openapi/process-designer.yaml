@@ -18,6 +18,7 @@ tags:
   - name: Definitions
   - name: Instances
   - name: Assist
+  - name: Verify
 
 paths:
   /defs:
@@ -365,6 +366,34 @@ paths:
               schema: { $ref: '#/components/schemas/CapabilitiesView' }
         "403": { description: "Missing PROCESS_DESIGN_VIEW permission" }
 
+  /verify:
+    post:
+      tags: [Verify]
+      summary: Scan-verify proxy (resolve a scanned value against master-data)
+      description: >
+        The handheld runtime posts a scanned/typed value for a screen "Verify" step; the proxy
+        resolves it against master-data (forwarding the operator identity, so the handheld never hits
+        master-data directly) and returns a normalised result the runtime branches on and stores from.
+        kind selects the resolve: barcode (match a barcode to its SKU), sku (match a SKU by code), or
+        location (match a location by code). Read-only and stateless (no instance/ledger persistence).
+        Gated by PROCESS_DESIGN_VIEW (the permission operators use to run processes). A miss is a clean
+        200 with found:false (never 404); a downstream failure is 502.
+      operationId: verify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerifyRequest' }
+      responses:
+        "200":
+          description: Normalised resolution (found true with linked ids, or a found:false passthrough)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerifyResult' }
+        "400": { description: "Malformed request (missing warehouseId/kind/code, or unknown kind)" }
+        "403": { description: "Missing PROCESS_DESIGN_VIEW permission" }
+        "502": { description: "The master-data resolve call failed" }
+
 components:
   schemas:
     ProcessModel:
@@ -406,10 +435,12 @@ components:
           type: object
           additionalProperties: true
           description: >
-            "Per-step config. For a screen step: header, detail, writeTo, validation, scanBinding.
-            For a script task step (task = script): { script: <js>, outputs: [{ name }] } — the snippet
-            reads a frozen global data object and returns a plain object whose declared outputs merge
-            back into the data object."
+            "Per-step config. For a screen step: header, detail, writeTo, validation, scanBinding, and
+            an optional verify block (see VerifyConfig) that resolves the submitted value against
+            master-data and lets the flow branch / store linked ids. For a script task step
+            (task = script): { script: <js>, outputs: [{ name }] } — the snippet reads a frozen global
+            data object and returns a plain object whose declared outputs merge back into the data
+            object."
         task:
           type: string
           description: >
@@ -627,3 +658,97 @@ components:
         canAuthorScript:
           type: boolean
           description: "Whether the caller may author script steps (holds PROCESS_SCRIPT_AUTHOR)."
+        verifyKinds:
+          type: array
+          items: { type: string, enum: [barcode, sku, location] }
+          description: >
+            The server-driven list of scan-verify kinds the screen "Verify" picker offers. A constant
+            list so the designer does not hard-code it.
+
+    VerifyConfig:
+      type: object
+      description: >
+        "Optional screen-step verify block (config.verify). On submit the runtime resolves the entered
+        value against master-data via POST /verify; on found it may write resolved fields into
+        data-object variables, and on not-found it reprompts or jumps to another step. The frontend
+        performs the branch + writes at runtime; the server validates this shape at publish time."
+      properties:
+        kind:
+          type: string
+          enum: [barcode, sku, location]
+          description: "Which master-data resolve to run for the submitted value."
+        write:
+          type: object
+          additionalProperties: { type: string }
+          description: >
+            "Map of resolved field -> data-object variable name to store on a found result. The key
+            must be one of: id, code, name, uomCode, schemaCategory; the value must be a declared
+            data-object variable (enforced at publish)."
+        onNotFound:
+          type: object
+          description: "What to do when master-data returns found:false."
+          properties:
+            mode:
+              type: string
+              enum: [reprompt, goto]
+              description: "reprompt re-shows the screen; goto jumps to onNotFound.step."
+            step:
+              type: string
+              description: "Target step id when mode=goto (must exist; enforced at publish)."
+          required: [mode]
+      required: [kind]
+
+    VerifyRequest:
+      type: object
+      description: "Scan-verify proxy request: resolve a scanned/typed value against master-data."
+      properties:
+        warehouseId: { type: string, format: uuid }
+        kind:
+          type: string
+          enum: [barcode, sku, location]
+          description: "Which master-data resolve to run."
+        code:
+          type: string
+          description: "The scanned/typed value (a barcode, SKU code, or location code)."
+      required: [warehouseId, kind, code]
+
+    VerifyResult:
+      type: object
+      description: >
+        "Normalised scan-verify resolution the handheld runtime branches on and stores from. found
+        false is a clean passthrough (the value did not resolve), not an error."
+      properties:
+        found:
+          type: boolean
+          description: "Whether master-data matched the value."
+        ambiguous:
+          type: boolean
+          nullable: true
+          description: "For a barcode, true when it matched more than one SKU (null/false otherwise)."
+        id:
+          type: string
+          nullable: true
+          description: "sku.skuId (barcode/sku) or location.locationId (location); null when not found."
+        code:
+          type: string
+          nullable: true
+          description: "sku.code or location.code; null when not found."
+        name:
+          type: string
+          nullable: true
+          description: "sku.description (barcode/sku); null for location."
+        uomCode:
+          type: string
+          nullable: true
+          description: "matchedBarcode.uomCode (barcode) or the base uom code (sku); null for location."
+        schemaCategory:
+          type: string
+          nullable: true
+          description: "attributeSchema.category (barcode/sku); null otherwise."
+        detail:
+          type: object
+          additionalProperties: true
+          description: >
+            "The full master-data graph for the kind: uoms, barcodes, attributeSchema, matchedBarcode
+            for sku/barcode; the location object for location. Empty when not found."
+      required: [found, detail]

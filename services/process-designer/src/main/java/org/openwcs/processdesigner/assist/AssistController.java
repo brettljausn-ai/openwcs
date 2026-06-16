@@ -45,6 +45,7 @@ public class AssistController {
         return new CapabilitiesView(
                 scriptGovernance.scriptingEnabled(),
                 aiConfig.configured(),
-                scriptGovernance.canAuthorScript(roles));
+                scriptGovernance.canAuthorScript(roles),
+                org.openwcs.processdesigner.verify.VerifyKinds.ALL);
     }
 }

@@ -8,6 +8,7 @@ import org.openwcs.processdesigner.service.DefinitionInvalidException;
 import org.openwcs.processdesigner.service.ScriptingForbiddenException;
 import org.openwcs.processdesigner.service.ScriptingNotEnabledException;
 import org.openwcs.processdesigner.task.TaskExecutionException;
+import org.openwcs.processdesigner.verify.VerifyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -42,6 +43,16 @@ public class ApiExceptionHandler {
     /** A curated task step failed: 502 so the client queues/retries; the instance did not advance. */
     @ExceptionHandler(TaskExecutionException.class)
     public ResponseEntity<Map<String, Object>> taskFailed(TaskExecutionException e) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", e.getMessage()));
+    }
+
+    /**
+     * The scan-verify proxy's downstream call to master-data failed (unreachable / 4xx / 5xx): 502
+     * with a clean message, so the proxy never 500s the service. A clean {@code found:false} from
+     * master-data is NOT routed here.
+     */
+    @ExceptionHandler(VerifyException.class)
+    public ResponseEntity<Map<String, Object>> verifyFailed(VerifyException e) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", e.getMessage()));
     }
 
