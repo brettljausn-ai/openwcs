@@ -65,22 +65,47 @@ function uniqueId(base: string, taken: Set<string>): string {
   return id
 }
 
-// Ordered step ids: start first, then BFS so branches sit near their parent; orphans appended.
-function orderedStepIds(def: ProcessDefinition): string[] {
-  const all = Object.keys(def.steps)
+// A step's outgoing edges, in render order: branch targets first, then the default `next`.
+function flowEdges(step: Step): string[] {
   const out: string[] = []
-  const seen = new Set<string>()
-  const visit = (id: string) => {
-    if (!id || seen.has(id) || !def.steps[id]) return
-    seen.add(id)
-    out.push(id)
-    const step = def.steps[id]
-    for (const tr of step.transitions ?? []) visit(tr.to)
-    if (step.next) visit(step.next)
-  }
-  if (def.start) visit(def.start)
-  for (const id of all) if (!seen.has(id)) out.push(id)
+  for (const tr of step.transitions ?? []) if (tr.to) out.push(tr.to)
+  if (step.next) out.push(step.next)
   return out
+}
+
+interface FlowAnalysis {
+  /** Reachable steps in flow order (DFS pre-order from start). */
+  order: string[]
+  /** Steps NOT reachable from start (orphans), in insertion order. */
+  unreachable: string[]
+  /** Back-edges that form a loop, keyed "from→to" (target is an ancestor on the DFS stack). */
+  loopBack: Set<string>
+}
+
+// Walk the real execution graph from `start` (following branches + `next`), so the list mirrors how
+// the process actually runs. A back-edge to a step still on the current path is a LOOP (the runtime
+// would cycle there); we flag those so the designer can see and manage them. Steps the walk never
+// reaches are orphans, surfaced separately.
+function analyzeFlow(def: ProcessDefinition): FlowAnalysis {
+  const order: string[] = []
+  const reachable = new Set<string>()
+  const stack = new Set<string>()
+  const loopBack = new Set<string>()
+  const dfs = (id: string) => {
+    if (!id || !def.steps[id] || reachable.has(id)) return
+    reachable.add(id)
+    order.push(id)
+    stack.add(id)
+    for (const to of flowEdges(def.steps[id])) {
+      if (!def.steps[to]) continue
+      if (stack.has(to)) loopBack.add(`${id}→${to}`) // points back up the current path: a loop
+      else if (!reachable.has(to)) dfs(to)
+    }
+    stack.delete(id)
+  }
+  if (def.start) dfs(def.start)
+  const unreachable = Object.keys(def.steps).filter((id) => !reachable.has(id))
+  return { order, unreachable, loopBack }
 }
 
 export default function ProcessDesignScreen() {
@@ -106,7 +131,7 @@ export default function ProcessDesignScreen() {
   const [simVerifyNotFound, setSimVerifyNotFound] = useState(false)
 
   const sampleData = useMemo(() => sampleDataFor(def.dataSchema), [def.dataSchema])
-  const orderedIds = useMemo(() => orderedStepIds(def), [def])
+  const flow = useMemo(() => analyzeFlow(def), [def])
 
   // Version management: all versions of the currently-edited process key, newest first, with status.
   const versionsForKey = useMemo(
@@ -192,24 +217,9 @@ export default function ProcessDesignScreen() {
     setDirty(true)
   }, [])
 
-  const moveStep = useCallback((id: string, dir: -1 | 1) => {
-    // Reorder only affects the visual order map. We keep step ids; the underlying steps object is
-    // already a map, so we persist order by rebuilding next-chains is too invasive — instead we sort
-    // by an explicit order array kept on the def via a hidden convention: reorder swaps the default
-    // `next` chain for adjacent linear steps. For Phase 1 simplicity we reorder the object insertion
-    // order (which orderedStepIds falls back to for orphans) by rebuilding the steps map.
-    setDef((d) => {
-      const ids = orderedStepIds(d)
-      const idx = ids.indexOf(id)
-      const swap = idx + dir
-      if (idx < 0 || swap < 0 || swap >= ids.length) return d
-      ;[ids[idx], ids[swap]] = [ids[swap], ids[idx]]
-      const steps: Record<string, Step> = {}
-      for (const k of ids) steps[k] = d.steps[k]
-      return { ...d, steps }
-    })
-    setDirty(true)
-  }, [])
+  // (Manual up/down reordering was removed: the list now follows the real execution graph, so list
+  // position is derived from start + next/branches, not an arbitrary order. Flow is managed via the
+  // edges and "set as start".)
 
   // --- load / save / publish ----------------------------------------------------------------------
 
@@ -416,19 +426,29 @@ export default function ProcessDesignScreen() {
 
   return (
     <div className="app-content op-pd-designer">
-      {/* Toolbar */}
+      {/* Toolbar: identity on the left, a compact action group on the right (secondary actions
+          tucked into a "More" menu so the bar is not a wall of buttons). */}
       <div className="op-pd-toolbar">
-        <input className="op-pd-key" value={def.processKey} onChange={(e) => patchDef({ processKey: e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase() })} placeholder="process-key" title={t('processKey', 'Process key')} />
-        <input className="op-pd-title" value={def.title} onChange={(e) => patchDef({ title: e.target.value })} placeholder={t('title', 'Title')} />
-        <input className="op-pd-icon" value={def.icon ?? ''} onChange={(e) => patchDef({ icon: e.target.value })} placeholder="icon" title={t('icon', 'Icon')} />
-        <span className="op-pd-status-badge">{def.status ?? 'DRAFT'}{dirty ? ' *' : ''}</span>
-        {!editable && <span className="op-pd-readonly-badge" title={t('readonlyHint', 'Only DRAFT versions are editable. Duplicate to a new draft to change this.')}>{t('readonly', 'read-only')}</span>}
+        <div className="op-pd-toolbar-id">
+          <input className="op-pd-title" value={def.title} onChange={(e) => patchDef({ title: e.target.value })} placeholder={t('title', 'Title')} />
+          <input className="op-pd-key" value={def.processKey} onChange={(e) => patchDef({ processKey: e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase() })} placeholder="process-key" title={t('processKey', 'Process key')} />
+          <input className="op-pd-icon" value={def.icon ?? ''} onChange={(e) => patchDef({ icon: e.target.value })} placeholder="icon" title={t('icon', 'Icon')} />
+          <span className="op-pd-status-badge">{def.status ?? 'DRAFT'}{dirty ? ' *' : ''}</span>
+          {!editable && <span className="op-pd-readonly-badge" title={t('readonlyHint', 'Only DRAFT versions are editable. Duplicate to a new draft to change this.')}>{t('readonly', 'read-only')}</span>}
+        </div>
         <span style={{ flex: 1 }} />
-        <button className="btn btn-ghost btn-sm" onClick={newDraft}>{t('new', 'New')}</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => void save()} disabled={!editable}>{t('save', 'Save')}</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => void duplicate()} disabled={!persisted}>{t('duplicate', 'Duplicate')}</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => void exportJson()} disabled={!persisted}>{t('export', 'Export')}</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()}>{t('import', 'Import')}</button>
+        <div className="op-pd-toolbar-actions">
+          <button className="btn btn-ghost btn-sm" onClick={runValidate}>{t('validate', 'Validate')}</button>
+          <button className="btn btn-ghost btn-sm" onClick={simulating ? stopSim : startSim} disabled={!def.start}>{simulating ? t('stopSim', 'Stop simulate') : t('simulate', 'Simulate')}</button>
+          <ToolbarMenu label={t('more', 'More')}>
+            <button className="btn btn-ghost btn-sm" onClick={newDraft}>{t('new', 'New')}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => void duplicate()} disabled={!persisted}>{t('duplicate', 'Duplicate')}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => void exportJson()} disabled={!persisted}>{t('export', 'Export')}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()}>{t('import', 'Import')}</button>
+          </ToolbarMenu>
+          <button className="btn btn-ghost btn-sm" onClick={() => void save()} disabled={!editable}>{t('save', 'Save')}</button>
+          <button className="btn btn-primary btn-sm" onClick={() => void publish()} disabled={!editable}>{t('publish', 'Publish')}</button>
+        </div>
         <input
           ref={fileInputRef}
           type="file"
@@ -440,9 +460,6 @@ export default function ProcessDesignScreen() {
             e.target.value = '' // allow re-importing the same file
           }}
         />
-        <button className="btn btn-ghost btn-sm" onClick={runValidate}>{t('validate', 'Validate')}</button>
-        <button className="btn btn-ghost btn-sm" onClick={simulating ? stopSim : startSim} disabled={!def.start}>{simulating ? t('stopSim', 'Stop simulate') : t('simulate', 'Simulate')}</button>
-        <button className="btn btn-primary btn-sm" onClick={() => void publish()} disabled={!editable}>{t('publish', 'Publish')}</button>
       </div>
       {status && <div className="op-pd-statusline">{status}</div>}
 
@@ -457,18 +474,54 @@ export default function ProcessDesignScreen() {
             ))}
           </div>
 
+          {flow.loopBack.size > 0 && (
+            <div className="op-pd-flow-loops" title={t('loopHint', 'A step sends the flow back to an earlier step. Click to jump to the step that loops, then edit its next / branches.')}>
+              <span aria-hidden="true">↺</span> {t('loopBanner', 'This flow loops')}:
+              {[...flow.loopBack].map((edge) => {
+                const [from, to] = edge.split('→')
+                return (
+                  <button key={edge} type="button" className="op-pd-loop-link" onClick={() => setSelectedId(from)}>
+                    {from} → {to}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           <ul className="op-pd-steplist">
-            {orderedIds.length === 0 && <li className="muted" style={{ padding: '.5rem' }}>{t('noSteps', 'Add a step from the palette above.')}</li>}
-            {orderedIds.map((id) => (
+            {flow.order.length === 0 && flow.unreachable.length === 0 && (
+              <li className="muted" style={{ padding: '.5rem' }}>{t('noSteps', 'Add a step from the palette above.')}</li>
+            )}
+            {flow.order.map((id) => (
               <FlowRow
                 key={id}
                 id={id}
                 step={def.steps[id]}
                 isStart={def.start === id}
                 selected={(simulating ? simStep : selectedId) === id}
+                loopBack={flow.loopBack}
                 onSelect={() => setSelectedId(id)}
-                onUp={() => moveStep(id, -1)}
-                onDown={() => moveStep(id, 1)}
+                onSelectStep={(target) => setSelectedId(target)}
+                onDelete={() => deleteStep(id)}
+                onSetStart={() => patchDef({ start: id })}
+              />
+            ))}
+            {flow.unreachable.length > 0 && (
+              <li className="op-pd-unreachable-head" title={t('unreachableHint', 'These steps are not reached from the start. Point a next / branch at them, or make one the start.')}>
+                ⚠ {t('unreachable', 'Not connected to the flow')}
+              </li>
+            )}
+            {flow.unreachable.map((id) => (
+              <FlowRow
+                key={id}
+                id={id}
+                step={def.steps[id]}
+                isStart={def.start === id}
+                selected={(simulating ? simStep : selectedId) === id}
+                loopBack={flow.loopBack}
+                orphan
+                onSelect={() => setSelectedId(id)}
+                onSelectStep={(target) => setSelectedId(target)}
                 onDelete={() => deleteStep(id)}
                 onSetStart={() => patchDef({ start: id })}
               />
@@ -589,14 +642,42 @@ export default function ProcessDesignScreen() {
   )
 }
 
+/** A compact overflow menu for secondary toolbar actions. Closes on outside click or after an
+ *  action inside it is chosen, so the toolbar stays uncluttered. */
+function ToolbarMenu({ label, children }: { label: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+  return (
+    <div className="op-pd-menu" ref={ref}>
+      <button className="btn btn-ghost btn-sm" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>
+        {label} <span aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div className="op-pd-menu-pop" role="menu" onClick={() => setOpen(false)}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function FlowRow({
   id,
   step,
   isStart,
   selected,
+  loopBack,
+  orphan,
   onSelect,
-  onUp,
-  onDown,
+  onSelectStep,
   onDelete,
   onSetStart,
 }: {
@@ -604,37 +685,57 @@ function FlowRow({
   step: Step
   isStart: boolean
   selected: boolean
+  loopBack: Set<string>
+  orphan?: boolean
   onSelect: () => void
-  onUp: () => void
-  onDown: () => void
+  onSelectStep: (target: string) => void
   onDelete: () => void
   onSetStart: () => void
 }) {
+  const t = useT('processDesign')
   const icon = step.type === 'task' ? SCREEN_TYPE_ICONS.task : SCREEN_TYPE_ICONS[(step as ScreenStep).screen]
   const label = step.type === 'task' ? `Task: ${(step as TaskStep).task}` : (step as ScreenStep).screen
   const hasVerify = step.type === 'screen' && !!(step as ScreenStep).config.verify
   const branches = step.transitions ?? []
+  const isEnd = branches.length === 0 && !step.next
+
+  // One outgoing edge: a clickable jump to the target, with a loop badge when it points back up
+  // the current path (the runtime would cycle there).
+  const Edge = ({ when, to }: { when?: string; to: string }) => {
+    const isLoop = loopBack.has(`${id}→${to}`)
+    return (
+      <li className={`op-pd-edge${isLoop ? ' is-loop' : ''}`}>
+        <span className="op-pd-branch-arrow" aria-hidden="true">└▶</span>{' '}
+        {when != null ? <><code>{when || '(empty)'}</code> → </> : <><em>{t('elseEdge', 'else')}</em> → </>}
+        <button
+          type="button"
+          className="op-pd-edge-target"
+          onClick={(e) => { e.stopPropagation(); onSelectStep(to) }}
+          title={t('jumpTo', 'Go to this step')}
+        >
+          {to || '?'}
+        </button>
+        {isLoop && <span className="op-pd-loop-badge" title={t('loopHint', 'Loops back to an earlier step.')}>↺ {t('loop', 'loop')}</span>}
+      </li>
+    )
+  }
+
   return (
     <li>
-      <div className={`op-pd-step${selected ? ' is-selected' : ''}`} onClick={onSelect}>
+      <div className={`op-pd-step${selected ? ' is-selected' : ''}${orphan ? ' is-orphan' : ''}`} onClick={onSelect}>
         <span className="op-pd-step-icon" aria-hidden="true">{icon}</span>
         <span className="op-pd-step-id">{id}{isStart && <span className="op-pd-start-badge">start</span>}</span>
         <span className="op-pd-step-type muted">{label}</span>
-        {hasVerify && <span className="op-pd-verify-tag" title="Verifies the scanned value" style={{ fontSize: '.68rem', color: 'var(--herbal-lime)', fontWeight: 600 }}>✓ verify</span>}
+        {hasVerify && <span className="op-pd-verify-tag">✓ {t('verify', 'verify')}</span>}
         <span style={{ flex: 1 }} />
-        <button className="op-pd-mini" title="Up" onClick={(e) => { e.stopPropagation(); onUp() }}>↑</button>
-        <button className="op-pd-mini" title="Down" onClick={(e) => { e.stopPropagation(); onDown() }}>↓</button>
-        {!isStart && <button className="op-pd-mini" title="Set as start" onClick={(e) => { e.stopPropagation(); onSetStart() }}>▶</button>}
-        <button className="op-pd-mini" title="Delete" onClick={(e) => { e.stopPropagation(); onDelete() }}>✕</button>
+        {!isStart && <button className="op-pd-mini" title={t('setStart', 'Set as start')} onClick={(e) => { e.stopPropagation(); onSetStart() }}>▶</button>}
+        <button className="op-pd-mini" title={t('delete', 'Delete')} onClick={(e) => { e.stopPropagation(); onDelete() }}>✕</button>
       </div>
-      {branches.length > 0 && (
-        <ul className="op-pd-branches">
-          {branches.map((tr, i) => (
-            <li key={i} className="op-pd-branch"><span className="op-pd-branch-arrow">└▶</span> <code>{tr.when || '(empty)'}</code> → <strong>{tr.to || '?'}</strong></li>
-          ))}
-          {step.next && <li className="op-pd-branch"><span className="op-pd-branch-arrow">└▶</span> <em>else</em> → <strong>{step.next}</strong></li>}
-        </ul>
-      )}
+      <ul className="op-pd-edges">
+        {branches.map((tr, i) => (<Edge key={i} when={tr.when} to={tr.to} />))}
+        {step.next && <Edge to={step.next} />}
+        {isEnd && <li className="op-pd-edge op-pd-edge-end muted">{t('endsFlow', '→ ends the process')}</li>}
+      </ul>
     </li>
   )
 }
