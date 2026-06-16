@@ -1,0 +1,37 @@
+package org.openwcs.processdesigner.client;
+
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.boot.web.client.RestClientCustomizer;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+/**
+ * Propagates the operator's authenticated identity ({@code X-Auth-User} / {@code X-Auth-Roles} /
+ * {@code X-Auth-Warehouses}) onto the outbound curated-task calls (process-designer → the target
+ * service), so those services' RBAC + warehouse scope see the original operator. A task step can
+ * therefore only do what the operator is allowed to do. Background work (no incoming request)
+ * forwards nothing.
+ */
+@Configuration
+public class IdentityForwardingConfig {
+
+    private static final String[] HEADERS = {"X-Auth-User", "X-Auth-Roles", "X-Auth-Warehouses"};
+
+    @Bean
+    public RestClientCustomizer identityForwardingCustomizer() {
+        return builder -> builder.requestInterceptor((request, body, execution) -> {
+            if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs) {
+                HttpServletRequest incoming = attrs.getRequest();
+                for (String header : HEADERS) {
+                    String value = incoming.getHeader(header);
+                    if (value != null && !request.getHeaders().containsKey(header)) {
+                        request.getHeaders().add(header, value);
+                    }
+                }
+            }
+            return execution.execute(request, body);
+        });
+    }
+}

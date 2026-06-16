@@ -1,0 +1,48 @@
+server:
+  port: 8097
+spring:
+  application:
+    name: process-designer
+  # Service-local store: an isolated `process_designer` schema in dev.
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/openwcs}
+    username: ${SPRING_DATASOURCE_USERNAME:openwcs}
+    password: ${SPRING_DATASOURCE_PASSWORD:openwcs}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: process_designer
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    schemas: process_designer
+    default-schema: process_designer
+    create-schemas: true
+
+openwcs:
+  # Per-endpoint RBAC (build.md §4.8); off by default so the stack runs before a Keycloak realm.
+  security:
+    enabled: ${OPENWCS_SECURITY_ENABLED:false}
+  process-designer:
+    # Base URLs of the services the curated task library calls. The operator's identity
+    # (X-Auth-User / X-Auth-Roles / X-Auth-Warehouses) is forwarded so downstream RBAC applies.
+    # In-cluster defaults are localhost (host-run dev); compose/k8s override with service DNS.
+    flow-base-url: ${OPENWCS_FLOW_ORCHESTRATOR_BASE_URL:http://localhost:8085}
+    slotting-base-url: ${OPENWCS_SLOTTING_BASE_URL:http://localhost:8093}
+    orders-base-url: ${OPENWCS_ORDER_MANAGEMENT_BASE_URL:http://localhost:8084}
+    inventory-base-url: ${OPENWCS_INVENTORY_BASE_URL:http://localhost:8082}
+    txlog-base-url: ${OPENWCS_TXLOG_BASE_URL:http://localhost:8086}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

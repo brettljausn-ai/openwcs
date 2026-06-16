@@ -29,6 +29,11 @@ spring:
         - id: process-engine
           uri: ${OPENWCS_URI_PROCESS_ENGINE:http://localhost:8083}
           predicates: [ "Path=/api/process/**" ]
+        # Configurable handheld process designer + engine. Distinct prefix so it does not collide
+        # with the Flowable process-engine routes under /api/process/** (instances/definitions/tasks).
+        - id: process-designer
+          uri: ${OPENWCS_URI_PROCESS_DESIGNER:http://localhost:8097}
+          predicates: [ "Path=/api/process-designer/**" ]
         - id: order-management
           uri: ${OPENWCS_URI_ORDER_MANAGEMENT:http://localhost:8084}
           predicates: [ "Path=/api/orders/**" ]
@@ -87,6 +92,7 @@ openwcs:
       - { name: gtp, kind: java, uri: "${OPENWCS_URI_GTP:http://localhost:8094}" }
       - { name: counting, kind: java, uri: "${OPENWCS_URI_COUNTING:http://localhost:8095}" }
       - { name: assistant, kind: java, uri: "${OPENWCS_URI_ASSISTANT:http://localhost:8096}" }
+      - { name: process-designer, kind: java, uri: "${OPENWCS_URI_PROCESS_DESIGNER:http://localhost:8097}" }
       - { name: conveyor-adapter, kind: go, uri: "${OPENWCS_URI_CONVEYOR_ADAPTER:http://localhost:9091}" }
       - { name: amr-geekplus-adapter, kind: go, uri: "${OPENWCS_URI_AMR_GEEKPLUS_ADAPTER:http://localhost:9093}" }
       - { name: autostore-adapter, kind: go, uri: "${OPENWCS_URI_AUTOSTORE_ADAPTER:http://localhost:9094}" }
