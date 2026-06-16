@@ -1016,3 +1016,28 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-dataobj-table th { text-align: left; padding: .3rem .5rem; color: var(--text-dim); white-space: nowrap; vertical-align: top; }
 .op-pd-dataobj-table td { padding: .3rem .5rem; word-break: break-word; }
 @media (max-width: 900px) { .op-pd-instances-grid { grid-template-columns: 1fr; } }
+
+/* Phase 3: sandboxed-script editor + AI task-assist */
+.op-pd-script-help { font-size: .72rem; margin: 0 0 .5rem; line-height: 1.35; }
+.op-pd-code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: .8rem; line-height: 1.45; tab-size: 2;
+  background: rgba(0,0,0,.28); border: 1px solid var(--glass-border); border-radius: 7px;
+  color: var(--text); padding: .55rem .65rem; width: 100%; resize: vertical; white-space: pre;
+}
+.op-pd-script-outputs { margin-top: .55rem; }
+.op-pd-assist { border-color: rgba(141,198,63,.35); }
+.op-pd-assist-input { font-size: .85rem; width: 100%; resize: vertical;
+  background: var(--glass-bg, rgba(255,255,255,.04)); border: 1px solid var(--glass-border); border-radius: 7px; color: var(--text); padding: .4rem .55rem; }
+.op-pd-assist-note { font-size: .78rem; font-style: italic; }
+.op-pd-assist-result { margin-top: .6rem; border-top: 1px dashed var(--glass-border); padding-top: .6rem; display: flex; flex-direction: column; gap: .4rem; }
+.op-pd-assist-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.op-pd-assist-kind { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--herbal-lime); font-weight: 600; }
+.op-pd-assist-draft { color: var(--warning); }
+.op-pd-assist-conf { font-size: .68rem; color: var(--text-dim); }
+.op-pd-assist-tasktype { margin: 0; font-size: .95rem; font-family: var(--font-mono, monospace); }
+.op-pd-assist-maps { font-size: .78rem; }
+.op-pd-assist-maps ul { margin: .15rem 0 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: .15rem; }
+.op-pd-assist-maps code { font-size: .76rem; color: var(--herbal-lime); }
+.op-pd-assist-rationale { font-size: .78rem; line-height: 1.4; margin: 0; }
+.op-pd-assist-draft-code { background: rgba(244,184,96,.06); border-color: rgba(244,184,96,.35); }
