@@ -28,6 +28,14 @@ public class InventoryLookupTask implements ProcessTask {
     }
 
     @Override
+    public TaskSpec spec() {
+        return new TaskSpec("inventory.lookup", "Look up on-hand",
+                java.util.List.of(TaskSpec.req("warehouseId"), TaskSpec.req("skuId"),
+                        TaskSpec.req("locationId")),
+                java.util.List.of(TaskSpec.out("onHand")));
+    }
+
+    @Override
     public Map<String, Object> execute(Map<String, Object> in) {
         String warehouseId = TaskInputs.requireUuid(in, "warehouseId").toString();
         String skuId = TaskInputs.requireUuid(in, "skuId").toString();

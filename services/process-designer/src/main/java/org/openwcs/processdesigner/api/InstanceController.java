@@ -1,6 +1,7 @@
 package org.openwcs.processdesigner.api;
 
 import jakarta.validation.Valid;
+import java.util.List;
 import java.util.UUID;
 import org.openwcs.processdesigner.service.InstanceService;
 import org.springframework.http.HttpStatus;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -28,6 +30,15 @@ public class InstanceController {
 
     public InstanceController(InstanceService service) {
         this.service = service;
+    }
+
+    /** Instance monitoring list: newest-first summaries, optionally filtered, capped at limit. */
+    @GetMapping
+    public List<InstanceSummary> list(@RequestParam(required = false) String processKey,
+                                      @RequestParam(required = false) String status,
+                                      @RequestParam(required = false) UUID warehouseId,
+                                      @RequestParam(required = false) Integer limit) {
+        return service.list(processKey, status, warehouseId, limit);
     }
 
     @PostMapping

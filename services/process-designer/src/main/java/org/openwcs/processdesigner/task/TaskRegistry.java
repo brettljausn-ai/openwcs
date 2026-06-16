@@ -36,4 +36,18 @@ public class TaskRegistry {
     public java.util.Set<String> types() {
         return tasks.keySet();
     }
+
+    /**
+     * The catalog of curated task specs (label + named inputs/outputs), sorted by type, served by
+     * {@code GET /api/process-designer/tasks} to drive the designer's task picker + mapping. Internal
+     * / test-only tasks with a bare default spec (no declared inputs and no outputs) are excluded so
+     * the picker only offers real, mappable tasks.
+     */
+    public List<TaskSpec> catalog() {
+        return tasks.values().stream()
+                .map(ProcessTask::spec)
+                .filter(s -> !(s.inputs().isEmpty() && s.outputs().isEmpty()))
+                .sorted(java.util.Comparator.comparing(TaskSpec::type))
+                .toList();
+    }
 }

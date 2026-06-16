@@ -19,7 +19,11 @@ import org.springframework.stereotype.Component;
  *   <li>every step is reachable from {@code start};</li>
  *   <li>every {@code next} and transition {@code to} points to an existing step;</li>
  *   <li>screen steps that capture write to a declared data-object variable ({@code writeTo});</li>
- *   <li>task steps name a curated task type that the registry knows.</li>
+ *   <li>task steps name a curated task type that the registry knows;</li>
+ *   <li>every transition {@code when} and every step {@code skipWhen} parses as the restricted
+ *       condition grammar (spec §6); a malformed condition fails publish;</li>
+ *   <li>a step with a {@code skipWhen} (Phase 2 conditional skip) still has a reachable onward path
+ *       (a {@code next} or a transition), so skipping it cannot strand the instance.</li>
  * </ul>
  * Returns the list of human-readable problems (empty = valid).
  */
@@ -93,6 +97,30 @@ public class DefinitionValidator {
                     } else if (!stepIds.contains(to)) {
                         problems.add("Step '" + id + "' transition -> '" + to + "' does not exist.");
                     }
+                    String when = text(t, "when");
+                    if (when != null) {
+                        try {
+                            ConditionParser.validate(when);
+                        } catch (IllegalArgumentException e) {
+                            problems.add("Step '" + id + "' transition 'when' is malformed: " + e.getMessage());
+                        }
+                    }
+                }
+            }
+
+            // Phase 2: conditional skip. A skipWhen must parse, and a skipped step needs an onward
+            // path (next or a transition) or skipping it would strand the instance.
+            String skipWhen = text(step, "skipWhen");
+            if (skipWhen != null) {
+                try {
+                    ConditionParser.validate(skipWhen);
+                } catch (IllegalArgumentException e) {
+                    problems.add("Step '" + id + "' skipWhen is malformed: " + e.getMessage());
+                }
+                boolean hasTransition = transitions != null && transitions.isArray() && !transitions.isEmpty();
+                if (next == null && !hasTransition) {
+                    problems.add("Step '" + id + "' has a skipWhen but no onward path "
+                            + "(needs a next or a transition so a skipped step can continue).");
                 }
             }
 

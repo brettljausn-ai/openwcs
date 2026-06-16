@@ -137,6 +137,56 @@ class InstanceCheckpointTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void instanceListFiltersByProcessKeyAndStatusNewestFirst() throws Exception {
+        // Start two instances on the echo flow (RUNNING).
+        startInstance();
+        String secondId = startInstance();
+
+        // List filtered by processKey: newest-first, includes our instances.
+        String listed = mvc.perform(get("/api/process-designer/instances")
+                        .param("processKey", KEY)
+                        .param("status", "RUNNING")
+                        .param("limit", "10")
+                        .header("X-Auth-Roles", OPERATOR))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].processKey").value(KEY))
+                .andExpect(jsonPath("$[0].status").value("RUNNING"))
+                .andExpect(jsonPath("$[0].startedBy").exists())
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode arr = mapper.readTree(listed);
+        assertThat(arr.size()).isGreaterThanOrEqualTo(2);
+        // Both instances are listed.
+        java.util.List<String> ids = new java.util.ArrayList<>();
+        arr.forEach(n -> ids.add(n.get("instanceId").asText()));
+        assertThat(ids).contains(secondId);
+        // Newest-first ordering: startedAt is non-increasing down the list.
+        for (int i = 1; i < arr.size(); i++) {
+            assertThat(arr.get(i - 1).get("startedAt").asText())
+                    .isGreaterThanOrEqualTo(arr.get(i).get("startedAt").asText());
+        }
+
+        // A bogus processKey filter yields none of ours.
+        mvc.perform(get("/api/process-designer/instances")
+                        .param("processKey", "no-such-key")
+                        .header("X-Auth-Roles", OPERATOR))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    private String startInstance() throws Exception {
+        String resp = mvc.perform(post("/api/process-designer/instances")
+                        .header("X-Auth-Roles", OPERATOR)
+                        .header("X-Auth-User", "carol")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"processKey\":\"" + KEY + "\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return mapper.readTree(resp).get("instanceId").asText();
+    }
+
+    @Test
     void checkpointOnScreenStepIsRejected() throws Exception {
         String startResponse = mvc.perform(post("/api/process-designer/instances")
                         .header("X-Auth-Roles", OPERATOR)
