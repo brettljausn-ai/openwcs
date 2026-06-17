@@ -50,24 +50,52 @@ class AssistAndCapabilitiesDefaultTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.verifyKinds",
                         org.hamcrest.Matchers.hasItem("skuScan")))
                 // Per-kind resolvable-field catalog: location vs SKU resolve different attributes.
+                // Scalars plus object fields (object:true with a sub drill-down list).
                 .andExpect(jsonPath("$.verifyFields.location").isArray())
                 .andExpect(jsonPath("$.verifyFields.location[*].key",
                         org.hamcrest.Matchers.containsInAnyOrder(
-                                "id", "code", "purpose", "locationType", "status")))
+                                "id", "code", "purpose", "locationType", "status", "location")))
                 .andExpect(jsonPath("$.verifyFields.location[0].key").value("id"))
                 .andExpect(jsonPath("$.verifyFields.location[0].label").value("Location ID"))
+                // Object field "location" on the location kind, with its sub drill-down fields.
+                .andExpect(jsonPath(
+                        "$.verifyFields.location[?(@.key=='location')].object").value(
+                        org.hamcrest.Matchers.hasItem(true)))
+                .andExpect(jsonPath("$.verifyFields.location[?(@.key=='location')].sub[*].key",
+                        org.hamcrest.Matchers.containsInAnyOrder(
+                                "locationId", "code", "locationType", "purpose", "status")))
                 .andExpect(jsonPath("$.verifyFields.sku[*].key",
                         org.hamcrest.Matchers.containsInAnyOrder(
-                                "id", "code", "name", "uomCode", "schemaCategory")))
+                                "id", "code", "name", "uomCode", "schemaCategory", "sku", "uom")))
                 .andExpect(jsonPath("$.verifyFields.sku[2].key").value("name"))
                 .andExpect(jsonPath("$.verifyFields.sku[2].label").value("Description"))
-                // barcode and skuScan share the SKU field set.
+                // Scalar fields omit object/sub (NON_DEFAULT/NON_EMPTY).
+                .andExpect(jsonPath("$.verifyFields.sku[0].object").doesNotExist())
+                .andExpect(jsonPath("$.verifyFields.sku[0].sub").doesNotExist())
+                // Object field "uom" on a SKU kind: object:true, sub = uomId/code/factor/baseUnit.
+                .andExpect(jsonPath("$.verifyFields.sku[?(@.key=='uom')].object").value(
+                        org.hamcrest.Matchers.hasItem(true)))
+                .andExpect(jsonPath("$.verifyFields.sku[?(@.key=='uom')].label").value(
+                        org.hamcrest.Matchers.hasItem("Unit of measure (object)")))
+                .andExpect(jsonPath("$.verifyFields.sku[?(@.key=='uom')].sub[*].key",
+                        org.hamcrest.Matchers.containsInAnyOrder(
+                                "uomId", "code", "factor", "baseUnit")))
+                // Object field "sku" on a SKU kind: object:true, sub = skuId/code/description/status.
+                .andExpect(jsonPath("$.verifyFields.sku[?(@.key=='sku')].object").value(
+                        org.hamcrest.Matchers.hasItem(true)))
+                .andExpect(jsonPath("$.verifyFields.sku[?(@.key=='sku')].sub[*].key",
+                        org.hamcrest.Matchers.containsInAnyOrder(
+                                "skuId", "code", "description", "status")))
+                // barcode and skuScan share the SKU field set (incl. the object fields).
                 .andExpect(jsonPath("$.verifyFields.barcode[*].key",
                         org.hamcrest.Matchers.containsInAnyOrder(
-                                "id", "code", "name", "uomCode", "schemaCategory")))
+                                "id", "code", "name", "uomCode", "schemaCategory", "sku", "uom")))
                 .andExpect(jsonPath("$.verifyFields.skuScan[*].key",
                         org.hamcrest.Matchers.containsInAnyOrder(
-                                "id", "code", "name", "uomCode", "schemaCategory")));
+                                "id", "code", "name", "uomCode", "schemaCategory", "sku", "uom")))
+                .andExpect(jsonPath("$.verifyFields.skuScan[?(@.key=='uom')].sub[*].key",
+                        org.hamcrest.Matchers.containsInAnyOrder(
+                                "uomId", "code", "factor", "baseUnit")));
 
         // SUPERVISOR can view (PROCESS_DESIGN_VIEW) but cannot author scripts.
         mvc.perform(get("/api/process-designer/capabilities").header("X-Auth-Roles", "SUPERVISOR"))

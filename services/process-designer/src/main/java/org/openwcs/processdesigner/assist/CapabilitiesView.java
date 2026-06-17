@@ -10,9 +10,12 @@ import org.openwcs.processdesigner.verify.VerifyFields;
  * an Anthropic key is configured; {@code canAuthorScript} = the CALLER holds PROCESS_SCRIPT_AUTHOR
  * (always true when security is disabled); {@code verifyKinds} = the server-driven list of scan-verify
  * kinds the screen "Verify" picker offers ({@code barcode}, {@code sku}, {@code location},
- * {@code skuScan}); {@code verifyFields} = the per-kind catalog of resolvable fields (each a
- * {@code {key, label}}) the designer offers for that kind's {@code verify.write} and the runtime reads
- * from {@code VerifyResult.fields} (a location resolves different attributes than a SKU).
+ * {@code skuScan}); {@code verifyFields} = the per-kind catalog of resolvable fields the designer
+ * offers for that kind's {@code verify.write} and the runtime reads from {@code VerifyResult.fields}.
+ * Each field is {@code {key, label}} and may be an OBJECT field ({@code object:true} with a
+ * {@code sub:[{key,label}]} drill-down list): an object value in {@code VerifyResult.fields} is a
+ * nested map, and a {@code verify.write} key may store the whole object ({@code uom}) or one sub-field
+ * ({@code uom.factor}). A location resolves different attributes than a SKU.
  */
 public record CapabilitiesView(boolean scriptingEnabled, boolean aiAssistEnabled, boolean canAuthorScript,
                                List<String> verifyKinds,

@@ -127,31 +127,101 @@ public class VerifyService {
         detail.put("attributeSchema", body.get("attributeSchema"));
         detail.put("matchedBarcode", body.get("matchedBarcode"));
 
+        // The MATCHED unit of measure: a barcode pins its uom by id; for sku/skuScan use the chosen
+        // uomCode, else the base uom. Resolved against the uoms list; qtyInParent maps to factor.
+        Map<String, Object> matchedUom = matchedUom(rawUoms, matchedBarcode, uomCode);
+
         // Authoritative per-kind field VALUES (keys must match the VerifyFields catalog for the kind).
+        // Scalars stay strings; object fields carry a nested {subKey -> value} map.
         Map<String, Object> fields = new HashMap<>();
         fields.put("id", id);
         fields.put("code", code);
         fields.put("name", name);
         fields.put("uomCode", uomCode);
         fields.put("schemaCategory", schemaCategory);
+        // Object field "sku": the resolved SKU as a whole object.
+        Map<String, Object> skuObject = new HashMap<>();
+        skuObject.put("skuId", id);
+        skuObject.put("code", code);
+        skuObject.put("description", name);
+        skuObject.put("status", asString(sku.get("status")));
+        fields.put("sku", skuObject);
+        // Object field "uom": the matched/chosen UOM.
+        fields.put("uom", matchedUom);
 
         return new VerifyResult(true, asBoolOrNull(body.get("ambiguous")),
                 id, code, name, uomCode, schemaCategory, matchedAs, uoms, needsUomChoice, detail, fields);
+    }
+
+    /**
+     * The matched UOM as the {@code uom} object field value ({@code uomId, code, factor, baseUnit}).
+     * A barcode match resolves the uom by {@code matchedBarcode.uomId} against the uoms list; for
+     * sku/skuScan the chosen {@code uomCode} (else the base uom) is resolved by code. {@code factor}
+     * comes from the uom's {@code qtyInParent}. Missing keys are null/false (an unresolved uom yields
+     * an all-null/false object).
+     */
+    private static Map<String, Object> matchedUom(List<Object> rawUoms, Map<String, Object> matchedBarcode,
+                                                  String uomCode) {
+        String matchedUomId = asString(matchedBarcode.get("uomId"));
+        Map<String, Object> picked = null;
+        for (Object u : rawUoms) {
+            if (!(u instanceof Map<?, ?>)) {
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> uom = (Map<String, Object>) u;
+            if (matchedUomId != null && matchedUomId.equals(asString(uom.get("uomId")))) {
+                picked = uom;
+                break;
+            }
+            if (matchedUomId == null && uomCode != null && uomCode.equals(asString(uom.get("code")))) {
+                picked = uom;
+                break;
+            }
+        }
+        if (picked == null) {
+            // Fall back to the base uom (no parent) so the object reflects something usable.
+            for (Object u : rawUoms) {
+                if (u instanceof Map<?, ?> uom && uom.get("parentUomId") == null) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> base = (Map<String, Object>) uom;
+                    picked = base;
+                    break;
+                }
+            }
+        }
+        Map<String, Object> out = new HashMap<>();
+        out.put("uomId", picked == null ? null : asString(picked.get("uomId")));
+        out.put("code", picked == null ? null : asString(picked.get("code")));
+        out.put("factor", picked == null ? null : picked.get("qtyInParent"));
+        out.put("baseUnit", picked != null && asBool(picked.get("baseUnit")));
+        return out;
     }
 
     private VerifyResult normaliseLocation(Map<String, Object> body) {
         Map<String, Object> location = asMap(body.get("location"));
         String id = asString(location.get("locationId"));
         String code = asString(location.get("code"));
+        String purpose = asString(location.get("purpose"));
+        String locationType = asString(location.get("locationType"));
+        String status = asString(location.get("status"));
         Map<String, Object> detail = new HashMap<>(location);
 
         // Location resolvable fields (keys must match the VerifyFields catalog for kind=location).
         Map<String, Object> fields = new HashMap<>();
         fields.put("id", id);
         fields.put("code", code);
-        fields.put("purpose", asString(location.get("purpose")));
-        fields.put("locationType", asString(location.get("locationType")));
-        fields.put("status", asString(location.get("status")));
+        fields.put("purpose", purpose);
+        fields.put("locationType", locationType);
+        fields.put("status", status);
+        // Object field "location": the resolved location as a whole object.
+        Map<String, Object> locationObject = new HashMap<>();
+        locationObject.put("locationId", id);
+        locationObject.put("code", code);
+        locationObject.put("locationType", locationType);
+        locationObject.put("purpose", purpose);
+        locationObject.put("status", status);
+        fields.put("location", locationObject);
 
         return new VerifyResult(true, null, id, code, null, null, null, null, List.of(), false, detail, fields);
     }

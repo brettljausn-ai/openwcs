@@ -29,10 +29,15 @@ import java.util.Map;
  *   <li>{@code detail} — the full master-data graph for the kind (uoms/barcodes/attributeSchema/
  *       matchedBarcode for sku, the location object for location). Empty map when not found.</li>
  *   <li>{@code fields} — the authoritative per-kind resolvable-field VALUES, keyed by the field keys
- *       in {@code VerifyFields} for the matched kind (sku-like: id/code/name/uomCode/schemaCategory;
- *       location: id/code/purpose/locationType/status). This is the map the runtime reads to apply a
- *       screen's {@code verify.write}; the top-level id/code/name/uomCode/schemaCategory remain for
- *       backward compatibility. Empty map when not found.</li>
+ *       in {@code VerifyFields} for the matched kind. Scalar fields hold a string; OBJECT fields hold
+ *       a nested {@code {subKey -> value}} map. sku-like: scalars id/code/name/uomCode/schemaCategory,
+ *       plus object {@code sku} ({skuId, code, description, status}) and object {@code uom} (the
+ *       matched/chosen UOM: {uomId, code, factor, baseUnit}); location: scalars
+ *       id/code/purpose/locationType/status, plus object {@code location} ({locationId, code,
+ *       locationType, purpose, status}). This is the map the runtime reads to apply a screen's
+ *       {@code verify.write} (which may target a scalar key, an object key for the whole object, or a
+ *       dotted sub-field like {@code uom.factor}); the top-level id/code/name/uomCode/schemaCategory
+ *       remain for backward compatibility. Empty map when not found.</li>
  * </ul>
  */
 public record VerifyResult(
