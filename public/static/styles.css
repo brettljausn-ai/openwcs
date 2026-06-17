@@ -285,6 +285,28 @@ h2 { font-size: clamp(2.1rem, 4.4vw, 3.2rem); letter-spacing: -.01em; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
 .status-line { font-family: var(--font-mono); font-size: .85rem; color: var(--text-dim); margin: 1.1rem 0 0; }
 
+/* ---- Product screenshot ---- */
+.shot {
+  width: 100%;
+  max-width: 960px;
+  margin: clamp(2rem, 4vw, 3rem) auto 0;
+}
+.shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  box-shadow: 0 24px 60px -28px rgba(0, 0, 0, .75);
+}
+.shot figcaption {
+  margin-top: .85rem;
+  text-align: center;
+  font-size: .9rem;
+  color: var(--text-dim);
+}
+
 /* ---- Numbered step list ---- */
 .steps { list-style: none; counter-reset: step; margin: 0; padding: 0; max-width: 760px; }
 .steps li {
