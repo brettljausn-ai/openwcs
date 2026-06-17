@@ -1,17 +1,54 @@
 <section class="hero">
     <div class="wrap">
-      <p class="eyebrow" data-i18n="hpd.eyebrow1">Function · Handheld process designer <span class="pill pill-built" data-i18n="hpd.pill1">Built</span></p>
+      <p class="eyebrow" data-i18n="hpd.eyebrow1">Function · Handheld process designer · The one most WCS hard-code <span class="pill pill-built" data-i18n="hpd.pill1">Built</span></p>
       <h1 data-i18n="hpd.h1">Design the operator's flow, <span class="lime">no code required.</span></h1>
       <p class="lead" data-i18n="hpd.lead1">
-        A no-code, WYSIWYG designer for the handheld. Build a flow of screens and task steps, watch
-        it run in a live phone-frame preview, validate and simulate it, then publish it as the active
-        version operators see. The handheld PWA walks the screens offline and only checks in with the
-        server for real task steps.
+        Most warehouse control systems hard-code their RF and handheld flows: changing a goods-in, count
+        or pick screen means an integrator code change and a redeploy. openWCS makes those flows
+        configurable. A non-developer designs the mobile-device operator process visually, in a live
+        phone-frame preview, then publishes it as the active version, and it runs offline on the handheld
+        PWA. No code, no integrator, no redeploy.
       </p>
       <figure class="shot">
         <img loading="lazy" src="/shots/process-designer.png" data-i18n="shot.hpdDesignerAlt" alt="The handheld process designer: a flow list of screens and task steps, a live phone-frame preview, and a properties panel." />
         <figcaption data-i18n="shot.hpdDesigner">The WYSIWYG designer: build the flow on the left, watch it run in the live phone preview, edit each step on the right.</figcaption>
       </figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="hpd.diffEyebrow">Why this is different</p>
+        <h2 data-i18n="hpd.diffH">A configurable handheld, not a hard-coded one.</h2>
+        <p data-i18n="hpd.diffLead">
+          The handheld operator flow is the part almost every WCS freezes in code. openWCS treats it as
+          configuration you own: design it, branch it, verify scans against master data and compute
+          decisions, all without a developer. Here is the contrast, point by point.
+        </p>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.diffTag1">No-code, not integrator-gated</div><span class="pill pill-built" data-i18n="hpd.diffPill1">Built</span></div>
+          <h3 data-i18n="hpd.diffH1">Change a flow without a redeploy</h3>
+          <p data-i18n="hpd.diffP1">The usual approach: changing a goods-in, count or pick flow is an integrator ticket, a code change and a release window. openWCS: a non-developer designs the flow visually in a WYSIWYG editor with a live phone-frame preview and a real execution-graph view (branches and detected loops), then publishes the new active version. Draft, duplicate, JSON import/export, and read-only instance monitoring come with it.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.diffTag2">Offline runtime on the device</div><span class="pill pill-built" data-i18n="hpd.diffPill2">Built</span></div>
+          <h3 data-i18n="hpd.diffH2">Walks the screens with no network</h3>
+          <p data-i18n="hpd.diffP2">The usual approach: a chatty client that needs the server for nearly every tap. openWCS: a client-driven runtime where the handheld renders screens and evaluates branches offline, queuing only the real server task checkpoints. A connection blip or a device swap mid-process resumes from the last confirmed checkpoint instead of starting over.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.diffTag3">Scan verification and no-code compute</div><span class="pill pill-built" data-i18n="hpd.diffPill3">Built</span></div>
+          <h3 data-i18n="hpd.diffH3">Smart steps, still no code</h3>
+          <p data-i18n="hpd.diffP3">The usual approach: validation and arithmetic live in custom handler code. openWCS: a scan is resolved against master data with a per-kind guided dialog (a SKU code with several units of measure prompts the operator to pick one), and a no-code compute step derives values and decisions with a safe expression engine, for example comparing a counted quantity to the expected one and triggering a recount within tolerance.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.diffTag4">Curated tasks, gated escape hatches</div><span class="pill pill-built" data-i18n="hpd.diffPill4">Built</span></div>
+          <h3 data-i18n="hpd.diffH4">Configurable, without going wild</h3>
+          <p data-i18n="hpd.diffP4">The usual approach: power means raw custom code with whatever access it grants itself. openWCS: task steps pick from a curated server library that runs with the operator's forwarded identity, so the same RBAC applies, and no arbitrary code runs. Two controlled escape hatches exist for the rare edge case: a sandboxed script step (locked-down GraalJS, no host, network or filesystem) and a design-time AI task-assist that drafts for human review and never auto-deploys.</p>
+        </div>
+      </div>
     </div>
   </section>
 
