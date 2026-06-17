@@ -14,6 +14,7 @@ import org.openwcs.orders.api.PageResponse;
 import org.openwcs.orders.api.ConfirmPickRequest;
 import org.openwcs.orders.api.PickTaskView;
 import org.openwcs.orders.api.PostTransactionRequest;
+import org.openwcs.orders.api.ResolveOrderResult;
 import org.openwcs.orders.client.AllocationClient;
 import org.openwcs.orders.client.MasterDataClient;
 import org.openwcs.orders.domain.LineStatus;
@@ -114,6 +115,21 @@ public class OrderService {
     @Transactional(readOnly = true)
     public OrderView get(UUID id) {
         return OrderView.from(require(id));
+    }
+
+    /**
+     * Resolve an order / ASN by its reference (barcode) within a warehouse, for handheld scan
+     * verification: an outbound picksheet barcode or an inbound ASN barcode is the order's
+     * {@code orderRef}. Returns a {@link ResolveOrderResult} that the process flow branches on —
+     * {@code found:false} with a null order when there is no match (so the caller never has to
+     * treat absence as an error). Works for both OUTBOUND and INBOUND orders; the caller decides
+     * intent from the returned {@code orderType}.
+     */
+    @Transactional(readOnly = true)
+    public ResolveOrderResult resolve(UUID warehouseId, String ref) {
+        return orders.findByWarehouseIdAndOrderRef(warehouseId, ref)
+                .map(ResolveOrderResult::of)
+                .orElseGet(ResolveOrderResult::notFound);
     }
 
     @Transactional(readOnly = true)

@@ -68,6 +68,22 @@ public class OrderController {
         return service.get(id);
     }
 
+    /**
+     * Resolve an order / ASN by its reference (barcode) within a warehouse, for handheld scan
+     * verification (process-designer): an outbound picksheet barcode or an inbound ASN barcode is
+     * the order's {@code orderRef}. Returns HTTP 200 with {@code found:false} and a null order when
+     * there is no match (NOT 404) so a process flow can branch on the result. Read-only — requires
+     * ORDER_VIEW, the same identity/RBAC as the other order GETs.
+     */
+    @GetMapping("/resolve")
+    public ResolveOrderResult resolve(
+            @RequestHeader(name = ROLES, required = false) String roles,
+            @RequestParam UUID warehouseId,
+            @RequestParam String ref) {
+        guard.require(roles, Permission.ORDER_VIEW);
+        return service.resolve(warehouseId, ref);
+    }
+
     @GetMapping
     public PageResponse<OrderView> list(
             @RequestHeader(name = ROLES, required = false) String roles,
