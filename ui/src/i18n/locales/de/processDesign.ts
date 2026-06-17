@@ -172,4 +172,7 @@ export default {
   addVariable: '+ Variable hinzufügen',
   // Durchsuchbare Aufgabenauswahl
   taskPickPlaceholder: 'Aufgaben durchsuchen…',
+  computeFixFirst: 'Beheben Sie zuerst die markierten Zeilen: jede muss eine deklarierte Variable aus einem gültigen Ausdruck setzen.',
+  computeTargetUnknown: 'Ziel ist keine Datenobjekt-Variable, fügen Sie es im Datenobjekt hinzu.',
+  computeUnknownVars: 'Unbekannte Variable(n): {list}. Fügen Sie sie im Datenobjekt hinzu.',
 }

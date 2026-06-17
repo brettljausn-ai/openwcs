@@ -172,4 +172,7 @@ export default {
   addVariable: '+ Añadir variable',
   // Selector de tarea con búsqueda
   taskPickPlaceholder: 'Buscar tareas…',
+  computeFixFirst: 'Corrija primero las filas marcadas: cada una debe asignar una variable declarada desde una expresión válida.',
+  computeTargetUnknown: 'El destino no es una variable del objeto de datos, agréguela en Objeto de datos.',
+  computeUnknownVars: 'Variable(s) desconocida(s): {list}. Agréguelas en Objeto de datos.',
 }

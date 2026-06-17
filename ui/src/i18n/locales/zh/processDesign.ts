@@ -172,4 +172,7 @@ export default {
   addVariable: '+ 添加变量',
   // 可搜索的任务选择器
   taskPickPlaceholder: '搜索任务…',
+  computeFixFirst: '请先修正高亮的行：每行必须用有效表达式给已声明的变量赋值。',
+  computeTargetUnknown: '目标不是数据对象变量，请在数据对象中添加。',
+  computeUnknownVars: '未知变量：{list}。请在数据对象中添加。',
 }
