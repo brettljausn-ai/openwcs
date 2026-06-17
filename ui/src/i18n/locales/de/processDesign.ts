@@ -102,6 +102,8 @@ export default {
   verifyStep3: 'Wenn nicht gefunden',
   verifyStep1Guide: 'Wählen Sie, was der Bediener hier scannt. Dies bestimmt, welche Details aufgelöst und gespeichert werden können.',
   verifyStep2Guide: 'Diese werden für spätere Schritte in Ihr Datenobjekt geschrieben. Belassen Sie ein Feld auf "nicht speichern", um es zu überspringen.',
+  verifyStoreWholeObject: '{label}: ganzes Objekt speichern',
+  verifyObjectHint: 'Speichern Sie das ganze Objekt und/oder wählen Sie unten einzelne Eigenschaften aus.',
   verifyStep3Guide: 'Wählen Sie, was passiert, wenn der gescannte Wert nicht aufgelöst werden kann.',
   verifyKindHelp_barcode: 'Der Bediener scannt einen Produkt-Barcode. Die Mengeneinheit wird durch den Barcode festgelegt.',
   verifyKindHelp_sku: 'Der Bediener scannt oder tippt eine Artikelnummer, die gegen Ihren Artikelstamm aufgelöst wird.',

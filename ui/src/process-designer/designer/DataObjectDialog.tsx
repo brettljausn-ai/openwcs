@@ -10,7 +10,7 @@ import { useEffect } from 'react'
 import { useT } from '../../i18n/useT'
 import type { DataVar, VarType } from '../model'
 
-const VAR_TYPES: VarType[] = ['string', 'number', 'boolean', 'date', 'sku', 'location', 'hu']
+const VAR_TYPES: VarType[] = ['string', 'number', 'boolean', 'date', 'sku', 'location', 'hu', 'object']
 
 interface Props {
   schema: DataVar[]

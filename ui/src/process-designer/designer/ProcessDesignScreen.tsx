@@ -461,14 +461,39 @@ export default function ProcessDesignScreen() {
       // Build a per-kind `fields` map (sample values) for every field the verify block stores, so the
       // simulate populates location purpose/type/status, SKU description/unit/category, etc. The
       // legacy top-level fields stay for older readers.
+      // A write key may be a scalar (`code`), an object whole key (`uom`), or an object sub-field
+      // path (`uom.factor`). Produce a plausible sample for each path, building nested objects so an
+      // object whole-key resolves to a populated object and a dotted path resolves to its leaf.
+      const sampleLeaf = (leaf: string): unknown =>
+        leaf === 'id' || leaf === 'skuId' || leaf === 'uomId' || leaf === 'locationId' ? `sim-${code || leaf}`
+        : leaf === 'code' ? (code || 'SAMPLE')
+        : leaf === 'name' || leaf === 'description' ? (code ? `Sample ${code}` : 'Sample')
+        : leaf === 'uomCode' ? 'EA'
+        : leaf === 'factor' ? 1
+        : leaf === 'baseUnit' ? true
+        : leaf === 'status' ? 'ACTIVE'
+        : `sim-${leaf}`
       const simFields: Record<string, unknown> = {}
       for (const key of Object.keys(verify.write ?? {})) {
-        simFields[key] =
-          key === 'id' ? `sim-${code || 'id'}`
-          : key === 'code' ? code
-          : key === 'name' ? (code ? `Sample ${code}` : 'Sample')
-          : key === 'uomCode' ? 'EA'
-          : `sim-${key}`
+        const segs = key.split('.')
+        if (segs.length === 1) {
+          // Scalar or whole-object key: if there is a sibling dotted path we will fill the object
+          // below; seed a generic object for a whole-object key, else a scalar leaf.
+          const isObject = Object.keys(verify.write ?? {}).some((k) => k.startsWith(`${key}.`))
+            || key === 'uom' || key === 'sku' || key === 'location'
+          if (isObject && typeof simFields[key] !== 'object') {
+            simFields[key] = { ...(typeof simFields[key] === 'object' ? simFields[key] : {}), code: code || 'SAMPLE' }
+          } else if (!(key in simFields)) {
+            simFields[key] = sampleLeaf(key)
+          }
+        } else {
+          const [root, sub] = segs
+          const obj = (typeof simFields[root] === 'object' && simFields[root] != null
+            ? simFields[root]
+            : {}) as Record<string, unknown>
+          obj[sub] = sampleLeaf(sub)
+          simFields[root] = obj
+        }
       }
       const data = applyVerifyWrites(baseData, verify, {
         found: true,
