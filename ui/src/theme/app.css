@@ -942,6 +942,12 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-menu-pop .btn { justify-content: flex-start; width: 100%; }
 .op-pd-status-badge { font-size: .75rem; padding: .2rem .5rem; border-radius: 6px; background: rgba(141,198,63,.14); color: var(--herbal-lime); font-weight: 600; }
 .op-pd-statusline { font-size: .85rem; color: var(--text-dim); }
+/* Definitions landing table */
+.op-pd-deftable-title { font-weight: 600; }
+.op-pd-deftable-status { font-size: .68rem; font-weight: 700; letter-spacing: .04em; padding: .1rem .4rem; border-radius: 5px; border: 1px solid var(--glass-border); color: var(--text-dim); }
+.op-pd-deftable-status.is-active { color: var(--herbal-lime); border-color: rgba(141,198,63,.5); background: rgba(141,198,63,.12); }
+.op-pd-deftable-status.is-draft { color: var(--warning); border-color: var(--warning); }
+.op-pd-deftable-status.is-archived { color: var(--text-faint); }
 
 .op-pd-grid { display: grid; grid-template-columns: 320px minmax(340px, 1fr) minmax(460px, 1.25fr); gap: .8rem; align-items: start; }
 @media (max-width: 1100px) { .op-pd-grid { grid-template-columns: 1fr; } }

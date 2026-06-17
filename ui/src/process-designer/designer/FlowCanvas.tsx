@@ -104,8 +104,8 @@ interface StepEdgeData extends Record<string, unknown> {
 }
 
 const NODE_W = 210
-const X_GAP = 280
-const Y_GAP = 130
+const X_GAP = 210
+const Y_GAP = 100
 
 // Auto-layout: a simple left-to-right layered layout. Depth (column) comes from the flow DFS order
 // (BFS distance from start); siblings at a depth stack vertically. Orphans go in a trailing column.
@@ -440,10 +440,11 @@ function InnerCanvas({
   }, [editable, def.steps, onChangeStep])
 
   // --- persist node position on drag stop --------------------------------------------------------
+  // Node position is pure layout (non-behavioural), so arranging the canvas is allowed even on a
+  // read-only version; it persists when the version is an editable draft.
   const onNodeDragStop = useCallback((_e: unknown, node: Node) => {
-    if (!editable) return
     onMoveStep(node.id, Math.round(node.position.x), Math.round(node.position.y))
-  }, [editable, onMoveStep])
+  }, [onMoveStep])
 
   // --- selection ---------------------------------------------------------------------------------
   const onNodeClick = useCallback((_e: unknown, node: Node) => { onSelect(node.id) }, [onSelect])
@@ -474,7 +475,7 @@ function InnerCanvas({
         onEdgesDelete={onEdgesDelete}
         onInit={setRfInstance}
         defaultEdgeOptions={{ type: 'step' }}
-        nodesDraggable={editable}
+        nodesDraggable={true}
         nodesConnectable={editable}
         elementsSelectable
         proOptions={{ hideAttribution: true }}
