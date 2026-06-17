@@ -394,12 +394,27 @@ export default function ProcessDesignScreen() {
         return
       }
       const code = value == null ? '' : String(value)
+      // Build a per-kind `fields` map (sample values) for every field the verify block stores, so the
+      // simulate populates location purpose/type/status, SKU description/unit/category, etc. The
+      // legacy top-level fields stay for older readers.
+      const simFields: Record<string, unknown> = {}
+      for (const key of Object.keys(verify.write ?? {})) {
+        simFields[key] =
+          key === 'id' ? `sim-${code || 'id'}`
+          : key === 'code' ? code
+          : key === 'name' ? (code ? `Sample ${code}` : 'Sample')
+          : key === 'uomCode' ? 'EA'
+          : `sim-${key}`
+      }
       const data = applyVerifyWrites(baseData, verify, {
+        found: true,
         id: `sim-${code || 'id'}`,
         code,
         name: code ? `Sample ${code}` : 'Sample',
         uomCode: 'EA',
         schemaCategory: 'SAMPLE',
+        detail: {},
+        fields: simFields,
       })
       setSimData(data)
       setSimStep(resolveLandingStep(def, nextStepId(step, data), data) ?? '')

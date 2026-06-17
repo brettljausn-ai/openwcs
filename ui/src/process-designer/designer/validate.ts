@@ -3,7 +3,7 @@
 // and malformed `when` expressions. Publish is blocked until this returns no errors.
 
 import { validateCondition } from '../condition'
-import { VERIFY_FIELDS, isScreenStep, isScriptStep, taskTypeById, type ProcessDefinition, type TaskTypeDef } from '../model'
+import { isScreenStep, isScriptStep, taskTypeById, type ProcessDefinition, type TaskTypeDef } from '../model'
 import { placeholderRefs } from '../placeholders'
 import { reachableSteps } from '../runtime/walker'
 
@@ -99,8 +99,7 @@ export function validateDefinition(def: ProcessDefinition, catalog?: TaskTypeDef
             issues.push({ level: 'error', stepId: id, message: `"${id}" verify go-to step "${ver.onNotFound.step}" does not exist.` })
           }
         }
-        for (const field of VERIFY_FIELDS) {
-          const target = ver.write?.[field]
+        for (const [field, target] of Object.entries(ver.write ?? {})) {
           if (target && !schemaNames.has(target)) {
             issues.push({ level: 'error', stepId: id, message: `"${id}" verify writes "${field}" to undeclared variable "${target}".` })
           }
