@@ -59,9 +59,9 @@
         <h2 data-i18n="hpd.h2">Drag screens, drop tasks, publish a process.</h2>
         <p data-i18n="hpd.p1">
           A process is a flow of handheld <strong>screens</strong> (what the operator sees) and
-          <strong>task steps</strong> (work the server performs). You design it visually, the preview
-          renders the real handheld, and the flow list draws the actual execution graph, branches and
-          loops included. When it validates, you publish it.
+          <strong>task steps</strong> (work the server performs). You design it visually on a node
+          canvas, the preview renders the real handheld, and the canvas draws the actual execution
+          graph, branches and loops included. When it validates, you publish it.
         </p>
       </div>
       <div class="grid grid-3">
@@ -73,7 +73,7 @@
         <div class="card">
           <div class="card-head"><div class="tag" data-i18n="hpd.tag2">Flow graph</div><span class="pill pill-built" data-i18n="hpd.pill3">Built</span></div>
           <h3 data-i18n="hpd.h6">See the real execution path</h3>
-          <p data-i18n="hpd.p3">The flow list renders the true execution graph, not just a list of steps: branches (when a condition is met, jump to a step) and detected loops are drawn out, so you can read the whole path before anyone runs it.</p>
+          <p data-i18n="hpd.p3">The node canvas renders the true execution graph, not just a list of steps: you draw the flow by linking nodes, branches (when a condition is met, jump to a step) and detected loops are drawn out, and a Tidy button auto-lays-out the graph, so you can read the whole path before anyone runs it.</p>
         </div>
         <div class="card">
           <div class="card-head"><div class="tag" data-i18n="hpd.tag3">Validate &amp; simulate</div><span class="pill pill-built" data-i18n="hpd.pill4">Built</span></div>
@@ -124,7 +124,7 @@
         <div class="card">
           <div class="card-head"><div class="tag" data-i18n="hpd.tag9">Scan verification</div><span class="pill pill-built" data-i18n="hpd.pill10">Built</span></div>
           <h3 data-i18n="hpd.h13">Confirm a scan against master data</h3>
-          <p data-i18n="hpd.p11">A scanned location, SKU or barcode is resolved against master data to confirm it exists and to pull its linked ids. A SKU code with several units of measure prompts the operator to choose one; a barcode pins the UoM directly. Not found re-prompts or routes.</p>
+          <p data-i18n="hpd.p11">A scanned location, SKU, barcode, order or ASN is resolved against master data (or order records) to confirm it exists and to pull its linked ids. A SKU code with several units of measure prompts the operator to choose one; a barcode pins the UoM directly. The resolved value can be stored whole or drilled to a single property. Not found re-prompts or routes.</p>
         </div>
       </div>
       <figure class="shot">
