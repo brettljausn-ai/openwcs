@@ -25,3 +25,8 @@ ui/dist/
 # Agent worktrees (isolated subagent checkouts)
 .claude/worktrees/
 .gradle-docker/
+
+# Local demo screenshot capture output (use tools/demo-screenshots.mjs to regenerate)
+.demo-screenshots/
+tools/node_modules/
+tools/package-lock.json

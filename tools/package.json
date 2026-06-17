@@ -1,0 +1,12 @@
+{
+  "name": "openwcs-tools",
+  "private": true,
+  "type": "module",
+  "description": "Maintenance tooling (not part of the build). Demo screenshot capture, etc.",
+  "scripts": {
+    "shots": "node demo-screenshots.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}
