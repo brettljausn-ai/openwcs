@@ -227,6 +227,20 @@ export default function ProcessDesignScreen() {
     setDirty(true)
   }, [])
 
+  // Tidy: overwrite every step's (designer-only) `ui` with a freshly computed auto-layout in one
+  // update. Layout is non-behavioural, so it persists with the model and needs no server change.
+  const layoutSteps = useCallback((positions: Record<string, { x: number; y: number }>) => {
+    setDef((d) => {
+      const steps: Record<string, Step> = {}
+      for (const [id, step] of Object.entries(d.steps)) {
+        const pos = positions[id]
+        steps[id] = pos ? { ...step, ui: { x: pos.x, y: pos.y } } : step
+      }
+      return { ...d, steps }
+    })
+    setDirty(true)
+  }, [])
+
   const addStep = useCallback((type: ScreenType | 'task' | 'compute') => {
     // Default a new Task step to the first NON-script curated task (the script type is opt-in via the
     // task-type picker / AI assist, gated by capabilities).
@@ -654,6 +668,7 @@ export default function ProcessDesignScreen() {
               onSetStart={(id) => patchDef({ start: id })}
               onDeleteStep={deleteStep}
               onMoveStep={moveStep}
+              onLayout={layoutSteps}
             />
           </Suspense>
 

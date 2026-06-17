@@ -53,7 +53,7 @@ export interface ChoiceOption {
  *  capabilities.verifyKinds; the picker is populated from the live list, this is only the type.
  *  `skuScan` resolves a scan as either a product BARCODE (UOM pinned, no prompt) or a SKU CODE (when
  *  the SKU has several UOMs the operator picks one at runtime). */
-export type VerifyKind = 'barcode' | 'sku' | 'location' | 'skuScan'
+export type VerifyKind = 'barcode' | 'sku' | 'location' | 'skuScan' | 'order' | 'asn'
 
 /** The resolved fields a successful /verify returns and that a Verify block may write into a
  *  data-object variable (so a later task that needs the UUID gets it from `id`, etc.). */

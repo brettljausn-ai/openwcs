@@ -27,6 +27,8 @@ const VERIFY_KIND_LABELS: Record<string, string> = {
   sku: 'SKU code',
   location: 'Location',
   skuScan: 'Scan SKU code or barcode',
+  order: 'Scan an order / picksheet',
+  asn: 'Scan an ASN',
 }
 
 /** Short per-kind guidance shown under the kind picker in step 1. */
@@ -35,6 +37,8 @@ const VERIFY_KIND_HELP: Record<string, string> = {
   sku: 'The operator scans or types a SKU code, resolved against your article master.',
   location: 'The operator scans or types a storage location, resolved against your location master.',
   skuScan: 'A barcode pins the unit of measure; a SKU code with several units prompts the operator to pick one.',
+  order: 'Resolves an order or picksheet barcode against order management (e.g. for picking).',
+  asn: 'Resolves an inbound ASN barcode against order management (e.g. for goods-in).',
 }
 
 interface Props {
