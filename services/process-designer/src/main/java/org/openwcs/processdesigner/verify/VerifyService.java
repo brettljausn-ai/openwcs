@@ -127,8 +127,16 @@ public class VerifyService {
         detail.put("attributeSchema", body.get("attributeSchema"));
         detail.put("matchedBarcode", body.get("matchedBarcode"));
 
+        // Authoritative per-kind field VALUES (keys must match the VerifyFields catalog for the kind).
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("id", id);
+        fields.put("code", code);
+        fields.put("name", name);
+        fields.put("uomCode", uomCode);
+        fields.put("schemaCategory", schemaCategory);
+
         return new VerifyResult(true, asBoolOrNull(body.get("ambiguous")),
-                id, code, name, uomCode, schemaCategory, matchedAs, uoms, needsUomChoice, detail);
+                id, code, name, uomCode, schemaCategory, matchedAs, uoms, needsUomChoice, detail, fields);
     }
 
     private VerifyResult normaliseLocation(Map<String, Object> body) {
@@ -136,12 +144,21 @@ public class VerifyService {
         String id = asString(location.get("locationId"));
         String code = asString(location.get("code"));
         Map<String, Object> detail = new HashMap<>(location);
-        return new VerifyResult(true, null, id, code, null, null, null, null, List.of(), false, detail);
+
+        // Location resolvable fields (keys must match the VerifyFields catalog for kind=location).
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("id", id);
+        fields.put("code", code);
+        fields.put("purpose", asString(location.get("purpose")));
+        fields.put("locationType", asString(location.get("locationType")));
+        fields.put("status", asString(location.get("status")));
+
+        return new VerifyResult(true, null, id, code, null, null, null, null, List.of(), false, detail, fields);
     }
 
     private static VerifyResult notFound(Map<String, Object> body) {
         return new VerifyResult(false, asBoolOrNull(body.get("ambiguous")),
-                null, null, null, null, null, null, List.of(), false, Map.of());
+                null, null, null, null, null, null, List.of(), false, Map.of(), Map.of());
     }
 
     /** Project the master-data UOM graph down to the {@code {code, baseUnit}} entries the picker needs. */

@@ -48,7 +48,26 @@ class AssistAndCapabilitiesDefaultTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.verifyKinds[2]").value("location"))
                 .andExpect(jsonPath("$.verifyKinds[3]").value("skuScan"))
                 .andExpect(jsonPath("$.verifyKinds",
-                        org.hamcrest.Matchers.hasItem("skuScan")));
+                        org.hamcrest.Matchers.hasItem("skuScan")))
+                // Per-kind resolvable-field catalog: location vs SKU resolve different attributes.
+                .andExpect(jsonPath("$.verifyFields.location").isArray())
+                .andExpect(jsonPath("$.verifyFields.location[*].key",
+                        org.hamcrest.Matchers.containsInAnyOrder(
+                                "id", "code", "purpose", "locationType", "status")))
+                .andExpect(jsonPath("$.verifyFields.location[0].key").value("id"))
+                .andExpect(jsonPath("$.verifyFields.location[0].label").value("Location ID"))
+                .andExpect(jsonPath("$.verifyFields.sku[*].key",
+                        org.hamcrest.Matchers.containsInAnyOrder(
+                                "id", "code", "name", "uomCode", "schemaCategory")))
+                .andExpect(jsonPath("$.verifyFields.sku[2].key").value("name"))
+                .andExpect(jsonPath("$.verifyFields.sku[2].label").value("Description"))
+                // barcode and skuScan share the SKU field set.
+                .andExpect(jsonPath("$.verifyFields.barcode[*].key",
+                        org.hamcrest.Matchers.containsInAnyOrder(
+                                "id", "code", "name", "uomCode", "schemaCategory")))
+                .andExpect(jsonPath("$.verifyFields.skuScan[*].key",
+                        org.hamcrest.Matchers.containsInAnyOrder(
+                                "id", "code", "name", "uomCode", "schemaCategory")));
 
         // SUPERVISOR can view (PROCESS_DESIGN_VIEW) but cannot author scripts.
         mvc.perform(get("/api/process-designer/capabilities").header("X-Auth-Roles", "SUPERVISOR"))

@@ -91,7 +91,55 @@ class VerifyProxyTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.uoms[0].code").value("EA"))
                 .andExpect(jsonPath("$.uoms[0].baseUnit").value(true))
                 .andExpect(jsonPath("$.detail.matchedBarcode.uomCode").value("EA"))
-                .andExpect(jsonPath("$.detail.uoms[0].code").value("EA"));
+                .andExpect(jsonPath("$.detail.uoms[0].code").value("EA"))
+                // The authoritative per-kind fields map carries the SKU-kind values; no location-only keys.
+                .andExpect(jsonPath("$.fields.id").value("sku-1"))
+                .andExpect(jsonPath("$.fields.code").value("SKU-001"))
+                .andExpect(jsonPath("$.fields.name").value("Widget"))
+                .andExpect(jsonPath("$.fields.uomCode").value("EA"))
+                .andExpect(jsonPath("$.fields.schemaCategory").value("HAZMAT"))
+                .andExpect(jsonPath("$.fields.purpose").doesNotExist())
+                .andExpect(jsonPath("$.fields.locationType").doesNotExist())
+                .andExpect(jsonPath("$.fields.status").doesNotExist());
+    }
+
+    @Test
+    void verifyLocationReturnsLocationFieldsAndNoSkuKeys() throws Exception {
+        // A location resolves a different attribute set than a SKU: purpose/locationType/status, no
+        // name/uomCode/schemaCategory.
+        String body = """
+            {
+              "found": true,
+              "location": { "locationId": "loc-9", "code": "A-01-02", "locationType": "SHELF",
+                            "purpose": "PICK", "status": "ACTIVE" }
+            }
+            """;
+        mockServerCustomizer.getServers().values().forEach(s ->
+                s.expect(ExpectedCount.manyTimes(), requestTo(Matchers.containsString(
+                                "/api/master-data/resolve/location")))
+                        .andExpect(method(HttpMethod.GET))
+                        .andExpect(header("X-Auth-User", "carol"))
+                        .andRespond(withSuccess(body, MediaType.APPLICATION_JSON)));
+
+        mvc.perform(post("/api/process-designer/verify")
+                        .header("X-Auth-Roles", OPERATOR)
+                        .header("X-Auth-User", "carol")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"warehouseId\":\"" + WAREHOUSE + "\",\"kind\":\"location\",\"code\":\"A-01-02\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.found").value(true))
+                .andExpect(jsonPath("$.id").value("loc-9"))
+                .andExpect(jsonPath("$.code").value("A-01-02"))
+                // Location-kind fields populated.
+                .andExpect(jsonPath("$.fields.id").value("loc-9"))
+                .andExpect(jsonPath("$.fields.code").value("A-01-02"))
+                .andExpect(jsonPath("$.fields.purpose").value("PICK"))
+                .andExpect(jsonPath("$.fields.locationType").value("SHELF"))
+                .andExpect(jsonPath("$.fields.status").value("ACTIVE"))
+                // No SKU-only keys leak into a location result.
+                .andExpect(jsonPath("$.fields.name").doesNotExist())
+                .andExpect(jsonPath("$.fields.uomCode").doesNotExist())
+                .andExpect(jsonPath("$.fields.schemaCategory").doesNotExist());
     }
 
     @Test
@@ -149,7 +197,14 @@ class VerifyProxyTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.id").value("sku-1"))
                 .andExpect(jsonPath("$.uomCode").value("CASE"))
                 .andExpect(jsonPath("$.needsUomChoice").value(false))
-                .andExpect(jsonPath("$.uoms.length()").value(2));
+                .andExpect(jsonPath("$.uoms.length()").value(2))
+                // skuScan resolves the SKU field set; name/uomCode/schemaCategory populated.
+                .andExpect(jsonPath("$.fields.id").value("sku-1"))
+                .andExpect(jsonPath("$.fields.code").value("SKU-001"))
+                .andExpect(jsonPath("$.fields.name").value("Widget"))
+                .andExpect(jsonPath("$.fields.uomCode").value("CASE"))
+                .andExpect(jsonPath("$.fields.schemaCategory").value("GENERAL"))
+                .andExpect(jsonPath("$.fields.purpose").doesNotExist());
     }
 
     @Test

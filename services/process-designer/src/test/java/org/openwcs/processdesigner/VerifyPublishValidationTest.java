@@ -90,6 +90,37 @@ class VerifyPublishValidationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void locationVerifyWriteOfSkuOnlyKeyFails422() throws Exception {
+        // uomCode is a SKU-kind field; it is NOT valid for kind=location -> publish fails 422.
+        String key = "verify-loc-bad-key";
+        createDraft(key);
+        putDraft(key, defWithVerify(key,
+                "\"verify\": { \"kind\": \"location\", \"write\": { \"uomCode\": \"skuId\" } }"));
+        mvc.perform(post("/api/process-designer/defs/" + key + "/1/publish")
+                        .header("X-Auth-Roles", EDITOR).header("X-Auth-User", "alice"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.problems").isArray())
+                .andExpect(jsonPath("$.problems", Matchers.hasItem(Matchers.allOf(
+                        Matchers.containsString("uomCode"),
+                        Matchers.containsString("not valid for kind"),
+                        Matchers.containsString("location")))));
+    }
+
+    @Test
+    void locationVerifyWriteOfValidKeyPublishesActive() throws Exception {
+        // purpose IS valid for kind=location and skuId is a declared variable -> publishes ACTIVE.
+        String key = "verify-loc-ok";
+        createDraft(key);
+        putDraft(key, defWithVerify(key,
+                "\"verify\": { \"kind\": \"location\", \"write\": { \"purpose\": \"skuId\" },"
+                + " \"onNotFound\": { \"mode\": \"goto\", \"step\": \"notFound\" } }"));
+        mvc.perform(post("/api/process-designer/defs/" + key + "/1/publish")
+                        .header("X-Auth-Roles", EDITOR).header("X-Auth-User", "alice"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
+
+    @Test
     void validVerifyPublishesActive() throws Exception {
         String key = "verify-ok";
         createDraft(key);

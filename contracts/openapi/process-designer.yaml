@@ -666,6 +666,32 @@ components:
           description: >
             The server-driven list of scan-verify kinds the screen "Verify" picker offers. A constant
             list so the designer does not hard-code it.
+        verifyFields:
+          type: object
+          description: >
+            The per-kind catalog of resolvable fields, keyed by verify kind. Each value is an ordered
+            list of {key, label}: the field keys a screen's verify.write may map (and that appear in
+            VerifyResult.fields) for that kind, with a short human label. A location resolves different
+            attributes than a SKU, so the sets differ per kind (location:
+            id/code/purpose/locationType/status; barcode/sku/skuScan: id/code/name/uomCode/schemaCategory).
+            Single source of truth so the designer and runtime agree.
+          additionalProperties:
+            type: array
+            items: { $ref: '#/components/schemas/VerifyField' }
+
+    VerifyField:
+      type: object
+      description: "A resolvable scan-verify field: a stable key and a short human label."
+      properties:
+        key:
+          type: string
+          description: >
+            "Stable field key, used as a verify.write key and as a key in VerifyResult.fields
+            (e.g. id, code, name, uomCode, schemaCategory, purpose, locationType, status)."
+        label:
+          type: string
+          description: "Short human label for the field (e.g. SKU code, Location type)."
+      required: [key, label]
 
     VerifyConfig:
       type: object
@@ -684,8 +710,10 @@ components:
           additionalProperties: { type: string }
           description: >
             "Map of resolved field -> data-object variable name to store on a found result. The key
-            must be one of: id, code, name, uomCode, schemaCategory; the value must be a declared
-            data-object variable (enforced at publish)."
+            must be a resolvable field FOR THE CHOSEN kind (see CapabilitiesView.verifyFields:
+            location -> id/code/purpose/locationType/status; barcode/sku/skuScan ->
+            id/code/name/uomCode/schemaCategory); the value must be a declared data-object variable.
+            Both rules are enforced at publish (an invalid key fails 422)."
         onNotFound:
           type: object
           description: "What to do when master-data returns found:false."
@@ -778,4 +806,14 @@ components:
           description: >
             "The full master-data graph for the kind: uoms, barcodes, attributeSchema, matchedBarcode
             for sku/barcode; the location object for location. Empty when not found."
-      required: [found, uoms, needsUomChoice, detail]
+        fields:
+          type: object
+          additionalProperties: true
+          description: >
+            "The authoritative per-kind resolvable-field VALUES, keyed by the field keys from
+            CapabilitiesView.verifyFields for the matched kind (location:
+            id/code/purpose/locationType/status; barcode/sku/skuScan:
+            id/code/name/uomCode/schemaCategory). This is the map the runtime reads to apply a screen's
+            verify.write; the top-level id/code/name/uomCode/schemaCategory stay for backward
+            compatibility. Empty when not found."
+      required: [found, uoms, needsUomChoice, detail, fields]

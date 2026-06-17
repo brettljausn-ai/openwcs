@@ -8,14 +8,14 @@
 // All inputs are controlled; no hooks beyond useState for the placeholder-target field, declared at
 // the top (Rules of Hooks).
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useT } from '../../i18n/useT'
 import { validateCondition } from '../condition'
 import {
   SCRIPT_TASK_TYPE,
-  VERIFY_FIELDS,
   isScriptStep,
   taskTypeById,
+  verifyFieldsForKind,
   type Capabilities,
   type ChoiceOption,
   type DataVar,
@@ -28,12 +28,12 @@ import {
   type Transition,
   type VarType,
   type VerifyConfig,
-  type VerifyField,
   type VerifyKind,
 } from '../model'
 import ScriptEditor from './ScriptEditor'
 import TaskAssist from './TaskAssist'
 import VarCombobox from './VarCombobox'
+import VerifyDialog from './VerifyDialog'
 
 interface Props {
   def: ProcessDefinition
@@ -257,6 +257,7 @@ function ScreenProps({
         <VerifyEditor
           verify={cfg.verify}
           kinds={capabilities.verifyKinds as VerifyKind[]}
+          capabilities={capabilities}
           vars={def.dataSchema}
           stepIds={stepIds.filter((s) => s !== id)}
           onChange={(verify) => setCfg({ verify })}
@@ -316,114 +317,88 @@ function SkipWhenField({ value, onChange }: { value: string; onChange: (v: strin
   )
 }
 
-/** First-class "Verify" editor for a text/number input screen: toggle it on, pick the kind, map the
- *  resolved fields into data-object variables (this is how the resolved UUID is captured), and choose
- *  what happens when the scan is not found (re-prompt or go to a step). Server is authoritative. */
+/** First-class "Verify" control for a text/number input screen. Decluttered: a compact toggle + a
+ *  one-line SUMMARY of the current config + an "Edit verification…" button that opens a guided,
+ *  step-by-step dialog (kind -> per-kind fields to store -> not-found behaviour). The big inline form
+ *  moved into VerifyDialog. Server is authoritative. */
 function VerifyEditor({
   verify,
   kinds,
+  capabilities,
   vars,
   stepIds,
   onChange,
 }: {
   verify?: VerifyConfig
   kinds: VerifyKind[]
+  capabilities: Capabilities
   vars: DataVar[]
   stepIds: string[]
   onChange: (v: VerifyConfig | undefined) => void
 }) {
   const t = useT('processDesign')
+  const [open, setOpen] = useState(false)
   const enabled = !!verify
   const v: VerifyConfig = verify ?? { kind: kinds[0] ?? 'barcode', onNotFound: { mode: 'reprompt' } }
-  const setV = (patch: Partial<VerifyConfig>) => onChange({ ...v, ...patch })
-  const setWrite = (field: VerifyField, varName: string) => {
-    const write = { ...(v.write ?? {}) }
-    if (varName) write[field] = varName
-    else delete write[field]
-    onChange({ ...v, write })
+
+  const toggle = (on: boolean) => {
+    if (on) {
+      onChange(v)
+      setOpen(true) // turning it on goes straight into the guided dialog
+    } else {
+      setOpen(false)
+      onChange(undefined)
+    }
   }
+
+  // One-line human summary, e.g. "Resolves as SKU; stores Description -> desc, Unit of measure ->
+  // uom; re-prompts if not found".
+  const summary = useMemo(() => {
+    const kindName = t(`verifyKind_${v.kind}`, verifyKindLabel(v.kind))
+    const fields = verifyFieldsForKind(v.kind, capabilities.verifyFields)
+    const labelOf = (key: string) => fields.find((f) => f.key === key)?.label ?? key
+    const stored = Object.entries(v.write ?? {})
+      .filter(([, target]) => !!target)
+      .map(([key, target]) => `${labelOf(key)} → ${target}`)
+    const storedText = stored.length
+      ? t('verifySummaryStores', 'stores {list}').replace('{list}', stored.join(', '))
+      : t('verifySummaryNoStore', 'stores nothing')
+    const notFound = v.onNotFound.mode === 'goto'
+      ? t('verifySummaryGoto', 'goes to {step} if not found').replace('{step}', v.onNotFound.step || '?')
+      : t('verifySummaryReprompt', 're-prompts if not found')
+    return t('verifySummary', 'Resolves as {kind}; {stored}; {notFound}')
+      .replace('{kind}', kindName)
+      .replace('{stored}', storedText)
+      .replace('{notFound}', notFound)
+  }, [v, capabilities.verifyFields, t])
 
   return (
     <fieldset className="op-pd-fieldset">
       <legend>{t('verify', 'Verify')}</legend>
       <label className="op-pd-toggle">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => onChange(e.target.checked ? v : undefined)}
-        />
+        <input type="checkbox" checked={enabled} onChange={(e) => toggle(e.target.checked)} />
         {t('verifyEnable', 'Verify the scanned value exists')}
       </label>
-      <p className="muted" style={{ fontSize: '.75rem', margin: '.2rem 0 .4rem' }}>
-        {t('verifyHint', 'Verification needs connectivity and runs on submit. Resolved ids can be written into variables for later steps.')}
-      </p>
 
       {enabled && (
-        <>
-          <Field label={t('verifyKind', 'Resolve as')}>
-            <select value={v.kind} onChange={(e) => setV({ kind: e.target.value as VerifyKind })}>
-              {kinds.map((k) => (
-                <option key={k} value={k}>{t(`verifyKind_${k}`, verifyKindLabel(k))}</option>
-              ))}
-            </select>
-          </Field>
+        <div className="op-pd-verify-summary">
+          <p className="muted op-pd-verify-summary-line">{summary}</p>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>
+            {t('verifyEdit', 'Edit verification…')}
+          </button>
+        </div>
+      )}
 
-          {v.kind === 'skuScan' && (
-            <p className="muted op-pd-wide" style={{ fontSize: '.75rem', margin: '0 0 .2rem' }}>
-              {t('verifySkuScanHelp', 'A barcode pins the unit of measure; a SKU code with several units prompts the operator to pick one. Map "uomCode" to a variable to store the chosen/resolved unit.')}
-            </p>
-          )}
-
-          <div className="op-pd-field">
-            <span className="op-pd-field-label">{t('verifyWrite', 'Store resolved values into variables')}</span>
-            {vars.length === 0 ? (
-              <p className="muted" style={{ fontSize: '.75rem', margin: 0 }}>{t('verifyNoVars', 'Add data-object variables below to store resolved ids.')}</p>
-            ) : (
-              VERIFY_FIELDS.map((field) => (
-                <div key={field} style={{ display: 'flex', gap: '.4rem', alignItems: 'center', marginBottom: '.3rem' }}>
-                  <code style={{ flex: '0 0 110px', fontSize: '.8rem' }}>{field}</code>
-                  <span aria-hidden="true">→</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <VarCombobox
-                      value={v.write?.[field] ?? ''}
-                      options={vars}
-                      placeholder={t('verifyDontStore', '(do not store)')}
-                      onChange={(name) => setWrite(field, name)}
-                    />
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <Field label={t('verifyOnNotFound', 'When not found')}>
-            <select
-              value={v.onNotFound.mode}
-              onChange={(e) =>
-                setV({
-                  onNotFound:
-                    e.target.value === 'goto'
-                      ? { mode: 'goto', step: v.onNotFound.step }
-                      : { mode: 'reprompt' },
-                })
-              }
-            >
-              <option value="reprompt">{t('verifyReprompt', 'Re-prompt the scan')}</option>
-              <option value="goto">{t('verifyGoto', 'Go to step')}</option>
-            </select>
-          </Field>
-          {v.onNotFound.mode === 'goto' && (
-            <Field label={t('verifyGotoStep', 'Go to step')}>
-              <select
-                value={v.onNotFound.step ?? ''}
-                onChange={(e) => setV({ onNotFound: { mode: 'goto', step: e.target.value || undefined } })}
-              >
-                <option value="">{t('verifyPickStep', '(pick a step)')}</option>
-                {stepIds.map((s) => (<option key={s} value={s}>{s}</option>))}
-              </select>
-            </Field>
-          )}
-        </>
+      {open && enabled && (
+        <VerifyDialog
+          verify={v}
+          kinds={kinds}
+          capabilities={capabilities}
+          vars={vars}
+          stepIds={stepIds}
+          onCancel={() => setOpen(false)}
+          onDone={(next) => { onChange(next); setOpen(false) }}
+        />
       )}
     </fieldset>
   )

@@ -28,6 +28,11 @@ import java.util.Map;
  *       its UOM, a single-UOM SKU auto-picks, and the plain {@code sku} kind never prompts.</li>
  *   <li>{@code detail} — the full master-data graph for the kind (uoms/barcodes/attributeSchema/
  *       matchedBarcode for sku, the location object for location). Empty map when not found.</li>
+ *   <li>{@code fields} — the authoritative per-kind resolvable-field VALUES, keyed by the field keys
+ *       in {@code VerifyFields} for the matched kind (sku-like: id/code/name/uomCode/schemaCategory;
+ *       location: id/code/purpose/locationType/status). This is the map the runtime reads to apply a
+ *       screen's {@code verify.write}; the top-level id/code/name/uomCode/schemaCategory remain for
+ *       backward compatibility. Empty map when not found.</li>
  * </ul>
  */
 public record VerifyResult(
@@ -41,5 +46,6 @@ public record VerifyResult(
         String matchedAs,
         List<Map<String, Object>> uoms,
         boolean needsUomChoice,
-        Map<String, Object> detail) {
+        Map<String, Object> detail,
+        Map<String, Object> fields) {
 }
