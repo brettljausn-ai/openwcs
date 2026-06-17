@@ -33,6 +33,7 @@ import {
   type VerifyKind,
 } from '../model'
 import { createDef, duplicateDef, exportDef, getDef, importDef, listDefs, publishDef, updateDef } from '../api'
+import DataTable, { type Column } from '../../ui/DataTable'
 import { useCapabilities, useTasks } from '../useProcesses'
 import { hasErrors, validateDefinition, type ValidationIssue } from './validate'
 import VerifyDialog from './VerifyDialog'
@@ -132,6 +133,8 @@ export default function ProcessDesignScreen() {
   // The flow area can show the visual node-canvas (primary) or the structured list (fallback).
   const [view, setView] = useState<'canvas' | 'list'>('canvas')
   const [defs, setDefs] = useState<ProcessDefinition[]>([])
+  // Entry point: a table of existing processes. Selecting one (or "New process") opens the editor.
+  const [mode, setMode] = useState<'list' | 'editor'>('list')
   const [status, setStatus] = useState<string>('')
   const [issues, setIssues] = useState<ValidationIssue[] | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -164,6 +167,29 @@ export default function ProcessDesignScreen() {
   )
   // Only a DRAFT version is editable; viewing an ACTIVE/ARCHIVED version is read-only.
   const editable = (def.status ?? 'DRAFT') === 'DRAFT'
+
+  // One row per process key for the landing table: the ACTIVE version (or the latest) represents it.
+  const processRows = useMemo(() => {
+    const byKey = new Map<string, ProcessDefinition[]>()
+    for (const d of defs) {
+      const arr = byKey.get(d.processKey) ?? []
+      arr.push(d)
+      byKey.set(d.processKey, arr)
+    }
+    return [...byKey.entries()].map(([key, versions]) => {
+      const sorted = versions.slice().sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
+      const rep = sorted.find((v) => v.status === 'ACTIVE') ?? sorted[0]
+      return {
+        key,
+        title: rep?.title || key,
+        icon: rep?.icon ?? '',
+        status: rep?.status ?? 'DRAFT',
+        openVersion: rep?.version ?? 1,
+        versionCount: versions.length,
+      }
+    }).sort((a, b) => a.title.localeCompare(b.title))
+  }, [defs])
+  type ProcessRow = (typeof processRows)[number]
 
   const loadList = useCallback(async () => {
     try {
@@ -497,11 +523,54 @@ export default function ProcessDesignScreen() {
     setDialog(null)
   }
 
+  // --- landing: a table of existing processes (the entry point to the designer) ---------------------
+  if (mode === 'list') {
+    const statusBadge = (s: string) => (
+      <span className={`op-pd-deftable-status is-${s.toLowerCase()}`}>{s}</span>
+    )
+    const columns: Column<ProcessRow>[] = [
+      { key: 'title', header: t('colProcess', 'Process'), sortValue: (r) => r.title,
+        render: (r) => <span className="op-pd-deftable-title">{r.icon ? `${r.icon} ` : ''}{r.title}</span> },
+      { key: 'key', header: t('colKey', 'Key'), sortValue: (r) => r.key,
+        render: (r) => <code className="muted">{r.key}</code> },
+      { key: 'status', header: t('colStatus', 'Status'), sortValue: (r) => r.status, render: (r) => statusBadge(r.status) },
+      { key: 'version', header: t('colVersion', 'Version'), align: 'right', sortValue: (r) => r.openVersion, render: (r) => <>v{r.openVersion}</> },
+      { key: 'versions', header: t('colVersions', 'Versions'), align: 'right', sortValue: (r) => r.versionCount, render: (r) => <span className="muted">{r.versionCount}</span> },
+    ]
+    return (
+      <div className="app-content op-pd-designer">
+        <div className="op-pd-toolbar">
+          <h2 style={{ margin: 0 }}>{t('processesTitle', 'Processes')}</h2>
+          <span style={{ flex: 1 }} />
+          <button className="btn btn-ghost btn-sm" onClick={() => void loadList()}>{t('refresh', 'Refresh')}</button>
+          <button className="btn btn-primary btn-sm" onClick={() => { newDraft(); setMode('editor') }}>+ {t('newProcess', 'New process')}</button>
+        </div>
+        <p className="muted" style={{ fontSize: '.85rem', margin: '0 0 .6rem' }}>
+          {t('processesIntro', 'Select a process to open it in the designer, or create a new one.')}
+        </p>
+        <DataTable
+          columns={columns}
+          rows={processRows}
+          rowKey={(r) => r.key}
+          search={(r) => `${r.title} ${r.key} ${r.status}`}
+          searchPlaceholder={t('searchProcesses', 'Search processes…')}
+          initialSort={{ key: 'title', dir: 'asc' }}
+          onRowClick={(r) => { void loadDef(r.key, r.openVersion); setMode('editor') }}
+          empty={t('noDefs', 'No definitions yet.')}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="app-content op-pd-designer">
       {/* Toolbar: identity on the left, a compact action group on the right (secondary actions
           tucked into a "More" menu so the bar is not a wall of buttons). */}
       <div className="op-pd-toolbar">
+        <button className="btn btn-ghost btn-sm" onClick={() => {
+          if (dirty && !window.confirm(t('discardChanges', 'Discard unsaved changes and return to the process list?'))) return
+          setMode('list'); void loadList()
+        }}>← {t('processesTitle', 'Processes')}</button>
         <div className="op-pd-toolbar-id">
           <input className="op-pd-title" value={def.title} onChange={(e) => patchDef({ title: e.target.value })} placeholder={t('title', 'Title')} />
           <input className="op-pd-key" value={def.processKey} onChange={(e) => patchDef({ processKey: e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase() })} placeholder="process-key" title={t('processKey', 'Process key')} />
@@ -676,18 +745,6 @@ export default function ProcessDesignScreen() {
             </div>
           )}
 
-          <details className="op-pd-defs">
-            <summary>{t('existing', 'Existing definitions')}</summary>
-            <button className="btn btn-ghost btn-sm" onClick={() => void loadList()} style={{ margin: '.4rem 0' }}>{t('refresh', 'Refresh')}</button>
-            <ul>
-              {defs.map((d) => (
-                <li key={`${d.processKey}-${d.version}`}>
-                  <button className="op-pd-link" onClick={() => void loadDef(d.processKey, d.version ?? 1)}>{d.processKey} v{d.version} <span className="muted">{d.status}</span></button>
-                </li>
-              ))}
-              {defs.length === 0 && <li className="muted">{t('noDefs', 'No definitions yet.')}</li>}
-            </ul>
-          </details>
         </div>
 
         {/* CENTRE: live handheld preview in a phone frame */}
