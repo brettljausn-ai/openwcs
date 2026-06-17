@@ -36,10 +36,19 @@ public class InventoryAdjustTask implements ProcessTask {
     @Override
     public TaskSpec spec() {
         return new TaskSpec("inventory.adjust", "Adjust stock",
-                java.util.List.of(TaskSpec.req("warehouseId"), TaskSpec.req("skuId"),
-                        TaskSpec.req("qtyDelta"), TaskSpec.opt("locationId"), TaskSpec.opt("huId"),
-                        TaskSpec.opt("batchId"), TaskSpec.opt("status"), TaskSpec.opt("uomCode")),
-                java.util.List.of(TaskSpec.out("eventId")));
+                "Post an internal StockAdjusted correction directly to the transaction log "
+                        + "(use host.confirm when the adjustment must also flow to the host).",
+                java.util.List.of(
+                        TaskSpec.req("warehouseId", "The warehouse the adjustment applies to"),
+                        TaskSpec.req("skuId", "The SKU being adjusted (also the event stream key)"),
+                        TaskSpec.req("qtyDelta", "The signed quantity delta to apply (positive or negative)"),
+                        TaskSpec.opt("locationId", "Optional: the location the adjustment applies to"),
+                        TaskSpec.opt("huId", "Optional: the handling unit the adjustment applies to"),
+                        TaskSpec.opt("batchId", "Optional: the batch / lot the adjustment applies to"),
+                        TaskSpec.opt("status", "Optional: the stock status, e.g. AVAILABLE or BLOCKED"),
+                        TaskSpec.opt("uomCode", "Optional: the unit-of-measure code for the quantity")),
+                java.util.List.of(
+                        TaskSpec.out("eventId", "The id of the appended StockAdjusted event")));
     }
 
     @Override

@@ -33,10 +33,19 @@ public class HostConfirmTask implements ProcessTask {
     @Override
     public TaskSpec spec() {
         return new TaskSpec("host.confirm", "Confirm to host",
-                java.util.List.of(TaskSpec.req("warehouseId"), TaskSpec.req("skuId"),
-                        TaskSpec.req("qtyDelta"), TaskSpec.opt("locationId"), TaskSpec.opt("uomCode"),
-                        TaskSpec.opt("status"), TaskSpec.opt("reason")),
-                java.util.List.of(TaskSpec.out("eventId"), TaskSpec.out("position")));
+                "Post a stock adjustment back to the canonical Host API so the correction also flows "
+                        + "to the host (use inventory.adjust for an internal-only correction).",
+                java.util.List.of(
+                        TaskSpec.req("warehouseId", "The warehouse the adjustment applies to"),
+                        TaskSpec.req("skuId", "The SKU being adjusted"),
+                        TaskSpec.req("qtyDelta", "The signed quantity delta to apply (positive or negative)"),
+                        TaskSpec.opt("locationId", "Optional: the location the adjustment applies to"),
+                        TaskSpec.opt("uomCode", "Optional: the unit-of-measure code for the quantity"),
+                        TaskSpec.opt("status", "Optional: the stock status, e.g. AVAILABLE or BLOCKED"),
+                        TaskSpec.opt("reason", "Optional: a free-text reason for the adjustment")),
+                java.util.List.of(
+                        TaskSpec.out("eventId", "The id of the appended host event"),
+                        TaskSpec.out("position", "The event's position in the host stream")));
     }
 
     @Override

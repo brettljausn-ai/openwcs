@@ -1,9 +1,9 @@
-// Right pane of the designer: edit the selected step's properties, and (below) the data-object
-// schema. Every change calls back up so the centre live-preview updates instantly. For screen steps:
-// header/detail with a placeholder picker, writeTo dropdown, validation builder, scan-binding toggle,
-// options (choice), confirm/checkbox (acknowledge), and the transition editor (questions/branching).
-// For task steps: a task-type picker + input/output variable mapping. The data-object panel
-// declares/renames typed variables.
+// Right pane of the designer: edit the SELECTED step's properties. Every change calls back up so the
+// centre live-preview updates instantly. For screen steps: header/detail with a placeholder picker,
+// writeTo dropdown, validation builder, scan-binding toggle, options (choice), confirm/checkbox
+// (acknowledge), and the transition editor (questions/branching). For work steps: a one-line summary +
+// the common flow fields (the kind-specific config is edited in TaskDialog). The data-object editor
+// now lives in its own dialog (DataObjectDialog), opened from the "Data object" button in the left pane.
 //
 // All inputs are controlled; no hooks beyond useState for the placeholder-target field, declared at
 // the top (Rules of Hooks).
@@ -25,7 +25,6 @@ import {
   type TaskStep,
   type TaskTypeDef,
   type Transition,
-  type VarType,
 } from '../model'
 import VarCombobox from './VarCombobox'
 
@@ -37,14 +36,11 @@ interface Props {
   /** Phase 3 server capabilities: gate the script-step editor and the AI assist UI. */
   capabilities: Capabilities
   onChangeStep: (id: string, step: Step) => void
-  onChangeSchema: (schema: DataVar[]) => void
   /** Rename a step id (updates references). */
   onRenameStep: (oldId: string, newId: string) => void
 }
 
-const VAR_TYPES: VarType[] = ['string', 'number', 'boolean', 'date', 'sku', 'location', 'hu']
-
-export default function PropertiesPanel({ def, selectedId, tasks, capabilities, onChangeStep, onChangeSchema, onRenameStep }: Props) {
+export default function PropertiesPanel({ def, selectedId, tasks, capabilities, onChangeStep, onRenameStep }: Props) {
   const step = selectedId ? def.steps[selectedId] : undefined
   const stepIds = Object.keys(def.steps)
 
@@ -76,8 +72,6 @@ export default function PropertiesPanel({ def, selectedId, tasks, capabilities, 
       ) : (
         <p className="muted" style={{ padding: '1rem' }}>Select a step to edit its properties.</p>
       )}
-
-      <DataObjectPanel schema={def.dataSchema} onChange={onChangeSchema} />
     </aside>
   )
 }
@@ -399,22 +393,3 @@ function StepWorkProps({
   )
 }
 
-// --- data-object panel ---------------------------------------------------------------------------
-
-function DataObjectPanel({ schema, onChange }: { schema: DataVar[]; onChange: (s: DataVar[]) => void }) {
-  return (
-    <fieldset className="op-pd-fieldset op-pd-dataobj">
-      <legend>Data object</legend>
-      {schema.map((v, i) => (
-        <div key={i} className="op-pd-dataobj-row">
-          <input className="op-pd-dataobj-name" value={v.name} placeholder="name" onChange={(e) => onChange(schema.map((x, j) => (j === i ? { ...x, name: e.target.value.replace(/[^A-Za-z0-9_]/g, '') } : x)))} />
-          <select className="op-pd-dataobj-type" value={v.type} onChange={(e) => onChange(schema.map((x, j) => (j === i ? { ...x, type: e.target.value as VarType } : x)))}>
-            {VAR_TYPES.map((t) => (<option key={t} value={t}>{t}</option>))}
-          </select>
-          <button type="button" className="btn btn-ghost btn-sm op-pd-dataobj-del" onClick={() => onChange(schema.filter((_, j) => j !== i))}>✕</button>
-        </div>
-      ))}
-      <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange([...schema, { name: `var${schema.length + 1}`, type: 'string' }])}>+ Add variable</button>
-    </fieldset>
-  )
-}

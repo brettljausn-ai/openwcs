@@ -48,7 +48,10 @@ public class ScriptTask implements ProcessTask {
     public TaskSpec spec() {
         // No declared inputs/outputs: the snippet reads the whole `data` object and returns named
         // outputs declared per-step in config, so the generic input/output mapping does not apply.
-        return new TaskSpec("script", "Sandboxed script", List.of(), List.of());
+        return new TaskSpec("script", "Sandboxed script",
+                "Run a designer-authored JavaScript snippet in a locked-down sandbox; its inputs and "
+                        + "outputs are declared per-step in the step's config, not on this catalog entry.",
+                List.of(), List.of());
     }
 
     @Override

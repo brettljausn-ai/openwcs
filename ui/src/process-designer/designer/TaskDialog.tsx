@@ -18,7 +18,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useT } from '../../i18n/useT'
-import { validateExpression } from '../condition'
+import { validateExpression, unknownExpressionVars } from '../condition'
 import {
   SCRIPT_TASK_TYPE,
   isComputeStep,
@@ -35,6 +35,7 @@ import {
 } from '../model'
 import ScriptEditor from './ScriptEditor'
 import TaskAssist from './TaskAssist'
+import TaskCombobox from './TaskCombobox'
 import VarCombobox from './VarCombobox'
 
 /** The three step kinds the dialog offers (gated below by capabilities). */
@@ -79,6 +80,21 @@ export default function TaskDialog({ step, tasks, capabilities, vars, onDone, on
 
   const scriptAllowed = capabilities.scriptingEnabled && capabilities.canAuthorScript
   const kind = kindOf(draft)
+
+  // Safeguard step 2: a compute step may only be committed when every row targets a declared
+  // variable and its expression parses with only declared variables. Done is disabled otherwise.
+  const varNames = useMemo(() => vars.map((v) => v.name), [vars])
+  const computeValid = useMemo(() => {
+    if (kind !== 'compute') return true
+    const rows = (draft as ComputeStep).set ?? []
+    if (rows.length === 0) return false
+    return rows.every((r) => {
+      const e = (r.expr ?? '').trim()
+      return !!r.var && varNames.includes(r.var) && !!e
+        && validateExpression(e) == null && unknownExpressionVars(e, varNames).length === 0
+    })
+  }, [kind, draft, varNames])
+  const doneDisabled = kind === 'compute' && !computeValid
 
   // Defaults for the curated server-action picker (the first NON-script catalog task).
   const defaultTask = useMemo(
@@ -187,7 +203,15 @@ export default function TaskDialog({ step, tasks, capabilities, vars, onDone, on
           </div>
           <div style={{ display: 'flex', gap: '.5rem' }}>
             <button type="button" className="btn btn-ghost" onClick={onCancel}>{t('cancel', 'Cancel')}</button>
-            <button type="button" className="btn btn-primary" onClick={() => onDone(draft)}>{t('done', 'Done')}</button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={doneDisabled}
+              title={doneDisabled ? t('computeFixFirst', 'Fix the highlighted rows first: each must set a declared variable from a valid expression.') : undefined}
+              onClick={() => onDone(draft)}
+            >
+              {t('done', 'Done')}
+            </button>
           </div>
         </div>
       </div>
@@ -284,13 +308,10 @@ function ServerActionStep({
       <h3 className="op-pd-verify-h">{t('kindTask', 'Run a server action')}</h3>
       <label className="op-pd-field">
         <span className="op-pd-field-label">{t('taskType', 'Task type')}</span>
-        <select value={draft.task} onChange={(e) => changeTaskType(e.target.value)}>
-          {!taskDef && <option value={draft.task}>{draft.task}</option>}
-          {pickableTasks.map((tt) => (<option key={tt.id} value={tt.id}>{tt.label}</option>))}
-        </select>
+        <TaskCombobox value={draft.task} options={pickableTasks} onChange={changeTaskType} placeholder={t('taskPickPlaceholder', 'Search tasks…')} />
       </label>
       {taskDef?.description && (
-        <p className="muted" style={{ fontSize: '.78rem', margin: '.2rem 0 .6rem' }}>{taskDef.description}</p>
+        <p className="op-pd-task-desc" style={{ margin: '.4rem 0 .6rem' }}>{taskDef.description}</p>
       )}
 
       {taskDef && taskDef.inputs.length > 0 && (
@@ -299,6 +320,7 @@ function ServerActionStep({
           {taskDef.inputs.map((inp) => (
             <label key={inp.name} className="op-pd-field">
               <span className="op-pd-field-label">{inp.required ? `${inp.name} *` : inp.name}</span>
+              {inp.description && <span className="op-pd-io-hint muted">{inp.description}</span>}
               <VarCombobox value={draft.input?.[inp.name] ?? ''} options={vars} onChange={(name) => setInput(inp.name, name)} />
             </label>
           ))}
@@ -311,6 +333,7 @@ function ServerActionStep({
           {taskDef.outputs.map((out) => (
             <label key={out.name} className="op-pd-field">
               <span className="op-pd-field-label">{out.name}</span>
+              {out.description && <span className="op-pd-io-hint muted">{out.description}</span>}
               <VarCombobox value={draft.output?.[out.name] ?? ''} options={vars} onChange={(name) => setOutput(out.name, name)} />
             </label>
           ))}
@@ -341,6 +364,7 @@ function ComputeStepConfig({
 }) {
   const t = useT('processDesign')
   const rows = draft.set ?? []
+  const varNames = vars.map((v) => v.name)
   const setRows = (next: ComputeAssignment[]) => onChange({ ...draft, set: next })
   const update = (i: number, patch: Partial<ComputeAssignment>) =>
     setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
@@ -373,6 +397,9 @@ function ComputeStepConfig({
         {rows.map((row, i) => {
           const expr = row.expr ?? ''
           const err = expr.trim() ? validateExpression(expr) : null
+          // Variables must actually exist in the data object (both the target and any referenced).
+          const targetErr = row.var && !varNames.includes(row.var)
+          const unknownVars = !err && expr.trim() ? unknownExpressionVars(expr, varNames) : []
           return (
             <div key={i} className="op-pd-compute-row">
               <div className="op-pd-compute-row-main">
@@ -395,7 +422,9 @@ function ComputeStepConfig({
                   <button type="button" className="op-pd-mini" title={t('delete', 'Delete')} onClick={() => remove(i)}>✕</button>
                 </div>
               </div>
+              {targetErr && <span className="op-pd-issue-err" style={{ fontSize: '.74rem' }}>⚠ {t('computeTargetUnknown', 'Target is not a data-object variable, add it in Data object.')}</span>}
               {err && <span className="op-pd-issue-err" style={{ fontSize: '.74rem' }}>⚠ {err}</span>}
+              {unknownVars.length > 0 && <span className="op-pd-issue-err" style={{ fontSize: '.74rem' }}>⚠ {t('computeUnknownVars', 'Unknown variable(s): {list}. Add them in Data object.').replace('{list}', unknownVars.join(', '))}</span>}
             </div>
           )
         })}

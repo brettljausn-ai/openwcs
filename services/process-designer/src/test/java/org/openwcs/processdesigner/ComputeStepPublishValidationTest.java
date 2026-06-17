@@ -99,6 +99,20 @@ class ComputeStepPublishValidationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void computeExprReferencingUndeclaredVarFails422() throws Exception {
+        String key = "compute-bad-expr-var";
+        createDraft(key);
+        putDraft(key, defWithComputeSet(key,
+                "[ { \"var\": \"match\", \"expr\": \"qty == mysteryVar\" } ]"));
+        mvc.perform(post("/api/process-designer/defs/" + key + "/1/publish")
+                        .header("X-Auth-Roles", EDITOR).header("X-Auth-User", "alice"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.problems", Matchers.hasItem(Matchers.allOf(
+                        Matchers.containsString("mysteryVar"),
+                        Matchers.containsString("not a declared data-object variable")))));
+    }
+
+    @Test
     void computeMalformedExprFails422() throws Exception {
         String key = "compute-bad-expr";
         createDraft(key);

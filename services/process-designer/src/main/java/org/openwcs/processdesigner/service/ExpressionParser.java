@@ -52,6 +52,21 @@ final class ExpressionParser {
         }
     }
 
+    /** The data-object variables an expression references (identifiers that are not keywords or
+     *  literals). Used to check every referenced variable is actually declared. */
+    static java.util.Set<String> identifiers(String expr) {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        if (expr == null || expr.isBlank()) {
+            return out;
+        }
+        for (String t : tokenize(expr)) {
+            if (isIdentifier(t) && !isKeyword(t) && !isLiteral(t)) {
+                out.add(t);
+            }
+        }
+        return out;
+    }
+
     private void parseOr() {
         parseAnd();
         while ("or".equals(peek())) {

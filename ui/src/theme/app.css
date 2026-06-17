@@ -1074,6 +1074,22 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-dataobj-row .op-pd-dataobj-type { flex: 0 0 130px; width: 130px; }
 .op-pd-dataobj-row .op-pd-dataobj-del { flex: 0 0 auto; padding-left: .5rem; padding-right: .5rem; }
 
+/* "Data object" button in the left flow pane (opens the data-object dialog). */
+.op-pd-dataobj-bar { display: flex; }
+.op-pd-dataobj-btn { width: 100%; justify-content: flex-start; }
+
+/* Task description + per-input/output hints shown in the task dialog. */
+.op-pd-task-desc { font-size: .82rem; color: var(--text); }
+.op-pd-io-hint { font-size: .72rem; color: var(--text-dim); margin-bottom: .15rem; }
+
+/* TaskCombobox: rows show the label + a dim secondary line (type id and/or description). */
+.op-pd-taskcombo-list { max-height: 280px; }
+.op-pd-taskcombo-opt { align-items: flex-start; }
+.op-pd-taskcombo-main { display: flex; flex-direction: column; gap: .1rem; min-width: 0; flex: 1 1 auto; }
+.op-pd-taskcombo-secondary { font-size: .72rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; }
+.op-pd-taskcombo-id { font-family: var(--font-mono); }
+.op-pd-taskcombo-desc { font-family: inherit; }
+
 /* VarCombobox: type-to-filter variable picker (replaces long <select> dropdowns). */
 .op-pd-combobox { position: relative; width: 100%; }
 .op-pd-combobox-control { position: relative; display: flex; align-items: center; }

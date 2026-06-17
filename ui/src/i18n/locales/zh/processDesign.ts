@@ -164,4 +164,15 @@ export default {
   verifyEditFlow: '编辑验证流程',
   verifyConfigured: '验证已启用',
   verifyRemove: '关闭验证',
+  // 数据对象对话框 + 按钮
+  dataObject: '数据对象',
+  dataObjectIntro: '流程读取和写入的类型化变量。',
+  dataObjectOpen: '编辑流程数据对象',
+  varName: '名称',
+  addVariable: '+ 添加变量',
+  // 可搜索的任务选择器
+  taskPickPlaceholder: '搜索任务…',
+  computeFixFirst: '请先修正高亮的行：每行必须用有效表达式给已声明的变量赋值。',
+  computeTargetUnknown: '目标不是数据对象变量，请在数据对象中添加。',
+  computeUnknownVars: '未知变量：{list}。请在数据对象中添加。',
 }

@@ -599,6 +599,9 @@ components:
           type: string
           description: "The task-type string used in a step's task field, e.g. inventory.move."
         label: { type: string }
+        description:
+          type: string
+          description: "A one-sentence explanation of what the task does and when to use it."
         inputs:
           type: array
           items:
@@ -606,12 +609,18 @@ components:
             properties:
               name: { type: string }
               required: { type: boolean }
+              description:
+                type: string
+                description: "What the process author should map into this input."
         outputs:
           type: array
           items:
             type: object
             properties:
               name: { type: string }
+              description:
+                type: string
+                description: "What the returned value means (merged back into the data object)."
 
     InstanceSummary:
       type: object

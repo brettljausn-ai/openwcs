@@ -164,4 +164,15 @@ export default {
   verifyEditFlow: 'Modifier le flux de vérification',
   verifyConfigured: 'Vérification activée',
   verifyRemove: 'Désactiver la vérification',
+  // Dialogue + bouton "Objet de données"
+  dataObject: 'Objet de données',
+  dataObjectIntro: 'Les variables typées que votre processus lit et écrit.',
+  dataObjectOpen: 'Modifier l’objet de données du processus',
+  varName: 'nom',
+  addVariable: '+ Ajouter une variable',
+  // Sélecteur de tâche avec recherche
+  taskPickPlaceholder: 'Rechercher des tâches…',
+  computeFixFirst: 'Corrigez d’abord les lignes signalées : chacune doit affecter une variable déclarée à partir d’une expression valide.',
+  computeTargetUnknown: 'La cible n’est pas une variable de l’objet de données, ajoutez-la dans Objet de données.',
+  computeUnknownVars: 'Variable(s) inconnue(s) : {list}. Ajoutez-les dans Objet de données.',
 }

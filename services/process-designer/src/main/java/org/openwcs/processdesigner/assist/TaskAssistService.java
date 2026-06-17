@@ -79,6 +79,8 @@ public class TaskAssistService {
                 .map(i -> i.name() + (i.required() ? "*" : ""))
                 .collect(Collectors.joining(", "));
         String outputs = s.outputs().stream().map(TaskSpec.Output::name).collect(Collectors.joining(", "));
-        return "- " + s.type() + " (\"" + s.label() + "\") inputs: [" + inputs + "] outputs: [" + outputs + "]";
+        String desc = s.description() == null || s.description().isBlank() ? "" : ": " + s.description();
+        return "- " + s.type() + " (\"" + s.label() + "\")" + desc
+                + " inputs: [" + inputs + "] outputs: [" + outputs + "]";
     }
 }

@@ -38,9 +38,14 @@ public class TxLogPostTask implements ProcessTask {
     public TaskSpec spec() {
         // streamId + eventType are required; any other mapped input becomes the event payload.
         return new TaskSpec("txlog.post", "Post stock transaction",
-                java.util.List.of(TaskSpec.req("streamId"), TaskSpec.req("eventType"),
-                        TaskSpec.opt("actor")),
-                java.util.List.of(TaskSpec.out("eventId")));
+                "Append a stock transaction / event to the transaction log; any extra mapped inputs "
+                        + "are carried as the event payload (e.g. to record a count as a StockCounted event).",
+                java.util.List.of(
+                        TaskSpec.req("streamId", "The event-stream key to append to (e.g. the SKU or HU id)"),
+                        TaskSpec.req("eventType", "The event type to record, e.g. StockCounted"),
+                        TaskSpec.opt("actor", "Optional: the actor to attribute; defaults to the forwarded operator")),
+                java.util.List.of(
+                        TaskSpec.out("eventId", "The id of the appended event")));
     }
 
     @Override

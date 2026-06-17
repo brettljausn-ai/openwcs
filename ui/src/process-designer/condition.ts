@@ -286,6 +286,29 @@ export function validateExpression(expr: string): string | null {
   }
 }
 
+/** The data-object variable names an expression references (root of any dotted path). Empty when the
+ *  expression does not tokenize. Used to check that every referenced variable is actually declared. */
+export function expressionVars(expr: string): string[] {
+  try {
+    const out = new Set<string>()
+    for (const tk of tokenize(expr)) {
+      if (tk.t === 'ident' && typeof tk.v === 'string') out.add(tk.v.split('.')[0])
+    }
+    return [...out]
+  } catch {
+    return []
+  }
+}
+
+/** Referenced variables that are NOT in the declared data object (so the designer can flag typos /
+ *  variables that need adding). Returns [] when the expression does not parse (a syntax error is
+ *  reported separately by validateExpression). */
+export function unknownExpressionVars(expr: string, known: string[]): string[] {
+  if (validateExpression(expr) != null) return []
+  const declared = new Set(known)
+  return expressionVars(expr).filter((v) => !declared.has(v))
+}
+
 /** Parse + evaluate a `when` against the data object, coercing the result to a boolean. Throws on a
  *  parse error. Delegates to the shared expression evaluator (so `qty + 1 > 0` is a valid condition). */
 export function evaluateCondition(expr: string, data: Record<string, unknown>): boolean {

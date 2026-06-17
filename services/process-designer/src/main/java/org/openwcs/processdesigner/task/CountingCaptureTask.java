@@ -33,9 +33,14 @@ public class CountingCaptureTask implements ProcessTask {
     @Override
     public TaskSpec spec() {
         return new TaskSpec("counting.capture", "Capture count",
-                java.util.List.of(TaskSpec.req("taskId"), TaskSpec.req("lineId"),
-                        TaskSpec.req("countedQty")),
-                java.util.List.of(TaskSpec.out("outcome"), TaskSpec.out("message")));
+                "Submit a counted quantity for a count task line and get the reconciliation outcome.",
+                java.util.List.of(
+                        TaskSpec.req("taskId", "The count task the line belongs to"),
+                        TaskSpec.req("lineId", "The count line being counted"),
+                        TaskSpec.req("countedQty", "The quantity the operator counted at the station")),
+                java.util.List.of(
+                        TaskSpec.out("outcome", "The reconciliation result: ACCEPTED, RECOUNT or ADJUSTED"),
+                        TaskSpec.out("message", "A human-readable explanation of the outcome")));
     }
 
     @Override

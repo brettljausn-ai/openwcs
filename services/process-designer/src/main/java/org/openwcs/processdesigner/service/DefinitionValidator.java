@@ -301,6 +301,13 @@ public class DefinitionValidator {
             } else {
                 try {
                     ExpressionParser.validate(expr);
+                    // Every variable the expression references must be declared in the data object.
+                    for (String ref : ExpressionParser.identifiers(expr)) {
+                        if (!variables.contains(ref)) {
+                            problems.add("Compute step '" + id + "' expression '" + expr
+                                    + "' references '" + ref + "', which is not a declared data-object variable.");
+                        }
+                    }
                 } catch (IllegalArgumentException e) {
                     problems.add("Compute step '" + id + "' set 'expr' '" + expr
                             + "' is malformed: " + e.getMessage());
