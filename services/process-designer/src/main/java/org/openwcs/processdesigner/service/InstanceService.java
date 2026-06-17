@@ -138,6 +138,11 @@ public class InstanceService {
         Map<String, Object> inputs = "script".equals(taskType)
                 ? scriptInputs(step.get("config"), data)
                 : resolveInputs(step.get("input"), data);
+        // Reserved context: curated tasks get the running instance's warehouse without the operator
+        // scanning it (an explicit input mapping still wins). Lets stock/lookup tasks work as-is.
+        if (!"script".equals(taskType) && instance.getWarehouseId() != null) {
+            inputs.putIfAbsent("warehouseId", instance.getWarehouseId().toString());
+        }
 
         // Run the curated task. A failure aborts the transaction (no ledger row, no advance) -> 502.
         Map<String, Object> outputs = task.execute(inputs);

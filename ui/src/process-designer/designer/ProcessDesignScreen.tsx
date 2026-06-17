@@ -19,8 +19,10 @@ import {
   SCREEN_TYPE_ICONS,
   SCREEN_TYPE_LABELS,
   SCRIPT_TASK_TYPE,
+  isComputeStep,
   isScreenStep,
   isTaskStep,
+  type ComputeStep,
   type DataVar,
   type ProcessDefinition,
   type ScreenStep,
@@ -31,11 +33,11 @@ import {
 import { createDef, duplicateDef, exportDef, getDef, importDef, listDefs, publishDef, updateDef } from '../api'
 import { useCapabilities, useTasks } from '../useProcesses'
 import { hasErrors, validateDefinition, type ValidationIssue } from './validate'
-import { applyVerifyWrites, nextStepId, resolveLandingStep, writeValue } from '../runtime/walker'
+import { applyVerifyWrites, nextStepId, resolveLanding, writeValue } from '../runtime/walker'
 import { PREVIEW_CATALOG, sampleDataFor } from './sampleData'
 import PropertiesPanel from './PropertiesPanel'
 
-const PALETTE: (ScreenType | 'task')[] = ['textInput', 'numberInput', 'dateInput', 'acknowledge', 'questionYesNo', 'questionChoice', 'task']
+const PALETTE: (ScreenType | 'task' | 'compute')[] = ['textInput', 'numberInput', 'dateInput', 'acknowledge', 'questionYesNo', 'questionChoice', 'task', 'compute']
 
 function emptyDef(): ProcessDefinition {
   return {
@@ -50,9 +52,12 @@ function emptyDef(): ProcessDefinition {
   }
 }
 
-function newStep(type: ScreenType | 'task', defaultTask: string): Step {
+function newStep(type: ScreenType | 'task' | 'compute', defaultTask: string): Step {
   if (type === 'task') {
     return { type: 'task', task: defaultTask, input: {}, output: {} } satisfies TaskStep
+  }
+  if (type === 'compute') {
+    return { type: 'compute', set: [{ var: '', expr: '' }] } satisfies ComputeStep
   }
   const cfg: ScreenStep['config'] = { header: SCREEN_TYPE_LABELS[type] }
   return { type: 'screen', screen: type, config: cfg } satisfies ScreenStep
@@ -170,7 +175,7 @@ export default function ProcessDesignScreen() {
 
   const changeSchema = useCallback((schema: DataVar[]) => patchDef({ dataSchema: schema }), [patchDef])
 
-  const addStep = useCallback((type: ScreenType | 'task') => {
+  const addStep = useCallback((type: ScreenType | 'task' | 'compute') => {
     // Default a new Task step to the first NON-script curated task (the script type is opt-in via the
     // task-type picker / AI assist, gated by capabilities).
     const defaultTask = tasks.find((tt) => tt.id !== SCRIPT_TASK_TYPE)?.id ?? 'inventory.lookup'
@@ -368,9 +373,10 @@ export default function ProcessDesignScreen() {
     const data = sampleDataFor(def.dataSchema)
     setSimulating(true)
     setSimVerifyNotFound(false)
-    setSimData(data)
-    // Honour skipWhen from the very first step too.
-    setSimStep(resolveLandingStep(def, def.start, data) ?? '')
+    // Honour skipWhen + evaluate any compute steps from the very first step too (adopt their writes).
+    const landed = resolveLanding(def, def.start, data)
+    setSimData(landed.data)
+    setSimStep(landed.stepId ?? '')
   }, [def])
 
   const stopSim = useCallback(() => { setSimulating(false); setSimStep('') }, [])
@@ -387,8 +393,9 @@ export default function ProcessDesignScreen() {
     if (verify) {
       if (simVerifyNotFound) {
         if (verify.onNotFound.mode === 'goto' && verify.onNotFound.step) {
-          setSimData(baseData)
-          setSimStep(resolveLandingStep(def, verify.onNotFound.step, baseData) ?? '')
+          const landed = resolveLanding(def, verify.onNotFound.step, baseData)
+          setSimData(landed.data)
+          setSimStep(landed.stepId ?? '')
         }
         // reprompt: hold on this step (no advance) — mirrors the runtime.
         return
@@ -416,20 +423,24 @@ export default function ProcessDesignScreen() {
         detail: {},
         fields: simFields,
       })
-      setSimData(data)
-      setSimStep(resolveLandingStep(def, nextStepId(step, data), data) ?? '')
+      const landed = resolveLanding(def, nextStepId(step, data), data)
+      setSimData(landed.data)
+      setSimStep(landed.stepId ?? '')
       return
     }
 
-    setSimData(baseData)
-    setSimStep(resolveLandingStep(def, nextStepId(step, baseData), baseData) ?? '')
+    const landed = resolveLanding(def, nextStepId(step, baseData), baseData)
+    setSimData(landed.data)
+    setSimStep(landed.stepId ?? '')
   }, [def, simStep, simData, simVerifyNotFound])
 
   const simAdvanceTask = useCallback(() => {
     const step = def.steps[simStep]
     if (!step) return
-    // dry-run: no backend, just follow next/transitions, skipping any skipWhen steps.
-    setSimStep(resolveLandingStep(def, nextStepId(step, simData), simData) ?? '')
+    // dry-run: no backend, just follow next/transitions, skipping skipWhen + evaluating compute steps.
+    const landed = resolveLanding(def, nextStepId(step, simData), simData)
+    setSimData(landed.data)
+    setSimStep(landed.stepId ?? '')
   }, [def, simStep, simData])
 
   // --- render (all hooks above) -------------------------------------------------------------------
@@ -623,6 +634,17 @@ export default function ProcessDesignScreen() {
                   <p className="muted" style={{ fontSize: '.85rem' }}>{t('taskRunsServer', 'Runs on the server (checkpoint).')}</p>
                   {simulating && <button className="btn btn-primary" onClick={simAdvanceTask}>{t('simRunTask', 'Run task (dry-run) →')}</button>}
                 </div>
+              ) : previewStep && isComputeStep(previewStep) ? (
+                <div className="glass" style={{ padding: '1.5rem', textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem' }}>{SCREEN_TYPE_ICONS.compute}</div>
+                  <h3 style={{ margin: '.5rem 0' }}>{t('computeStep', 'Compute')}</h3>
+                  <p className="muted" style={{ fontSize: '.85rem' }}>
+                    {(previewStep.set ?? []).filter((r) => r.var).length > 0
+                      ? t('computePreview', 'Sets {list} (no screen).').replace('{list}', (previewStep.set ?? []).filter((r) => r.var).map((r) => r.var).join(', '))
+                      : t('computeEmpty', 'No values set yet.')}
+                  </p>
+                  {simulating && <button className="btn btn-primary" onClick={simAdvanceTask}>{t('simRunCompute', 'Compute (dry-run) →')}</button>}
+                </div>
               ) : (
                 <div className="muted" style={{ padding: '2rem', textAlign: 'center' }}>
                   {simulating ? t('simComplete', 'Simulation complete.') : t('selectToPreview', 'Select a step to preview it here.')}
@@ -708,8 +730,18 @@ function FlowRow({
   onSetStart: () => void
 }) {
   const t = useT('processDesign')
-  const icon = step.type === 'task' ? SCREEN_TYPE_ICONS.task : SCREEN_TYPE_ICONS[(step as ScreenStep).screen]
-  const label = step.type === 'task' ? `Task: ${(step as TaskStep).task}` : (step as ScreenStep).screen
+  const icon =
+    step.type === 'task' ? SCREEN_TYPE_ICONS.task
+    : step.type === 'compute' ? SCREEN_TYPE_ICONS.compute
+    : SCREEN_TYPE_ICONS[(step as ScreenStep).screen]
+  const label =
+    step.type === 'task' ? `Task: ${(step as TaskStep).task}`
+    : step.type === 'compute'
+      ? (() => {
+          const names = ((step as ComputeStep).set ?? []).filter((r) => r.var).map((r) => r.var)
+          return names.length ? `Compute: ${names.join(', ')}` : 'Compute'
+        })()
+    : (step as ScreenStep).screen
   const hasVerify = step.type === 'screen' && !!(step as ScreenStep).config.verify
   const branches = step.transitions ?? []
   const isEnd = branches.length === 0 && !step.next

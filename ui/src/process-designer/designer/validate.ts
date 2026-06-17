@@ -2,8 +2,8 @@
 // transition/next targets, unbound writes (writeTo not in the data schema), unknown placeholders,
 // and malformed `when` expressions. Publish is blocked until this returns no errors.
 
-import { validateCondition } from '../condition'
-import { isScreenStep, isScriptStep, taskTypeById, type ProcessDefinition, type TaskTypeDef } from '../model'
+import { validateCondition, validateExpression } from '../condition'
+import { isComputeStep, isScreenStep, isScriptStep, taskTypeById, type ProcessDefinition, type TaskTypeDef } from '../model'
 import { placeholderRefs } from '../placeholders'
 import { reachableSteps } from '../runtime/walker'
 
@@ -105,6 +105,28 @@ export function validateDefinition(def: ProcessDefinition, catalog?: TaskTypeDef
           }
         }
       }
+    } else if (isComputeStep(step)) {
+      // No-code compute step (client-evaluated). Needs at least one set row; each row needs a declared
+      // target variable and a non-empty, parseable expression. The server is authoritative.
+      const rows = step.set ?? []
+      if (rows.length === 0) {
+        issues.push({ level: 'error', stepId: id, message: `"${id}" compute step has no assignments.` })
+      }
+      rows.forEach((row, i) => {
+        const target = (row.var ?? '').trim()
+        const expr = (row.expr ?? '').trim()
+        if (!target) {
+          issues.push({ level: 'error', stepId: id, message: `"${id}" compute row ${i + 1} has no target variable.` })
+        } else if (!schemaNames.has(target)) {
+          issues.push({ level: 'warning', stepId: id, message: `"${id}" compute row ${i + 1} writes undeclared variable "${target}".` })
+        }
+        if (!expr) {
+          issues.push({ level: 'error', stepId: id, message: `"${id}" compute row ${i + 1} has an empty expression.` })
+        } else {
+          const exprErr = validateExpression(expr)
+          if (exprErr) issues.push({ level: 'error', stepId: id, message: `"${id}" compute row ${i + 1} expression "${expr}": ${exprErr}` })
+        }
+      })
     } else if (isScriptStep(step)) {
       // Sandboxed-script step (spec §7.2). Light client-side checks only — the server does the
       // authoritative parse + sandbox-limit enforcement.

@@ -23,7 +23,7 @@ import { useCatalog } from '../../lib/useCatalog'
 import ProcessScreenView from '../screens/ProcessScreenView'
 import { isScreenStep, isTaskStep, type CheckpointResult, type ProcessInstance, type VerifyConfig, type VerifyResult } from '../model'
 import { getActiveDef, getInstance, startInstance, verifyCode } from '../api'
-import { applyVerifyWrites, nextStepId, resolveLandingStep, stepOf, writeValue } from './walker'
+import { applyVerifyWrites, nextStepId, resolveLanding, stepOf, writeValue } from './walker'
 import {
   enqueueCheckpoint,
   failedFor,
@@ -131,23 +131,25 @@ export default function ProcessRuntimeScreen() {
   void queue // re-render trigger via subscription
 
   // Advance helper: set currentStep to id (or done) — shared by screen submit + task advance.
-  // Honours `skipWhen`: resolve through any steps whose skip condition is true so we never render a
-  // skipped step (loop-guarded by resolveLandingStep).
+  // Honours `skipWhen` AND evaluates any `compute` steps along the way (they render no screen): the
+  // walker resolves through them, writing their computed values into the data object, so we adopt the
+  // returned data. Loop-guarded by resolveLanding.
   const advanceTo = useCallback((nextId: string | null, data: Record<string, unknown>) => {
     setInstance((prev) => {
       if (!prev) return prev
-      const landed = resolveLandingStep(prev.def, nextId, data)
-      return { ...prev, data, currentStep: landed ?? '' }
+      const landed = resolveLanding(prev.def, nextId, data)
+      return { ...prev, data: landed.data, currentStep: landed.stepId ?? '' }
     })
   }, [])
 
   // When an instance is first started/resumed, the server-provided currentStep may itself carry a
-  // true skipWhen — resolve it once so the first rendered screen is never a skipped one.
+  // true skipWhen or be a compute step — resolve it once so the first rendered screen is never a
+  // skipped/compute one, and adopt any values a compute step writes.
   useEffect(() => {
     if (!instance || !instance.currentStep) return
-    const landed = resolveLandingStep(instance.def, instance.currentStep, instance.data)
-    if ((landed ?? '') !== instance.currentStep) {
-      setInstance((prev) => (prev ? { ...prev, currentStep: landed ?? '' } : prev))
+    const landed = resolveLanding(instance.def, instance.currentStep, instance.data)
+    if ((landed.stepId ?? '') !== instance.currentStep) {
+      setInstance((prev) => (prev ? { ...prev, data: landed.data, currentStep: landed.stepId ?? '' } : prev))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance?.instanceId])

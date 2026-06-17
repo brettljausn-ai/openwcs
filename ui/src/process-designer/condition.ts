@@ -1,20 +1,26 @@
-// Safe evaluator for the restricted `when` grammar (spec §6). This is deliberately NOT eval/Function:
-// it is a hand-written recursive-descent parser + interpreter over a tiny grammar, so a definition
-// (data that can come from the server / a non-developer designer) can never execute host code.
+// Safe evaluator for the restricted expression grammar (spec §6 conditions + the compute step's
+// value-returning expressions). This is deliberately NOT eval/Function: it is a hand-written
+// recursive-descent parser + interpreter over a tiny grammar, so a definition (data that can come
+// from the server / a non-developer designer) can never execute host code.
 //
 // Grammar (lowest -> highest precedence):
 //   expr   := or
 //   or     := and ( "or" and )*
 //   and    := not ( "and" not )*
 //   not    := "not" not | cmp
-//   cmp    := primary ( ("=="|"!="|"<"|"<="|">"|">=") primary )?
+//   cmp    := add ( ("=="|"!="|"<"|"<="|">"|">=") add )?
+//   add    := mul ( ("+"|"-") mul )*
+//   mul    := unary ( ("*"|"/") unary )*
+//   unary  := "-" unary | primary
 //   primary:= "(" expr ")" | literal | ident
 //   literal:= number | string ('...' or "...") | true | false | null
 //   ident  := data-object variable name, may be dotted (e.g. sku.code)
 //
 // Operands resolve against the data object. Comparisons coerce sensibly (number vs number,
-// boolean vs boolean, string vs string; mixed -> string compare). Unknown variable = undefined.
-// Any parse error throws; callers treat a failed `when` as "not matched" (see flow walker).
+// boolean vs boolean, string vs string; mixed -> string compare); a comparison involving undefined
+// is false. Arithmetic on a non-number yields undefined (NaN normalised) rather than throwing.
+// Unknown variable = undefined. Any parse error throws; callers treat a failed condition as
+// "not matched" (see flow walker / safeEvaluate).
 
 type Tok =
   | { t: 'num'; v: number }
@@ -29,7 +35,9 @@ type Tok =
   | { t: 'or' }
   | { t: 'not' }
 
-const OPS = ['==', '!=', '<=', '>=', '<', '>']
+// Comparison operators (matched before the single-char arithmetic operators so "<=" wins over "<").
+const CMP_OPS = ['==', '!=', '<=', '>=', '<', '>']
+const ARITH_OPS = ['+', '-', '*', '/']
 
 function tokenize(src: string): Tok[] {
   const toks: Tok[] = []
@@ -54,9 +62,11 @@ function tokenize(src: string): Tok[] {
       i = j + 1
       continue
     }
-    // operator
-    const op = OPS.find((o) => src.startsWith(o, i))
-    if (op) { toks.push({ t: 'op', v: op }); i += op.length; continue }
+    // comparison operator (multi-char first)
+    const cmp = CMP_OPS.find((o) => src.startsWith(o, i))
+    if (cmp) { toks.push({ t: 'op', v: cmp }); i += cmp.length; continue }
+    // arithmetic operator
+    if (ARITH_OPS.includes(c)) { toks.push({ t: 'op', v: c }); i++; continue }
     // number
     if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(src[i + 1] ?? ''))) {
       let j = i
@@ -89,6 +99,8 @@ type Node =
   | { k: 'lit'; v: unknown }
   | { k: 'var'; path: string }
   | { k: 'cmp'; op: string; l: Node; r: Node }
+  | { k: 'arith'; op: string; l: Node; r: Node }
+  | { k: 'neg'; e: Node }
   | { k: 'and'; l: Node; r: Node }
   | { k: 'or'; l: Node; r: Node }
   | { k: 'not'; e: Node }
@@ -102,7 +114,7 @@ class Parser {
 
   parse(): Node {
     const e = this.parseOr()
-    if (this.pos !== this.toks.length) throw new Error('Trailing tokens in condition')
+    if (this.pos !== this.toks.length) throw new Error('Trailing tokens in expression')
     return e
   }
 
@@ -121,14 +133,39 @@ class Parser {
     return this.parseCmp()
   }
   private parseCmp(): Node {
-    const l = this.parsePrimary()
+    const l = this.parseAdd()
     const p = this.peek()
-    if (p?.t === 'op') { this.next(); return { k: 'cmp', op: p.v, l, r: this.parsePrimary() } }
+    if (p?.t === 'op' && CMP_OPS.includes(p.v)) { this.next(); return { k: 'cmp', op: p.v, l, r: this.parseAdd() } }
     return l
+  }
+  private parseAdd(): Node {
+    let l = this.parseMul()
+    let p = this.peek()
+    while (p?.t === 'op' && (p.v === '+' || p.v === '-')) {
+      this.next()
+      l = { k: 'arith', op: p.v, l, r: this.parseMul() }
+      p = this.peek()
+    }
+    return l
+  }
+  private parseMul(): Node {
+    let l = this.parseUnary()
+    let p = this.peek()
+    while (p?.t === 'op' && (p.v === '*' || p.v === '/')) {
+      this.next()
+      l = { k: 'arith', op: p.v, l, r: this.parseUnary() }
+      p = this.peek()
+    }
+    return l
+  }
+  private parseUnary(): Node {
+    const p = this.peek()
+    if (p?.t === 'op' && p.v === '-') { this.next(); return { k: 'neg', e: this.parseUnary() } }
+    return this.parsePrimary()
   }
   private parsePrimary(): Node {
     const tok = this.next()
-    if (!tok) throw new Error('Unexpected end of condition')
+    if (!tok) throw new Error('Unexpected end of expression')
     switch (tok.t) {
       case 'lparen': {
         const e = this.parseOr()
@@ -140,7 +177,7 @@ class Parser {
       case 'bool': return { k: 'lit', v: tok.v }
       case 'null': return { k: 'lit', v: null }
       case 'ident': return { k: 'var', path: tok.v }
-      default: throw new Error(`Unexpected token in condition`)
+      default: throw new Error(`Unexpected token in expression`)
     }
   }
 }
@@ -156,6 +193,8 @@ function resolveVar(path: string, data: Record<string, unknown>): unknown {
 }
 
 function compare(op: string, a: unknown, b: unknown): boolean {
+  // A comparison involving undefined is always false (spec: comparisons with undefined are false).
+  if (a === undefined || b === undefined) return false
   if (op === '==') return looseEq(a, b)
   if (op === '!=') return !looseEq(a, b)
   // ordered comparisons: numeric when both coerce to numbers, else string
@@ -184,6 +223,31 @@ function looseEq(a: unknown, b: unknown): boolean {
   return String(a) === String(b)
 }
 
+/** Coerce an operand to a number for arithmetic; returns NaN for anything non-numeric (handled by
+ *  the caller, which maps NaN -> undefined so a bad operand yields undefined rather than throwing). */
+function toNum(v: unknown): number {
+  if (typeof v === 'number') return v
+  if (typeof v === 'boolean') return NaN // arithmetic on booleans is meaningless here
+  if (v == null || v === '') return NaN
+  const n = Number(v)
+  return n
+}
+
+function arith(op: string, a: unknown, b: unknown): unknown {
+  const an = toNum(a)
+  const bn = toNum(b)
+  if (Number.isNaN(an) || Number.isNaN(bn)) return undefined // non-number operand -> undefined
+  let r: number
+  switch (op) {
+    case '+': r = an + bn; break
+    case '-': r = an - bn; break
+    case '*': r = an * bn; break
+    case '/': r = bn === 0 ? NaN : an / bn; break
+    default: return undefined
+  }
+  return Number.isNaN(r) ? undefined : r
+}
+
 function evalNode(node: Node, data: Record<string, unknown>): unknown {
   switch (node.k) {
     case 'lit': return node.v
@@ -192,6 +256,11 @@ function evalNode(node: Node, data: Record<string, unknown>): unknown {
     case 'and': return truthy(evalNode(node.l, data)) && truthy(evalNode(node.r, data))
     case 'or': return truthy(evalNode(node.l, data)) || truthy(evalNode(node.r, data))
     case 'cmp': return compare(node.op, evalNode(node.l, data), evalNode(node.r, data))
+    case 'arith': return arith(node.op, evalNode(node.l, data), evalNode(node.r, data))
+    case 'neg': {
+      const v = toNum(evalNode(node.e, data))
+      return Number.isNaN(v) ? undefined : -v
+    }
   }
 }
 
@@ -199,20 +268,33 @@ function truthy(v: unknown): boolean {
   return v === true || (typeof v !== 'boolean' && Boolean(v))
 }
 
-/** Parse + evaluate a `when` against the data object. Throws on a parse error. */
-export function evaluateCondition(expr: string, data: Record<string, unknown>): boolean {
+/** Parse + evaluate a value-returning expression against the data object (spec compute step).
+ *  Returns the computed value (any type). Throws on a parse error. A bare identifier/literal is a
+ *  valid expression. Identifiers resolve from the data object; undefined is treated as undefined. */
+export function evaluateExpression(expr: string, data: Record<string, unknown>): unknown {
   const ast = new Parser(tokenize(expr)).parse()
-  return truthy(evalNode(ast, data))
+  return evalNode(ast, data)
 }
 
-/** Validate a `when` expression compiles. Returns an error message, or null when valid. */
-export function validateCondition(expr: string): string | null {
+/** Validate an expression compiles (parse only). Returns an error message, or null when valid. */
+export function validateExpression(expr: string): string | null {
   try {
     new Parser(tokenize(expr)).parse()
     return null
   } catch (e) {
     return e instanceof Error ? e.message : String(e)
   }
+}
+
+/** Parse + evaluate a `when` against the data object, coercing the result to a boolean. Throws on a
+ *  parse error. Delegates to the shared expression evaluator (so `qty + 1 > 0` is a valid condition). */
+export function evaluateCondition(expr: string, data: Record<string, unknown>): boolean {
+  return truthy(evaluateExpression(expr, data))
+}
+
+/** Validate a `when` expression compiles. Returns an error message, or null when valid. */
+export function validateCondition(expr: string): string | null {
+  return validateExpression(expr)
 }
 
 /** Best-effort evaluate; a parse/runtime error counts as "not matched" (false). */
