@@ -19,6 +19,13 @@ import org.springframework.data.repository.query.Param;
 public interface OutboundOrderRepository extends JpaRepository<OutboundOrder, UUID> {
     Optional<OutboundOrder> findByOrderRef(String orderRef);
 
+    /**
+     * Resolve an order by its reference within a warehouse (scan verification): the order /
+     * picksheet barcode (OUTBOUND) or ASN barcode (INBOUND) is the order's reference, which is
+     * globally unique; scoping by warehouse keeps a ref from another warehouse out of the result.
+     */
+    Optional<OutboundOrder> findByWarehouseIdAndOrderRef(UUID warehouseId, String orderRef);
+
     Page<OutboundOrder> findByWarehouseId(UUID warehouseId, Pageable pageable);
 
     /** All orders for a warehouse (any type/status) — used by the demo full-reset clear. */

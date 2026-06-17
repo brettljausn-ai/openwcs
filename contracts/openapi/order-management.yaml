@@ -53,6 +53,25 @@ paths:
           content:
             application/json: { schema: { $ref: '#/components/schemas/OrderPage' } }
 
+  /api/orders/resolve:
+    get:
+      tags: [Orders]
+      summary: Resolve an order / ASN by its reference (barcode)
+      description: >-
+        Scan verification for the process designer: an outbound picksheet barcode or an inbound
+        ASN barcode is the order's reference. Resolves the order by ref within the warehouse and
+        returns found:false with a null order (HTTP 200, not 404) when there is no match, so a
+        process flow can branch on the result. Works for both OUTBOUND and INBOUND orders.
+      operationId: resolveOrder
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: ref, in: query, required: true, schema: { type: string }, description: "The scanned order / ASN reference (barcode)." }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ResolveOrderResult' } }
+
   /api/orders/{id}:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -364,6 +383,28 @@ components:
     OrderStatus:
       type: string
       enum: [CREATED, RELEASED, ALLOCATED, PARTIALLY_ALLOCATED, NOT_FULFILLABLE, CUBING_FAILED, SHIPPED, CANCELLED]
+    ResolveOrderResult:
+      type: object
+      description: Scan-verification result for resolving an order / ASN by its reference (barcode).
+      required: [found]
+      properties:
+        found: { type: boolean, description: "True when an order with the scanned reference exists in the warehouse." }
+        order:
+          nullable: true
+          description: The resolved order summary, or null when found is false.
+          allOf:
+            - $ref: '#/components/schemas/ResolvedOrderSummary'
+    ResolvedOrderSummary:
+      type: object
+      description: Minimal order summary for scan verification (branch on orderType / status).
+      required: [orderId, orderRef, orderType, status, lineCount]
+      properties:
+        orderId: { type: string, format: uuid }
+        orderRef: { type: string }
+        orderType: { $ref: '#/components/schemas/OrderType' }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        customerRef: { type: string, nullable: true }
+        lineCount: { type: integer, description: "Number of order lines on the order." }
     ShipToAddress:
       type: object
       nullable: true
