@@ -946,6 +946,74 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-grid { display: grid; grid-template-columns: 320px minmax(340px, 1fr) minmax(460px, 1.25fr); gap: .8rem; align-items: start; }
 @media (max-width: 1100px) { .op-pd-grid { grid-template-columns: 1fr; } }
 
+/* Canvas view: the node-canvas takes the wide main column; the phone preview sits top-right with the
+   properties panel beneath it. The flow column spans both rows so the canvas can be tall. */
+.op-pd-grid.is-canvas { grid-template-columns: minmax(0, 1.7fr) minmax(380px, 0.9fr); grid-template-rows: auto auto; }
+.op-pd-grid.is-canvas > .op-pd-flow { grid-column: 1; grid-row: 1 / span 2; min-width: 0; }
+.op-pd-grid.is-canvas > .op-pd-preview-pane { grid-column: 2; grid-row: 1; }
+.op-pd-grid.is-canvas > .op-pd-props { grid-column: 2; grid-row: 2; }
+@media (max-width: 1100px) {
+  .op-pd-grid.is-canvas { grid-template-columns: 1fr; }
+  .op-pd-grid.is-canvas > .op-pd-flow,
+  .op-pd-grid.is-canvas > .op-pd-preview-pane,
+  .op-pd-grid.is-canvas > .op-pd-props { grid-column: 1; grid-row: auto; }
+}
+
+/* View toggle (Canvas | List). */
+.op-pd-view-toggle { display: inline-flex; border: 1px solid var(--glass-border); border-radius: 8px; overflow: hidden; align-self: flex-start; }
+.op-pd-view-btn { background: transparent; border: 0; color: var(--text-dim); cursor: pointer; font: inherit; font-size: .8rem; padding: .35rem .8rem; }
+.op-pd-view-btn:hover { color: var(--text); }
+.op-pd-view-btn.is-active { background: rgba(141,198,63,.16); color: var(--herbal-lime); font-weight: 600; }
+
+/* The flow node-canvas (React Flow). */
+.op-fc-canvas { position: relative; width: 100%; height: 72vh; min-height: 520px; border: 1px solid var(--glass-border); border-radius: 12px; background: var(--bg, #0e1a14); overflow: hidden; }
+.op-fc-loading { display: flex; align-items: center; justify-content: center; }
+.op-fc-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+/* React Flow theming via CSS variables (dark/glassy, lime accents). */
+.op-fc-canvas .react-flow { --xy-background-color: transparent; --xy-edge-stroke: rgba(141,198,63,.55); --xy-edge-stroke-selected: var(--herbal-lime); }
+.op-fc-canvas .react-flow__controls { background: rgba(8,30,22,.9); border: 1px solid var(--glass-border); border-radius: 8px; box-shadow: 0 8px 24px -10px rgba(0,0,0,.6); overflow: hidden; }
+.op-fc-canvas .react-flow__controls-button { background: transparent; border-bottom: 1px solid var(--glass-border); color: var(--text); fill: var(--text); }
+.op-fc-canvas .react-flow__controls-button:hover { background: rgba(141,198,63,.14); }
+.op-fc-canvas .react-flow__minimap.op-fc-minimap { background: rgba(8,30,22,.85); border: 1px solid var(--glass-border); border-radius: 8px; }
+.op-fc-canvas .react-flow__attribution { display: none; }
+.op-fc-handle { width: 9px; height: 9px; background: var(--herbal-lime); border: 2px solid var(--forest-abyss); }
+
+/* Custom step node. */
+.op-fc-node { min-width: 168px; max-width: 230px; padding: .55rem .6rem; border: 1px solid var(--glass-border); border-radius: 11px; background: rgba(12,28,21,.96); box-shadow: 0 6px 20px -10px rgba(0,0,0,.6); font-size: .8rem; color: var(--text); }
+.op-fc-node.is-selected { border-color: var(--herbal-lime); box-shadow: 0 0 0 2px rgba(141,198,63,.25), 0 6px 20px -10px rgba(0,0,0,.6); }
+.op-fc-node.is-orphan { border-style: dashed; border-color: var(--warning); opacity: .96; }
+.op-fc-node.is-sim { border-color: var(--warning); box-shadow: 0 0 0 2px rgba(244,184,96,.35); }
+.op-fc-node-head { display: flex; align-items: center; gap: .35rem; }
+.op-fc-node-icon { font-size: 1rem; }
+.op-fc-node-id { font-weight: 700; }
+.op-fc-node-type { font-size: .72rem; color: var(--text-dim); margin-top: .1rem; word-break: break-word; }
+.op-fc-node-badges { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .35rem; }
+.op-fc-badge { font-size: .6rem; font-weight: 700; padding: 0 .35rem; border-radius: 4px; line-height: 1.5; }
+.op-fc-badge.is-start { background: var(--herbal-lime); color: var(--forest-abyss); }
+.op-fc-badge.is-verify { background: rgba(141,198,63,.18); color: var(--herbal-lime); border: 1px solid rgba(141,198,63,.5); }
+.op-fc-badge.is-task { background: rgba(255,255,255,.08); color: var(--text-dim); }
+.op-fc-badge.is-script { background: rgba(244,184,96,.14); color: var(--warning); }
+.op-fc-badge.is-compute { background: rgba(141,198,63,.12); color: var(--herbal-lime); }
+.op-fc-badge.is-orphan-badge { background: rgba(244,184,96,.14); color: var(--warning); border: 1px solid var(--warning); }
+.op-fc-node-actions { position: absolute; top: -.6rem; right: -.4rem; display: none; gap: .2rem; }
+.op-fc-node:hover .op-fc-node-actions, .op-fc-node.is-selected .op-fc-node-actions { display: flex; }
+.op-fc-node-btn { width: 1.3rem; height: 1.3rem; font-size: .7rem; border-radius: 5px; border: 1px solid var(--glass-border); background: rgba(8,30,22,.95); color: var(--text-dim); cursor: pointer; }
+.op-fc-node-btn:hover { color: var(--text); border-color: var(--herbal-lime); }
+
+/* Edges: solid next / dashed branch / amber loop. */
+.op-fc-edge { stroke: rgba(141,198,63,.55); stroke-width: 1.6; }
+.op-fc-edge.is-branch { stroke-dasharray: 5 4; }
+.op-fc-edge.is-loop { stroke: var(--warning); stroke-dasharray: 6 4; }
+.op-fc-edge.is-selected { stroke: var(--herbal-lime); stroke-width: 2.4; }
+.op-fc-edge.is-invalid { stroke: var(--danger); }
+.op-fc-edge-label { position: absolute; display: flex; align-items: center; gap: .2rem; font-size: .68rem; pointer-events: all; }
+.op-fc-edge-label.is-loop .op-fc-edge-cond { border-color: var(--warning); color: var(--warning); }
+.op-fc-edge-cond { background: rgba(8,30,22,.95); border: 1px solid var(--glass-border); border-radius: 5px; color: var(--herbal-lime); cursor: pointer; font: inherit; font-size: .66rem; padding: .05rem .35rem; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.op-fc-edge-cond:hover { border-color: var(--herbal-lime); }
+.op-fc-edge-label.is-invalid .op-fc-edge-cond { border-color: var(--danger); color: var(--danger); }
+.op-fc-edge-del { background: rgba(8,30,22,.95); border: 1px solid var(--danger); color: var(--danger); border-radius: 5px; cursor: pointer; font: inherit; font-size: .62rem; width: 1.1rem; height: 1.1rem; line-height: 1; }
+.op-fc-edge-edit input { font: inherit; font-size: .68rem; padding: .15rem .3rem; background: rgba(8,30,22,.98); border: 1px solid var(--herbal-lime); border-radius: 5px; color: var(--text); width: 170px; }
+
 /* Left flow pane */
 .op-pd-flow { display: flex; flex-direction: column; gap: .6rem; }
 .op-pd-palette { display: flex; flex-wrap: wrap; gap: .35rem; }
