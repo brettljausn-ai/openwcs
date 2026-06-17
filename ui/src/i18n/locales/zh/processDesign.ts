@@ -164,4 +164,12 @@ export default {
   verifyEditFlow: '编辑验证流程',
   verifyConfigured: '验证已启用',
   verifyRemove: '关闭验证',
+  // 数据对象对话框 + 按钮
+  dataObject: '数据对象',
+  dataObjectIntro: '流程读取和写入的类型化变量。',
+  dataObjectOpen: '编辑流程数据对象',
+  varName: '名称',
+  addVariable: '+ 添加变量',
+  // 可搜索的任务选择器
+  taskPickPlaceholder: '搜索任务…',
 }

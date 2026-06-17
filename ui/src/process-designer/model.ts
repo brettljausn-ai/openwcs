@@ -314,11 +314,15 @@ export interface CheckpointResult {
 export interface TaskInputDef {
   name: string
   required?: boolean
+  /** Human description of what this input is for (shown as a hint in the designer). */
+  description?: string
 }
 
 /** A task output as advertised by the server task catalog. */
 export interface TaskOutputDef {
   name: string
+  /** Human description of what this output value means (shown as a hint in the designer). */
+  description?: string
 }
 
 /** The curated task library shown in the designer's task picker. The authoritative source is the
@@ -349,8 +353,8 @@ export function normalizeServerTask(s: ServerTaskType): TaskTypeDef {
     id: s.type,
     label: s.label || s.type,
     description: s.description,
-    inputs: (s.inputs ?? []).map((i) => ({ name: i.name, required: i.required })),
-    outputs: (s.outputs ?? []).map((o) => ({ name: o.name })),
+    inputs: (s.inputs ?? []).map((i) => ({ name: i.name, required: i.required, description: i.description })),
+    outputs: (s.outputs ?? []).map((o) => ({ name: o.name, description: o.description })),
   }
 }
 
