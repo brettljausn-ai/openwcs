@@ -50,24 +50,39 @@ function kindOf(step: Step): Kind {
 interface Props {
   /** The step being edited (task / compute / script). The dialog converts between kinds in place. */
   step: Step
+  /** The current id (name) of the step being edited; shown + renamable at the top of the dialog. */
+  stepId: string
+  /** All step ids (to reject a rename that would collide with an existing id). */
+  stepIds: string[]
   /** The live server task catalog (drives the server-action picker). */
   tasks: TaskTypeDef[]
   /** Server capabilities: gate the script kind + the AI assist. */
   capabilities: Capabilities
   /** Data-object variables for the input/output/compute pickers. */
   vars: DataVar[]
+  /** Rename the step id (updates references); called when the name field commits. */
+  onRename: (oldId: string, newId: string) => void
   /** Apply the edited step (Done). */
   onDone: (s: Step) => void
   /** Discard and close (Cancel / Esc / click-outside). */
   onCancel: () => void
 }
 
-export default function TaskDialog({ step, tasks, capabilities, vars, onDone, onCancel }: Props) {
+export default function TaskDialog({ step, stepId, stepIds, tasks, capabilities, vars, onRename, onDone, onCancel }: Props) {
   const t = useT('processDesign')
   // Local draft so Cancel discards; Done commits. We keep the whole Step so id/next/transitions/
   // skipWhen carry through every kind conversion untouched.
   const [draft, setDraft] = useState<Step>(step)
   const [stepIdx, setStepIdx] = useState(0)
+  // The step name (id). Sanitised to [A-Za-z0-9_]; committing (onBlur / Enter) renames through the
+  // parent so every `next`/branch reference updates. A blank or colliding name is rejected (reverts).
+  const [nameDraft, setNameDraft] = useState(stepId)
+  const commitName = () => {
+    const next = nameDraft
+    if (!next || next === stepId) { setNameDraft(stepId); return }
+    if (stepIds.includes(next)) { setNameDraft(stepId); return }
+    onRename(stepId, next)
+  }
 
   // Esc closes the dialog.
   useEffect(() => {
@@ -132,8 +147,20 @@ export default function TaskDialog({ step, tasks, capabilities, vars, onDone, on
       >
         <h2 style={{ marginBottom: '.4rem' }}>{t('taskDialogTitle', 'Set up this step')}</h2>
         <p className="muted" style={{ fontSize: '.8rem', margin: '0 0 1rem' }}>
-          {t('taskDialogIntro', 'Choose what this step does, then configure it. Branches, default next and skip stay as set in the panel.')}
+          {t('taskDialogIntro', 'Name the step, choose what it does, then configure it. Default next and branches are drawn on the canvas.')}
         </p>
+
+        {/* Step name (id): renames the step and updates every reference on commit. */}
+        <label className="op-pd-field" style={{ marginBottom: '1rem' }}>
+          <span className="op-pd-field-label">{t('stepName', 'Step name')}</span>
+          <input
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value.replace(/[^A-Za-z0-9_]/g, ''))}
+            onBlur={commitName}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commitName() } }}
+            placeholder={t('stepNamePlaceholder', 'step name')}
+          />
+        </label>
 
         {/* Step indicator (reuses the verify-dialog styling) */}
         <ol className="op-pd-verify-steps">

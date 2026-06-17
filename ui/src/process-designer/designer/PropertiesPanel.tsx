@@ -1,9 +1,11 @@
 // Right pane of the designer: edit the SELECTED step's properties. Every change calls back up so the
 // centre live-preview updates instantly. For screen steps: header/detail with a placeholder picker,
 // writeTo dropdown, validation builder, scan-binding toggle, options (choice), confirm/checkbox
-// (acknowledge), and the transition editor (questions/branching). For work steps: a one-line summary +
-// the common flow fields (the kind-specific config is edited in TaskDialog). The data-object editor
-// now lives in its own dialog (DataObjectDialog), opened from the "Data object" button in the left pane.
+// (acknowledge), plus the screen's step id. For work steps: a one-line summary (the kind-specific
+// config + the step name are edited in TaskDialog). The flow itself (default `next` + branches) is
+// drawn/edited entirely on the canvas, so the panel no longer duplicates it; only skip-when (a
+// per-step condition, not a link) stays here. The data-object editor lives in its own dialog
+// (DataObjectDialog), opened from the "Data object" button in the left pane.
 //
 // All inputs are controlled; no hooks beyond useState for the placeholder-target field, declared at
 // the top (Rules of Hooks).
@@ -24,7 +26,6 @@ import {
   type Step,
   type TaskStep,
   type TaskTypeDef,
-  type Transition,
 } from '../model'
 import VarCombobox from './VarCombobox'
 
@@ -42,7 +43,6 @@ interface Props {
 
 export default function PropertiesPanel({ def, selectedId, tasks, capabilities, onChangeStep, onRenameStep }: Props) {
   const step = selectedId ? def.steps[selectedId] : undefined
-  const stepIds = Object.keys(def.steps)
 
   return (
     <aside className="op-pd-props">
@@ -52,7 +52,6 @@ export default function PropertiesPanel({ def, selectedId, tasks, capabilities, 
             def={def}
             id={selectedId}
             step={step}
-            stepIds={stepIds}
             capabilities={capabilities}
             onChange={(s) => onChangeStep(selectedId, s)}
             onRename={(n) => onRenameStep(selectedId, n)}
@@ -60,13 +59,9 @@ export default function PropertiesPanel({ def, selectedId, tasks, capabilities, 
         ) : (
           <StepWorkProps
             def={def}
-            id={selectedId}
             step={step}
-            stepIds={stepIds}
             tasks={tasks}
-            capabilities={capabilities}
             onChange={(s) => onChangeStep(selectedId, s)}
-            onRename={(n) => onRenameStep(selectedId, n)}
           />
         )
       ) : (
@@ -140,7 +135,6 @@ function ScreenProps({
   def,
   id,
   step,
-  stepIds,
   capabilities,
   onChange,
   onRename,
@@ -148,7 +142,6 @@ function ScreenProps({
   def: ProcessDefinition
   id: string
   step: ScreenStep
-  stepIds: string[]
   capabilities: Capabilities
   onChange: (s: ScreenStep) => void
   onRename: (n: string) => void
@@ -253,16 +246,8 @@ function ScreenProps({
 
       {isChoice && <ChoiceOptionsEditor options={cfg.options ?? []} onChange={(options) => setCfg({ options })} />}
 
-      {/* Default next + transitions for ALL screen steps */}
-      <Field label="Default next step">
-        <select value={step.next ?? ''} onChange={(e) => set({ next: e.target.value || undefined })}>
-          <option value="">(end the process)</option>
-          {stepIds.filter((s) => s !== id).map((s) => (<option key={s} value={s}>{s}</option>))}
-        </select>
-      </Field>
-
-      <TransitionsEditor step={step} stepIds={stepIds.filter((s) => s !== id)} vars={def.dataSchema} onChange={(transitions) => set({ transitions })} />
-
+      {/* Default next + branches are drawn/edited on the canvas, not here. Skip-when is a per-step
+          condition (not a link), so it stays in the panel. */}
       <SkipWhenField value={step.skipWhen ?? ''} vars={def.dataSchema} onChange={(v) => set({ skipWhen: v || undefined })} />
     </div>
   )
@@ -303,37 +288,6 @@ function ChoiceOptionsEditor({ options, onChange }: { options: ChoiceOption[]; o
   )
 }
 
-function TransitionsEditor({ step, stepIds, vars, onChange }: { step: Step; stepIds: string[]; vars: DataVar[]; onChange: (t: Transition[]) => void }) {
-  const t = useT('processDesign')
-  const transitions = step.transitions ?? []
-  const names = vars.map((v) => v.name)
-  return (
-    <fieldset className="op-pd-fieldset op-pd-wide">
-      <legend>Branches (when → to)</legend>
-      <p className="muted" style={{ fontSize: '.75rem', margin: '0 0 .5rem' }}>First matching condition wins; otherwise the default next is used.</p>
-      {transitions.map((tr, i) => {
-        const condErr = tr.when ? validateCondition(tr.when) : null
-        const unknown = tr.when && !condErr ? unknownExpressionVars(tr.when, names) : []
-        return (
-          <div key={i} style={{ marginBottom: '.4rem' }}>
-            <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
-              <input placeholder='e.g. damaged == true' value={tr.when} style={{ flex: '1 1 140px' }} onChange={(e) => onChange(transitions.map((x, j) => (j === i ? { ...x, when: e.target.value } : x)))} />
-              <select value={tr.to} onChange={(e) => onChange(transitions.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))}>
-                <option value="">(to…)</option>
-                {stepIds.map((s) => (<option key={s} value={s}>{s}</option>))}
-              </select>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange(transitions.filter((_, j) => j !== i))}>✕</button>
-            </div>
-            {condErr && <span className="op-pd-issue-err" style={{ fontSize: '.72rem' }}>⚠ {condErr}</span>}
-            {unknown.length > 0 && <span className="op-pd-issue-err" style={{ fontSize: '.72rem' }}>⚠ {t('condUnknownVars', 'Unknown variable(s): {list}. Add them in Data object.').replace('{list}', unknown.join(', '))}</span>}
-          </div>
-        )
-      })}
-      <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange([...transitions, { when: '', to: '' }])}>+ Add branch</button>
-    </fieldset>
-  )
-}
-
 // --- work step properties (task / compute / script) ----------------------------------------------
 
 /** One-line summary of what a work step does, e.g. "Server action: inventory.lookup",
@@ -351,32 +305,22 @@ function workStepSummary(step: TaskStep | ComputeStep, tasks: TaskTypeDef[], t: 
 }
 
 /** Decluttered properties for a "work" step (task / compute / script): a compact one-line summary of
- *  what the step does + an "Edit task…" button opening the guided TaskDialog. The big inline config
- *  moved into TaskDialog. The common flow fields (default next, branches, skip-when) stay inline. */
+ *  what the step does + an "Edit task…" button opening the guided TaskDialog. The kind-specific config
+ *  AND the step name (id) live in TaskDialog now. Default next + branches are drawn on the canvas.
+ *  Only skip-when (a per-step condition, not a link) stays inline here. */
 function StepWorkProps({
   def,
-  id,
   step,
-  stepIds,
   tasks,
-  capabilities,
   onChange,
-  onRename,
 }: {
   def: ProcessDefinition
-  id: string
   step: TaskStep | ComputeStep
-  stepIds: string[]
   tasks: TaskTypeDef[]
-  capabilities: Capabilities
   onChange: (s: Step) => void
-  onRename: (n: string) => void
 }) {
   const t = useT('processDesign')
-  // Patch only the common flow fields (next / transitions / skipWhen) edited inline below; the
-  // kind-specific config is edited in the dialog opened from the preview ("Edit task" on the mockup).
-  const set = (patch: { next?: string; transitions?: Transition[]; skipWhen?: string }) =>
-    onChange({ ...step, ...patch } as Step)
+  const set = (patch: { skipWhen?: string }) => onChange({ ...step, ...patch } as Step)
 
   const heading = isComputeStep(step)
     ? t('computeStep', 'Compute')
@@ -388,17 +332,7 @@ function StepWorkProps({
   return (
     <div className="op-pd-props-body">
       <h3>{heading}</h3>
-      <StepIdField id={id} onRename={onRename} />
-
       <p className="muted op-pd-verify-summary-line">{summary}</p>
-
-      <Field label="Default next step">
-        <select value={step.next ?? ''} onChange={(e) => set({ next: e.target.value || undefined })}>
-          <option value="">(end the process)</option>
-          {stepIds.filter((s) => s !== id).map((s) => (<option key={s} value={s}>{s}</option>))}
-        </select>
-      </Field>
-      <TransitionsEditor step={step} stepIds={stepIds.filter((s) => s !== id)} vars={def.dataSchema} onChange={(transitions) => set({ transitions })} />
 
       <SkipWhenField value={step.skipWhen ?? ''} vars={def.dataSchema} onChange={(v) => set({ skipWhen: v || undefined })} />
     </div>
