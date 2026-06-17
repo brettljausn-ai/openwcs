@@ -1,5 +1,6 @@
 package org.openwcs.processdesigner.task;
 
+import java.util.List;
 import java.util.Map;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
@@ -37,6 +38,18 @@ final class TaskHttp {
                     .retrieve()
                     .body(new ParameterizedTypeReference<Map<String, Object>>() { });
             return response == null ? Map.of() : response;
+        } catch (RestClientException e) {
+            throw new TaskExecutionException(taskType + " task failed: " + e.getMessage(), e);
+        }
+    }
+
+    static List<Map<String, Object>> getForList(RestClient http, String uri, String taskType, Object... uriVars) {
+        try {
+            List<Map<String, Object>> response = http.get()
+                    .uri(uri, uriVars)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<Map<String, Object>>>() { });
+            return response == null ? List.of() : response;
         } catch (RestClientException e) {
             throw new TaskExecutionException(taskType + " task failed: " + e.getMessage(), e);
         }
