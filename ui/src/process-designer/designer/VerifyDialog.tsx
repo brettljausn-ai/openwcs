@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useT } from '../../i18n/useT'
 import {
   verifyFieldsForKind,
+  verifyWritePathsForKind,
   type Capabilities,
   type DataVar,
   type VerifyConfig,
@@ -81,10 +82,11 @@ export default function VerifyDialog({ verify, kinds, capabilities, vars, stepId
 
   const setKind = (kind: VerifyKind) => {
     if (kind === draft.kind) return
-    // Switching kind: drop any write mappings whose key is not valid for the new kind.
-    const validKeys = new Set(verifyFieldsForKind(kind, capabilities.verifyFields).map((f) => f.key))
+    // Switching kind: drop any write mappings whose path is not valid for the new kind. Valid paths
+    // include scalar keys, each object's whole key, and each object sub-field as `objectKey.subKey`.
+    const validPaths = verifyWritePathsForKind(kind, capabilities.verifyFields)
     const write: Record<string, string> = {}
-    for (const [k, v] of Object.entries(draft.write ?? {})) if (validKeys.has(k)) write[k] = v
+    for (const [k, v] of Object.entries(draft.write ?? {})) if (validPaths.has(k)) write[k] = v
     setDraft({ ...draft, kind, write })
   }
 
@@ -176,19 +178,61 @@ export default function VerifyDialog({ verify, kinds, capabilities, vars, stepId
                 </p>
               ) : (
                 <div className="op-pd-verify-fields">
-                  {fields.map((f) => (
-                    <div key={f.key} className="op-pd-verify-field-row">
-                      <span className="op-pd-verify-field-label">{f.label}</span>
-                      <div className="op-pd-verify-field-pick">
-                        <VarCombobox
-                          value={draft.write?.[f.key] ?? ''}
-                          options={vars}
-                          placeholder={t('verifyDontStore', '(do not store)')}
-                          onChange={(name) => setWrite(f.key, name)}
-                        />
+                  {fields.map((f) =>
+                    f.object && f.sub && f.sub.length > 0 ? (
+                      // Object field: a "store whole object" row plus an indented list of its
+                      // properties. These are alternatives/additions (you can store the whole object
+                      // AND/OR individual properties into different variables).
+                      <div key={f.key} className="op-pd-verify-objgroup">
+                        <div className="op-pd-verify-field-row op-pd-verify-objgroup-head">
+                          <span className="op-pd-verify-field-label">
+                            {t('verifyStoreWholeObject', '{label}: store whole object').replace('{label}', f.label)}
+                          </span>
+                          <div className="op-pd-verify-field-pick">
+                            <VarCombobox
+                              value={draft.write?.[f.key] ?? ''}
+                              options={vars}
+                              placeholder={t('verifyDontStore', '(do not store)')}
+                              onChange={(name) => setWrite(f.key, name)}
+                            />
+                          </div>
+                        </div>
+                        <p className="muted op-pd-verify-objgroup-hint">
+                          {t('verifyObjectHint', 'Store the whole object and/or pick out individual properties below.')}
+                        </p>
+                        <div className="op-pd-verify-objgroup-subs">
+                          {f.sub.map((s) => {
+                            const path = `${f.key}.${s.key}`
+                            return (
+                              <div key={path} className="op-pd-verify-field-row op-pd-verify-subrow">
+                                <span className="op-pd-verify-field-label">{s.label}</span>
+                                <div className="op-pd-verify-field-pick">
+                                  <VarCombobox
+                                    value={draft.write?.[path] ?? ''}
+                                    options={vars}
+                                    placeholder={t('verifyDontStore', '(do not store)')}
+                                    onChange={(name) => setWrite(path, name)}
+                                  />
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ) : (
+                      <div key={f.key} className="op-pd-verify-field-row">
+                        <span className="op-pd-verify-field-label">{f.label}</span>
+                        <div className="op-pd-verify-field-pick">
+                          <VarCombobox
+                            value={draft.write?.[f.key] ?? ''}
+                            options={vars}
+                            placeholder={t('verifyDontStore', '(do not store)')}
+                            onChange={(name) => setWrite(f.key, name)}
+                          />
+                        </div>
+                      </div>
+                    ),
+                  )}
                 </div>
               )}
             </>

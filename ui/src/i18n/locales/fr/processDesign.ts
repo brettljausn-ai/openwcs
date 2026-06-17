@@ -102,6 +102,8 @@ export default {
   verifyStep3: 'Si introuvable',
   verifyStep1Guide: 'Choisissez ce que l\'opérateur scanne ici. Cela détermine quels détails peuvent être résolus et stockés.',
   verifyStep2Guide: 'Ceux-ci sont écrits dans votre objet de données pour les étapes suivantes. Laissez un champ sur "ne pas stocker" pour l\'ignorer.',
+  verifyStoreWholeObject: '{label} : stocker l\'objet entier',
+  verifyObjectHint: 'Stockez l\'objet entier et/ou sélectionnez des propriétés individuelles ci-dessous.',
   verifyStep3Guide: 'Choisissez ce qui se passe lorsque la valeur scannée ne peut pas être résolue.',
   verifyKindHelp_barcode: 'L\'opérateur scanne un code-barres produit. L\'unité de mesure est fixée par le code-barres.',
   verifyKindHelp_sku: 'L\'opérateur scanne ou saisit un code article, résolu par rapport à votre référentiel articles.',
