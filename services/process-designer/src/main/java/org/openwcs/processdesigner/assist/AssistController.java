@@ -46,6 +46,7 @@ public class AssistController {
                 scriptGovernance.scriptingEnabled(),
                 aiConfig.configured(),
                 scriptGovernance.canAuthorScript(roles),
-                org.openwcs.processdesigner.verify.VerifyKinds.ALL);
+                org.openwcs.processdesigner.verify.VerifyKinds.ALL,
+                org.openwcs.processdesigner.verify.VerifyFields.catalog());
     }
 }

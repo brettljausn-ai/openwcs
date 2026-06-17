@@ -34,10 +34,6 @@ public class DefinitionValidator {
     private static final Set<String> CAPTURING_SCREENS =
             Set.of("textInput", "numberInput", "dateInput", "questionYesNo", "questionChoice");
 
-    /** Resolved fields a screen verify.write may map to a data-object variable. */
-    private static final Set<String> VERIFY_RESOLVED_FIELDS =
-            Set.of("id", "code", "name", "uomCode", "schemaCategory");
-
     private final TaskRegistry taskRegistry;
 
     public DefinitionValidator(TaskRegistry taskRegistry) {
@@ -182,10 +178,12 @@ public class DefinitionValidator {
 
     /**
      * Validates an optional screen {@code config.verify} block (scan-verify step): {@code kind} must
-     * be one of the three resolve kinds; each {@code write} entry's key must be a known resolved field
-     * and its target must be a declared data-object variable; and {@code onNotFound.mode=="goto"} must
-     * name an existing step. The frontend handles the actual branch + writes at runtime; the server
-     * only validates the shape at publish time (malformed -> the caller surfaces 422).
+     * be a known resolve kind; each {@code write} entry's key must be a resolvable field FOR THAT KIND
+     * (per the {@code VerifyFields} catalog: a location resolves id/code/purpose/locationType/status,
+     * a SKU-like kind resolves id/code/name/uomCode/schemaCategory) and its target must be a declared
+     * data-object variable; and {@code onNotFound.mode=="goto"} must name an existing step. The
+     * frontend handles the actual branch + writes at runtime; the server only validates the shape at
+     * publish time (malformed -> the caller surfaces 422).
      */
     private static void validateVerify(List<String> problems, String id, JsonNode config,
                                        Set<String> variables, Set<String> stepIds) {
@@ -202,12 +200,18 @@ public class DefinitionValidator {
         }
 
         String kind = text(verify, "kind");
+        boolean kindValid = kind != null && org.openwcs.processdesigner.verify.VerifyKinds.isValid(kind);
         if (kind == null) {
             problems.add("Screen step '" + id + "' verify has no kind.");
-        } else if (!org.openwcs.processdesigner.verify.VerifyKinds.isValid(kind)) {
+        } else if (!kindValid) {
             problems.add("Screen step '" + id + "' verify kind '" + kind
                     + "' is not one of " + org.openwcs.processdesigner.verify.VerifyKinds.ALL + ".");
         }
+
+        // Resolvable field keys for THIS kind (a location resolves different attributes than a SKU).
+        Set<String> validFields = kindValid
+                ? org.openwcs.processdesigner.verify.VerifyFields.keysForKind(kind)
+                : Set.of();
 
         JsonNode write = verify.get("write");
         if (write != null && !write.isNull()) {
@@ -218,9 +222,9 @@ public class DefinitionValidator {
                 while (wit.hasNext()) {
                     Map.Entry<String, JsonNode> w = wit.next();
                     String field = w.getKey();
-                    if (!VERIFY_RESOLVED_FIELDS.contains(field)) {
-                        problems.add("Screen step '" + id + "' verify write key '" + field
-                                + "' is not a resolved field " + VERIFY_RESOLVED_FIELDS + ".");
+                    if (kindValid && !validFields.contains(field)) {
+                        problems.add("verify field '" + field + "' is not valid for kind '" + kind
+                                + "' (step '" + id + "'; valid fields for this kind: " + validFields + ").");
                     }
                     JsonNode targetNode = w.getValue();
                     String target = targetNode != null && targetNode.isTextual() ? targetNode.asText() : null;
