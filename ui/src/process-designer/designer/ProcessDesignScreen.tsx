@@ -12,7 +12,7 @@
 //
 // Rules of Hooks: every hook is declared unconditionally at the top before any early return.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '../../i18n/useT'
 import ProcessScreenView from '../screens/ProcessScreenView'
 import {
@@ -41,6 +41,10 @@ import DataObjectDialog from './DataObjectDialog'
 import { applyVerifyWrites, nextStepId, resolveLanding, writeValue } from '../runtime/walker'
 import { PREVIEW_CATALOG, sampleDataFor } from './sampleData'
 import PropertiesPanel from './PropertiesPanel'
+
+// React Flow ships a sizeable graph runtime; lazy-load it so it stays out of the main bundle (the
+// designer is admin-only and the Canvas view is what pulls it in).
+const FlowCanvas = lazy(() => import('./FlowCanvas'))
 
 const PALETTE: (ScreenType | 'task' | 'compute')[] = ['textInput', 'numberInput', 'dateInput', 'acknowledge', 'questionYesNo', 'questionChoice', 'task', 'compute']
 
@@ -125,6 +129,8 @@ export default function ProcessDesignScreen() {
 
   const [def, setDef] = useState<ProcessDefinition>(() => emptyDef())
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // The flow area can show the visual node-canvas (primary) or the structured list (fallback).
+  const [view, setView] = useState<'canvas' | 'list'>('canvas')
   const [defs, setDefs] = useState<ProcessDefinition[]>([])
   const [status, setStatus] = useState<string>('')
   const [issues, setIssues] = useState<ValidationIssue[] | null>(null)
@@ -184,13 +190,31 @@ export default function ProcessDesignScreen() {
 
   const changeSchema = useCallback((schema: DataVar[]) => patchDef({ dataSchema: schema }), [patchDef])
 
+  // Persist a canvas node's position into the step's (designer-only) `ui`. The backend stores the
+  // model verbatim and publish validation ignores unknown step fields, so positions persist with no
+  // server change.
+  const moveStep = useCallback((id: string, x: number, y: number) => {
+    setDef((d) => {
+      const step = d.steps[id]
+      if (!step) return d
+      return { ...d, steps: { ...d.steps, [id]: { ...step, ui: { x, y } } } }
+    })
+    setDirty(true)
+  }, [])
+
   const addStep = useCallback((type: ScreenType | 'task' | 'compute') => {
     // Default a new Task step to the first NON-script curated task (the script type is opt-in via the
     // task-type picker / AI assist, gated by capabilities).
     const defaultTask = tasks.find((tt) => tt.id !== SCRIPT_TASK_TYPE)?.id ?? 'inventory.lookup'
     setDef((d) => {
       const id = uniqueId(type === 'task' ? 'task' : type, new Set(Object.keys(d.steps)))
-      const steps = { ...d.steps, [id]: newStep(type, defaultTask) }
+      const step = newStep(type, defaultTask)
+      // Place the node at a sensible free spot below the lowest positioned node so it never lands on
+      // top of an existing one (it appears as an orphan until the user drag-connects it).
+      const placed = Object.values(d.steps).filter((s) => s.ui)
+      const maxY = placed.reduce((m, s) => Math.max(m, s.ui?.y ?? 0), 0)
+      step.ui = placed.length ? { x: 40, y: maxY + 150 } : { x: 40, y: 40 }
+      const steps = { ...d.steps, [id]: step }
       const start = d.start || id
       return { ...d, steps, start }
     })
@@ -512,9 +536,27 @@ export default function ProcessDesignScreen() {
       </div>
       {status && <div className="op-pd-statusline">{status}</div>}
 
-      <div className="op-pd-grid">
-        {/* LEFT: flow list + palette + def list */}
+      <div className={`op-pd-grid${view === 'canvas' ? ' is-canvas' : ''}`}>
+        {/* LEFT (or wide MAIN in canvas view): flow canvas/list + palette + def list */}
         <div className="op-pd-flow">
+          {/* View toggle: the visual node-canvas (default) or the structured list. */}
+          <div className="op-pd-view-toggle" role="tablist" aria-label={t('flowView', 'Flow view')}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === 'canvas'}
+              className={`op-pd-view-btn${view === 'canvas' ? ' is-active' : ''}`}
+              onClick={() => setView('canvas')}
+            >{t('viewCanvas', 'Canvas')}</button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === 'list'}
+              className={`op-pd-view-btn${view === 'list' ? ' is-active' : ''}`}
+              onClick={() => setView('list')}
+            >{t('viewList', 'List')}</button>
+          </div>
+
           <div className="op-pd-palette">
             {PALETTE.map((p) => (
               <button key={p} type="button" className="op-pd-pal-btn" title={SCREEN_TYPE_LABELS[p]} onClick={() => addStep(p)}>
@@ -522,6 +564,24 @@ export default function ProcessDesignScreen() {
               </button>
             ))}
           </div>
+
+          {/* CANVAS view: the visual node-canvas (drag nodes, draw links). */}
+          {view === 'canvas' && (
+            <Suspense fallback={<div className="op-fc-canvas op-fc-loading muted">{t('canvasLoading', 'Loading canvas…')}</div>}>
+              <FlowCanvas
+                def={def}
+                flow={flow}
+                selectedId={simulating ? simStep : selectedId}
+                simStepId={simulating ? simStep : null}
+                editable={editable && !simulating}
+                onSelect={(id) => setSelectedId(id)}
+                onChangeStep={changeStep}
+                onSetStart={(id) => patchDef({ start: id })}
+                onDeleteStep={deleteStep}
+                onMoveStep={moveStep}
+              />
+            </Suspense>
+          )}
 
           {/* The typed variables the process reads/writes; edited in its own dialog. */}
           <div className="op-pd-dataobj-bar">
@@ -535,7 +595,7 @@ export default function ProcessDesignScreen() {
             </button>
           </div>
 
-          {flow.loopBack.size > 0 && (
+          {view === 'list' && flow.loopBack.size > 0 && (
             <div className="op-pd-flow-loops" title={t('loopHint', 'A step sends the flow back to an earlier step. Click to jump to the step that loops, then edit its next / branches.')}>
               <span aria-hidden="true">↺</span> {t('loopBanner', 'This flow loops')}:
               {[...flow.loopBack].map((edge) => {
@@ -549,6 +609,7 @@ export default function ProcessDesignScreen() {
             </div>
           )}
 
+          {view === 'list' && (
           <ul className="op-pd-steplist">
             {flow.order.length === 0 && flow.unreachable.length === 0 && (
               <li className="muted" style={{ padding: '.5rem' }}>{t('noSteps', 'Add a step from the palette above.')}</li>
@@ -588,6 +649,7 @@ export default function ProcessDesignScreen() {
               />
             ))}
           </ul>
+          )}
 
           {/* Version management for the current process key. */}
           {versionsForKey.length > 0 && (
