@@ -91,6 +91,40 @@ public final class VerifyFields {
                     Field.scalar("purpose", "Purpose"),
                     Field.scalar("status", "Status"))));
 
+    /** Order/picksheet fields (kind order resolves an order header via order-management). */
+    private static final List<Field> ORDER_FIELDS = List.of(
+            Field.scalar("id", "Order ID"),
+            Field.scalar("code", "Order reference"),
+            Field.scalar("status", "Status"),
+            Field.scalar("orderType", "Order type"),
+            Field.scalar("customerRef", "Customer reference"),
+            Field.scalar("lineCount", "Line count"),
+            // The resolved order as a whole object (store it whole, or drill into one property).
+            Field.object("order", "Order (object)", List.of(
+                    Field.scalar("orderId", "Order ID"),
+                    Field.scalar("orderRef", "Order reference"),
+                    Field.scalar("orderType", "Order type"),
+                    Field.scalar("status", "Status"),
+                    Field.scalar("customerRef", "Customer reference"),
+                    Field.scalar("lineCount", "Line count"))));
+
+    /** ASN fields (kind asn resolves an inbound order/ASN header; same shape, inbound-phrased labels). */
+    private static final List<Field> ASN_FIELDS = List.of(
+            Field.scalar("id", "Order ID"),
+            Field.scalar("code", "ASN reference"),
+            Field.scalar("status", "Status"),
+            Field.scalar("orderType", "Order type"),
+            Field.scalar("customerRef", "Customer reference"),
+            Field.scalar("lineCount", "Line count"),
+            // The resolved ASN/order as a whole object (store it whole, or drill into one property).
+            Field.object("asn", "ASN (object)", List.of(
+                    Field.scalar("orderId", "Order ID"),
+                    Field.scalar("orderRef", "ASN reference"),
+                    Field.scalar("orderType", "Order type"),
+                    Field.scalar("status", "Status"),
+                    Field.scalar("customerRef", "Customer reference"),
+                    Field.scalar("lineCount", "Line count"))));
+
     /** Per-kind catalog, keyed by verify kind. Insertion order matches {@link VerifyKinds#ALL}. */
     private static final Map<String, List<Field>> BY_KIND;
 
@@ -100,6 +134,8 @@ public final class VerifyFields {
         m.put(VerifyKinds.SKU, SKU_FIELDS);
         m.put(VerifyKinds.LOCATION, LOCATION_FIELDS);
         m.put(VerifyKinds.SKU_SCAN, SKU_FIELDS);
+        m.put(VerifyKinds.ORDER, ORDER_FIELDS);
+        m.put(VerifyKinds.ASN, ASN_FIELDS);
         BY_KIND = Map.copyOf(m);
     }
 

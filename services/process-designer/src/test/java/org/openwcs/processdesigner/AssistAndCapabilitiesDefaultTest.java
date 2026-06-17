@@ -47,8 +47,10 @@ class AssistAndCapabilitiesDefaultTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.verifyKinds[1]").value("sku"))
                 .andExpect(jsonPath("$.verifyKinds[2]").value("location"))
                 .andExpect(jsonPath("$.verifyKinds[3]").value("skuScan"))
+                .andExpect(jsonPath("$.verifyKinds[4]").value("order"))
+                .andExpect(jsonPath("$.verifyKinds[5]").value("asn"))
                 .andExpect(jsonPath("$.verifyKinds",
-                        org.hamcrest.Matchers.hasItem("skuScan")))
+                        org.hamcrest.Matchers.hasItems("skuScan", "order", "asn")))
                 // Per-kind resolvable-field catalog: location vs SKU resolve different attributes.
                 // Scalars plus object fields (object:true with a sub drill-down list).
                 .andExpect(jsonPath("$.verifyFields.location").isArray())
@@ -95,7 +97,31 @@ class AssistAndCapabilitiesDefaultTest extends AbstractIntegrationTest {
                                 "id", "code", "name", "uomCode", "schemaCategory", "sku", "uom")))
                 .andExpect(jsonPath("$.verifyFields.skuScan[?(@.key=='uom')].sub[*].key",
                         org.hamcrest.Matchers.containsInAnyOrder(
-                                "uomId", "code", "factor", "baseUnit")));
+                                "uomId", "code", "factor", "baseUnit")))
+                // order kind: scalars + object "order" with its sub drill-down fields.
+                .andExpect(jsonPath("$.verifyFields.order[*].key",
+                        org.hamcrest.Matchers.containsInAnyOrder(
+                                "id", "code", "status", "orderType", "customerRef", "lineCount", "order")))
+                .andExpect(jsonPath("$.verifyFields.order[?(@.key=='order')].object").value(
+                        org.hamcrest.Matchers.hasItem(true)))
+                .andExpect(jsonPath("$.verifyFields.order[?(@.key=='order')].label").value(
+                        org.hamcrest.Matchers.hasItem("Order (object)")))
+                .andExpect(jsonPath("$.verifyFields.order[?(@.key=='order')].sub[*].key",
+                        org.hamcrest.Matchers.containsInAnyOrder(
+                                "orderId", "orderRef", "orderType", "status", "customerRef", "lineCount")))
+                // asn kind: same shape, object key "asn", inbound-phrased labels.
+                .andExpect(jsonPath("$.verifyFields.asn[*].key",
+                        org.hamcrest.Matchers.containsInAnyOrder(
+                                "id", "code", "status", "orderType", "customerRef", "lineCount", "asn")))
+                .andExpect(jsonPath("$.verifyFields.asn[?(@.key=='code')].label").value(
+                        org.hamcrest.Matchers.hasItem("ASN reference")))
+                .andExpect(jsonPath("$.verifyFields.asn[?(@.key=='asn')].object").value(
+                        org.hamcrest.Matchers.hasItem(true)))
+                .andExpect(jsonPath("$.verifyFields.asn[?(@.key=='asn')].label").value(
+                        org.hamcrest.Matchers.hasItem("ASN (object)")))
+                .andExpect(jsonPath("$.verifyFields.asn[?(@.key=='asn')].sub[*].key",
+                        org.hamcrest.Matchers.containsInAnyOrder(
+                                "orderId", "orderRef", "orderType", "status", "customerRef", "lineCount")));
 
         // SUPERVISOR can view (PROCESS_DESIGN_VIEW) but cannot author scripts.
         mvc.perform(get("/api/process-designer/capabilities").header("X-Auth-Roles", "SUPERVISOR"))
