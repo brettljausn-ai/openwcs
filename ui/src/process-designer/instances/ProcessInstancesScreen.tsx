@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useT } from '../../i18n/useT'
 import { getInstance, listInstances, listProcesses } from '../api'
-import { isScreenStep, type InstanceSummary, type ProcessInstance, type ProcessSummary } from '../model'
+import { isComputeStep, isScreenStep, type InstanceSummary, type ProcessInstance, type ProcessSummary } from '../model'
 
 const STATUS_OPTIONS = ['', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED']
 
@@ -189,7 +189,11 @@ export default function ProcessInstancesScreen() {
                     {trail.map((id) => {
                       const step = detail.def?.steps[id]
                       const isCurrent = id === detail.currentStep
-                      const kind = step ? (isScreenStep(step) ? step.screen : `task: ${step.task}`) : '?'
+                      const kind = step
+                        ? isScreenStep(step) ? step.screen
+                          : isComputeStep(step) ? 'compute'
+                          : `task: ${step.task}`
+                        : '?'
                       return (
                         <li key={id} className={isCurrent ? 'is-current' : ''}>
                           <code>{id}</code> <span className="muted">{kind}</span>

@@ -246,7 +246,33 @@ export function isScriptStep(step: Step): boolean {
   return step.type === 'task' && step.task === SCRIPT_TASK_TYPE
 }
 
-export type Step = ScreenStep | TaskStep
+/** One assignment in a compute step: write the value of `expr` (evaluated with the safe expression
+ *  grammar, see condition.ts evaluateExpression) into the data-object variable `var`. */
+export interface ComputeAssignment {
+  /** Target data-object variable name the computed value is written to. */
+  var: string
+  /** A value-returning expression over the data object (e.g. "qty == expected or qty == prevCount"). */
+  expr: string
+}
+
+/** A no-code "compute" step (client-evaluated, offline-friendly): evaluates each `set` row in order,
+ *  writing the computed value into the data object, then resolves next/transitions and advances. It
+ *  renders NO screen (processed like a skip-resolution). Fully offline — no server call/checkpoint. */
+export interface ComputeStep {
+  type: 'compute'
+  /** Ordered assignments; each row writes the value of its expression into a data-object variable. */
+  set: ComputeAssignment[]
+  next?: string
+  transitions?: Transition[]
+  /** Conditional-skip (same grammar as transition `when`); true = the step is skipped at runtime. */
+  skipWhen?: string
+}
+
+export function isComputeStep(step: Step): step is ComputeStep {
+  return step.type === 'compute'
+}
+
+export type Step = ScreenStep | TaskStep | ComputeStep
 
 export interface ProcessDefinition {
   processKey: string
@@ -417,7 +443,7 @@ export interface AssistSuggestion {
   confidence?: number
 }
 
-export const SCREEN_TYPE_ICONS: Record<ScreenType | 'task', string> = {
+export const SCREEN_TYPE_ICONS: Record<ScreenType | 'task' | 'compute', string> = {
   textInput: '⌨',
   numberInput: '#',
   dateInput: '▦',
@@ -425,9 +451,10 @@ export const SCREEN_TYPE_ICONS: Record<ScreenType | 'task', string> = {
   questionYesNo: '⤙',
   questionChoice: '☰',
   task: '⚙',
+  compute: 'ƒ',
 }
 
-export const SCREEN_TYPE_LABELS: Record<ScreenType | 'task', string> = {
+export const SCREEN_TYPE_LABELS: Record<ScreenType | 'task' | 'compute', string> = {
   textInput: 'Text input',
   numberInput: 'Number input',
   dateInput: 'Date input',
@@ -435,6 +462,7 @@ export const SCREEN_TYPE_LABELS: Record<ScreenType | 'task', string> = {
   questionYesNo: 'Question (Yes/No)',
   questionChoice: 'Question (choices)',
   task: 'Task',
+  compute: 'Compute',
 }
 
 export function isScreenStep(step: Step): step is ScreenStep {

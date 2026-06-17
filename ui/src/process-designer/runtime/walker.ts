@@ -5,8 +5,8 @@
 // (first matching `when` wins, via the safe condition interpreter) then falls back to `next`. No
 // match + no next = the instance ends (returns null).
 
-import { safeEvaluate } from '../condition'
-import { type ProcessDefinition, type Step, type VerifyConfig, type VerifyResult } from '../model'
+import { evaluateExpression, safeEvaluate } from '../condition'
+import { isComputeStep, type ComputeStep, type ProcessDefinition, type Step, type VerifyConfig, type VerifyResult } from '../model'
 
 /** Write a captured screen value to the data object under config.writeTo (returns a NEW object). */
 export function writeValue(
@@ -65,31 +65,80 @@ export function stepOf(def: ProcessDefinition, id: string | null): Step | undefi
   return id ? def.steps[id] : undefined
 }
 
+/** Evaluate a compute step's `set` rows in order against `data`, returning a NEW data object with the
+ *  computed values written in. Each row's expression is evaluated with the safe expression grammar
+ *  (evaluateExpression, no eval); a parse/runtime error writes `undefined` for that row rather than
+ *  throwing, so a malformed expression never crashes the runtime. Later rows see earlier writes. */
+export function applyCompute(
+  step: ComputeStep,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  let out = { ...data }
+  for (const row of step.set ?? []) {
+    if (!row.var) continue
+    let value: unknown
+    try {
+      value = evaluateExpression(row.expr, out)
+    } catch {
+      value = undefined
+    }
+    out = { ...out, [row.var]: value }
+  }
+  return out
+}
+
+/** The resolved landing of a walk: the step id to render (null = the instance ends) and the data
+ *  object after any compute steps along the way have been evaluated. */
+export interface Landing {
+  stepId: string | null
+  data: Record<string, unknown>
+}
+
 /**
- * Resolve the step id we should actually LAND on, honouring `skipWhen` (spec/Phase 2 conditional
- * skips): starting from `id`, while the step's `skipWhen` evaluates true against `data`, advance to
- * its next/first-matching transition WITHOUT rendering it. Returns the first id whose step does not
- * skip (or null when the chain ends / a skipped step has no onward path).
+ * Resolve the step we should actually LAND on, honouring `skipWhen` (Phase 2 conditional skips) AND
+ * evaluating any `compute` steps along the way (they render no screen — like a skip-resolution):
+ * starting from `id`, while a step is a compute step OR its `skipWhen` is true, process it without
+ * rendering and advance to its next/first-matching transition. Compute steps write their `set` rows
+ * into the data object first (so transitions/next see the computed values). Returns the first
+ * non-skipped, non-compute step id together with the (possibly updated) data object.
  *
- * Guards against infinite loops: a step that skips back onto an already-seen id terminates the chain
- * (returns null) rather than spinning. Used by both the runtime and the designer simulate.
+ * Guards against infinite loops: revisiting an already-seen id terminates the chain (stepId: null)
+ * rather than spinning. Used by both the runtime and the designer simulate; fully offline.
+ */
+export function resolveLanding(
+  def: ProcessDefinition,
+  id: string | null,
+  data: Record<string, unknown>,
+): Landing {
+  const seen = new Set<string>()
+  let cur = id
+  let d = data
+  while (cur) {
+    const step = def.steps[cur]
+    if (!step) return { stepId: null, data: d } // dangling id ends the instance
+    const isCompute = isComputeStep(step)
+    const skips = !!step.skipWhen && safeEvaluate(step.skipWhen, d)
+    if (!isCompute && !skips) return { stepId: cur, data: d }
+    if (seen.has(cur)) return { stepId: null, data: d } // loop guard: would cycle forever
+    seen.add(cur)
+    // A compute step that is NOT skipped writes its computed values before we resolve its onward path.
+    if (isCompute && !skips) d = applyCompute(step, d)
+    cur = nextStepId(step, d) // no onward path -> null (instance ends)
+  }
+  return { stepId: null, data: d }
+}
+
+/**
+ * Backwards-compatible thin wrapper returning ONLY the landing step id. NOTE: it discards the
+ * compute-updated data — callers that may walk through a compute step must use resolveLanding and
+ * adopt its returned `data`. Retained for skip-only walks where no compute is involved.
  */
 export function resolveLandingStep(
   def: ProcessDefinition,
   id: string | null,
   data: Record<string, unknown>,
 ): string | null {
-  const seen = new Set<string>()
-  let cur = id
-  while (cur) {
-    const step = def.steps[cur]
-    if (!step) return null // dangling id ends the instance
-    if (!step.skipWhen || !safeEvaluate(step.skipWhen, data)) return cur
-    if (seen.has(cur)) return null // skip-loop guard: would cycle forever
-    seen.add(cur)
-    cur = nextStepId(step, data) // a skipped step with no onward path -> null (instance ends)
-  }
-  return null
+  return resolveLanding(def, id, data).stepId
 }
 
 /** Step ids reachable from start (BFS over next + transition targets). For validation + simulate. */

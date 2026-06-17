@@ -12,16 +12,16 @@ import { useMemo, useState } from 'react'
 import { useT } from '../../i18n/useT'
 import { validateCondition } from '../condition'
 import {
-  SCRIPT_TASK_TYPE,
+  isComputeStep,
   isScriptStep,
   taskTypeById,
   verifyFieldsForKind,
   type Capabilities,
   type ChoiceOption,
+  type ComputeStep,
   type DataVar,
   type ProcessDefinition,
   type ScreenStep,
-  type ScriptConfig,
   type Step,
   type TaskStep,
   type TaskTypeDef,
@@ -30,8 +30,7 @@ import {
   type VerifyConfig,
   type VerifyKind,
 } from '../model'
-import ScriptEditor from './ScriptEditor'
-import TaskAssist from './TaskAssist'
+import TaskDialog from './TaskDialog'
 import VarCombobox from './VarCombobox'
 import VerifyDialog from './VerifyDialog'
 
@@ -79,7 +78,7 @@ export default function PropertiesPanel({ def, selectedId, tasks, capabilities, 
             onRename={(n) => onRenameStep(selectedId, n)}
           />
         ) : (
-          <TaskProps
+          <StepWorkProps
             def={def}
             id={selectedId}
             step={step}
@@ -441,9 +440,26 @@ function TransitionsEditor({ step, stepIds, onChange }: { step: Step; stepIds: s
   )
 }
 
-// --- task step properties ------------------------------------------------------------------------
+// --- work step properties (task / compute / script) ----------------------------------------------
 
-function TaskProps({
+/** One-line summary of what a work step does, e.g. "Server action: inventory.lookup",
+ *  "Compute: sets match, prevCount", "Sandboxed script". Used in the decluttered properties panel. */
+function workStepSummary(step: TaskStep | ComputeStep, tasks: TaskTypeDef[], t: (k: string, e: string) => string): string {
+  if (isComputeStep(step)) {
+    const names = (step.set ?? []).filter((r) => r.var).map((r) => r.var)
+    return names.length
+      ? t('summaryCompute', 'Compute: sets {list}').replace('{list}', names.join(', '))
+      : t('summaryComputeEmpty', 'Compute (no values set)')
+  }
+  if (isScriptStep(step)) return t('summaryScript', 'Sandboxed script')
+  const taskDef = taskTypeById(step.task, tasks)
+  return t('summaryServerAction', 'Server action: {task}').replace('{task}', taskDef?.label ?? step.task)
+}
+
+/** Decluttered properties for a "work" step (task / compute / script): a compact one-line summary of
+ *  what the step does + an "Edit task…" button opening the guided TaskDialog. The big inline config
+ *  moved into TaskDialog. The common flow fields (default next, branches, skip-when) stay inline. */
+function StepWorkProps({
   def,
   id,
   step,
@@ -455,100 +471,48 @@ function TaskProps({
 }: {
   def: ProcessDefinition
   id: string
-  step: TaskStep
+  step: TaskStep | ComputeStep
   stepIds: string[]
   tasks: TaskTypeDef[]
   capabilities: Capabilities
-  onChange: (s: TaskStep) => void
+  onChange: (s: Step) => void
   onRename: (n: string) => void
 }) {
   const t = useT('processDesign')
-  // The selected task may not be in the live catalog (e.g. a def authored against a newer server);
-  // resolve from the catalog, else show the raw id so it is still editable.
-  const taskDef = taskTypeById(step.task, tasks)
-  const set = (patch: Partial<TaskStep>) => onChange({ ...step, ...patch })
+  const [open, setOpen] = useState(false)
+  // Patch only the common flow fields (next / transitions / skipWhen) edited inline below; the
+  // kind-specific config is edited in the dialog. Typed to the shared fields, not the union.
+  const set = (patch: { next?: string; transitions?: Transition[]; skipWhen?: string }) =>
+    onChange({ ...step, ...patch } as Step)
 
-  // Capability gating (spec §7.2/§7.3): only offer script authoring when the server allows it, and
-  // only show the AI assist when it is configured.
-  const scriptAllowed = capabilities.scriptingEnabled && capabilities.canAuthorScript
-  const isScript = isScriptStep(step)
-  // The picker lists every catalog task EXCEPT the built-in "script" type, which only appears when
-  // scripting is allowed (otherwise it is simply not an option).
-  const pickableTasks = tasks.filter((tt) => tt.id !== SCRIPT_TASK_TYPE || scriptAllowed)
-
-  // Switching task type clears the curated mappings AND any leftover script config (and vice versa).
-  const changeTaskType = (next: string) => {
-    if (next === SCRIPT_TASK_TYPE) onChange({ ...step, task: next, input: {}, output: {}, config: step.config ?? { script: '', outputs: [] } })
-    else onChange({ ...step, task: next, input: {}, output: {}, config: undefined })
-  }
-
-  // Apply an AI curated suggestion: switch task type + fill the input/output mappings it proposed.
-  const applyCurated = (taskType: string, inputs: Record<string, string>, outputs: Record<string, string>) => {
-    onChange({ ...step, task: taskType, input: { ...inputs }, output: { ...outputs }, config: undefined })
-  }
-  // Insert an AI script draft: make this step a script step carrying the drafted snippet.
-  const insertScript = (config: ScriptConfig) => {
-    onChange({ ...step, task: SCRIPT_TASK_TYPE, input: {}, output: {}, config })
-  }
+  const heading = isComputeStep(step)
+    ? t('computeStep', 'Compute')
+    : isScriptStep(step)
+      ? t('scriptStep', 'Sandboxed script')
+      : t('taskStep', 'Task')
+  const summary = useMemo(() => workStepSummary(step, tasks, t), [step, tasks, t])
 
   return (
     <div className="op-pd-props-body">
-      <h3>{isScript ? t('scriptStep', 'Sandboxed script') : t('taskStep', 'Task')}</h3>
+      <h3>{heading}</h3>
       <StepIdField id={id} onRename={onRename} />
 
-      <Field label={t('taskType', 'Task type')}>
-        <select value={step.task} onChange={(e) => changeTaskType(e.target.value)}>
-          {/* Keep the current value selectable even if the catalog no longer lists it. */}
-          {!taskDef && <option value={step.task}>{step.task}</option>}
-          {pickableTasks.map((tt) => (<option key={tt.id} value={tt.id}>{tt.label}</option>))}
-        </select>
-      </Field>
-      {!isScript && taskDef?.description && <p className="muted op-pd-wide" style={{ fontSize: '.78rem', margin: '0 0 .5rem' }}>{taskDef.description}</p>}
+      <div className="op-pd-verify-summary">
+        <p className="muted op-pd-verify-summary-line">{summary}</p>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>
+          {t('editTask', 'Edit task…')}
+        </button>
+      </div>
 
-      {/* Sandboxed-script editor (only reachable when scripting is allowed). */}
-      {isScript && scriptAllowed && (
-        <div className="op-pd-wide">
-          <ScriptEditor config={step.config} onChange={(config) => set({ config })} />
-        </div>
-      )}
-      {/* A script step authored elsewhere but scripting is now disabled: show it read-only-ish note. */}
-      {isScript && !scriptAllowed && (
-        <p className="muted op-pd-assist-note op-pd-wide">{t('scriptDisabled', 'Scripting is disabled on this server. This script step cannot be edited here.')}</p>
-      )}
-
-      {/* Curated input/output mapping (not for script steps). */}
-      {!isScript && taskDef && taskDef.inputs.length > 0 && (
-        <fieldset className="op-pd-fieldset">
-          <legend>Inputs (task ← variable)</legend>
-          {taskDef.inputs.map((inp) => (
-            <Field key={inp.name} label={inp.required ? `${inp.name} *` : inp.name}>
-              <VarCombobox value={step.input?.[inp.name] ?? ''} options={def.dataSchema} onChange={(name) => set({ input: { ...step.input, [inp.name]: name } })} />
-            </Field>
-          ))}
-        </fieldset>
-      )}
-
-      {!isScript && taskDef && taskDef.outputs.length > 0 && (
-        <fieldset className="op-pd-fieldset">
-          <legend>Outputs (task → variable)</legend>
-          {taskDef.outputs.map((out) => (
-            <Field key={out.name} label={out.name}>
-              <VarCombobox value={step.output?.[out.name] ?? ''} options={def.dataSchema} onChange={(name) => set({ output: { ...step.output, [out.name]: name } })} />
-            </Field>
-          ))}
-        </fieldset>
-      )}
-
-      {/* AI "describe the task" assist (spec §7.3); only when configured server-side. */}
-      {capabilities.aiAssistEnabled && (
-        <div className="op-pd-wide">
-          <TaskAssist
-            schema={def.dataSchema}
-            canInsertScript={scriptAllowed}
-            onApplyCurated={applyCurated}
-            onInsertScript={insertScript}
-          />
-        </div>
+      {open && (
+        <TaskDialog
+          step={step}
+          tasks={tasks}
+          capabilities={capabilities}
+          vars={def.dataSchema}
+          onCancel={() => setOpen(false)}
+          onDone={(next) => { onChange(next); setOpen(false) }}
+        />
       )}
 
       <Field label="Default next step">
