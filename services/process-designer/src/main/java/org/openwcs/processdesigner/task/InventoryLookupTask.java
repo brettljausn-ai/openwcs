@@ -43,8 +43,12 @@ public class InventoryLookupTask implements ProcessTask {
         // warehouseId is auto-injected from the instance, so it is NOT a mapped input. The operator
         // scans the SKU (required) and a location OR a handling unit (either, both optional).
         return new TaskSpec("inventory.lookup", "Look up on-hand stock",
-                List.of(TaskSpec.req("skuId"), TaskSpec.opt("locationId"), TaskSpec.opt("huId")),
-                List.of(TaskSpec.out("onHand")));
+                "Read the on-hand stock of a SKU at a location or on a handling unit "
+                        + "(e.g. to set an expected quantity before a count).",
+                List.of(TaskSpec.req("skuId", "The SKU to look up"),
+                        TaskSpec.opt("locationId", "Optional: a storage location to scope the lookup"),
+                        TaskSpec.opt("huId", "Optional: a handling unit to scope the lookup")),
+                List.of(TaskSpec.out("onHand", "The on-hand quantity found")));
     }
 
     @Override
