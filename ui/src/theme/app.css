@@ -1048,6 +1048,16 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-verify-radio { display: flex; align-items: center; gap: .45rem; font-size: .88rem; margin-bottom: .4rem; }
 .op-pd-verify-radio input[type="radio"] { width: auto; flex: 0 0 auto; margin: 0; }
 
+/* Compute step: ordered assignment rows (target variable = expression) inside the task dialog. */
+.op-pd-compute-rows { display: flex; flex-direction: column; gap: .5rem; }
+.op-pd-compute-row { display: flex; flex-direction: column; gap: .25rem; }
+.op-pd-compute-row-main { display: flex; align-items: center; gap: .4rem; min-width: 0; }
+.op-pd-compute-target { flex: 0 0 38%; min-width: 0; }
+.op-pd-compute-eq { color: var(--text-muted); flex: 0 0 auto; }
+.op-pd-compute-expr { flex: 1 1 auto; min-width: 0; font-family: var(--font-mono); font-size: .82rem; }
+.op-pd-compute-row-actions { display: flex; gap: .2rem; flex: 0 0 auto; }
+.op-pd-compute-row-actions .op-pd-mini:disabled { opacity: .35; cursor: default; }
+
 .op-pd-chips { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .25rem; }
 .op-pd-chip { font-size: .68rem; font-family: var(--font-mono); padding: .1rem .35rem; border: 1px solid var(--glass-border); border-radius: 5px; background: transparent; color: var(--herbal-lime); cursor: pointer; }
 .op-pd-dataobj { margin-top: .4rem; }
