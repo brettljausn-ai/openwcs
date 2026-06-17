@@ -1010,6 +1010,44 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-toggle { display: flex; align-items: center; gap: .4rem; font-size: .82rem; }
 .op-pd-fieldset { border: 1px solid var(--glass-border); border-radius: 8px; padding: .55rem .65rem; }
 .op-pd-fieldset legend { font-size: .72rem; color: var(--text-dim); padding: 0 .3rem; text-transform: uppercase; letter-spacing: .06em; }
+/* Verify: compact summary row in the properties panel (replaces the big inline form). */
+.op-pd-verify-summary { display: flex; flex-direction: column; gap: .4rem; margin-top: .45rem; }
+.op-pd-verify-summary-line { font-size: .76rem; line-height: 1.4; margin: 0; }
+
+/* Verify dialog: step indicator, panes, per-kind field rows. */
+.op-pd-verify-steps { list-style: none; display: flex; gap: .4rem; padding: 0; margin: 0 0 1rem; }
+.op-pd-verify-step { flex: 1 1 0; min-width: 0; }
+.op-pd-verify-step > button {
+  width: 100%; display: flex; align-items: center; gap: .5rem; text-align: left; cursor: pointer;
+  background: transparent; border: 1px solid var(--glass-border); border-radius: 8px; padding: .45rem .55rem; color: var(--text-dim);
+}
+.op-pd-verify-step.is-active > button { border-color: var(--herbal-lime); color: var(--text); box-shadow: 0 0 0 1px var(--herbal-lime) inset; }
+.op-pd-verify-step.is-done > button { color: var(--text); }
+.op-pd-verify-step-num {
+  flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-size: .72rem; font-weight: 700; border: 1px solid var(--glass-border); background: rgba(255,255,255,.04);
+}
+.op-pd-verify-step.is-active .op-pd-verify-step-num { background: var(--herbal-lime); color: var(--forest-deep); border-color: var(--herbal-lime); }
+.op-pd-verify-step-label { font-size: .74rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; }
+.op-pd-verify-pane { min-height: 180px; }
+.op-pd-verify-h { font-size: 1rem; margin: 0 0 .35rem; }
+.op-pd-verify-guide { font-size: .8rem; margin: 0 0 .8rem; line-height: 1.45; }
+.op-pd-verify-kinds { display: flex; flex-direction: column; gap: .5rem; }
+.op-pd-verify-kind {
+  display: grid; grid-template-columns: auto 1fr; column-gap: .55rem; align-items: center;
+  border: 1px solid var(--glass-border); border-radius: 8px; padding: .55rem .65rem; cursor: pointer;
+}
+.op-pd-verify-kind.is-selected { border-color: var(--herbal-lime); box-shadow: 0 0 0 1px var(--herbal-lime) inset; }
+.op-pd-verify-kind input[type="radio"] { grid-row: 1 / span 2; }
+.op-pd-verify-kind-label { font-size: .9rem; }
+.op-pd-verify-kind-help { grid-column: 2; font-size: .76rem; line-height: 1.4; }
+.op-pd-verify-fields { display: flex; flex-direction: column; gap: .5rem; }
+.op-pd-verify-field-row { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: .6rem; align-items: center; }
+.op-pd-verify-field-label { font-size: .85rem; }
+.op-pd-verify-field-pick { min-width: 0; }
+.op-pd-verify-radio { display: flex; align-items: center; gap: .45rem; font-size: .88rem; margin-bottom: .4rem; }
+.op-pd-verify-radio input[type="radio"] { width: auto; flex: 0 0 auto; margin: 0; }
+
 .op-pd-chips { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .25rem; }
 .op-pd-chip { font-size: .68rem; font-family: var(--font-mono); padding: .1rem .35rem; border: 1px solid var(--glass-border); border-radius: 5px; background: transparent; color: var(--herbal-lime); cursor: pointer; }
 .op-pd-dataobj { margin-top: .4rem; }

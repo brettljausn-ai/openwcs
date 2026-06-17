@@ -6,7 +6,7 @@
 // match + no next = the instance ends (returns null).
 
 import { safeEvaluate } from '../condition'
-import { VERIFY_FIELDS, type ProcessDefinition, type Step, type VerifyConfig, type VerifyResult } from '../model'
+import { type ProcessDefinition, type Step, type VerifyConfig, type VerifyResult } from '../model'
 
 /** Write a captured screen value to the data object under config.writeTo (returns a NEW object). */
 export function writeValue(
@@ -18,24 +18,34 @@ export function writeValue(
   return { ...data, [writeTo]: value }
 }
 
+/** Read one resolved field value from a /verify result: the per-kind `fields` map (new servers) is
+ *  authoritative; fall back to the legacy top-level field of the same name (older servers). */
+function resolvedFieldValue(result: VerifyResult, key: string): unknown {
+  if (result.fields && key in result.fields) return result.fields[key]
+  // Legacy top-level fields (id/code/name/uomCode/schemaCategory) for older servers.
+  const legacy = result as unknown as Record<string, unknown>
+  return key in legacy ? legacy[key] : null
+}
+
 /** Merge a successful /verify result's resolved fields into the data object per the verify block's
- *  `write` mappings (resolvedField -> variable). Returns a NEW object. Unmapped fields are ignored;
- *  this is how a later task that needs the resolved UUID gets it (write id -> someVar). */
+ *  `write` mappings (resolvedFieldKey -> variable). Returns a NEW object. Unmapped fields are
+ *  ignored; this is how a later task that needs the resolved UUID/details gets it (write id ->
+ *  someVar). Values are read from result.fields[key] first, falling back to the legacy top-level
+ *  field for older servers. */
 export function applyVerifyWrites(
   data: Record<string, unknown>,
   verify: VerifyConfig,
-  result: Pick<VerifyResult, 'id' | 'code' | 'name' | 'uomCode' | 'schemaCategory'>,
-  /** skuScan: the UOM the operator picked (or the auto-resolved one) — overrides result.uomCode. */
+  result: VerifyResult,
+  /** skuScan: the UOM the operator picked (or the auto-resolved one) — overrides the uomCode field. */
   chosenUomCode?: string | null,
 ): Record<string, unknown> {
   const write = verify.write
   if (!write) return data
   const out = { ...data }
-  for (const field of VERIFY_FIELDS) {
-    const target = write[field]
+  for (const [key, target] of Object.entries(write)) {
     if (!target) continue
-    if (field === 'uomCode' && chosenUomCode != null) out[target] = chosenUomCode
-    else out[target] = result[field] ?? null
+    if (key === 'uomCode' && chosenUomCode != null) out[target] = chosenUomCode
+    else out[target] = resolvedFieldValue(result, key) ?? null
   }
   return out
 }

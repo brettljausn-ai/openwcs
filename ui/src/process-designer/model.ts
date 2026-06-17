@@ -59,6 +59,59 @@ export type VerifyKind = 'barcode' | 'sku' | 'location' | 'skuScan'
 export const VERIFY_FIELDS = ['id', 'code', 'name', 'uomCode', 'schemaCategory'] as const
 export type VerifyField = (typeof VERIFY_FIELDS)[number]
 
+/** One resolvable field offered for a verify kind: the catalog key (written into a variable) + a
+ *  human label. The authoritative source is capabilities.verifyFields[kind]; the constant below is
+ *  only a graceful fallback for older servers that do not advertise it. */
+export interface VerifyFieldDef {
+  key: string
+  label: string
+}
+
+/** Fallback per-kind resolvable fields, used only when capabilities.verifyFields is missing/empty.
+ *  Mirrors the server contract: a location resolves purpose/type/status, a SKU resolves
+ *  description/unit/category. Keep in sync with the backend catalog. */
+export const VERIFY_FIELDS_FALLBACK: Record<string, VerifyFieldDef[]> = {
+  location: [
+    { key: 'id', label: 'Location ID' },
+    { key: 'code', label: 'Location code' },
+    { key: 'purpose', label: 'Purpose' },
+    { key: 'locationType', label: 'Location type' },
+    { key: 'status', label: 'Status' },
+  ],
+  sku: [
+    { key: 'id', label: 'SKU ID' },
+    { key: 'code', label: 'SKU code' },
+    { key: 'name', label: 'Description' },
+    { key: 'uomCode', label: 'Unit of measure' },
+    { key: 'schemaCategory', label: 'Attribute category' },
+  ],
+  barcode: [
+    { key: 'id', label: 'SKU ID' },
+    { key: 'code', label: 'SKU code' },
+    { key: 'name', label: 'Description' },
+    { key: 'uomCode', label: 'Unit of measure' },
+    { key: 'schemaCategory', label: 'Attribute category' },
+  ],
+  skuScan: [
+    { key: 'id', label: 'SKU ID' },
+    { key: 'code', label: 'SKU code' },
+    { key: 'name', label: 'Description' },
+    { key: 'uomCode', label: 'Unit of measure' },
+    { key: 'schemaCategory', label: 'Attribute category' },
+  ],
+}
+
+/** Resolve the field catalog for a verify kind: prefer the server-advertised list, fall back to the
+ *  built-in catalog. Always returns at least an empty array. */
+export function verifyFieldsForKind(
+  kind: string,
+  catalog: Record<string, VerifyFieldDef[]> | undefined,
+): VerifyFieldDef[] {
+  const fromServer = catalog?.[kind]
+  if (fromServer && fromServer.length > 0) return fromServer
+  return VERIFY_FIELDS_FALLBACK[kind] ?? []
+}
+
 /** What to do when /verify reports the scanned value does not exist (or the call errors). */
 export interface VerifyOnNotFound {
   /** "reprompt" = clear + refocus the input and ask again; "goto" = jump to `step`. */
@@ -73,9 +126,10 @@ export interface VerifyOnNotFound {
  *  applies `onNotFound`. */
 export interface VerifyConfig {
   kind: VerifyKind
-  /** Map each resolved field (id/code/name/uomCode/schemaCategory) to a data-object variable to
-   *  store it into. Only mapped fields are written. This is how the resolved UUID is captured. */
-  write?: Partial<Record<VerifyField, string>>
+  /** Map each resolved field key (from the per-kind catalog, e.g. id/code/purpose/locationType for a
+   *  location, or id/code/name/uomCode/schemaCategory for a SKU) to a data-object variable to store
+   *  it into. Only mapped fields are written. This is how the resolved UUID/details are captured. */
+  write?: Record<string, string>
   onNotFound: VerifyOnNotFound
 }
 
@@ -97,6 +151,10 @@ export interface VerifyResult {
   uomCode: string | null
   schemaCategory: string | null
   detail: Record<string, unknown>
+  /** Per-kind resolved values keyed by the catalog key (e.g. location -> purpose/locationType/status,
+   *  sku -> name/uomCode/schemaCategory). The runtime reads writes from here first, falling back to
+   *  the legacy top-level fields above for older servers. */
+  fields?: Record<string, unknown>
   /** skuScan: how the scan resolved — pinned via a product barcode, or via a SKU code. */
   matchedAs?: 'barcode' | 'sku' | null
   /** skuScan: the SKU's available units of measure (drives the runtime UOM picker). */
@@ -319,6 +377,11 @@ export interface Capabilities {
   /** The verify kinds the server can resolve (e.g. ["barcode","sku","location"]). Empty/absent =
    *  the Verify feature is hidden in the designer. */
   verifyKinds: string[]
+  /** Per-kind catalog of the CORRECT resolvable fields the server returns for each verify kind, e.g.
+   *  { location: [{key:'purpose',label:'Purpose'}, …], sku: [{key:'name',label:'Description'}, …] }.
+   *  Drives the dialog's "store resolved details" rows so a location shows purpose/type/status and a
+   *  SKU shows description/unit/category. Absent/empty = fall back to the legacy VERIFY_FIELDS. */
+  verifyFields: Record<string, { key: string; label: string }[]>
 }
 
 /** Conservative default when /capabilities is unreachable: everything off (features simply hidden). */
@@ -327,6 +390,7 @@ export const DISABLED_CAPABILITIES: Capabilities = {
   aiAssistEnabled: false,
   canAuthorScript: false,
   verifyKinds: [],
+  verifyFields: {},
 }
 
 /** Phase 3: a data-object variable as sent to POST /assist/task ({ name, type }). */
