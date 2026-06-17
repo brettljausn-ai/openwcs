@@ -180,6 +180,8 @@ export default {
   flowView: '流程视图',
   viewCanvas: '画布',
   viewList: '列表',
+  stepName: '步骤名称',
+  stepNamePlaceholder: '步骤名称',
   canvasLoading: '正在加载画布…',
   canvasEmpty: '从面板添加一个步骤以开始流程。',
   startBadge: '起始',

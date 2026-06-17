@@ -180,6 +180,8 @@ export default {
   flowView: 'Vista del flujo',
   viewCanvas: 'Lienzo',
   viewList: 'Lista',
+  stepName: 'Nombre del paso',
+  stepNamePlaceholder: 'nombre del paso',
   canvasLoading: 'Cargando lienzo…',
   canvasEmpty: 'Agregue un paso desde la paleta para iniciar el flujo.',
   startBadge: 'inicio',

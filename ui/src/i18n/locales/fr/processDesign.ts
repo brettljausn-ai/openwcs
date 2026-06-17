@@ -180,6 +180,8 @@ export default {
   flowView: 'Vue du flux',
   viewCanvas: 'Canvas',
   viewList: 'Liste',
+  stepName: 'Nom de l\'étape',
+  stepNamePlaceholder: 'nom de l\'étape',
   canvasLoading: 'Chargement du canvas…',
   canvasEmpty: 'Ajoutez une étape depuis la palette pour démarrer le flux.',
   startBadge: 'départ',
