@@ -130,8 +130,6 @@ export default function ProcessDesignScreen() {
 
   const [def, setDef] = useState<ProcessDefinition>(() => emptyDef())
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  // The flow area can show the visual node-canvas (primary) or the structured list (fallback).
-  const [view, setView] = useState<'canvas' | 'list'>('canvas')
   const [defs, setDefs] = useState<ProcessDefinition[]>([])
   // Entry point: a table of existing processes. Selecting one (or "New process") opens the editor.
   const [mode, setMode] = useState<'list' | 'editor'>('list')
@@ -605,27 +603,9 @@ export default function ProcessDesignScreen() {
       </div>
       {status && <div className="op-pd-statusline">{status}</div>}
 
-      <div className={`op-pd-grid${view === 'canvas' ? ' is-canvas' : ''}`}>
-        {/* LEFT (or wide MAIN in canvas view): flow canvas/list + palette + def list */}
+      <div className="op-pd-grid is-canvas">
+        {/* MAIN: the visual node-canvas (the single, authoritative flow editor) + palette + def list */}
         <div className="op-pd-flow">
-          {/* View toggle: the visual node-canvas (default) or the structured list. */}
-          <div className="op-pd-view-toggle" role="tablist" aria-label={t('flowView', 'Flow view')}>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view === 'canvas'}
-              className={`op-pd-view-btn${view === 'canvas' ? ' is-active' : ''}`}
-              onClick={() => setView('canvas')}
-            >{t('viewCanvas', 'Canvas')}</button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view === 'list'}
-              className={`op-pd-view-btn${view === 'list' ? ' is-active' : ''}`}
-              onClick={() => setView('list')}
-            >{t('viewList', 'List')}</button>
-          </div>
-
           <div className="op-pd-palette">
             {PALETTE.map((p) => (
               <button key={p} type="button" className="op-pd-pal-btn" title={SCREEN_TYPE_LABELS[p]} onClick={() => addStep(p)}>
@@ -634,23 +614,21 @@ export default function ProcessDesignScreen() {
             ))}
           </div>
 
-          {/* CANVAS view: the visual node-canvas (drag nodes, draw links). */}
-          {view === 'canvas' && (
-            <Suspense fallback={<div className="op-fc-canvas op-fc-loading muted">{t('canvasLoading', 'Loading canvas…')}</div>}>
-              <FlowCanvas
-                def={def}
-                flow={flow}
-                selectedId={simulating ? simStep : selectedId}
-                simStepId={simulating ? simStep : null}
-                editable={editable && !simulating}
-                onSelect={(id) => setSelectedId(id)}
-                onChangeStep={changeStep}
-                onSetStart={(id) => patchDef({ start: id })}
-                onDeleteStep={deleteStep}
-                onMoveStep={moveStep}
-              />
-            </Suspense>
-          )}
+          {/* The visual node-canvas: the single, authoritative flow editor (drag nodes, draw links). */}
+          <Suspense fallback={<div className="op-fc-canvas op-fc-loading muted">{t('canvasLoading', 'Loading canvas…')}</div>}>
+            <FlowCanvas
+              def={def}
+              flow={flow}
+              selectedId={simulating ? simStep : selectedId}
+              simStepId={simulating ? simStep : null}
+              editable={editable && !simulating}
+              onSelect={(id) => setSelectedId(id)}
+              onChangeStep={changeStep}
+              onSetStart={(id) => patchDef({ start: id })}
+              onDeleteStep={deleteStep}
+              onMoveStep={moveStep}
+            />
+          </Suspense>
 
           {/* The typed variables the process reads/writes; edited in its own dialog. */}
           <div className="op-pd-dataobj-bar">
@@ -663,62 +641,6 @@ export default function ProcessDesignScreen() {
               <span aria-hidden="true">{'{ }'}</span> {t('dataObject', 'Data object')} ({def.dataSchema.length})
             </button>
           </div>
-
-          {view === 'list' && flow.loopBack.size > 0 && (
-            <div className="op-pd-flow-loops" title={t('loopHint', 'A step sends the flow back to an earlier step. Click to jump to the step that loops, then edit its next / branches.')}>
-              <span aria-hidden="true">↺</span> {t('loopBanner', 'This flow loops')}:
-              {[...flow.loopBack].map((edge) => {
-                const [from, to] = edge.split('→')
-                return (
-                  <button key={edge} type="button" className="op-pd-loop-link" onClick={() => setSelectedId(from)}>
-                    {from} → {to}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
-          {view === 'list' && (
-          <ul className="op-pd-steplist">
-            {flow.order.length === 0 && flow.unreachable.length === 0 && (
-              <li className="muted" style={{ padding: '.5rem' }}>{t('noSteps', 'Add a step from the palette above.')}</li>
-            )}
-            {flow.order.map((id) => (
-              <FlowRow
-                key={id}
-                id={id}
-                step={def.steps[id]}
-                isStart={def.start === id}
-                selected={(simulating ? simStep : selectedId) === id}
-                loopBack={flow.loopBack}
-                onSelect={() => setSelectedId(id)}
-                onSelectStep={(target) => setSelectedId(target)}
-                onDelete={() => deleteStep(id)}
-                onSetStart={() => patchDef({ start: id })}
-              />
-            ))}
-            {flow.unreachable.length > 0 && (
-              <li className="op-pd-unreachable-head" title={t('unreachableHint', 'These steps are not reached from the start. Point a next / branch at them, or make one the start.')}>
-                ⚠ {t('unreachable', 'Not connected to the flow')}
-              </li>
-            )}
-            {flow.unreachable.map((id) => (
-              <FlowRow
-                key={id}
-                id={id}
-                step={def.steps[id]}
-                isStart={def.start === id}
-                selected={(simulating ? simStep : selectedId) === id}
-                loopBack={flow.loopBack}
-                orphan
-                onSelect={() => setSelectedId(id)}
-                onSelectStep={(target) => setSelectedId(target)}
-                onDelete={() => deleteStep(id)}
-                onSetStart={() => patchDef({ start: id })}
-              />
-            ))}
-          </ul>
-          )}
 
           {/* Version management for the current process key. */}
           {versionsForKey.length > 0 && (
@@ -838,9 +760,12 @@ export default function ProcessDesignScreen() {
           {dialog === 'task' && workStepSelected && selectedStep && selectedId && (
             <TaskDialog
               step={selectedStep}
+              stepId={selectedId}
+              stepIds={Object.keys(def.steps)}
               tasks={tasks}
               capabilities={capabilities}
               vars={def.dataSchema}
+              onRename={renameStep}
               onCancel={() => setDialog(null)}
               onDone={(s) => { changeStep(selectedId, s); setDialog(null) }}
             />
@@ -905,86 +830,5 @@ function ToolbarMenu({ label, children }: { label: string; children: React.React
         </div>
       )}
     </div>
-  )
-}
-
-function FlowRow({
-  id,
-  step,
-  isStart,
-  selected,
-  loopBack,
-  orphan,
-  onSelect,
-  onSelectStep,
-  onDelete,
-  onSetStart,
-}: {
-  id: string
-  step: Step
-  isStart: boolean
-  selected: boolean
-  loopBack: Set<string>
-  orphan?: boolean
-  onSelect: () => void
-  onSelectStep: (target: string) => void
-  onDelete: () => void
-  onSetStart: () => void
-}) {
-  const t = useT('processDesign')
-  const icon =
-    step.type === 'task' ? SCREEN_TYPE_ICONS.task
-    : step.type === 'compute' ? SCREEN_TYPE_ICONS.compute
-    : SCREEN_TYPE_ICONS[(step as ScreenStep).screen]
-  const label =
-    step.type === 'task' ? `Task: ${(step as TaskStep).task}`
-    : step.type === 'compute'
-      ? (() => {
-          const names = ((step as ComputeStep).set ?? []).filter((r) => r.var).map((r) => r.var)
-          return names.length ? `Compute: ${names.join(', ')}` : 'Compute'
-        })()
-    : (step as ScreenStep).screen
-  const hasVerify = step.type === 'screen' && !!(step as ScreenStep).config.verify
-  const branches = step.transitions ?? []
-  const isEnd = branches.length === 0 && !step.next
-
-  // One outgoing edge: a clickable jump to the target, with a loop badge when it points back up
-  // the current path (the runtime would cycle there).
-  const Edge = ({ when, to }: { when?: string; to: string }) => {
-    const isLoop = loopBack.has(`${id}→${to}`)
-    return (
-      <li className={`op-pd-edge${isLoop ? ' is-loop' : ''}`}>
-        <span className="op-pd-branch-arrow" aria-hidden="true">└▶</span>{' '}
-        {when != null ? <><code>{when || '(empty)'}</code> → </> : <><em>{t('elseEdge', 'else')}</em> → </>}
-        <button
-          type="button"
-          className="op-pd-edge-target"
-          onClick={(e) => { e.stopPropagation(); onSelectStep(to) }}
-          title={t('jumpTo', 'Go to this step')}
-        >
-          {to || '?'}
-        </button>
-        {isLoop && <span className="op-pd-loop-badge" title={t('loopHint', 'Loops back to an earlier step.')}>↺ {t('loop', 'loop')}</span>}
-      </li>
-    )
-  }
-
-  return (
-    <li>
-      <div className={`op-pd-step${selected ? ' is-selected' : ''}${orphan ? ' is-orphan' : ''}`} onClick={onSelect}>
-        <span className="op-pd-step-icon" aria-hidden="true">{icon}</span>
-        <span className="op-pd-step-id">{id}{isStart && <span className="op-pd-start-badge">start</span>}</span>
-        <span className="op-pd-step-type muted">{label}</span>
-        {hasVerify && <span className="op-pd-verify-tag">✓ {t('verify', 'verify')}</span>}
-        <span style={{ flex: 1 }} />
-        {!isStart && <button className="op-pd-mini" title={t('setStart', 'Set as start')} onClick={(e) => { e.stopPropagation(); onSetStart() }}>▶</button>}
-        <button className="op-pd-mini" title={t('delete', 'Delete')} onClick={(e) => { e.stopPropagation(); onDelete() }}>✕</button>
-      </div>
-      <ul className="op-pd-edges">
-        {branches.map((tr, i) => (<Edge key={i} when={tr.when} to={tr.to} />))}
-        {step.next && <Edge to={step.next} />}
-        {isEnd && <li className="op-pd-edge op-pd-edge-end muted">{t('endsFlow', '→ ends the process')}</li>}
-      </ul>
-    </li>
   )
 }

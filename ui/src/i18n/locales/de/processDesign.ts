@@ -180,6 +180,8 @@ export default {
   flowView: 'Flussansicht',
   viewCanvas: 'Canvas',
   viewList: 'Liste',
+  stepName: 'Schrittname',
+  stepNamePlaceholder: 'Schrittname',
   canvasLoading: 'Canvas wird geladen…',
   canvasEmpty: 'Fügen Sie einen Schritt aus der Palette hinzu, um den Ablauf zu starten.',
   startBadge: 'Start',
