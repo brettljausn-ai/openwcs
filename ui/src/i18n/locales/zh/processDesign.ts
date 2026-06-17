@@ -102,6 +102,8 @@ export default {
   verifyStep3: '未找到时',
   verifyStep1Guide: '选择操作员在此扫描的内容。这决定了可以解析和存储哪些详细信息。',
   verifyStep2Guide: '这些会写入您的数据对象供后续步骤使用。将某字段保持为"不存储"即可跳过。',
+  verifyStoreWholeObject: '{label}：存储整个对象',
+  verifyObjectHint: '可存储整个对象，并且/或者在下方选择单个属性。',
   verifyStep3Guide: '选择当扫描的值无法解析时的处理方式。',
   verifyKindHelp_barcode: '操作员扫描产品条码。计量单位由条码确定。',
   verifyKindHelp_sku: '操作员扫描或输入物料编码，与您的物料主数据进行解析匹配。',

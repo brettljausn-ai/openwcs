@@ -49,6 +49,17 @@ function resolveToken(token: string, ctx: ResolveCtx): string {
     // readable already). Degrades to the value, never a marker, so the operator still sees the HU.
     return String(raw)
   }
+  // Object vars (whole resolved objects): {{obj.prop}} drills one property; {{obj}} shows its code if
+  // present, else a compact marker (never "[object Object]").
+  if (type === 'object' && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>
+    if (suffix) {
+      const v = obj[suffix]
+      return v == null || v === '' ? EMPTY_MARKER : String(v)
+    }
+    const code = obj.code ?? obj.id
+    return code == null || code === '' ? EMPTY_MARKER : String(code)
+  }
   // Primitives: booleans as Yes/No, dates/strings/numbers verbatim.
   if (type === 'boolean') return raw ? 'Yes' : 'No'
   return String(raw)

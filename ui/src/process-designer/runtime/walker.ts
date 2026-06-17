@@ -18,13 +18,28 @@ export function writeValue(
   return { ...data, [writeTo]: value }
 }
 
-/** Read one resolved field value from a /verify result: the per-kind `fields` map (new servers) is
- *  authoritative; fall back to the legacy top-level field of the same name (older servers). */
-function resolvedFieldValue(result: VerifyResult, key: string): unknown {
-  if (result.fields && key in result.fields) return result.fields[key]
-  // Legacy top-level fields (id/code/name/uomCode/schemaCategory) for older servers.
-  const legacy = result as unknown as Record<string, unknown>
-  return key in legacy ? legacy[key] : null
+/** Read one resolved value from a /verify result by a write PATH. The path is split on '.': the root
+ *  segment selects a top-level resolved field, each further segment drills into a nested object. A
+ *  whole-object key (e.g. `uom`) returns the object; a dotted path (e.g. `uom.factor`) returns the
+ *  nested property. A non-dotted key reads `result.fields[key]` first (new servers), falling back to
+ *  the legacy top-level field of the same name (older servers, e.g. id/code/name/uomCode). Returns
+ *  null when any segment is missing or a non-object is drilled into. */
+function resolvedFieldValue(result: VerifyResult, path: string): unknown {
+  const segs = path.split('.')
+  const [root, ...rest] = segs
+  // Root: prefer the per-kind fields map, else the legacy top-level field.
+  let cur: unknown
+  if (result.fields && root in result.fields) cur = result.fields[root]
+  else {
+    const legacy = result as unknown as Record<string, unknown>
+    cur = root in legacy ? legacy[root] : null
+  }
+  // Drill the remaining segments into nested objects.
+  for (const seg of rest) {
+    if (cur == null || typeof cur !== 'object') return null
+    cur = (cur as Record<string, unknown>)[seg]
+  }
+  return cur ?? null
 }
 
 /** Merge a successful /verify result's resolved fields into the data object per the verify block's
@@ -41,11 +56,24 @@ export function applyVerifyWrites(
 ): Record<string, unknown> {
   const write = verify.write
   if (!write) return data
+  // skuScan: reflect the operator's chosen UOM into result.fields.uom (a shallow copy so callers'
+  // objects are not mutated) so a `uom` whole-object or `uom.code` drill picks up the choice too.
+  let effective = result
+  if (chosenUomCode != null) {
+    const baseUom = result.fields && typeof result.fields.uom === 'object' && result.fields.uom != null
+      ? (result.fields.uom as Record<string, unknown>)
+      : {}
+    effective = {
+      ...result,
+      fields: { ...(result.fields ?? {}), uom: { ...baseUom, code: chosenUomCode } },
+    }
+  }
   const out = { ...data }
   for (const [key, target] of Object.entries(write)) {
     if (!target) continue
+    // The chosen UOM still wins for the scalar `uomCode` mapping (legacy contract preserved).
     if (key === 'uomCode' && chosenUomCode != null) out[target] = chosenUomCode
-    else out[target] = resolvedFieldValue(result, key) ?? null
+    else out[target] = resolvedFieldValue(effective, key) ?? null
   }
   return out
 }

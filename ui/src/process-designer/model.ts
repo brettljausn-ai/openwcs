@@ -17,8 +17,9 @@ export type ScreenType =
   | 'questionYesNo'
   | 'questionChoice'
 
-/** A data-object variable's declared type. Primitives + domain types resolved to codes/labels. */
-export type VarType = 'string' | 'number' | 'boolean' | 'date' | 'sku' | 'location' | 'hu'
+/** A data-object variable's declared type. Primitives + domain types resolved to codes/labels.
+ *  `object` holds a whole resolved object (e.g. a verify SKU/UOM/Location object stored intact). */
+export type VarType = 'string' | 'number' | 'boolean' | 'date' | 'sku' | 'location' | 'hu' | 'object'
 
 export interface DataVar {
   name: string
@@ -59,17 +60,66 @@ export type VerifyKind = 'barcode' | 'sku' | 'location' | 'skuScan'
 export const VERIFY_FIELDS = ['id', 'code', 'name', 'uomCode', 'schemaCategory'] as const
 export type VerifyField = (typeof VERIFY_FIELDS)[number]
 
+/** One sub-field of an object verify field (drill-down): a catalog key + human label. The write key
+ *  for a sub-field is the dotted path `<objectKey>.<subKey>` (e.g. `uom.factor`). */
+export interface VerifySubFieldDef {
+  key: string
+  label: string
+}
+
 /** One resolvable field offered for a verify kind: the catalog key (written into a variable) + a
  *  human label. The authoritative source is capabilities.verifyFields[kind]; the constant below is
- *  only a graceful fallback for older servers that do not advertise it. */
+ *  only a graceful fallback for older servers that do not advertise it.
+ *
+ *  When `object` is true the resolved value is a whole object: it can be stored intact (write key =
+ *  `key`) AND/OR drilled into one property at a time (write key = `key + '.' + sub.key`). `sub` lists
+ *  the offered properties. A scalar field has no `object`/`sub` and writes key = `key`. */
 export interface VerifyFieldDef {
   key: string
   label: string
+  /** True = the resolved value is an object (storable whole or drilled into `sub` properties). */
+  object?: boolean
+  /** Object fields only: the drill-down properties offered as `<key>.<sub.key>` write paths. */
+  sub?: VerifySubFieldDef[]
 }
 
 /** Fallback per-kind resolvable fields, used only when capabilities.verifyFields is missing/empty.
  *  Mirrors the server contract: a location resolves purpose/type/status, a SKU resolves
  *  description/unit/category. Keep in sync with the backend catalog. */
+/** The shared SKU/barcode/skuScan fallback fields (the scalars plus the `sku` and `uom` objects).
+ *  A function (declaration, so hoisted) so each kind gets its own array copy. */
+function SKU_VERIFY_FIELDS_FALLBACK(): VerifyFieldDef[] {
+  return [
+    { key: 'id', label: 'SKU ID' },
+    { key: 'code', label: 'SKU code' },
+    { key: 'name', label: 'Description' },
+    { key: 'uomCode', label: 'Unit of measure' },
+    { key: 'schemaCategory', label: 'Attribute category' },
+    {
+      key: 'sku',
+      label: 'SKU object',
+      object: true,
+      sub: [
+        { key: 'skuId', label: 'SKU ID' },
+        { key: 'code', label: 'Code' },
+        { key: 'description', label: 'Description' },
+        { key: 'status', label: 'Status' },
+      ],
+    },
+    {
+      key: 'uom',
+      label: 'UOM object',
+      object: true,
+      sub: [
+        { key: 'uomId', label: 'UOM ID' },
+        { key: 'code', label: 'Code' },
+        { key: 'factor', label: 'Factor' },
+        { key: 'baseUnit', label: 'Base unit' },
+      ],
+    },
+  ]
+}
+
 export const VERIFY_FIELDS_FALLBACK: Record<string, VerifyFieldDef[]> = {
   location: [
     { key: 'id', label: 'Location ID' },
@@ -77,28 +127,22 @@ export const VERIFY_FIELDS_FALLBACK: Record<string, VerifyFieldDef[]> = {
     { key: 'purpose', label: 'Purpose' },
     { key: 'locationType', label: 'Location type' },
     { key: 'status', label: 'Status' },
+    {
+      key: 'location',
+      label: 'Location object',
+      object: true,
+      sub: [
+        { key: 'locationId', label: 'Location ID' },
+        { key: 'code', label: 'Code' },
+        { key: 'locationType', label: 'Location type' },
+        { key: 'purpose', label: 'Purpose' },
+        { key: 'status', label: 'Status' },
+      ],
+    },
   ],
-  sku: [
-    { key: 'id', label: 'SKU ID' },
-    { key: 'code', label: 'SKU code' },
-    { key: 'name', label: 'Description' },
-    { key: 'uomCode', label: 'Unit of measure' },
-    { key: 'schemaCategory', label: 'Attribute category' },
-  ],
-  barcode: [
-    { key: 'id', label: 'SKU ID' },
-    { key: 'code', label: 'SKU code' },
-    { key: 'name', label: 'Description' },
-    { key: 'uomCode', label: 'Unit of measure' },
-    { key: 'schemaCategory', label: 'Attribute category' },
-  ],
-  skuScan: [
-    { key: 'id', label: 'SKU ID' },
-    { key: 'code', label: 'SKU code' },
-    { key: 'name', label: 'Description' },
-    { key: 'uomCode', label: 'Unit of measure' },
-    { key: 'schemaCategory', label: 'Attribute category' },
-  ],
+  sku: SKU_VERIFY_FIELDS_FALLBACK(),
+  barcode: SKU_VERIFY_FIELDS_FALLBACK(),
+  skuScan: SKU_VERIFY_FIELDS_FALLBACK(),
 }
 
 /** Resolve the field catalog for a verify kind: prefer the server-advertised list, fall back to the
@@ -110,6 +154,21 @@ export function verifyFieldsForKind(
   const fromServer = catalog?.[kind]
   if (fromServer && fromServer.length > 0) return fromServer
   return VERIFY_FIELDS_FALLBACK[kind] ?? []
+}
+
+/** Every valid `verify.write` path for a kind's catalog: each scalar key, each object's whole key,
+ *  and each object sub-field as the dotted path `<objectKey>.<sub.key>`. Used to prune write mappings
+ *  when the verify kind changes. */
+export function verifyWritePathsForKind(
+  kind: string,
+  catalog: Record<string, VerifyFieldDef[]> | undefined,
+): Set<string> {
+  const paths = new Set<string>()
+  for (const f of verifyFieldsForKind(kind, catalog)) {
+    paths.add(f.key)
+    if (f.object && f.sub) for (const s of f.sub) paths.add(`${f.key}.${s.key}`)
+  }
+  return paths
 }
 
 /** What to do when /verify reports the scanned value does not exist (or the call errors). */
@@ -424,8 +483,10 @@ export interface Capabilities {
   /** Per-kind catalog of the CORRECT resolvable fields the server returns for each verify kind, e.g.
    *  { location: [{key:'purpose',label:'Purpose'}, …], sku: [{key:'name',label:'Description'}, …] }.
    *  Drives the dialog's "store resolved details" rows so a location shows purpose/type/status and a
-   *  SKU shows description/unit/category. Absent/empty = fall back to the legacy VERIFY_FIELDS. */
-  verifyFields: Record<string, { key: string; label: string }[]>
+   *  SKU shows description/unit/category. An entry may be an OBJECT field ({ object:true, sub:[…] })
+   *  that can be stored whole or drilled into one property (write path `key.subKey`). Absent/empty =
+   *  fall back to the legacy VERIFY_FIELDS. */
+  verifyFields: Record<string, VerifyFieldDef[]>
 }
 
 /** Conservative default when /capabilities is unreachable: everything off (features simply hidden). */

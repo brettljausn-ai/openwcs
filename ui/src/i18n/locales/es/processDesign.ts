@@ -102,6 +102,8 @@ export default {
   verifyStep3: 'Si no se encuentra',
   verifyStep1Guide: 'Elija qué escanea el operario aquí. Esto determina qué detalles se pueden resolver y guardar.',
   verifyStep2Guide: 'Estos se escriben en su objeto de datos para los pasos siguientes. Deje un campo en "no guardar" para omitirlo.',
+  verifyStoreWholeObject: '{label}: guardar el objeto completo',
+  verifyObjectHint: 'Guarde el objeto completo y/o elija propiedades individuales a continuación.',
   verifyStep3Guide: 'Elija qué ocurre cuando el valor escaneado no se puede resolver.',
   verifyKindHelp_barcode: 'El operario escanea un código de barras de producto. La unidad de medida queda fijada por el código de barras.',
   verifyKindHelp_sku: 'El operario escanea o escribe un código de artículo, resuelto contra su maestro de artículos.',

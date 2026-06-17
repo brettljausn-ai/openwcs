@@ -1124,6 +1124,12 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-verify-field-row { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: .6rem; align-items: center; }
 .op-pd-verify-field-label { font-size: .85rem; }
 .op-pd-verify-field-pick { min-width: 0; }
+/* Object verify field: a grouped block (whole-object row + indented drill-down sub-rows). */
+.op-pd-verify-objgroup { border: 1px solid var(--border, #2a2f3a); border-radius: 8px; padding: .55rem .6rem; display: flex; flex-direction: column; gap: .4rem; }
+.op-pd-verify-objgroup-head .op-pd-verify-field-label { font-weight: 600; }
+.op-pd-verify-objgroup-hint { font-size: .76rem; margin: 0; }
+.op-pd-verify-objgroup-subs { display: flex; flex-direction: column; gap: .4rem; padding-left: .85rem; border-left: 2px solid var(--border, #2a2f3a); margin-left: .15rem; }
+.op-pd-verify-subrow .op-pd-verify-field-label { font-size: .82rem; opacity: .9; }
 .op-pd-verify-radio { display: flex; align-items: center; gap: .45rem; font-size: .88rem; margin-bottom: .4rem; }
 .op-pd-verify-radio input[type="radio"] { width: auto; flex: 0 0 auto; margin: 0; }
 
