@@ -60,7 +60,8 @@ final class ExpressionParser {
             return out;
         }
         for (String t : tokenize(expr)) {
-            if (isIdentifier(t) && !isKeyword(t) && !isLiteral(t)) {
+            // null is a literal in the condition grammar (e.g. prevCount != null), not a variable.
+            if (isIdentifier(t) && !isKeyword(t) && !isLiteral(t) && !"null".equals(t)) {
                 out.add(t);
             }
         }

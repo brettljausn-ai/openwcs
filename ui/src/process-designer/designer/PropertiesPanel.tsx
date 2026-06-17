@@ -10,7 +10,7 @@
 
 import { useMemo, useState } from 'react'
 import { useT } from '../../i18n/useT'
-import { validateCondition } from '../condition'
+import { validateCondition, unknownExpressionVars } from '../condition'
 import {
   isComputeStep,
   isScriptStep,
@@ -261,18 +261,19 @@ function ScreenProps({
         </select>
       </Field>
 
-      <TransitionsEditor step={step} stepIds={stepIds.filter((s) => s !== id)} onChange={(transitions) => set({ transitions })} />
+      <TransitionsEditor step={step} stepIds={stepIds.filter((s) => s !== id)} vars={def.dataSchema} onChange={(transitions) => set({ transitions })} />
 
-      <SkipWhenField value={step.skipWhen ?? ''} onChange={(v) => set({ skipWhen: v || undefined })} />
+      <SkipWhenField value={step.skipWhen ?? ''} vars={def.dataSchema} onChange={(v) => set({ skipWhen: v || undefined })} />
     </div>
   )
 }
 
 /** "Skip this step when…" — a condition (same grammar as a transition `when`). True at runtime ->
  *  the step is skipped without rendering. Live-validated so the designer sees a malformed expression. */
-function SkipWhenField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function SkipWhenField({ value, vars, onChange }: { value: string; vars: DataVar[]; onChange: (v: string) => void }) {
   const t = useT('processDesign')
   const err = value ? validateCondition(value) : null
+  const unknown = value && !err ? unknownExpressionVars(value, vars.map((v) => v.name)) : []
   return (
     <fieldset className="op-pd-fieldset op-pd-wide">
       <legend>{t('skipWhen', 'Skip this step when…')}</legend>
@@ -281,6 +282,7 @@ function SkipWhenField({ value, onChange }: { value: string; onChange: (v: strin
       </p>
       <input placeholder="e.g. qty == 0" value={value} onChange={(e) => onChange(e.target.value)} />
       {err && <span className="op-pd-issue-err" style={{ fontSize: '.75rem' }}>⚠ {err}</span>}
+      {unknown.length > 0 && <span className="op-pd-issue-err" style={{ fontSize: '.75rem' }}>⚠ {t('condUnknownVars', 'Unknown variable(s): {list}. Add them in Data object.').replace('{list}', unknown.join(', '))}</span>}
     </fieldset>
   )
 }
@@ -301,22 +303,32 @@ function ChoiceOptionsEditor({ options, onChange }: { options: ChoiceOption[]; o
   )
 }
 
-function TransitionsEditor({ step, stepIds, onChange }: { step: Step; stepIds: string[]; onChange: (t: Transition[]) => void }) {
+function TransitionsEditor({ step, stepIds, vars, onChange }: { step: Step; stepIds: string[]; vars: DataVar[]; onChange: (t: Transition[]) => void }) {
+  const t = useT('processDesign')
   const transitions = step.transitions ?? []
+  const names = vars.map((v) => v.name)
   return (
     <fieldset className="op-pd-fieldset op-pd-wide">
       <legend>Branches (when → to)</legend>
       <p className="muted" style={{ fontSize: '.75rem', margin: '0 0 .5rem' }}>First matching condition wins; otherwise the default next is used.</p>
-      {transitions.map((tr, i) => (
-        <div key={i} style={{ display: 'flex', gap: '.4rem', marginBottom: '.4rem', flexWrap: 'wrap' }}>
-          <input placeholder='e.g. damaged == true' value={tr.when} style={{ flex: '1 1 140px' }} onChange={(e) => onChange(transitions.map((x, j) => (j === i ? { ...x, when: e.target.value } : x)))} />
-          <select value={tr.to} onChange={(e) => onChange(transitions.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))}>
-            <option value="">(to…)</option>
-            {stepIds.map((s) => (<option key={s} value={s}>{s}</option>))}
-          </select>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange(transitions.filter((_, j) => j !== i))}>✕</button>
-        </div>
-      ))}
+      {transitions.map((tr, i) => {
+        const condErr = tr.when ? validateCondition(tr.when) : null
+        const unknown = tr.when && !condErr ? unknownExpressionVars(tr.when, names) : []
+        return (
+          <div key={i} style={{ marginBottom: '.4rem' }}>
+            <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+              <input placeholder='e.g. damaged == true' value={tr.when} style={{ flex: '1 1 140px' }} onChange={(e) => onChange(transitions.map((x, j) => (j === i ? { ...x, when: e.target.value } : x)))} />
+              <select value={tr.to} onChange={(e) => onChange(transitions.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))}>
+                <option value="">(to…)</option>
+                {stepIds.map((s) => (<option key={s} value={s}>{s}</option>))}
+              </select>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange(transitions.filter((_, j) => j !== i))}>✕</button>
+            </div>
+            {condErr && <span className="op-pd-issue-err" style={{ fontSize: '.72rem' }}>⚠ {condErr}</span>}
+            {unknown.length > 0 && <span className="op-pd-issue-err" style={{ fontSize: '.72rem' }}>⚠ {t('condUnknownVars', 'Unknown variable(s): {list}. Add them in Data object.').replace('{list}', unknown.join(', '))}</span>}
+          </div>
+        )
+      })}
       <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange([...transitions, { when: '', to: '' }])}>+ Add branch</button>
     </fieldset>
   )
@@ -386,9 +398,9 @@ function StepWorkProps({
           {stepIds.filter((s) => s !== id).map((s) => (<option key={s} value={s}>{s}</option>))}
         </select>
       </Field>
-      <TransitionsEditor step={step} stepIds={stepIds.filter((s) => s !== id)} onChange={(transitions) => set({ transitions })} />
+      <TransitionsEditor step={step} stepIds={stepIds.filter((s) => s !== id)} vars={def.dataSchema} onChange={(transitions) => set({ transitions })} />
 
-      <SkipWhenField value={step.skipWhen ?? ''} onChange={(v) => set({ skipWhen: v || undefined })} />
+      <SkipWhenField value={step.skipWhen ?? ''} vars={def.dataSchema} onChange={(v) => set({ skipWhen: v || undefined })} />
     </div>
   )
 }

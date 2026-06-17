@@ -104,6 +104,12 @@ public class DefinitionValidator {
                     if (when != null) {
                         try {
                             ConditionParser.validate(when);
+                            for (String ref : ExpressionParser.identifiers(when)) {
+                                if (!variables.contains(ref)) {
+                                    problems.add("Step '" + id + "' transition 'when' references '" + ref
+                                            + "', which is not a declared data-object variable.");
+                                }
+                            }
                         } catch (IllegalArgumentException e) {
                             problems.add("Step '" + id + "' transition 'when' is malformed: " + e.getMessage());
                         }
@@ -117,6 +123,12 @@ public class DefinitionValidator {
             if (skipWhen != null) {
                 try {
                     ConditionParser.validate(skipWhen);
+                    for (String ref : ExpressionParser.identifiers(skipWhen)) {
+                        if (!variables.contains(ref)) {
+                            problems.add("Step '" + id + "' skipWhen references '" + ref
+                                    + "', which is not a declared data-object variable.");
+                        }
+                    }
                 } catch (IllegalArgumentException e) {
                     problems.add("Step '" + id + "' skipWhen is malformed: " + e.getMessage());
                 }
