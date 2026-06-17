@@ -191,6 +191,14 @@ export interface Transition {
   to: string
 }
 
+/** Designer-only canvas position for a step. Lives in the model JSON (the backend stores the model
+ *  verbatim as JSONB and publish validation ignores unknown step fields, so positions persist with no
+ *  server change). Absent = the canvas computes an auto-layout on open. */
+export interface StepUi {
+  x: number
+  y: number
+}
+
 export interface ScreenStep {
   type: 'screen'
   screen: ScreenType
@@ -202,6 +210,8 @@ export interface ScreenStep {
   /** When this condition (same grammar as transition `when`) is true at runtime, the step is skipped
    *  (the runtime advances past it without rendering). Phase 2 conditional-skip. */
   skipWhen?: string
+  /** Designer-only canvas position (ignored by the runtime + publish validation). */
+  ui?: StepUi
 }
 
 /** The built-in task type id for the sandboxed-script escape hatch (spec §7.2). A task step whose
@@ -238,6 +248,8 @@ export interface TaskStep {
   transitions?: Transition[]
   /** Conditional-skip (same grammar as transition `when`); true = the step is skipped at runtime. */
   skipWhen?: string
+  /** Designer-only canvas position (ignored by the runtime + publish validation). */
+  ui?: StepUi
 }
 
 /** True when the step is the sandboxed-script escape hatch. NOTE: returns a plain boolean (NOT a
@@ -266,6 +278,8 @@ export interface ComputeStep {
   transitions?: Transition[]
   /** Conditional-skip (same grammar as transition `when`); true = the step is skipped at runtime. */
   skipWhen?: string
+  /** Designer-only canvas position (ignored by the runtime + publish validation). */
+  ui?: StepUi
 }
 
 export function isComputeStep(step: Step): step is ComputeStep {
