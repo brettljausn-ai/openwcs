@@ -160,4 +160,8 @@ export default {
   summaryServerAction: '服务器操作：{task}',
   moveUp: '上移',
   moveDown: '下移',
+  verifyFlow: '验证流程',
+  verifyEditFlow: '编辑验证流程',
+  verifyConfigured: '验证已启用',
+  verifyRemove: '关闭验证',
 }
