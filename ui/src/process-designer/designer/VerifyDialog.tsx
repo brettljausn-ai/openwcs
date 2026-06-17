@@ -51,9 +51,11 @@ interface Props {
   onDone: (v: VerifyConfig) => void
   /** Discard and close (Cancel / Esc / click-outside). */
   onCancel: () => void
+  /** Turn verification off for this step (only offered when it is already configured). */
+  onRemove?: () => void
 }
 
-export default function VerifyDialog({ verify, kinds, capabilities, vars, stepIds, onDone, onCancel }: Props) {
+export default function VerifyDialog({ verify, kinds, capabilities, vars, stepIds, onDone, onCancel, onRemove }: Props) {
   const t = useT('processDesign')
   // Local draft so Cancel discards; Done commits.
   const [draft, setDraft] = useState<VerifyConfig>(verify)
@@ -250,6 +252,11 @@ export default function VerifyDialog({ verify, kinds, capabilities, vars, stepId
             )}
           </div>
           <div style={{ display: 'flex', gap: '.5rem' }}>
+            {onRemove && (
+              <button type="button" className="btn btn-ghost op-pd-remove" onClick={onRemove}>
+                {t('verifyRemove', 'Turn off verification')}
+              </button>
+            )}
             <button type="button" className="btn btn-ghost" onClick={onCancel}>
               {t('cancel', 'Cancel')}
             </button>

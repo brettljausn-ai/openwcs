@@ -987,6 +987,11 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 /* Centre preview pane: phone frame */
 .op-pd-preview-pane { display: flex; flex-direction: column; align-items: center; gap: .5rem; }
 .op-pd-sim-banner { font-size: .8rem; color: var(--warning); }
+/* The mockup + its side actions (e.g. the Verify-flow button) sit next to each other. */
+.op-pd-stage { display: flex; gap: .8rem; align-items: flex-start; justify-content: center; flex-wrap: wrap; width: 100%; }
+.op-pd-stage-actions { display: flex; flex-direction: column; gap: .4rem; align-items: flex-start; padding-top: 1rem; }
+.op-pd-stage-hint { font-size: .68rem; }
+.op-pd-remove { color: var(--danger); }
 .op-pd-phone { width: 340px; max-width: 100%; border: 10px solid #0c1410; border-radius: 32px; box-shadow: 0 12px 40px -8px rgba(0,0,0,.6); background: #0c1410; padding: 8px; }
 .op-pd-phone-screen { background: var(--bg, #0e1a14); border-radius: 22px; min-height: 480px; padding: 14px; overflow-y: auto; max-height: 70vh; }
 

@@ -29,10 +29,14 @@ import {
   type ScreenType,
   type Step,
   type TaskStep,
+  type VerifyConfig,
+  type VerifyKind,
 } from '../model'
 import { createDef, duplicateDef, exportDef, getDef, importDef, listDefs, publishDef, updateDef } from '../api'
 import { useCapabilities, useTasks } from '../useProcesses'
 import { hasErrors, validateDefinition, type ValidationIssue } from './validate'
+import VerifyDialog from './VerifyDialog'
+import TaskDialog from './TaskDialog'
 import { applyVerifyWrites, nextStepId, resolveLanding, writeValue } from '../runtime/walker'
 import { PREVIEW_CATALOG, sampleDataFor } from './sampleData'
 import PropertiesPanel from './PropertiesPanel'
@@ -125,6 +129,8 @@ export default function ProcessDesignScreen() {
   const [issues, setIssues] = useState<ValidationIssue[] | null>(null)
   const [dirty, setDirty] = useState(false)
   const [persisted, setPersisted] = useState(false) // has a server version (created/loaded)
+  // Which configuration dialog is open (triggered from buttons by the live preview, not the panel).
+  const [dialog, setDialog] = useState<null | 'verify' | 'task'>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Simulate mode state.
@@ -450,6 +456,20 @@ export default function ProcessDesignScreen() {
   const previewStep = previewStepId ? def.steps[previewStepId] : undefined
   const previewData = simulating ? simData : sampleData
 
+  // The selected step's editable configuration is reached from buttons next to / on the preview.
+  const canEdit = !simulating && !!selectedStep && !!selectedId
+  const verifyCapable = canEdit && !!selectedStep && isScreenStep(selectedStep)
+    && (selectedStep.screen === 'textInput' || selectedStep.screen === 'numberInput')
+    && capabilities.verifyKinds.length > 0
+  const verifyConfigured = !!selectedStep && isScreenStep(selectedStep) && !!selectedStep.config.verify
+  const workStepSelected = canEdit && !!selectedStep && (isTaskStep(selectedStep) || isComputeStep(selectedStep))
+  const setStepVerify = (verify: VerifyConfig | undefined) => {
+    if (selectedId && selectedStep && isScreenStep(selectedStep)) {
+      changeStep(selectedId, { ...selectedStep, config: { ...selectedStep.config, verify } })
+    }
+    setDialog(null)
+  }
+
   return (
     <div className="app-content op-pd-designer">
       {/* Toolbar: identity on the left, a compact action group on the right (secondary actions
@@ -613,45 +633,84 @@ export default function ProcessDesignScreen() {
               </span>
             </div>
           )}
-          <div className="op-pd-phone">
-            <div className="op-pd-phone-screen">
-              {previewStep && isScreenStep(previewStep) ? (
-                <ProcessScreenView
-                  key={previewStepId + (simulating ? 's' : 'p')}
-                  step={previewStep}
-                  config={previewStep.config}
-                  data={previewData}
-                  schema={def.dataSchema}
-                  catalog={PREVIEW_CATALOG}
-                  onSubmit={simulating ? simSubmit : () => {}}
-                  disabled={!simulating}
-                  compact
-                />
-              ) : previewStep && isTaskStep(previewStep) ? (
-                <div className="glass" style={{ padding: '1.5rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '2rem' }}>{previewStep.task === SCRIPT_TASK_TYPE ? '〈/〉' : '⚙'}</div>
-                  <h3 style={{ margin: '.5rem 0' }}>{previewStep.task === SCRIPT_TASK_TYPE ? t('scriptStep', 'Sandboxed script') : `${t('taskStep', 'Task')}: ${previewStep.task}`}</h3>
-                  <p className="muted" style={{ fontSize: '.85rem' }}>{t('taskRunsServer', 'Runs on the server (checkpoint).')}</p>
-                  {simulating && <button className="btn btn-primary" onClick={simAdvanceTask}>{t('simRunTask', 'Run task (dry-run) →')}</button>}
-                </div>
-              ) : previewStep && isComputeStep(previewStep) ? (
-                <div className="glass" style={{ padding: '1.5rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '2rem' }}>{SCREEN_TYPE_ICONS.compute}</div>
-                  <h3 style={{ margin: '.5rem 0' }}>{t('computeStep', 'Compute')}</h3>
-                  <p className="muted" style={{ fontSize: '.85rem' }}>
-                    {(previewStep.set ?? []).filter((r) => r.var).length > 0
-                      ? t('computePreview', 'Sets {list} (no screen).').replace('{list}', (previewStep.set ?? []).filter((r) => r.var).map((r) => r.var).join(', '))
-                      : t('computeEmpty', 'No values set yet.')}
-                  </p>
-                  {simulating && <button className="btn btn-primary" onClick={simAdvanceTask}>{t('simRunCompute', 'Compute (dry-run) →')}</button>}
-                </div>
-              ) : (
-                <div className="muted" style={{ padding: '2rem', textAlign: 'center' }}>
-                  {simulating ? t('simComplete', 'Simulation complete.') : t('selectToPreview', 'Select a step to preview it here.')}
-                </div>
-              )}
+          <div className="op-pd-stage">
+            <div className="op-pd-phone">
+              <div className="op-pd-phone-screen">
+                {previewStep && isScreenStep(previewStep) ? (
+                  <ProcessScreenView
+                    key={previewStepId + (simulating ? 's' : 'p')}
+                    step={previewStep}
+                    config={previewStep.config}
+                    data={previewData}
+                    schema={def.dataSchema}
+                    catalog={PREVIEW_CATALOG}
+                    onSubmit={simulating ? simSubmit : () => {}}
+                    disabled={!simulating}
+                    compact
+                  />
+                ) : previewStep && isTaskStep(previewStep) ? (
+                  <div className="glass" style={{ padding: '1.5rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '2rem' }}>{previewStep.task === SCRIPT_TASK_TYPE ? '〈/〉' : '⚙'}</div>
+                    <h3 style={{ margin: '.5rem 0' }}>{previewStep.task === SCRIPT_TASK_TYPE ? t('scriptStep', 'Sandboxed script') : `${t('taskStep', 'Task')}: ${previewStep.task}`}</h3>
+                    <p className="muted" style={{ fontSize: '.85rem' }}>{t('taskRunsServer', 'Runs on the server (checkpoint).')}</p>
+                    {/* Configure the task right on the mockup screen. */}
+                    {workStepSelected && <button className="btn btn-ghost btn-sm" onClick={() => setDialog('task')}>{t('editTask', 'Edit task…')}</button>}
+                    {simulating && <button className="btn btn-primary" onClick={simAdvanceTask}>{t('simRunTask', 'Run task (dry-run) →')}</button>}
+                  </div>
+                ) : previewStep && isComputeStep(previewStep) ? (
+                  <div className="glass" style={{ padding: '1.5rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '2rem' }}>{SCREEN_TYPE_ICONS.compute}</div>
+                    <h3 style={{ margin: '.5rem 0' }}>{t('computeStep', 'Compute')}</h3>
+                    <p className="muted" style={{ fontSize: '.85rem' }}>
+                      {(previewStep.set ?? []).filter((r) => r.var).length > 0
+                        ? t('computePreview', 'Sets {list} (no screen).').replace('{list}', (previewStep.set ?? []).filter((r) => r.var).map((r) => r.var).join(', '))
+                        : t('computeEmpty', 'No values set yet.')}
+                    </p>
+                    {workStepSelected && <button className="btn btn-ghost btn-sm" onClick={() => setDialog('task')}>{t('editTask', 'Edit task…')}</button>}
+                    {simulating && <button className="btn btn-primary" onClick={simAdvanceTask}>{t('simRunCompute', 'Compute (dry-run) →')}</button>}
+                  </div>
+                ) : (
+                  <div className="muted" style={{ padding: '2rem', textAlign: 'center' }}>
+                    {simulating ? t('simComplete', 'Simulation complete.') : t('selectToPreview', 'Select a step to preview it here.')}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Verify-flow action sits beside the mockup (only for scan-capable input screens). */}
+            {verifyCapable && (
+              <aside className="op-pd-stage-actions">
+                <button className="btn btn-outline btn-sm" onClick={() => setDialog('verify')}>
+                  {verifyConfigured ? t('verifyEditFlow', 'Edit verify flow') : t('verifyFlow', 'Verify flow')}
+                </button>
+                {verifyConfigured && <span className="op-pd-stage-hint muted">{t('verifyConfigured', 'Verification on')}</span>}
+              </aside>
+            )}
           </div>
+
+          {/* Configuration dialogs, triggered from the buttons above (modals, position-independent). */}
+          {dialog === 'verify' && verifyCapable && selectedStep && isScreenStep(selectedStep) && (
+            <VerifyDialog
+              verify={selectedStep.config.verify ?? { kind: (capabilities.verifyKinds[0] ?? 'barcode') as VerifyKind, onNotFound: { mode: 'reprompt' } }}
+              kinds={capabilities.verifyKinds as VerifyKind[]}
+              capabilities={capabilities}
+              vars={def.dataSchema}
+              stepIds={Object.keys(def.steps).filter((s) => s !== selectedId)}
+              onCancel={() => setDialog(null)}
+              onDone={(v) => setStepVerify(v)}
+              onRemove={verifyConfigured ? () => setStepVerify(undefined) : undefined}
+            />
+          )}
+          {dialog === 'task' && workStepSelected && selectedStep && selectedId && (
+            <TaskDialog
+              step={selectedStep}
+              tasks={tasks}
+              capabilities={capabilities}
+              vars={def.dataSchema}
+              onCancel={() => setDialog(null)}
+              onDone={(s) => { changeStep(selectedId, s); setDialog(null) }}
+            />
+          )}
         </div>
 
         {/* RIGHT: properties + data object */}

@@ -15,7 +15,6 @@ import {
   isComputeStep,
   isScriptStep,
   taskTypeById,
-  verifyFieldsForKind,
   type Capabilities,
   type ChoiceOption,
   type ComputeStep,
@@ -27,12 +26,8 @@ import {
   type TaskTypeDef,
   type Transition,
   type VarType,
-  type VerifyConfig,
-  type VerifyKind,
 } from '../model'
-import TaskDialog from './TaskDialog'
 import VarCombobox from './VarCombobox'
-import VerifyDialog from './VerifyDialog'
 
 interface Props {
   def: ProcessDefinition
@@ -48,17 +43,6 @@ interface Props {
 }
 
 const VAR_TYPES: VarType[] = ['string', 'number', 'boolean', 'date', 'sku', 'location', 'hu']
-
-/** English fallback labels for the server-driven verify kinds (the i18n key still overrides these). */
-const VERIFY_KIND_LABELS: Record<string, string> = {
-  barcode: 'Barcode',
-  sku: 'SKU code',
-  location: 'Location',
-  skuScan: 'Scan SKU code or barcode',
-}
-function verifyKindLabel(kind: string): string {
-  return VERIFY_KIND_LABELS[kind] ?? kind
-}
 
 export default function PropertiesPanel({ def, selectedId, tasks, capabilities, onChangeStep, onChangeSchema, onRenameStep }: Props) {
   const step = selectedId ? def.steps[selectedId] : undefined
@@ -251,17 +235,8 @@ function ScreenProps({
         </fieldset>
       )}
 
-      {/* Verify the scanned value exists (text/number inputs; only when the server advertises it). */}
-      {(isText || isNum) && capabilities.verifyKinds.length > 0 && (
-        <VerifyEditor
-          verify={cfg.verify}
-          kinds={capabilities.verifyKinds as VerifyKind[]}
-          capabilities={capabilities}
-          vars={def.dataSchema}
-          stepIds={stepIds.filter((s) => s !== id)}
-          onChange={(verify) => setCfg({ verify })}
-        />
-      )}
+      {/* Scan verification is configured from the "Verify flow" button next to the live preview
+          (not here), so the panel stays focused on the screen's own fields. */}
 
       {isAck && (
         <>
@@ -312,93 +287,6 @@ function SkipWhenField({ value, onChange }: { value: string; onChange: (v: strin
       </p>
       <input placeholder="e.g. qty == 0" value={value} onChange={(e) => onChange(e.target.value)} />
       {err && <span className="op-pd-issue-err" style={{ fontSize: '.75rem' }}>⚠ {err}</span>}
-    </fieldset>
-  )
-}
-
-/** First-class "Verify" control for a text/number input screen. Decluttered: a compact toggle + a
- *  one-line SUMMARY of the current config + an "Edit verification…" button that opens a guided,
- *  step-by-step dialog (kind -> per-kind fields to store -> not-found behaviour). The big inline form
- *  moved into VerifyDialog. Server is authoritative. */
-function VerifyEditor({
-  verify,
-  kinds,
-  capabilities,
-  vars,
-  stepIds,
-  onChange,
-}: {
-  verify?: VerifyConfig
-  kinds: VerifyKind[]
-  capabilities: Capabilities
-  vars: DataVar[]
-  stepIds: string[]
-  onChange: (v: VerifyConfig | undefined) => void
-}) {
-  const t = useT('processDesign')
-  const [open, setOpen] = useState(false)
-  const enabled = !!verify
-  const v: VerifyConfig = verify ?? { kind: kinds[0] ?? 'barcode', onNotFound: { mode: 'reprompt' } }
-
-  const toggle = (on: boolean) => {
-    if (on) {
-      onChange(v)
-      setOpen(true) // turning it on goes straight into the guided dialog
-    } else {
-      setOpen(false)
-      onChange(undefined)
-    }
-  }
-
-  // One-line human summary, e.g. "Resolves as SKU; stores Description -> desc, Unit of measure ->
-  // uom; re-prompts if not found".
-  const summary = useMemo(() => {
-    const kindName = t(`verifyKind_${v.kind}`, verifyKindLabel(v.kind))
-    const fields = verifyFieldsForKind(v.kind, capabilities.verifyFields)
-    const labelOf = (key: string) => fields.find((f) => f.key === key)?.label ?? key
-    const stored = Object.entries(v.write ?? {})
-      .filter(([, target]) => !!target)
-      .map(([key, target]) => `${labelOf(key)} → ${target}`)
-    const storedText = stored.length
-      ? t('verifySummaryStores', 'stores {list}').replace('{list}', stored.join(', '))
-      : t('verifySummaryNoStore', 'stores nothing')
-    const notFound = v.onNotFound.mode === 'goto'
-      ? t('verifySummaryGoto', 'goes to {step} if not found').replace('{step}', v.onNotFound.step || '?')
-      : t('verifySummaryReprompt', 're-prompts if not found')
-    return t('verifySummary', 'Resolves as {kind}; {stored}; {notFound}')
-      .replace('{kind}', kindName)
-      .replace('{stored}', storedText)
-      .replace('{notFound}', notFound)
-  }, [v, capabilities.verifyFields, t])
-
-  return (
-    <fieldset className="op-pd-fieldset">
-      <legend>{t('verify', 'Verify')}</legend>
-      <label className="op-pd-toggle">
-        <input type="checkbox" checked={enabled} onChange={(e) => toggle(e.target.checked)} />
-        {t('verifyEnable', 'Verify the scanned value exists')}
-      </label>
-
-      {enabled && (
-        <div className="op-pd-verify-summary">
-          <p className="muted op-pd-verify-summary-line">{summary}</p>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>
-            {t('verifyEdit', 'Edit verification…')}
-          </button>
-        </div>
-      )}
-
-      {open && enabled && (
-        <VerifyDialog
-          verify={v}
-          kinds={kinds}
-          capabilities={capabilities}
-          vars={vars}
-          stepIds={stepIds}
-          onCancel={() => setOpen(false)}
-          onDone={(next) => { onChange(next); setOpen(false) }}
-        />
-      )}
     </fieldset>
   )
 }
@@ -479,9 +367,8 @@ function StepWorkProps({
   onRename: (n: string) => void
 }) {
   const t = useT('processDesign')
-  const [open, setOpen] = useState(false)
   // Patch only the common flow fields (next / transitions / skipWhen) edited inline below; the
-  // kind-specific config is edited in the dialog. Typed to the shared fields, not the union.
+  // kind-specific config is edited in the dialog opened from the preview ("Edit task" on the mockup).
   const set = (patch: { next?: string; transitions?: Transition[]; skipWhen?: string }) =>
     onChange({ ...step, ...patch } as Step)
 
@@ -497,23 +384,7 @@ function StepWorkProps({
       <h3>{heading}</h3>
       <StepIdField id={id} onRename={onRename} />
 
-      <div className="op-pd-verify-summary">
-        <p className="muted op-pd-verify-summary-line">{summary}</p>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>
-          {t('editTask', 'Edit task…')}
-        </button>
-      </div>
-
-      {open && (
-        <TaskDialog
-          step={step}
-          tasks={tasks}
-          capabilities={capabilities}
-          vars={def.dataSchema}
-          onCancel={() => setOpen(false)}
-          onDone={(next) => { onChange(next); setOpen(false) }}
-        />
-      )}
+      <p className="muted op-pd-verify-summary-line">{summary}</p>
 
       <Field label="Default next step">
         <select value={step.next ?? ''} onChange={(e) => set({ next: e.target.value || undefined })}>

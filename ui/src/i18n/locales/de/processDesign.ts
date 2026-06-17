@@ -160,4 +160,8 @@ export default {
   summaryServerAction: 'Serveraktion: {task}',
   moveUp: 'Nach oben',
   moveDown: 'Nach unten',
+  verifyFlow: 'Prüfablauf',
+  verifyEditFlow: 'Prüfablauf bearbeiten',
+  verifyConfigured: 'Prüfung aktiv',
+  verifyRemove: 'Prüfung deaktivieren',
 }

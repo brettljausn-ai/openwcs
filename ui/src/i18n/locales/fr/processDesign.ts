@@ -160,4 +160,8 @@ export default {
   summaryServerAction: 'Action serveur : {task}',
   moveUp: 'Monter',
   moveDown: 'Descendre',
+  verifyFlow: 'Flux de vérification',
+  verifyEditFlow: 'Modifier le flux de vérification',
+  verifyConfigured: 'Vérification activée',
+  verifyRemove: 'Désactiver la vérification',
 }
