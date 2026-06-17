@@ -321,6 +321,112 @@ class VerifyProxyTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.uoms.length()").value(1));
     }
 
+    // --- order / asn: resolve an order/picksheet or ASN barcode via order-management -----------------
+
+    @Test
+    void verifyOrderReturnsOrderFieldsAndObjectAndForwardsIdentity() throws Exception {
+        String body = """
+            {
+              "found": true,
+              "order": { "orderId": "ord-1", "orderRef": "SO-1001", "orderType": "OUTBOUND",
+                         "status": "RELEASED", "customerRef": "ACME-42", "lineCount": 3 }
+            }
+            """;
+        mockServerCustomizer.getServers().values().forEach(s ->
+                s.expect(ExpectedCount.manyTimes(), requestTo(Matchers.containsString(
+                                "/api/orders/resolve")))
+                        .andExpect(method(HttpMethod.GET))
+                        .andExpect(header("X-Auth-User", "carol"))
+                        .andRespond(withSuccess(body, MediaType.APPLICATION_JSON)));
+
+        mvc.perform(post("/api/process-designer/verify")
+                        .header("X-Auth-Roles", OPERATOR)
+                        .header("X-Auth-User", "carol")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"warehouseId\":\"" + WAREHOUSE + "\",\"kind\":\"order\",\"code\":\"SO-1001\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.found").value(true))
+                .andExpect(jsonPath("$.id").value("ord-1"))
+                .andExpect(jsonPath("$.code").value("SO-1001"))
+                .andExpect(jsonPath("$.name").value("ACME-42"))
+                .andExpect(jsonPath("$.matchedAs").value(Matchers.nullValue()))
+                // Order-kind scalars.
+                .andExpect(jsonPath("$.fields.id").value("ord-1"))
+                .andExpect(jsonPath("$.fields.code").value("SO-1001"))
+                .andExpect(jsonPath("$.fields.status").value("RELEASED"))
+                .andExpect(jsonPath("$.fields.orderType").value("OUTBOUND"))
+                .andExpect(jsonPath("$.fields.customerRef").value("ACME-42"))
+                .andExpect(jsonPath("$.fields.lineCount").value(3))
+                // No SKU/location keys leak.
+                .andExpect(jsonPath("$.fields.uomCode").doesNotExist())
+                .andExpect(jsonPath("$.fields.purpose").doesNotExist())
+                // Object field "order".
+                .andExpect(jsonPath("$.fields.order.orderId").value("ord-1"))
+                .andExpect(jsonPath("$.fields.order.orderRef").value("SO-1001"))
+                .andExpect(jsonPath("$.fields.order.orderType").value("OUTBOUND"))
+                .andExpect(jsonPath("$.fields.order.status").value("RELEASED"))
+                .andExpect(jsonPath("$.fields.order.customerRef").value("ACME-42"))
+                .andExpect(jsonPath("$.fields.order.lineCount").value(3))
+                // The asn object key is not present on an order result.
+                .andExpect(jsonPath("$.fields.asn").doesNotExist());
+    }
+
+    @Test
+    void verifyAsnReturnsAsnObjectAndForwardsIdentity() throws Exception {
+        String body = """
+            {
+              "found": true,
+              "order": { "orderId": "ord-9", "orderRef": "ASN-7", "orderType": "INBOUND",
+                         "status": "EXPECTED", "customerRef": "VEND-1", "lineCount": 5 }
+            }
+            """;
+        mockServerCustomizer.getServers().values().forEach(s ->
+                s.expect(ExpectedCount.manyTimes(), requestTo(Matchers.containsString(
+                                "/api/orders/resolve")))
+                        .andExpect(method(HttpMethod.GET))
+                        .andExpect(header("X-Auth-User", "carol"))
+                        .andRespond(withSuccess(body, MediaType.APPLICATION_JSON)));
+
+        mvc.perform(post("/api/process-designer/verify")
+                        .header("X-Auth-Roles", OPERATOR)
+                        .header("X-Auth-User", "carol")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"warehouseId\":\"" + WAREHOUSE + "\",\"kind\":\"asn\",\"code\":\"ASN-7\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.found").value(true))
+                .andExpect(jsonPath("$.id").value("ord-9"))
+                .andExpect(jsonPath("$.code").value("ASN-7"))
+                .andExpect(jsonPath("$.matchedAs").value(Matchers.nullValue()))
+                .andExpect(jsonPath("$.fields.orderType").value("INBOUND"))
+                .andExpect(jsonPath("$.fields.lineCount").value(5))
+                // Object field "asn" (not "order") on the asn kind.
+                .andExpect(jsonPath("$.fields.asn.orderId").value("ord-9"))
+                .andExpect(jsonPath("$.fields.asn.orderRef").value("ASN-7"))
+                .andExpect(jsonPath("$.fields.asn.orderType").value("INBOUND"))
+                .andExpect(jsonPath("$.fields.asn.status").value("EXPECTED"))
+                .andExpect(jsonPath("$.fields.asn.customerRef").value("VEND-1"))
+                .andExpect(jsonPath("$.fields.asn.lineCount").value(5))
+                .andExpect(jsonPath("$.fields.order").doesNotExist());
+    }
+
+    @Test
+    void verifyOrderNotFoundIsCleanPassthrough() throws Exception {
+        mockServerCustomizer.getServers().values().forEach(s ->
+                s.expect(ExpectedCount.manyTimes(), requestTo(Matchers.containsString(
+                                "/api/orders/resolve")))
+                        .andExpect(method(HttpMethod.GET))
+                        .andRespond(withSuccess("{\"found\":false}", MediaType.APPLICATION_JSON)));
+
+        mvc.perform(post("/api/process-designer/verify")
+                        .header("X-Auth-Roles", OPERATOR)
+                        .header("X-Auth-User", "carol")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"warehouseId\":\"" + WAREHOUSE + "\",\"kind\":\"order\",\"code\":\"nope\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.found").value(false))
+                .andExpect(jsonPath("$.id").value(Matchers.nullValue()));
+    }
+
     @Test
     void skuScanNoMatchIsCleanPassthrough() throws Exception {
         // Neither a barcode nor a SKU code matches -> found:false.
