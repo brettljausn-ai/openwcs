@@ -31,7 +31,9 @@ class VerifyPublishValidationTest extends AbstractIntegrationTest {
               "title": "Verify Flow",
               "dataSchema": [
                 { "name": "scanned", "type": "string" },
-                { "name": "skuId", "type": "string" }
+                { "name": "skuId", "type": "string" },
+                { "name": "uomObj", "type": "object" },
+                { "name": "uomFactor", "type": "number" }
               ],
               "start": "scan",
               "steps": {
@@ -118,6 +120,52 @@ class VerifyPublishValidationTest extends AbstractIntegrationTest {
                         .header("X-Auth-Roles", EDITOR).header("X-Auth-User", "alice"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
+
+    @Test
+    void verifyWriteOfObjectWholeAndSubKeyPublishesActive() throws Exception {
+        // "uom" (whole object) -> uomObj, "uom.factor" (sub-field) -> uomFactor; both declared. ACTIVE.
+        String key = "verify-obj-ok";
+        createDraft(key);
+        putDraft(key, defWithVerify(key,
+                "\"verify\": { \"kind\": \"skuScan\","
+                + " \"write\": { \"uom\": \"uomObj\", \"uom.factor\": \"uomFactor\" },"
+                + " \"onNotFound\": { \"mode\": \"goto\", \"step\": \"notFound\" } }"));
+        mvc.perform(post("/api/process-designer/defs/" + key + "/1/publish")
+                        .header("X-Auth-Roles", EDITOR).header("X-Auth-User", "alice"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
+
+    @Test
+    void verifyWriteOfUnknownSubKeyFails422() throws Exception {
+        // "uom.bogus" -> uom is an object field but "bogus" is not one of its sub-fields. 422.
+        String key = "verify-obj-bad-sub";
+        createDraft(key);
+        putDraft(key, defWithVerify(key,
+                "\"verify\": { \"kind\": \"barcode\", \"write\": { \"uom.bogus\": \"uomFactor\" } }"));
+        mvc.perform(post("/api/process-designer/defs/" + key + "/1/publish")
+                        .header("X-Auth-Roles", EDITOR).header("X-Auth-User", "alice"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.problems", Matchers.hasItem(Matchers.allOf(
+                        Matchers.containsString("uom.bogus"),
+                        Matchers.containsString("bogus"),
+                        Matchers.containsString("sub-field")))));
+    }
+
+    @Test
+    void verifyWriteOfSubKeyOnScalarFieldFails422() throws Exception {
+        // "uomCode.x" -> uomCode is a scalar field and cannot be drilled into. 422.
+        String key = "verify-scalar-drill";
+        createDraft(key);
+        putDraft(key, defWithVerify(key,
+                "\"verify\": { \"kind\": \"barcode\", \"write\": { \"uomCode.x\": \"skuId\" } }"));
+        mvc.perform(post("/api/process-designer/defs/" + key + "/1/publish")
+                        .header("X-Auth-Roles", EDITOR).header("X-Auth-User", "alice"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.problems", Matchers.hasItem(Matchers.allOf(
+                        Matchers.containsString("uomCode.x"),
+                        Matchers.containsString("scalar field")))));
     }
 
     @Test

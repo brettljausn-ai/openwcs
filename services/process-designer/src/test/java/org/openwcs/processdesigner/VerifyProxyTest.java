@@ -100,7 +100,17 @@ class VerifyProxyTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.fields.schemaCategory").value("HAZMAT"))
                 .andExpect(jsonPath("$.fields.purpose").doesNotExist())
                 .andExpect(jsonPath("$.fields.locationType").doesNotExist())
-                .andExpect(jsonPath("$.fields.status").doesNotExist());
+                .andExpect(jsonPath("$.fields.status").doesNotExist())
+                // Object field "sku": the resolved SKU as a whole nested object.
+                .andExpect(jsonPath("$.fields.sku.skuId").value("sku-1"))
+                .andExpect(jsonPath("$.fields.sku.code").value("SKU-001"))
+                .andExpect(jsonPath("$.fields.sku.description").value("Widget"))
+                .andExpect(jsonPath("$.fields.sku.status").value("ACTIVE"))
+                // Object field "uom": the matched (barcode-pinned) UOM resolved by uomId against uoms.
+                .andExpect(jsonPath("$.fields.uom.uomId").value("u1"))
+                .andExpect(jsonPath("$.fields.uom.code").value("EA"))
+                .andExpect(jsonPath("$.fields.uom.factor").value(1))
+                .andExpect(jsonPath("$.fields.uom.baseUnit").value(true));
     }
 
     @Test
@@ -139,7 +149,16 @@ class VerifyProxyTest extends AbstractIntegrationTest {
                 // No SKU-only keys leak into a location result.
                 .andExpect(jsonPath("$.fields.name").doesNotExist())
                 .andExpect(jsonPath("$.fields.uomCode").doesNotExist())
-                .andExpect(jsonPath("$.fields.schemaCategory").doesNotExist());
+                .andExpect(jsonPath("$.fields.schemaCategory").doesNotExist())
+                // Object field "location": the resolved location as a whole nested object.
+                .andExpect(jsonPath("$.fields.location.locationId").value("loc-9"))
+                .andExpect(jsonPath("$.fields.location.code").value("A-01-02"))
+                .andExpect(jsonPath("$.fields.location.locationType").value("SHELF"))
+                .andExpect(jsonPath("$.fields.location.purpose").value("PICK"))
+                .andExpect(jsonPath("$.fields.location.status").value("ACTIVE"))
+                // No SKU object on a location result.
+                .andExpect(jsonPath("$.fields.sku").doesNotExist())
+                .andExpect(jsonPath("$.fields.uom").doesNotExist());
     }
 
     @Test
@@ -204,7 +223,17 @@ class VerifyProxyTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.fields.name").value("Widget"))
                 .andExpect(jsonPath("$.fields.uomCode").value("CASE"))
                 .andExpect(jsonPath("$.fields.schemaCategory").value("GENERAL"))
-                .andExpect(jsonPath("$.fields.purpose").doesNotExist());
+                .andExpect(jsonPath("$.fields.purpose").doesNotExist())
+                // Object field "uom": the matched UOM (CASE, uomId u2) with factor = qtyInParent (12).
+                .andExpect(jsonPath("$.fields.uom.uomId").value("u2"))
+                .andExpect(jsonPath("$.fields.uom.code").value("CASE"))
+                .andExpect(jsonPath("$.fields.uom.factor").value(12))
+                .andExpect(jsonPath("$.fields.uom.baseUnit").value(false))
+                // Object field "sku": the resolved SKU as a whole nested object.
+                .andExpect(jsonPath("$.fields.sku.skuId").value("sku-1"))
+                .andExpect(jsonPath("$.fields.sku.code").value("SKU-001"))
+                .andExpect(jsonPath("$.fields.sku.description").value("Widget"))
+                .andExpect(jsonPath("$.fields.sku.status").value("ACTIVE"));
     }
 
     @Test

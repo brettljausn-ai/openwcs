@@ -197,9 +197,13 @@ public class DefinitionValidator {
     /**
      * Validates an optional screen {@code config.verify} block (scan-verify step): {@code kind} must
      * be a known resolve kind; each {@code write} entry's key must be a resolvable field FOR THAT KIND
-     * (per the {@code VerifyFields} catalog: a location resolves id/code/purpose/locationType/status,
-     * a SKU-like kind resolves id/code/name/uomCode/schemaCategory) and its target must be a declared
-     * data-object variable; and {@code onNotFound.mode=="goto"} must name an existing step. The
+     * (per the {@code VerifyFields} catalog: a location resolves id/code/purpose/locationType/status
+     * plus the {@code location} object, a SKU-like kind resolves id/code/name/uomCode/schemaCategory
+     * plus the {@code sku}/{@code uom} objects). A write key may be a scalar key ({@code uomCode}), an
+     * object field key for the whole object ({@code uom}), or a dotted object sub-field
+     * ({@code uom.factor}); a dotted key on a scalar field, or an unknown sub-field, fails publish. The
+     * target must be a declared data-object variable; and {@code onNotFound.mode=="goto"} must name an
+     * existing step. The
      * frontend handles the actual branch + writes at runtime; the server only validates the shape at
      * publish time (malformed -> the caller surfaces 422).
      */
@@ -240,9 +244,30 @@ public class DefinitionValidator {
                 while (wit.hasNext()) {
                     Map.Entry<String, JsonNode> w = wit.next();
                     String field = w.getKey();
-                    if (kindValid && !validFields.contains(field)) {
-                        problems.add("verify field '" + field + "' is not valid for kind '" + kind
-                                + "' (step '" + id + "'; valid fields for this kind: " + validFields + ").");
+                    // A write key may be a scalar field key ("uomCode"), an object field key for the
+                    // whole object ("uom"), or a dotted object sub-field ("uom.factor"). Split on the
+                    // first '.': root must be a field for the kind; if a sub segment is present the root
+                    // must be an object field and the sub must be one of its sub-keys.
+                    int dot = field.indexOf('.');
+                    String root = dot < 0 ? field : field.substring(0, dot);
+                    String sub = dot < 0 ? null : field.substring(dot + 1);
+                    if (kindValid) {
+                        if (!validFields.contains(root)) {
+                            problems.add("verify field '" + field + "' is not valid for kind '" + kind
+                                    + "' (step '" + id + "'; valid fields for this kind: " + validFields + ").");
+                        } else if (sub != null) {
+                            org.openwcs.processdesigner.verify.VerifyFields.Field rootField =
+                                    org.openwcs.processdesigner.verify.VerifyFields.field(kind, root);
+                            if (rootField == null || !rootField.object()) {
+                                problems.add("verify field '" + field + "' is not valid for kind '" + kind
+                                        + "' (step '" + id + "'): '" + root
+                                        + "' is a scalar field and cannot be drilled into.");
+                            } else if (!rootField.subKeys().contains(sub)) {
+                                problems.add("verify field '" + field + "' is not valid for kind '" + kind
+                                        + "' (step '" + id + "'): '" + sub + "' is not a sub-field of '"
+                                        + root + "' (valid sub-fields: " + rootField.subKeys() + ").");
+                            }
+                        }
                     }
                     JsonNode targetNode = w.getValue();
                     String target = targetNode != null && targetNode.isTextual() ? targetNode.asText() : null;
