@@ -37,6 +37,7 @@ import { useCapabilities, useTasks } from '../useProcesses'
 import { hasErrors, validateDefinition, type ValidationIssue } from './validate'
 import VerifyDialog from './VerifyDialog'
 import TaskDialog from './TaskDialog'
+import DataObjectDialog from './DataObjectDialog'
 import { applyVerifyWrites, nextStepId, resolveLanding, writeValue } from '../runtime/walker'
 import { PREVIEW_CATALOG, sampleDataFor } from './sampleData'
 import PropertiesPanel from './PropertiesPanel'
@@ -131,6 +132,8 @@ export default function ProcessDesignScreen() {
   const [persisted, setPersisted] = useState(false) // has a server version (created/loaded)
   // Which configuration dialog is open (triggered from buttons by the live preview, not the panel).
   const [dialog, setDialog] = useState<null | 'verify' | 'task'>(null)
+  // The data-object editor is its own modal, opened from the left flow pane.
+  const [dataObjectOpen, setDataObjectOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Simulate mode state.
@@ -520,6 +523,18 @@ export default function ProcessDesignScreen() {
             ))}
           </div>
 
+          {/* The typed variables the process reads/writes; edited in its own dialog. */}
+          <div className="op-pd-dataobj-bar">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm op-pd-dataobj-btn"
+              onClick={() => setDataObjectOpen(true)}
+              title={t('dataObjectOpen', 'Edit the process data object')}
+            >
+              <span aria-hidden="true">{'{ }'}</span> {t('dataObject', 'Data object')} ({def.dataSchema.length})
+            </button>
+          </div>
+
           {flow.loopBack.size > 0 && (
             <div className="op-pd-flow-loops" title={t('loopHint', 'A step sends the flow back to an earlier step. Click to jump to the step that loops, then edit its next / branches.')}>
               <span aria-hidden="true">↺</span> {t('loopBanner', 'This flow loops')}:
@@ -717,9 +732,18 @@ export default function ProcessDesignScreen() {
         {simulating ? (
           <aside className="op-pd-props"><p className="muted" style={{ padding: '1rem' }}>{t('simHint', 'Step through the flow in the phone frame. Stop simulate to edit.')}</p></aside>
         ) : (
-          <PropertiesPanel def={def} selectedId={selectedId} tasks={tasks} capabilities={capabilities} onChangeStep={changeStep} onChangeSchema={changeSchema} onRenameStep={renameStep} />
+          <PropertiesPanel def={def} selectedId={selectedId} tasks={tasks} capabilities={capabilities} onChangeStep={changeStep} onRenameStep={renameStep} />
         )}
       </div>
+
+      {/* Data-object editor (its own modal, opened from the left flow pane). */}
+      {dataObjectOpen && (
+        <DataObjectDialog
+          schema={def.dataSchema}
+          onChange={changeSchema}
+          onClose={() => setDataObjectOpen(false)}
+        />
+      )}
 
       {/* Validation issue list */}
       {issues && issues.length > 0 && (

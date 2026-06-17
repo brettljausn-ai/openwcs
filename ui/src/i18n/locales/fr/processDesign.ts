@@ -164,4 +164,12 @@ export default {
   verifyEditFlow: 'Modifier le flux de vérification',
   verifyConfigured: 'Vérification activée',
   verifyRemove: 'Désactiver la vérification',
+  // Dialogue + bouton "Objet de données"
+  dataObject: 'Objet de données',
+  dataObjectIntro: 'Les variables typées que votre processus lit et écrit.',
+  dataObjectOpen: 'Modifier l’objet de données du processus',
+  varName: 'nom',
+  addVariable: '+ Ajouter une variable',
+  // Sélecteur de tâche avec recherche
+  taskPickPlaceholder: 'Rechercher des tâches…',
 }

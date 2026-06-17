@@ -164,4 +164,12 @@ export default {
   verifyEditFlow: 'Prüfablauf bearbeiten',
   verifyConfigured: 'Prüfung aktiv',
   verifyRemove: 'Prüfung deaktivieren',
+  // Datenobjekt-Dialog + Button
+  dataObject: 'Datenobjekt',
+  dataObjectIntro: 'Die typisierten Variablen, die Ihr Prozess liest und schreibt.',
+  dataObjectOpen: 'Prozess-Datenobjekt bearbeiten',
+  varName: 'Name',
+  addVariable: '+ Variable hinzufügen',
+  // Durchsuchbare Aufgabenauswahl
+  taskPickPlaceholder: 'Aufgaben durchsuchen…',
 }

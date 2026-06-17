@@ -35,6 +35,7 @@ import {
 } from '../model'
 import ScriptEditor from './ScriptEditor'
 import TaskAssist from './TaskAssist'
+import TaskCombobox from './TaskCombobox'
 import VarCombobox from './VarCombobox'
 
 /** The three step kinds the dialog offers (gated below by capabilities). */
@@ -284,13 +285,10 @@ function ServerActionStep({
       <h3 className="op-pd-verify-h">{t('kindTask', 'Run a server action')}</h3>
       <label className="op-pd-field">
         <span className="op-pd-field-label">{t('taskType', 'Task type')}</span>
-        <select value={draft.task} onChange={(e) => changeTaskType(e.target.value)}>
-          {!taskDef && <option value={draft.task}>{draft.task}</option>}
-          {pickableTasks.map((tt) => (<option key={tt.id} value={tt.id}>{tt.label}</option>))}
-        </select>
+        <TaskCombobox value={draft.task} options={pickableTasks} onChange={changeTaskType} placeholder={t('taskPickPlaceholder', 'Search tasks…')} />
       </label>
       {taskDef?.description && (
-        <p className="muted" style={{ fontSize: '.78rem', margin: '.2rem 0 .6rem' }}>{taskDef.description}</p>
+        <p className="op-pd-task-desc" style={{ margin: '.4rem 0 .6rem' }}>{taskDef.description}</p>
       )}
 
       {taskDef && taskDef.inputs.length > 0 && (
@@ -299,6 +297,7 @@ function ServerActionStep({
           {taskDef.inputs.map((inp) => (
             <label key={inp.name} className="op-pd-field">
               <span className="op-pd-field-label">{inp.required ? `${inp.name} *` : inp.name}</span>
+              {inp.description && <span className="op-pd-io-hint muted">{inp.description}</span>}
               <VarCombobox value={draft.input?.[inp.name] ?? ''} options={vars} onChange={(name) => setInput(inp.name, name)} />
             </label>
           ))}
@@ -311,6 +310,7 @@ function ServerActionStep({
           {taskDef.outputs.map((out) => (
             <label key={out.name} className="op-pd-field">
               <span className="op-pd-field-label">{out.name}</span>
+              {out.description && <span className="op-pd-io-hint muted">{out.description}</span>}
               <VarCombobox value={draft.output?.[out.name] ?? ''} options={vars} onChange={(name) => setOutput(out.name, name)} />
             </label>
           ))}
