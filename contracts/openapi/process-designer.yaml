@@ -375,8 +375,10 @@ paths:
         resolves it against master-data (forwarding the operator identity, so the handheld never hits
         master-data directly) and returns a normalised result the runtime branches on and stores from.
         kind selects the resolve: barcode (match a barcode to its SKU), sku (match a SKU by code),
-        location (match a location by code), or skuScan (combined: try the value as a product barcode
-        first, else as a SKU code, and signal whether the operator must pick a UOM).
+        location (match a location by code), skuScan (combined: try the value as a product barcode
+        first, else as a SKU code, and signal whether the operator must pick a UOM), or order/asn
+        (resolve an order/picksheet barcode or an ASN barcode against order-management; both resolve the
+        same way, asn is intended for inbound and a flow may branch on the resolved orderType).
         Read-only and stateless (no instance/ledger persistence).
         Gated by PROCESS_DESIGN_VIEW (the permission operators use to run processes). A miss is a clean
         200 with found:false (never 404); a downstream failure is 502.
@@ -698,7 +700,7 @@ components:
           description: "Whether the caller may author script steps (holds PROCESS_SCRIPT_AUTHOR)."
         verifyKinds:
           type: array
-          items: { type: string, enum: [barcode, sku, location, skuScan] }
+          items: { type: string, enum: [barcode, sku, location, skuScan, order, asn] }
           description: >
             The server-driven list of scan-verify kinds the screen "Verify" picker offers. A constant
             list so the designer does not hard-code it.
@@ -712,8 +714,10 @@ components:
             drill-down sub-fields; its VerifyResult.fields value is a nested map). A location resolves
             different attributes than a SKU, so the sets differ per kind (location: scalars
             id/code/purpose/locationType/status plus object location; barcode/sku/skuScan: scalars
-            id/code/name/uomCode/schemaCategory plus objects sku and uom). Single source of truth so the
-            designer and runtime agree."
+            id/code/name/uomCode/schemaCategory plus objects sku and uom; order: scalars
+            id/code/status/orderType/customerRef/lineCount plus object order; asn: the same scalars
+            (code labelled ASN reference) plus object asn). Single source of truth so the designer and
+            runtime agree."
           additionalProperties:
             type: array
             items: { $ref: '#/components/schemas/VerifyField' }
@@ -758,7 +762,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [barcode, sku, location, skuScan]
+          enum: [barcode, sku, location, skuScan, order, asn]
           description: "Which master-data resolve to run for the submitted value."
         write:
           type: object
@@ -769,7 +773,9 @@ components:
             key (e.g. uomCode), an object field key for the whole object (e.g. uom, stores the nested
             map), or a dotted object sub-field (e.g. uom.factor, stores one property). location ->
             id/code/purpose/locationType/status plus object location; barcode/sku/skuScan ->
-            id/code/name/uomCode/schemaCategory plus objects sku and uom. The value must be a declared
+            id/code/name/uomCode/schemaCategory plus objects sku and uom; order ->
+            id/code/status/orderType/customerRef/lineCount plus object order; asn -> the same scalars
+            plus object asn. The value must be a declared
             data-object variable. All rules are enforced at publish (an invalid key, a dotted key on a
             scalar field, or an unknown sub-field fails 422)."
         onNotFound:
@@ -793,7 +799,7 @@ components:
         warehouseId: { type: string, format: uuid }
         kind:
           type: string
-          enum: [barcode, sku, location, skuScan]
+          enum: [barcode, sku, location, skuScan, order, asn]
           description: "Which master-data resolve to run."
         code:
           type: string
@@ -816,15 +822,17 @@ components:
         id:
           type: string
           nullable: true
-          description: "sku.skuId (barcode/sku) or location.locationId (location); null when not found."
+          description: >
+            "sku.skuId (barcode/sku), location.locationId (location), or order.orderId (order/asn);
+            null when not found."
         code:
           type: string
           nullable: true
-          description: "sku.code or location.code; null when not found."
+          description: "sku.code, location.code, or order.orderRef (order/asn); null when not found."
         name:
           type: string
           nullable: true
-          description: "sku.description (barcode/sku); null for location."
+          description: "sku.description (barcode/sku) or order.customerRef (order/asn); null for location."
         uomCode:
           type: string
           nullable: true
@@ -874,7 +882,9 @@ components:
             objects). location: scalars id/code/purpose/locationType/status plus object location
             ({locationId, code, locationType, purpose, status}); barcode/sku/skuScan: scalars
             id/code/name/uomCode/schemaCategory plus object sku ({skuId, code, description, status}) and
-            object uom (the matched/chosen UOM: {uomId, code, factor, baseUnit}). This is the map the
-            runtime reads to apply a screen's verify.write; the top-level
+            object uom (the matched/chosen UOM: {uomId, code, factor, baseUnit}); order: scalars
+            id/code/status/orderType/customerRef/lineCount plus object order ({orderId, orderRef,
+            orderType, status, customerRef, lineCount}); asn: the same scalars plus object asn (same
+            sub-fields). This is the map the runtime reads to apply a screen's verify.write; the top-level
             id/code/name/uomCode/schemaCategory stay for backward compatibility. Empty when not found."
       required: [found, uoms, needsUomChoice, detail, fields]

@@ -74,6 +74,8 @@ interface FlowCanvasProps {
   onSetStart: (id: string) => void
   onDeleteStep: (id: string) => void
   onMoveStep: (id: string, x: number, y: number) => void
+  // Overwrite every step's `ui` with a freshly computed auto-layout (the "Tidy" button).
+  onLayout: (positions: Record<string, { x: number; y: number }>) => void
 }
 
 // --- node + edge payloads --------------------------------------------------------------------------
@@ -312,7 +314,7 @@ const EDGE_TYPES: EdgeTypes = { step: StepEdge }
 
 function InnerCanvas({
   def, flow, selectedId, simStepId, editable,
-  onSelect, onChangeStep, onSetStart, onDeleteStep, onMoveStep,
+  onSelect, onChangeStep, onSetStart, onDeleteStep, onMoveStep, onLayout,
 }: FlowCanvasProps) {
   const t = useT('processDesign')
   const knownVars = useMemo(() => def.dataSchema.map((v) => v.name), [def.dataSchema])
@@ -446,6 +448,15 @@ function InnerCanvas({
     onMoveStep(node.id, Math.round(node.position.x), Math.round(node.position.y))
   }, [onMoveStep])
 
+  // --- Tidy: recompute the layered auto-layout for ALL steps, overwriting each step's `ui` in one
+  // update, then fit the view. Layout is non-behavioural, so this is allowed even on a read-only
+  // version. ---------------------------------------------------------------------------------------
+  const onTidy = useCallback(() => {
+    onLayout(autoLayout(def, flow))
+    // Fit once the re-positioned nodes have flowed back in.
+    window.requestAnimationFrame(() => rfInstance?.fitView({ padding: 0.2, maxZoom: 1 }))
+  }, [def, flow, onLayout, rfInstance])
+
   // --- selection ---------------------------------------------------------------------------------
   const onNodeClick = useCallback((_e: unknown, node: Node) => { onSelect(node.id) }, [onSelect])
   const onPaneClick = useCallback(() => { onSelect(null) }, [onSelect])
@@ -461,6 +472,16 @@ function InnerCanvas({
 
   return (
     <div className="op-fc-canvas">
+      <div className="op-fc-toolbar">
+        <button
+          type="button"
+          className="btn btn-ghost op-fc-tidy nodrag nopan"
+          title={t('tidyHelp', 'Auto-arrange the nodes left to right')}
+          onClick={onTidy}
+        >
+          {t('tidy', 'Tidy')}
+        </button>
+      </div>
       <ReactFlow
         nodes={nodes}
         edges={edges}

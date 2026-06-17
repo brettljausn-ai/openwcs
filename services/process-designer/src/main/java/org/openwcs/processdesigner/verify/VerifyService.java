@@ -27,10 +27,15 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class VerifyService {
 
     private final RestClient http;
+    private final RestClient orders;
 
     public VerifyService(RestClient.Builder builder,
-                         @Value("${openwcs.process-designer.master-data-base-url:http://localhost:8081}") String baseUrl) {
+                         @Value("${openwcs.process-designer.master-data-base-url:http://localhost:8081}") String baseUrl,
+                         @Value("${openwcs.process-designer.orders-base-url:http://localhost:8084}") String ordersBaseUrl) {
         this.http = builder.baseUrl(baseUrl).build();
+        // A second client bound to order-management for the order/asn kinds. The identity-forwarding
+        // customizer rides the operator's X-Auth-* along, same as the master-data client.
+        this.orders = builder.clone().baseUrl(ordersBaseUrl).build();
     }
 
     public VerifyResult verify(VerifyRequest request) {
@@ -44,6 +49,10 @@ public class VerifyService {
 
         if (VerifyKinds.SKU_SCAN.equals(kind)) {
             return verifySkuScan(warehouseId, code);
+        }
+
+        if (VerifyKinds.ORDER.equals(kind) || VerifyKinds.ASN.equals(kind)) {
+            return verifyOrder(kind, warehouseId, code);
         }
 
         Map<String, Object> body = switch (kind) {
@@ -80,6 +89,68 @@ public class VerifyService {
 
         // Neither matched. Carry the SKU-resolve ambiguous flag if present.
         return notFound(bySku);
+    }
+
+    /**
+     * Order/ASN resolve. Calls order-management {@code GET /api/orders/resolve?warehouseId=&ref=<code>}
+     * and normalises {@code {found, order}} into the verify shape. The same call backs both kinds;
+     * {@code asn} is intended for inbound but is not hard-rejected on an orderType mismatch (a flow may
+     * branch on the resolved {@code orderType}). The object field key is {@code order} for kind
+     * {@code order} and {@code asn} for kind {@code asn}; both carry the same sub-fields.
+     */
+    private VerifyResult verifyOrder(String kind, String warehouseId, String code) {
+        java.net.URI uri = UriComponentsBuilder.fromPath("/api/orders/resolve")
+                .queryParam("warehouseId", warehouseId)
+                .queryParam("ref", code)
+                .build()
+                .encode()
+                .toUri();
+        Map<String, Object> body;
+        try {
+            Map<String, Object> response = orders.get()
+                    .uri(uri)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() { });
+            body = response == null ? Map.of() : response;
+        } catch (RestClientException e) {
+            throw new VerifyException("Verify call to order-management failed: " + e.getMessage(), e);
+        }
+
+        if (!asBool(body.get("found"))) {
+            return notFound(body);
+        }
+        Map<String, Object> order = asMap(body.get("order"));
+        String orderId = asString(order.get("orderId"));
+        String orderRef = asString(order.get("orderRef"));
+        String orderType = asString(order.get("orderType"));
+        String status = asString(order.get("status"));
+        String customerRef = asString(order.get("customerRef"));
+        Object lineCount = order.get("lineCount");
+
+        Map<String, Object> detail = new HashMap<>(order);
+
+        // Scalars (keys must match the VerifyFields catalog for the kind).
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("id", orderId);
+        fields.put("code", orderRef);
+        fields.put("status", status);
+        fields.put("orderType", orderType);
+        fields.put("customerRef", customerRef);
+        fields.put("lineCount", lineCount);
+        // Object field: "order" for kind order, "asn" for kind asn; same sub-fields either way.
+        Map<String, Object> orderObject = new HashMap<>();
+        orderObject.put("orderId", orderId);
+        orderObject.put("orderRef", orderRef);
+        orderObject.put("orderType", orderType);
+        orderObject.put("status", status);
+        orderObject.put("customerRef", customerRef);
+        orderObject.put("lineCount", lineCount);
+        fields.put(kind, orderObject);
+
+        // id/code/name surface the order ref + best-effort customer name. matchedAs stays null (its
+        // enum is barcode|sku); a flow branches on the resolved orderType via the fields/object instead.
+        return new VerifyResult(true, null, orderId, orderRef, customerRef,
+                null, null, null, List.of(), false, detail, fields);
     }
 
     private VerifyResult normaliseSku(String kind, Map<String, Object> body) {

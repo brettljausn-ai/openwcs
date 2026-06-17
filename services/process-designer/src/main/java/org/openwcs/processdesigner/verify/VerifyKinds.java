@@ -18,9 +18,19 @@ public final class VerifyKinds {
      * or a SKU code (UOM auto-picked when the SKU has a single UOM, otherwise the runtime prompts).
      */
     public static final String SKU_SCAN = "skuScan";
+    /**
+     * Order/picksheet scan: the scanned value is resolved against order-management as an order
+     * reference (works for OUTBOUND order/picksheet barcodes). Resolves via {@code GET /api/orders/resolve}.
+     */
+    public static final String ORDER = "order";
+    /**
+     * ASN scan: the scanned value is resolved against order-management as an inbound order/ASN
+     * reference. Resolves the same way as {@link #ORDER} (a flow can branch on the resolved orderType).
+     */
+    public static final String ASN = "asn";
 
     /** Ordered for the designer picker. */
-    public static final List<String> ALL = List.of(BARCODE, SKU, LOCATION, SKU_SCAN);
+    public static final List<String> ALL = List.of(BARCODE, SKU, LOCATION, SKU_SCAN, ORDER, ASN);
 
     private static final Set<String> SET = Set.copyOf(ALL);
 

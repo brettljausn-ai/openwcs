@@ -1,20 +1,34 @@
 # Mobile Process Designer and Engine — Specification
 
-Status: all three phases implemented (process-designer service :8097 + the WYSIWYG designer and
-client-driven handheld runtime in the UI). Phase 2 added version management (duplicate/clone,
-JSON import/export), step-level `skipWhen` conditions (validated at publish by a recursive-descent
-ConditionParser, no eval), four more curated task types (`host.confirm`, `inventory.adjust`,
-`counting.capture`, `order.lookup`) plus a live task catalog, and read-only instance
-history/monitoring. Phase 3 (the final phase) added the two §7.2/§7.3 tiers: a sandboxed scripting
-escape hatch (a `script` task type running in a locked-down GraalJS sandbox, gated by a config flag
-plus the new `PROCESS_SCRIPT_AUTHOR` permission) and design-time AI task-assist (describe a task,
-get a curated-task mapping or a draft sandboxed snippet for a human to review; never auto-deployed). A later increment added **scan
-verification** (§4.1): a per-screen `verify` block that resolves a scanned/typed value against new
-read-only master-data resolve endpoints, branches on not-found, and writes the resolved ids
-(including the resolved UUID) into data-object variables, on the curated-API path (no raw SQL).
-The feature is now complete. Author intent captured 2026-06-16. This is a build spec, the sibling of
-[`dashboardScope.md`](./dashboardScope.md). It will be promoted to an ADR once the model decisions
-below are accepted; the sections below remain the spec.
+Status: all three phases implemented and extended (process-designer service :8097 + the WYSIWYG
+designer and client-driven handheld runtime in the UI). Phase 2 added version management
+(duplicate/clone, JSON import/export), step-level `skipWhen` conditions (validated at publish by a
+recursive-descent ConditionParser, no eval), four more curated task types (`host.confirm`,
+`inventory.adjust`, `counting.capture`, `order.lookup`) plus a live task catalog, and read-only
+instance history/monitoring. Phase 3 (the final phase) added the two §7.2/§7.3 tiers: a sandboxed
+scripting escape hatch (a `script` task type running in a locked-down GraalJS sandbox, gated by a
+config flag plus the new `PROCESS_SCRIPT_AUTHOR` permission) and design-time AI task-assist (describe
+a task, get a curated-task mapping or a draft sandboxed snippet for a human to review; never
+auto-deployed).
+
+Post-Phase-3 increments (this is where the designer matured most): (1) **scan verification** (§4.1):
+a per-screen `verify` block that resolves a scanned/typed value against read-only resolve endpoints,
+branches on not-found, and writes resolved values into data-object variables, on the curated-API path
+(no raw SQL). Verify kinds grew from `barcode`/`sku`/`location` to also include `skuScan`
+(code-or-barcode with a UOM prompt), `order` (outbound order/picksheet barcode) and `asn` (inbound
+ASN barcode), the order/asn kinds resolving via order-management `GET /api/orders/resolve`. Resolved
+fields can be SCALARS or OBJECTS: a `verify.write` may store a whole resolved object (UOM, SKU,
+Location, Order, ASN) into one variable or drill into a single property. (2) A **visual node canvas**
+(React Flow) replaced the flow list as the sole flow view (§10): drag step nodes, draw the flow by
+dragging connectors, edit branch conditions on the edge, a "Tidy" auto-layout button. (3) A no-code
+**`compute`** step (§6.1) assigns variables from a safe arithmetic-and-comparison expression grammar,
+client-evaluated, with publish-time validation that referenced variables are declared. (4) The
+designer moved to a **guided-dialog** UX (§10): a definitions landing table is the entry point, and
+screen/task/verify/data-object config each open a dedicated dialog near the live phone preview (the
+properties panel is now just a per-step summary + skip-when). Author intent captured 2026-06-16,
+extended through 2026-06-17. This is a build spec, the sibling of [`dashboardScope.md`](./dashboardScope.md).
+It will be promoted to an ADR once the model decisions below are accepted; the sections below remain
+the spec.
 
 ## 1. Context and goal
 
@@ -127,23 +141,41 @@ optional `verify` block in their `config`:
   "header": "Scan location",
   "writeTo": "locationCode",
   "verify": {
-    "kind": "location",                 // "barcode" | "sku" | "location"
+    "kind": "location",                 // see kinds below
     "write": {                          // map resolved fields -> data-object variables
-      "id":   "locationId",             // resolved UUID
-      "code": "locationCode"
+      "id":   "locationId",             // resolved UUID (scalar)
+      "code": "locationCode",           // scalar
+      "location": "loc"                 // OR store the whole resolved object into one variable
+      // "location.purpose": "purpose"  // OR drill into one property of the object
     },
     "onNotFound": { "mode": "reprompt" } // or { "mode": "goto", "step": "<stepId>" }
   }
 }
 ```
 
-- **`kind`** picks the resolve endpoint: `barcode` (resolve a scanned barcode → SKU + UOMs +
-  attribute-schema graph), `sku` (resolve a SKU code), `location` (resolve a location code). The
-  designer's kind picker is **server-driven**: `GET /api/process-designer/capabilities` returns
-  `verifyKinds:["barcode","sku","location"]`.
-- **`write`** maps the normalised resolved fields (`id`, `code`, `name`, `uomCode`,
-  `schemaCategory`) to declared data-object variables. `id` is the resolved UUID. Validated at
-  publish: each write key must be a known resolved field and each target must be a declared variable.
+- **`kind`** picks how the scanned value is resolved. The designer's kind picker is
+  **server-driven**: `GET /api/process-designer/capabilities` returns the full `verifyKinds` list and
+  a per-kind `verifyFields` catalog. The kinds are:
+  - `barcode`: resolve a scanned barcode → SKU + UOMs + attribute-schema graph (master-data).
+  - `sku`: resolve a SKU code (master-data); since a follow-on increment this kind also accepts a
+    barcode (barcode resolution first, SKU-code fallback), so one screen handles both scan sources.
+  - `location`: resolve a location code (master-data).
+  - `skuScan`: combined SKU scan (a product barcode, UOM pinned by the barcode, **or** a SKU code,
+    UOM auto-picked when the SKU has one UOM, otherwise the runtime prompts).
+  - `order`: resolve an outbound order / picksheet barcode against **order-management**.
+  - `asn`: resolve an inbound order / ASN barcode against **order-management** (same call as `order`;
+    a flow may branch on the resolved `orderType`).
+- **`write`** maps the resolved fields for that kind to declared data-object variables. A field is a
+  **SCALAR** (its value is a plain string, e.g. `id`, `code`, `name`, `uomCode`, `schemaCategory`,
+  `status`, `orderType`, `lineCount`) or an **OBJECT** (e.g. `sku`, `uom`, `location`, `order`,
+  `asn`): an object field's value is a nested `{subKey -> value}` map. A `write` key may therefore be
+  a scalar key (`uomCode`), an **object field key to store the whole object** (`uom`, stores the
+  nested map into one variable), or a **dotted object sub-field to store one property** (`uom.factor`).
+  The object mechanism is fully generic (any catalog field may be an object with `sub` fields); the
+  per-kind catalog (a location resolves different attributes than a SKU) is the single source of truth
+  shared by the designer, the runtime (`VerifyResult.fields`), and publish validation. `id` is the
+  resolved UUID. Validated at publish: each write key (or its object root) must be a known resolved
+  field for the kind and each target must be a declared variable.
 - **`onNotFound`** = `reprompt` (clear and ask again) or `goto` a named step. A `goto` target must
   exist and **counts toward step reachability** (so the validator does not flag it as unreachable).
 
@@ -159,12 +191,23 @@ with `found:false` on a miss (never 404), so a flow can branch instead of errori
 - `GET /api/master-data/resolve/location?warehouseId=&code=` →
   `{found, location{locationId,code,locationType,purpose,status}}`.
 
+**Order/ASN resolve (order-management, read-only, RBAC `ORDER_VIEW`).** The `order` and `asn` kinds
+resolve against order-management instead of master-data:
+- `GET /api/orders/resolve?warehouseId=&ref=` → `{found, order{orderId, orderRef, orderType, status,
+  customerRef, lineCount}}`. The scanned value is the order's `orderRef` (an outbound picksheet
+  barcode or an inbound ASN barcode). Returns **HTTP 200 with `found:false`** and a null order on a
+  miss (never 404) so a flow can branch. The same call backs both kinds; `asn` is not hard-rejected
+  on an `orderType` mismatch (the flow may branch on the resolved `orderType`).
+
 **Proxy.** `POST /api/process-designer/verify {warehouseId, kind, code}` (RBAC
-`PROCESS_DESIGN_VIEW`) proxies to the matching master-data endpoint with the **operator's forwarded
-identity** (`X-Auth-*`, so master-data RBAC + warehouse scope apply) and returns a normalised
-`{found, ambiguous, id, code, name, uomCode, schemaCategory, detail}`. A clean `found:false` is a
-200 passthrough; a downstream transport/4xx/5xx failure becomes a 502. Configured by
-`OPENWCS_MASTER_DATA_BASE_URL` (`openwcs.process-designer.master-data-base-url`).
+`PROCESS_DESIGN_VIEW`) proxies to the matching resolve endpoint (master-data for
+`barcode`/`sku`/`location`/`skuScan`, order-management for `order`/`asn`) with the **operator's
+forwarded identity** (`X-Auth-*`, so the downstream RBAC + warehouse scope apply) and returns a
+normalised `{found, ambiguous, id, code, name, uomCode, schemaCategory, fields{...}, detail}` (where
+`fields` is the per-kind map of scalars + nested objects the `write` mappings read from). A clean
+`found:false` is a 200 passthrough; a downstream transport/4xx/5xx failure becomes a 502. Configured
+by `OPENWCS_MASTER_DATA_BASE_URL` (`openwcs.process-designer.master-data-base-url`) and
+`openwcs.process-designer.orders-base-url` for the order/asn kinds.
 
 **Runtime.** On submit the client resolves via the proxy: **offline holds** ("verification needs a
 connection"); `found:false` re-prompts or routes per `onNotFound`; `found:true` merges the `write`
@@ -194,6 +237,23 @@ identity, so RBAC + audit + service boundaries stay intact (no raw SQL, no direc
 literals. Parsed and evaluated by a small interpreter (no `eval`, no host access). Anything more
 complex belongs in a task step.
 
+### 6.1 Compute step (no-code derivations, implemented)
+
+A **`compute`** step is a no-code, client-evaluated step that derives values without a server
+round-trip. Its config is `{ "type": "compute", "set": [{ "var": "...", "expr": "..." }], "next":
+"...", "transitions": [...] }`: each `set` row evaluates `expr` against the data object and writes the
+result into `var`, in order, then the step resolves `next`/`transitions` and advances. It is used for
+decisions and derivations (for example comparing a counted quantity to the expected one and routing a
+recount within a tolerance) that do not need a backend.
+
+`expr` is a **safe, value-returning grammar** that is a superset of the §6 condition grammar plus
+arithmetic: `or`/`and`/`not`, comparisons, `+ - * /`, unary minus, parentheses, over data-object
+variables and number/string/boolean literals. No `eval`, no function calls, no member access, no host
+access. The client evaluates each expression at runtime; the server **parses it at publish** (an
+`ExpressionParser` validator) so a malformed expression fails publish (422) rather than failing on a
+device. Both `compute` expressions and `when`/`skipWhen` conditions are validated to reference only
+**declared** data-object variables, live in the designer and again at publish.
+
 ## 7. Task steps (the work)
 
 A task step runs server-side work and reads/writes the data object. Three tiers, in order of
@@ -210,10 +270,12 @@ maps data-object variables to its inputs/outputs. openWCS already exposes most o
 | `inventory.move` | `POST /api/flow/moves` |
 | `picking.confirm` | `POST /api/orders/pick-tasks/{lineId}/confirm` |
 | `counting.capture` | counting capture endpoint |
-| `inventory.lookup` | `GET /api/inventory/...` (read into a variable) |
+| `inventory.lookup` | on-hand of a SKU **by location OR by handling unit** (`/api/inventory/availability` or `/api/inventory/handling-units/{hu}/contents`), read into a variable; `warehouseId` is auto-injected from the instance, not a mapped input |
 | `host.confirm` | Host API confirmation |
 | `txlog.post` | a stock transaction |
 
+Each task in the catalog now carries a human **description** plus a per-input and per-output
+description; `GET /api/process-designer/tasks` returns them and the guided task dialog shows them.
 New task types are added in code, reviewed, and shipped via the normal PR/CI pipeline. This is the
 90% path and the only one needed for Phase 1.
 
@@ -281,43 +343,55 @@ Handhelds drop Wi-Fi, so the engine is **client-driven with server checkpoints**
 
 ## 10. The Designer UI (look and feel — WYSIWYG)
 
-The designer must let a non-developer "see" the process as the operator will. Layout: a three-pane
-screen.
+The designer must let a non-developer "see" the process as the operator will. The implemented UI is a
+**definitions landing table** as the entry point, then an editor built around a **visual node canvas**
+and a **live handheld preview**, with **guided dialogs** for the detailed config (the original
+three-pane flow-list / properties layout was superseded as the designer matured).
 
-```
-┌───────────────┬───────────────────────────────┬──────────────────────┐
-│ Flow (steps)  │   LIVE HANDHELD PREVIEW         │  Properties          │
-│ ▢ Scan ASN    │   ┌───────────────────────┐    │  Step: Scan SKU      │
-│ ▢ Scan SKU ◀  │   │  [handheld frame]      │    │  Header: Scan {{asn}}│
-│ ▢ Enter qty   │   │   Scan SKU             │    │  Detail: ...         │
-│ ◇ Damaged?    │   │   ASN: A123            │    │  Write to: sku       │
-│   ├▶ Quaran.  │   │   [ scan field ]       │    │  Scan binding: on    │
-│   └▶ Putaway  │   │   [ Confirm ]          │    │  Validation: required│
-│ ✓ Done        │   └───────────────────────┘    │  + add validation    │
-└───────────────┴───────────────────────────────┴──────────────────────┘
-```
+**Definitions landing table (entry point).** Opening the designer shows a searchable table of existing
+processes (title, key, status, version, version count) with a **New process** button. Selecting a row
+opens the editor; a back button returns to the table.
 
-Requirements:
-- **Live handheld preview (centre)**: the selected step rendered in a phone-sized frame using the
-  **same components the real handheld runtime uses**, with placeholders resolved against sample data.
-  Editing properties updates the preview instantly. This is the core "get your head around it" win:
-  the designer is literally previewing the operator screen.
-- **Flow list / mini-canvas (left)**: ordered steps with screen-type icons; branches shown as
-  indented sub-paths under a Question step. Drag to reorder; add a step from a palette (the six
-  screen types + "Task"). Click a step to edit + preview it. Keep it a structured list with
-  visible branch arrows rather than a free-form node graph (simpler for non-developers; matches the
-  mostly-linear reality).
-- **Properties panel (right)**: per-step config (header/detail with a placeholder picker that lists
-  the data-object variables, `writeTo`, validation builder, scan-binding toggle; for tasks, the task
-  type picker + variable mapping; for questions, the answer/transition editor).
-- **Data object panel**: define/rename the typed variables; the placeholder picker and `writeTo`
-  dropdowns read from it.
-- **Simulate / test mode**: step through the flow in the preview frame with fake input, exercising
-  branches, before publishing. No backend writes (task steps are stubbed/dry-run).
-- **Validate + publish**: validation lists unreachable steps, unbound writes, dangling transitions,
-  unknown placeholders; publish is blocked until clean.
-- The designer is a **desktop** screen (Engineering section), not a handheld screen. It is gated by a
-  new `process-design` screen permission (admin/engineer).
+**Visual node canvas (the flow editor).** The flow is edited as a React Flow node graph, the **sole**
+flow view (the old Canvas/List toggle and the structured list were removed):
+- Each step is a **draggable node**; dragging persists the position into the step's (designer-only)
+  `ui:{x,y}` (saved with the def). Orphan (not-reachable-from-start) nodes still render with
+  "not connected" styling so they can be dragged into the flow.
+- You **draw the flow** by dragging a connector from one node to another: the first link becomes the
+  step's default `next` (solid edge); a further link adds a branch `transition` (dashed,
+  condition-labelled edge) the user then labels by editing the **`when` condition inline on the edge**.
+- A back-edge to a step still on the current path is detected and shown as a **loop** (amber/animated).
+- Clicking an edge selects it; Delete (or the edge button) removes the underlying `next`/transition.
+- A **Tidy** button computes a fresh auto-layout and overwrites every node's position in one step.
+- Default-next and branch transitions live **only on the canvas** (they were removed from the
+  properties panel). React Flow is lazy-loaded so the graph library stays out of the main bundle.
+
+**Live handheld preview (centre).** The selected step rendered in a phone-sized frame using the
+**same `ProcessScreenView` component the real handheld runtime uses**, with placeholders resolved
+against sample data. Editing updates the preview instantly.
+
+**Guided dialogs (the detailed config).** Each opened by a button near the live phone preview; the
+properties panel is now just a per-step **summary + skip-when** editor. The dialogs are:
+- **Edit screen**: screen config (name, header/detail with a placeholder picker, write-to, scan
+  binding, validation, choice answers, acknowledge options).
+- **Edit task**: server task / compute / sandboxed script, with a **searchable task picker** and the
+  task + per-input/output descriptions, plus the AI task-assist panel.
+- **Verify flow**: the per-kind scan-verification block (kind, the per-kind resolved-field write
+  mappings incl. whole-object / drill-down, on-not-found).
+- **Data object**: define/rename the typed variables; placeholder pickers and write-to dropdowns read
+  from it; a variable autocomplete (`VarCombobox`) offers declared names in condition/when/write
+  editors.
+
+**Simulate / test mode**: step through the flow in the preview frame with fake input, exercising
+branches and verify (offline holds; a "simulate not found" toggle resolves locally), before
+publishing. No backend writes (task steps are dry-run).
+
+**Validate + publish**: validation lists unreachable steps, unbound writes, dangling transitions,
+unknown placeholders, malformed conditions/expressions, and undeclared variables referenced by a
+condition/compute; publish is blocked until clean.
+
+The designer is a **desktop** screen (Engineering section), not a handheld screen. It is gated by the
+`process-design` screen permission (admin/supervisor).
 
 ## 11. Security model
 - No designer-authored Java executes in-process (§7). A `script` step runs only **interpreted guest
@@ -345,8 +419,11 @@ Lives in a new `process-designer` service or the existing `process-engine` (deci
   data + next step), `GET /api/process/instances/{id}` (resume)
 - Curated task registry is server-side code (not an API to author tasks).
 - **Scan verification** (§4.1): `POST /api/process-designer/verify {warehouseId, kind, code}`
-  (proxies the read-only master-data resolve endpoints with forwarded identity);
-  `GET /api/process-designer/capabilities` also returns `verifyKinds:["barcode","sku","location"]`.
+  (proxies the read-only resolve endpoints with forwarded identity: master-data for
+  `barcode`/`sku`/`location`/`skuScan`, order-management `GET /api/orders/resolve` for `order`/`asn`);
+  `GET /api/process-designer/capabilities` returns `verifyKinds`
+  (`["barcode","sku","location","skuScan","order","asn"]`) and the per-kind `verifyFields` catalog
+  (scalar + object fields with drill-down sub-fields).
 
 ## 13. Persistence
 - `process_definition` (process_key, version, status, json, published_at, published_by) — one ACTIVE
