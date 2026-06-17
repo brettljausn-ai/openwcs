@@ -308,6 +308,10 @@ class DefinitionLifecycleTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$[?(@.type=='order.lookup')]").exists())
                 .andExpect(jsonPath("$[?(@.type=='inventory.move')]").exists())
                 .andExpect(jsonPath("$[?(@.type=='counting.capture')].inputs[?(@.name=='countedQty' && @.required==true)]").exists())
-                .andExpect(jsonPath("$[?(@.type=='order.lookup')].outputs[?(@.name=='orderRef')]").exists());
+                .andExpect(jsonPath("$[?(@.type=='order.lookup')].outputs[?(@.name=='orderRef')]").exists())
+                // Each curated task carries a human description, and inputs/outputs are described too.
+                .andExpect(jsonPath("$[?(@.type=='inventory.lookup' && @.description != '' && @.description)]").exists())
+                .andExpect(jsonPath("$[?(@.type=='inventory.lookup')].inputs[?(@.name=='skuId' && @.description != '' && @.description)]").exists())
+                .andExpect(jsonPath("$[?(@.type=='inventory.lookup')].outputs[?(@.name=='onHand' && @.description != '' && @.description)]").exists());
     }
 }

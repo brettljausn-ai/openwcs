@@ -31,11 +31,20 @@ public class InventoryMoveTask implements ProcessTask {
     @Override
     public TaskSpec spec() {
         return new TaskSpec("inventory.move", "Move handling unit",
-                java.util.List.of(TaskSpec.req("warehouseId"), TaskSpec.req("huId"),
-                        TaskSpec.req("toLocationId"), TaskSpec.opt("huCode"),
-                        TaskSpec.opt("fromLocationId"), TaskSpec.opt("family"),
-                        TaskSpec.opt("destFamily"), TaskSpec.opt("reason")),
-                java.util.List.of(TaskSpec.out("moveId"), TaskSpec.out("status")));
+                "Dispatch a physical move of a handling unit to a destination location "
+                        + "(e.g. to relocate a tote after a process step).",
+                java.util.List.of(
+                        TaskSpec.req("warehouseId", "The warehouse the move runs in"),
+                        TaskSpec.req("huId", "The handling unit to move"),
+                        TaskSpec.req("toLocationId", "The destination location to move the handling unit to"),
+                        TaskSpec.opt("huCode", "Optional: the handling unit's human-readable code"),
+                        TaskSpec.opt("fromLocationId", "Optional: the source location the handling unit is leaving"),
+                        TaskSpec.opt("family", "Optional: the source equipment / location family"),
+                        TaskSpec.opt("destFamily", "Optional: the destination equipment / location family"),
+                        TaskSpec.opt("reason", "Optional: a free-text reason recorded with the move")),
+                java.util.List.of(
+                        TaskSpec.out("moveId", "The id of the dispatched move"),
+                        TaskSpec.out("status", "The move's current status")));
     }
 
     @Override

@@ -30,9 +30,17 @@ public class SlottingPutawayTask implements ProcessTask {
     @Override
     public TaskSpec spec() {
         return new TaskSpec("slotting.putaway", "Slot + put away",
-                java.util.List.of(TaskSpec.req("warehouseId"), TaskSpec.req("huId"),
-                        TaskSpec.req("skuId"), TaskSpec.req("qty"), TaskSpec.opt("fromLocationId")),
-                java.util.List.of(TaskSpec.out("toLocationId"), TaskSpec.out("moveId")));
+                "Score the best storage slot for a decanted handling unit and dispatch the put-away "
+                        + "move there (e.g. after goods-in decant).",
+                java.util.List.of(
+                        TaskSpec.req("warehouseId", "The warehouse the put-away runs in"),
+                        TaskSpec.req("huId", "The handling unit to put away"),
+                        TaskSpec.req("skuId", "The SKU on the handling unit (drives slotting rules)"),
+                        TaskSpec.req("qty", "The quantity being put away"),
+                        TaskSpec.opt("fromLocationId", "Optional: the source location the handling unit is leaving")),
+                java.util.List.of(
+                        TaskSpec.out("toLocationId", "The storage location the slotter chose"),
+                        TaskSpec.out("moveId", "The id of the dispatched put-away move")));
     }
 
     @Override

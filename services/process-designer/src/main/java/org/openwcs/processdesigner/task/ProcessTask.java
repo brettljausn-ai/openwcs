@@ -33,6 +33,6 @@ public interface ProcessTask {
      * test-only tasks; curated tasks override it.
      */
     default TaskSpec spec() {
-        return new TaskSpec(type(), type(), List.of(), List.of());
+        return new TaskSpec(type(), type(), "", List.of(), List.of());
     }
 }

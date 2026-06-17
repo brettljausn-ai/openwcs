@@ -31,9 +31,15 @@ public class OrderLookupTask implements ProcessTask {
     @Override
     public TaskSpec spec() {
         return new TaskSpec("order.lookup", "Look up order",
-                java.util.List.of(TaskSpec.req("orderId")),
-                java.util.List.of(TaskSpec.out("orderRef"), TaskSpec.out("orderType"),
-                        TaskSpec.out("orderStatus"), TaskSpec.out("lineCount")));
+                "Read an order header into the data object so a flow can show or branch on order "
+                        + "detail (e.g. block a goods-in against a cancelled order).",
+                java.util.List.of(
+                        TaskSpec.req("orderId", "The order to look up")),
+                java.util.List.of(
+                        TaskSpec.out("orderRef", "The order's human-readable reference"),
+                        TaskSpec.out("orderType", "The order type, e.g. INBOUND or OUTBOUND"),
+                        TaskSpec.out("orderStatus", "The order's current status"),
+                        TaskSpec.out("lineCount", "The number of lines on the order")));
     }
 
     @Override

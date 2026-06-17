@@ -30,9 +30,14 @@ public class PickingConfirmTask implements ProcessTask {
     @Override
     public TaskSpec spec() {
         return new TaskSpec("picking.confirm", "Confirm pick",
-                java.util.List.of(TaskSpec.req("lineId"), TaskSpec.req("pickedQty"),
-                        TaskSpec.opt("short"), TaskSpec.opt("locationId")),
-                java.util.List.of(TaskSpec.out("pickStatus")));
+                "Confirm an operator's pick against a pick-task line, including short picks.",
+                java.util.List.of(
+                        TaskSpec.req("lineId", "The pick-task line being confirmed"),
+                        TaskSpec.req("pickedQty", "The quantity the operator actually picked"),
+                        TaskSpec.opt("short", "Optional: true to confirm the line as a short pick"),
+                        TaskSpec.opt("locationId", "Optional: the location the stock was picked from")),
+                java.util.List.of(
+                        TaskSpec.out("pickStatus", "The line's resulting status after the confirmation")));
     }
 
     @Override
