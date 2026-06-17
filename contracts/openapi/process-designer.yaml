@@ -427,9 +427,15 @@ components:
 
     Step:
       type: object
-      description: "A screen step (renders a handheld screen, captures input) or a task step (runs server-side work)."
+      description: >
+        "A screen step (renders a handheld screen, captures input), a task step (runs server-side
+        work), or a compute step (no-code, client-evaluated variable assignment). A compute step
+        carries a 'set' array of { var, expr } rows: the handheld runtime evaluates each expr in
+        order against the data object and writes data[var] = eval(expr, data), then follows
+        next/transitions. The server only stores and validates compute (it is NOT a server task: no
+        task type, no checkpoint)."
       properties:
-        type: { type: string, enum: [screen, task] }
+        type: { type: string, enum: [screen, task, compute] }
         screen:
           type: string
           enum: [textInput, numberInput, dateInput, acknowledge, questionYesNo, questionChoice]
@@ -451,6 +457,14 @@ components:
             order.lookup. The special type 'script' (spec §7.2) runs a sandboxed JS snippet from
             config.script and merges config.outputs back; authoring it requires the scripting flag
             plus PROCESS_SCRIPT_AUTHOR (enforced at save/publish)."
+        set:
+          type: array
+          description: >
+            "For a compute step only: ordered variable assignments. Each row sets a declared
+            data-object variable to the value of a restricted expression over the data object
+            (booleans, value copies, arithmetic). Evaluated client-side, in order; the server
+            validates that every var is declared and every expr parses. An empty set is invalid."
+          items: { $ref: '#/components/schemas/ComputeAssignment' }
         input:
           type: object
           additionalProperties: { type: string }
@@ -481,6 +495,19 @@ components:
           description: "Restricted boolean expression over data-object variables, evaluated client-side."
         to: { type: string }
       required: [to]
+
+    ComputeAssignment:
+      type: object
+      description: >
+        "One assignment in a compute step's set: data[var] = eval(expr, data). The var must be a
+        declared data-object variable; the expr is a value-returning expression (identifier, number,
+        string, or boolean literal; arithmetic + - * / with unary minus and parens; comparisons
+        == != <> < <= > >=; and / or / not). No function calls, no member access, no eval. Examples:
+        { var: match, expr: \"qty == expected or qty == prevCount\" } and { var: prevCount, expr: qty }."
+      properties:
+        var: { type: string, description: "Target data-object variable (must be declared in dataSchema)." }
+        expr: { type: string, description: "Value-returning expression over the data object." }
+      required: [var, expr]
 
     DefinitionSummary:
       type: object
