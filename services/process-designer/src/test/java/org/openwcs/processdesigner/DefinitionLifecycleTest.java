@@ -294,6 +294,24 @@ class DefinitionLifecycleTest extends AbstractIntegrationTest {
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.problems").isArray())
                 .andExpect(jsonPath("$.problems.length()").value(org.hamcrest.Matchers.greaterThan(0)));
+
+        // A new DRAFT v3 whose skipWhen references an UNDECLARED variable fails publish with 422.
+        mvc.perform(post("/api/process-designer/defs")
+                        .header("X-Auth-Roles", EDITOR)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"processKey\":\"" + key + "\",\"title\":\"Skip3\"}"))
+                .andExpect(status().isCreated());
+        mvc.perform(put("/api/process-designer/defs/" + key + "/3")
+                        .header("X-Auth-Roles", EDITOR)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(withSkip.formatted(key, "ghostFlag == true")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/process-designer/defs/" + key + "/3/publish")
+                        .header("X-Auth-Roles", EDITOR).header("X-Auth-User", "alice"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.problems", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("ghostFlag"),
+                        org.hamcrest.Matchers.containsString("not a declared data-object variable")))));
     }
 
     @Test
