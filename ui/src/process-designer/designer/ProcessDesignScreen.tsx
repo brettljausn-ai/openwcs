@@ -38,6 +38,7 @@ import { useCapabilities, useTasks } from '../useProcesses'
 import { hasErrors, validateDefinition, type ValidationIssue } from './validate'
 import VerifyDialog from './VerifyDialog'
 import TaskDialog from './TaskDialog'
+import ScreenDialog from './ScreenDialog'
 import DataObjectDialog from './DataObjectDialog'
 import { applyVerifyWrites, nextStepId, resolveLanding, writeValue } from '../runtime/walker'
 import { PREVIEW_CATALOG, sampleDataFor } from './sampleData'
@@ -138,7 +139,7 @@ export default function ProcessDesignScreen() {
   const [dirty, setDirty] = useState(false)
   const [persisted, setPersisted] = useState(false) // has a server version (created/loaded)
   // Which configuration dialog is open (triggered from buttons by the live preview, not the panel).
-  const [dialog, setDialog] = useState<null | 'verify' | 'task'>(null)
+  const [dialog, setDialog] = useState<null | 'verify' | 'task' | 'screen'>(null)
   // The data-object editor is its own modal, opened from the left flow pane.
   const [dataObjectOpen, setDataObjectOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -539,6 +540,7 @@ export default function ProcessDesignScreen() {
     && capabilities.verifyKinds.length > 0
   const verifyConfigured = !!selectedStep && isScreenStep(selectedStep) && !!selectedStep.config.verify
   const workStepSelected = canEdit && !!selectedStep && (isTaskStep(selectedStep) || isComputeStep(selectedStep))
+  const screenStepSelected = canEdit && !!selectedStep && isScreenStep(selectedStep)
   const setStepVerify = (verify: VerifyConfig | undefined) => {
     if (selectedId && selectedStep && isScreenStep(selectedStep)) {
       changeStep(selectedId, { ...selectedStep, config: { ...selectedStep.config, verify } })
@@ -758,13 +760,23 @@ export default function ProcessDesignScreen() {
               </div>
             </div>
 
-            {/* Verify-flow action sits beside the mockup (only for scan-capable input screens). */}
-            {verifyCapable && (
+            {/* Screen-config + verify-flow actions sit beside the mockup. "Edit screen" opens the
+                guided screen-config dialog; "Verify flow" (scan-capable input screens only) sits below. */}
+            {(screenStepSelected || verifyCapable) && (
               <aside className="op-pd-stage-actions">
-                <button className="btn btn-outline btn-sm" onClick={() => setDialog('verify')}>
-                  {verifyConfigured ? t('verifyEditFlow', 'Edit verify flow') : t('verifyFlow', 'Verify flow')}
-                </button>
-                {verifyConfigured && <span className="op-pd-stage-hint muted">{t('verifyConfigured', 'Verification on')}</span>}
+                {screenStepSelected && (
+                  <button className="btn btn-outline btn-sm" onClick={() => setDialog('screen')}>
+                    {t('editScreen', 'Edit screen')}
+                  </button>
+                )}
+                {verifyCapable && (
+                  <>
+                    <button className="btn btn-outline btn-sm" onClick={() => setDialog('verify')}>
+                      {verifyConfigured ? t('verifyEditFlow', 'Edit verify flow') : t('verifyFlow', 'Verify flow')}
+                    </button>
+                    {verifyConfigured && <span className="op-pd-stage-hint muted">{t('verifyConfigured', 'Verification on')}</span>}
+                  </>
+                )}
               </aside>
             )}
           </div>
@@ -780,6 +792,17 @@ export default function ProcessDesignScreen() {
               onCancel={() => setDialog(null)}
               onDone={(v) => setStepVerify(v)}
               onRemove={verifyConfigured ? () => setStepVerify(undefined) : undefined}
+            />
+          )}
+          {dialog === 'screen' && screenStepSelected && selectedStep && isScreenStep(selectedStep) && selectedId && (
+            <ScreenDialog
+              step={selectedStep}
+              vars={def.dataSchema}
+              stepId={selectedId}
+              stepIds={Object.keys(def.steps)}
+              onRename={renameStep}
+              onCancel={() => setDialog(null)}
+              onDone={(s) => { changeStep(selectedId, s); setDialog(null) }}
             />
           )}
           {dialog === 'task' && workStepSelected && selectedStep && selectedId && (
