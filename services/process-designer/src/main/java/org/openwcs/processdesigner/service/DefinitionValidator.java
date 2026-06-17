@@ -20,6 +20,9 @@ import org.springframework.stereotype.Component;
  *   <li>every {@code next} and transition {@code to} points to an existing step;</li>
  *   <li>screen steps that capture write to a declared data-object variable ({@code writeTo});</li>
  *   <li>task steps name a curated task type that the registry knows;</li>
+ *   <li>compute steps (client-evaluated variable assignment) carry a non-empty {@code set} of
+ *       {@code { var, expr }} rows whose {@code var} is a declared data-object variable and whose
+ *       {@code expr} parses as the value-returning expression grammar (spec; see ExpressionParser);</li>
  *   <li>every transition {@code when} and every step {@code skipWhen} parses as the restricted
  *       condition grammar (spec §6); a malformed condition fails publish;</li>
  *   <li>a step with a {@code skipWhen} (Phase 2 conditional skip) still has a reachable onward path
@@ -143,8 +146,11 @@ public class DefinitionValidator {
                 } else if (!taskRegistry.has(task)) {
                     problems.add("Task step '" + id + "' references unknown task type '" + task + "'.");
                 }
+            } else if ("compute".equals(stepType)) {
+                validateCompute(problems, id, step, variables);
             } else {
-                problems.add("Step '" + id + "' has unknown type '" + stepType + "' (expected screen|task).");
+                problems.add("Step '" + id + "' has unknown type '" + stepType
+                        + "' (expected screen|task|compute).");
             }
         }
 
@@ -260,6 +266,47 @@ public class DefinitionValidator {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Validates a {@code compute} step (no-code, client-evaluated variable assignment). The step
+     * carries a non-empty {@code set} array of {@code { var, expr }} rows; the client evaluates each
+     * {@code expr} in order against the data object and writes it to {@code data[var]}. The server
+     * only validates the shape at publish time: {@code set} must be present and non-empty, every
+     * {@code var} must be a declared data-object variable, and every {@code expr} must parse as the
+     * restricted value-returning expression grammar (see {@link ExpressionParser}). A compute step is
+     * NOT a server task: it has no TaskRegistry entry and is never checkpointed.
+     */
+    private static void validateCompute(List<String> problems, String id, JsonNode step,
+                                        Set<String> variables) {
+        JsonNode set = step.get("set");
+        if (set == null || !set.isArray() || set.isEmpty()) {
+            problems.add("Compute step '" + id + "' has an empty or missing 'set' "
+                    + "(needs at least one { var, expr } assignment).");
+            return;
+        }
+        int row = 0;
+        for (JsonNode assignment : set) {
+            String var = text(assignment, "var");
+            String expr = text(assignment, "expr");
+            if (var == null) {
+                problems.add("Compute step '" + id + "' set[" + row + "] has no 'var'.");
+            } else if (!variables.contains(var)) {
+                problems.add("Compute step '" + id + "' set 'var' '" + var
+                        + "' is not a declared data-object variable.");
+            }
+            if (expr == null) {
+                problems.add("Compute step '" + id + "' set[" + row + "] has no 'expr'.");
+            } else {
+                try {
+                    ExpressionParser.validate(expr);
+                } catch (IllegalArgumentException e) {
+                    problems.add("Compute step '" + id + "' set 'expr' '" + expr
+                            + "' is malformed: " + e.getMessage());
+                }
+            }
+            row++;
         }
     }
 
