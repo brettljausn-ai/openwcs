@@ -20,10 +20,12 @@ import {
   SCREEN_TYPE_LABELS,
   SCRIPT_TASK_TYPE,
   isComputeStep,
+  isDecisionStep,
   isScreenStep,
   isTaskStep,
   type ComputeStep,
   type DataVar,
+  type DecisionStep,
   type ProcessDefinition,
   type ScreenStep,
   type ScreenType,
@@ -39,6 +41,7 @@ import { hasErrors, validateDefinition, type ValidationIssue } from './validate'
 import VerifyDialog from './VerifyDialog'
 import TaskDialog from './TaskDialog'
 import ScreenDialog from './ScreenDialog'
+import DecisionDialog from './DecisionDialog'
 import DataObjectDialog from './DataObjectDialog'
 import { applyVerifyWrites, nextStepId, resolveLanding, writeValue } from '../runtime/walker'
 import { PREVIEW_CATALOG, sampleDataFor } from './sampleData'
@@ -48,7 +51,8 @@ import PropertiesPanel from './PropertiesPanel'
 // designer is admin-only and the Canvas view is what pulls it in).
 const FlowCanvas = lazy(() => import('./FlowCanvas'))
 
-const PALETTE: (ScreenType | 'task' | 'compute')[] = ['textInput', 'numberInput', 'dateInput', 'acknowledge', 'questionYesNo', 'questionChoice', 'task', 'compute']
+type PaletteKind = ScreenType | 'task' | 'compute' | 'decision'
+const PALETTE: PaletteKind[] = ['textInput', 'numberInput', 'dateInput', 'acknowledge', 'questionYesNo', 'questionChoice', 'task', 'compute', 'decision']
 
 function emptyDef(): ProcessDefinition {
   return {
@@ -63,12 +67,15 @@ function emptyDef(): ProcessDefinition {
   }
 }
 
-function newStep(type: ScreenType | 'task' | 'compute', defaultTask: string): Step {
+function newStep(type: PaletteKind, defaultTask: string): Step {
   if (type === 'task') {
     return { type: 'task', task: defaultTask, input: {}, output: {} } satisfies TaskStep
   }
   if (type === 'compute') {
     return { type: 'compute', set: [{ var: '', expr: '' }] } satisfies ComputeStep
+  }
+  if (type === 'decision') {
+    return { type: 'decision' } satisfies DecisionStep
   }
   const cfg: ScreenStep['config'] = { header: SCREEN_TYPE_LABELS[type] }
   return { type: 'screen', screen: type, config: cfg } satisfies ScreenStep
@@ -139,7 +146,7 @@ export default function ProcessDesignScreen() {
   const [dirty, setDirty] = useState(false)
   const [persisted, setPersisted] = useState(false) // has a server version (created/loaded)
   // Which configuration dialog is open (triggered from buttons by the live preview, not the panel).
-  const [dialog, setDialog] = useState<null | 'verify' | 'task' | 'screen'>(null)
+  const [dialog, setDialog] = useState<null | 'verify' | 'task' | 'screen' | 'decision'>(null)
   // The data-object editor is its own modal, opened from the left flow pane.
   const [dataObjectOpen, setDataObjectOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -241,7 +248,7 @@ export default function ProcessDesignScreen() {
     setDirty(true)
   }, [])
 
-  const addStep = useCallback((type: ScreenType | 'task' | 'compute') => {
+  const addStep = useCallback((type: PaletteKind) => {
     // Default a new Task step to the first NON-script curated task (the script type is opt-in via the
     // task-type picker / AI assist, gated by capabilities).
     const defaultTask = tasks.find((tt) => tt.id !== SCRIPT_TASK_TYPE)?.id ?? 'inventory.lookup'
@@ -554,6 +561,7 @@ export default function ProcessDesignScreen() {
     && capabilities.verifyKinds.length > 0
   const verifyConfigured = !!selectedStep && isScreenStep(selectedStep) && !!selectedStep.config.verify
   const workStepSelected = canEdit && !!selectedStep && (isTaskStep(selectedStep) || isComputeStep(selectedStep))
+  const decisionStepSelected = canEdit && !!selectedStep && isDecisionStep(selectedStep)
   const screenStepSelected = canEdit && !!selectedStep && isScreenStep(selectedStep)
   const setStepVerify = (verify: VerifyConfig | undefined) => {
     if (selectedId && selectedStep && isScreenStep(selectedStep)) {
@@ -767,6 +775,16 @@ export default function ProcessDesignScreen() {
                     {workStepSelected && <button className="btn btn-ghost btn-sm" onClick={() => setDialog('task')}>{t('editTask', 'Edit task…')}</button>}
                     {simulating && <button className="btn btn-primary" onClick={simAdvanceTask}>{t('simRunCompute', 'Compute (dry-run) →')}</button>}
                   </div>
+                ) : previewStep && isDecisionStep(previewStep) ? (
+                  <div className="glass" style={{ padding: '1.5rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '2rem' }}>{SCREEN_TYPE_ICONS.decision}</div>
+                    <h3 style={{ margin: '.5rem 0' }}>{t('decisionStep', 'Decision')}</h3>
+                    <p className="muted" style={{ fontSize: '.85rem' }}>
+                      {t('decisionRoutesByRules', 'Routes by rules (no screen).')}
+                    </p>
+                    {decisionStepSelected && <button className="btn btn-ghost btn-sm" onClick={() => setDialog('decision')}>{t('editDecision', 'Edit decision…')}</button>}
+                    {simulating && <button className="btn btn-primary" onClick={simAdvanceTask}>{t('simRunDecision', 'Route (dry-run) →')}</button>}
+                  </div>
                 ) : (
                   <div className="muted" style={{ padding: '2rem', textAlign: 'center' }}>
                     {simulating ? t('simComplete', 'Simulation complete.') : t('selectToPreview', 'Select a step to preview it here.')}
@@ -828,6 +846,17 @@ export default function ProcessDesignScreen() {
               tasks={tasks}
               capabilities={capabilities}
               vars={def.dataSchema}
+              onRename={renameStep}
+              onCancel={() => setDialog(null)}
+              onDone={(s) => { changeStep(selectedId, s); setDialog(null) }}
+            />
+          )}
+          {dialog === 'decision' && decisionStepSelected && selectedStep && isDecisionStep(selectedStep) && selectedId && (
+            <DecisionDialog
+              step={selectedStep}
+              vars={def.dataSchema}
+              stepId={selectedId}
+              stepIds={Object.keys(def.steps)}
               onRename={renameStep}
               onCancel={() => setDialog(null)}
               onDone={(s) => { changeStep(selectedId, s); setDialog(null) }}

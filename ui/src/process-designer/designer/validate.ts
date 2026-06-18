@@ -2,8 +2,8 @@
 // transition/next targets, unbound writes (writeTo not in the data schema), unknown placeholders,
 // and malformed `when` expressions. Publish is blocked until this returns no errors.
 
-import { validateCondition, validateExpression } from '../condition'
-import { isComputeStep, isScreenStep, isScriptStep, taskTypeById, type ProcessDefinition, type TaskTypeDef } from '../model'
+import { unknownExpressionVars, validateCondition, validateExpression } from '../condition'
+import { isComputeStep, isDecisionStep, isScreenStep, isScriptStep, taskTypeById, type ProcessDefinition, type TaskTypeDef } from '../model'
 import { placeholderRefs } from '../placeholders'
 import { reachableSteps } from '../runtime/walker'
 
@@ -105,6 +105,29 @@ export function validateDefinition(def: ProcessDefinition, catalog?: TaskTypeDef
           }
         }
       }
+    } else if (isDecisionStep(step)) {
+      // No-op router (if/elseif/else). Needs at least one rule OR an else target — otherwise it does
+      // nothing (the instance would simply end). Each rule needs a non-empty condition + a target
+      // (dangling targets + condition syntax are already checked by the generic transitions pass
+      // above). Surface unknown-variable conditions client-side (the server is authoritative).
+      const rules = step.transitions ?? []
+      if (rules.length === 0 && !step.next) {
+        issues.push({ level: 'error', stepId: id, message: `"${id}" decision has no rules and no else target.` })
+      }
+      rules.forEach((rule, i) => {
+        const when = (rule.when ?? '').trim()
+        if (!when) {
+          issues.push({ level: 'error', stepId: id, message: `"${id}" decision rule ${i + 1} has an empty condition.` })
+        } else if (validateCondition(when) == null) {
+          const unknown = unknownExpressionVars(when, [...schemaNames])
+          if (unknown.length > 0) {
+            issues.push({ level: 'warning', stepId: id, message: `"${id}" decision rule ${i + 1} references unknown variable(s): ${unknown.join(', ')}.` })
+          }
+        }
+        if (!rule.to) {
+          issues.push({ level: 'error', stepId: id, message: `"${id}" decision rule ${i + 1} has no target step.` })
+        }
+      })
     } else if (isComputeStep(step)) {
       // No-code compute step (client-evaluated). Needs at least one set row; each row needs a declared
       // target variable and a non-empty, parseable expression. The server is authoritative.
