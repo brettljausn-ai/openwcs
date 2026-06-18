@@ -278,4 +278,9 @@ export default {
   summaryDecisionRules: '{n} 条规则',
   summaryDecisionElse: '否则 → {step}',
   summaryDecisionElseEnd: '否则 → 结束',
+  deleteStep: '删除此步骤',
+  editAsDraft: '编辑为草稿',
+  editAsDraftHint: '这是已发布的版本。创建可编辑的草稿副本以进行更改。',
+  discardTitle: '放弃更改？',
+  discard: '放弃',
 }

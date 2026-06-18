@@ -147,6 +147,8 @@ export default function ProcessDesignScreen() {
   const [persisted, setPersisted] = useState(false) // has a server version (created/loaded)
   // Which configuration dialog is open (triggered from buttons by the live preview, not the panel).
   const [dialog, setDialog] = useState<null | 'verify' | 'task' | 'screen' | 'decision'>(null)
+  // Styled confirm for leaving the editor with unsaved changes (no native window.confirm).
+  const [confirmBack, setConfirmBack] = useState(false)
   // The data-object editor is its own modal, opened from the left flow pane.
   const [dataObjectOpen, setDataObjectOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -615,7 +617,7 @@ export default function ProcessDesignScreen() {
           tucked into a "More" menu so the bar is not a wall of buttons). */}
       <div className="op-pd-toolbar">
         <button className="btn btn-ghost btn-sm" onClick={() => {
-          if (dirty && !window.confirm(t('discardChanges', 'Discard unsaved changes and return to the process list?'))) return
+          if (dirty) { setConfirmBack(true); return }
           setMode('list'); void loadList()
         }}>← {t('processesTitle', 'Processes')}</button>
         <div className="op-pd-toolbar-id">
@@ -624,6 +626,7 @@ export default function ProcessDesignScreen() {
           <input className="op-pd-icon" value={def.icon ?? ''} onChange={(e) => patchDef({ icon: e.target.value })} placeholder="icon" title={t('icon', 'Icon')} />
           <span className="op-pd-status-badge">{def.status ?? 'DRAFT'}{dirty ? ' *' : ''}</span>
           {!editable && <span className="op-pd-readonly-badge" title={t('readonlyHint', 'Only DRAFT versions are editable. Duplicate to a new draft to change this.')}>{t('readonly', 'read-only')}</span>}
+          {!editable && persisted && <button className="btn btn-outline btn-sm" onClick={() => void duplicate()} title={t('editAsDraftHint', 'This is a published version. Make an editable draft copy to change it.')}>{t('editAsDraft', 'Edit as draft')}</button>}
         </div>
         <span style={{ flex: 1 }} />
         <div className="op-pd-toolbar-actions">
@@ -871,6 +874,20 @@ export default function ProcessDesignScreen() {
           <PropertiesPanel def={def} selectedId={selectedId} tasks={tasks} capabilities={capabilities} onChangeStep={changeStep} onRenameStep={renameStep} />
         )}
       </div>
+
+      {/* Styled confirm for leaving with unsaved changes. */}
+      {confirmBack && (
+        <div className="modal-backdrop" onMouseDown={() => setConfirmBack(false)}>
+          <div className="dialog op-pd-confirm" role="alertdialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
+            <h2 style={{ marginBottom: '.4rem' }}>{t('discardTitle', 'Discard changes?')}</h2>
+            <p className="muted" style={{ margin: '0 0 1rem' }}>{t('discardChanges', 'Discard unsaved changes and return to the process list?')}</p>
+            <div className="dialog-actions" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" onClick={() => setConfirmBack(false)}>{t('cancel', 'Cancel')}</button>
+              <button className="btn btn-danger" onClick={() => { setConfirmBack(false); setMode('list'); void loadList() }}>{t('discard', 'Discard')}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Data-object editor (its own modal, opened from the left flow pane). */}
       {dataObjectOpen && (

@@ -26,7 +26,7 @@ import {
   Position,
   ReactFlow,
   ReactFlowProvider,
-  getBezierPath,
+  getSmoothStepPath,
   MarkerType,
   useEdgesState,
   useNodesState,
@@ -208,23 +208,24 @@ function StepNode({ data, selected }: NodeProps<Node<StepNodeData>>) {
         {isDecision && <span className="op-fc-badge is-decision">◆ {t('decisionBadge', 'decision')}</span>}
         {isOrphan && <span className="op-fc-badge is-orphan-badge">⚠ {t('notConnectedShort', 'not connected')}</span>}
       </div>
-      {editable && (
+      {editable && !isStart && (
         <div className="op-fc-node-actions">
-          {!isStart && (
-            <button
-              type="button"
-              className="op-fc-node-btn nodrag"
-              title={t('setStart', 'Set as start')}
-              onClick={(e) => { e.stopPropagation(); onSetStart() }}
-            >▶</button>
-          )}
           <button
             type="button"
             className="op-fc-node-btn nodrag"
-            title={t('delete', 'Delete')}
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-          >✕</button>
+            title={t('setStart', 'Set as start')}
+            onClick={(e) => { e.stopPropagation(); onSetStart() }}
+          >▶</button>
         </div>
+      )}
+      {editable && (
+        <button
+          type="button"
+          className="op-fc-node-del nodrag"
+          title={t('deleteStep', 'Delete this step')}
+          aria-label={t('deleteStep', 'Delete this step')}
+          onClick={(e) => { e.stopPropagation(); onDelete() }}
+        >✕</button>
       )}
       <Handle type="source" position={Position.Right} className="op-fc-handle" />
     </div>
@@ -237,8 +238,9 @@ function StepEdge(props: EdgeProps<Edge<StepEdgeData>>) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected, markerEnd } = props
   const [editX, setEditX] = useState('')
   const [editing, setEditing] = useState(false)
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition,
+  // Orthogonal (90 degree) routing reads more clearly than bezier curves on a dense graph.
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
+    sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, borderRadius: 6,
   })
   const d = data as StepEdgeData
   const isBranch = d?.kind === 'branch'
