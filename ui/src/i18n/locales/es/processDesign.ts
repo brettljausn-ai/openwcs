@@ -278,4 +278,9 @@ export default {
   summaryDecisionRules: '{n} reglas',
   summaryDecisionElse: 'si no → {step}',
   summaryDecisionElseEnd: 'si no → fin',
+  deleteStep: 'Eliminar este paso',
+  editAsDraft: 'Editar como borrador',
+  editAsDraftHint: 'Esta es una versión publicada. Cree una copia de borrador editable para cambiarla.',
+  discardTitle: '¿Descartar cambios?',
+  discard: 'Descartar',
 }

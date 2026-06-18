@@ -278,4 +278,9 @@ export default {
   summaryDecisionRules: '{n} règles',
   summaryDecisionElse: 'sinon → {step}',
   summaryDecisionElseEnd: 'sinon → fin',
+  deleteStep: 'Supprimer cette étape',
+  editAsDraft: 'Modifier comme brouillon',
+  editAsDraftHint: 'Ceci est une version publiée. Créez une copie brouillon modifiable pour la changer.',
+  discardTitle: 'Abandonner les modifications ?',
+  discard: 'Abandonner',
 }

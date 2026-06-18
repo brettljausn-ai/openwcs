@@ -278,4 +278,9 @@ export default {
   summaryDecisionRules: '{n} Regeln',
   summaryDecisionElse: 'sonst → {step}',
   summaryDecisionElseEnd: 'sonst → Ende',
+  deleteStep: 'Diesen Schritt löschen',
+  editAsDraft: 'Als Entwurf bearbeiten',
+  editAsDraftHint: 'Dies ist eine veröffentlichte Version. Erstellen Sie eine bearbeitbare Entwurfskopie, um sie zu ändern.',
+  discardTitle: 'Änderungen verwerfen?',
+  discard: 'Verwerfen',
 }
