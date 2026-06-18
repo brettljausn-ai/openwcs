@@ -463,6 +463,15 @@ Lives in a new `process-designer` service or the existing `process-engine` (deci
    process-designer: `OPENWCS_PROCESS_SCRIPTING_ENABLED` (default false), `ANTHROPIC_API_KEY` (opt-in),
    `OPENWCS_PROCESS_ASSIST_MODEL`. i18n de/fr/es/zh. All three phases are now implemented.
 
+**Seeded examples.** Two ACTIVE processes ship via Flyway so the feature is demoable end to end:
+a simple `stock-check` (scan location, scan SKU, count, post via `txlog.post`), and a richer
+`stock-count-ref` ("Stock Count (reference)") that exercises the full toolkit: verify the scanned
+location and SKU against master data, `inventory.lookup` the expected on-hand, capture a count, a
+`compute` step that sets a `match` flag (with a recount tolerance: counted == expected OR counted ==
+the previous count), and a `decision` step that posts the count when `match` is true or loops back to
+the count screen for a recount otherwise. The reference is its own process key (never clobbers
+`stock-check` or a user's drafts).
+
 ## 15. Open decisions
 - **Engine home**: extend `process-engine` (Flowable service) vs a new `process-designer` service.
   Leaning new service: the model is custom (not BPMN), and it keeps the Flowable orchestration engine
