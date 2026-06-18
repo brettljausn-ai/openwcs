@@ -334,16 +334,22 @@ export default function ProcessDesignScreen() {
 
   const save = useCallback(async () => {
     try {
-      let saved: ProcessDefinition
+      let version: number | undefined
       if (persisted && def.version != null) {
-        saved = await updateDef(def.processKey, def.version, def)
+        await updateDef(def.processKey, def.version, def)
+        version = def.version
       } else {
-        saved = await createDef({ processKey: def.processKey, title: def.title, icon: def.icon, dataSchema: def.dataSchema, steps: def.steps, start: def.start })
+        // create returns a lightweight summary (no steps); reload the full def below so the editor
+        // never holds a def without steps (which would crash the canvas/flow analysis).
+        const created = await createDef({ processKey: def.processKey, title: def.title, icon: def.icon, dataSchema: def.dataSchema, steps: def.steps, start: def.start })
+        version = created.version
       }
-      setDef(saved)
+      if (version == null) throw new Error('No version to save')
+      const full = await getDef(def.processKey, version)
+      setDef(full)
       setPersisted(true)
       setDirty(false)
-      setStatus(`${t('saved', 'Saved')} ${saved.processKey} v${saved.version}`)
+      setStatus(`${t('saved', 'Saved')} ${full.processKey} v${full.version}`)
       await loadList()
     } catch (e) {
       setStatus(String(e instanceof Error ? e.message : e))
@@ -366,15 +372,22 @@ export default function ProcessDesignScreen() {
     try {
       let version = def.version
       if (!persisted || dirty || version == null) {
+        // Persist first; create returns a summary (no steps), so do NOT setDef it here. The full def
+        // is reloaded after publish below, which keeps the editor's def complete throughout.
         const saved = persisted && version != null
           ? await updateDef(def.processKey, version, def)
           : await createDef({ processKey: def.processKey, title: def.title, icon: def.icon, dataSchema: def.dataSchema, steps: def.steps, start: def.start })
-        setDef(saved); setPersisted(true); setDirty(false); version = saved.version
+        version = saved.version
       }
       if (version == null) throw new Error('No version to publish')
-      const published = await publishDef(def.processKey, version)
-      setDef(published)
-      setStatus(`${t('published', 'Published')} ${published.processKey} v${published.version}`)
+      await publishDef(def.processKey, version)
+      // publish returns a lightweight summary (no steps); reload the full published def so the editor
+      // keeps a complete def (otherwise the canvas/flow analysis crashes on missing steps).
+      const full = await getDef(def.processKey, version)
+      setDef(full)
+      setPersisted(true)
+      setDirty(false)
+      setStatus(`${t('published', 'Published')} ${full.processKey} v${full.version}`)
       await loadList()
     } catch (e) {
       setStatus(String(e instanceof Error ? e.message : e))
