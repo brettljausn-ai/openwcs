@@ -345,7 +345,28 @@ export function isComputeStep(step: Step): step is ComputeStep {
   return step.type === 'compute'
 }
 
-export type Step = ScreenStep | TaskStep | ComputeStep
+/** A no-op "decision" step (client-evaluated router; if / elseif / else): it renders NO screen and
+ *  makes NO server call. The runtime routes STRAIGHT THROUGH it, evaluating its ordered `transitions`
+ *  (first matching `when` over the data object wins) then falling back to `next` (the else/default
+ *  target). It writes nothing to the data object. Fully offline. The `transitions` are authored as an
+ *  ordered list of rules in the DecisionDialog (order = priority); `next` is the "otherwise" target. */
+export interface DecisionStep {
+  type: 'decision'
+  /** Ordered if/elseif rules; first matching `when` wins (same grammar as a transition `when`). */
+  transitions?: Transition[]
+  /** The else/default target when no rule matches. Absent + no match = the instance ends. */
+  next?: string
+  /** Conditional-skip (same grammar as transition `when`); true = the step is skipped at runtime. */
+  skipWhen?: string
+  /** Designer-only canvas position (ignored by the runtime + publish validation). */
+  ui?: StepUi
+}
+
+export function isDecisionStep(step: Step): step is DecisionStep {
+  return step.type === 'decision'
+}
+
+export type Step = ScreenStep | TaskStep | ComputeStep | DecisionStep
 
 export interface ProcessDefinition {
   processKey: string
@@ -522,7 +543,7 @@ export interface AssistSuggestion {
   confidence?: number
 }
 
-export const SCREEN_TYPE_ICONS: Record<ScreenType | 'task' | 'compute', string> = {
+export const SCREEN_TYPE_ICONS: Record<ScreenType | 'task' | 'compute' | 'decision', string> = {
   textInput: '⌨',
   numberInput: '#',
   dateInput: '▦',
@@ -531,9 +552,10 @@ export const SCREEN_TYPE_ICONS: Record<ScreenType | 'task' | 'compute', string> 
   questionChoice: '☰',
   task: '⚙',
   compute: 'ƒ',
+  decision: '◆',
 }
 
-export const SCREEN_TYPE_LABELS: Record<ScreenType | 'task' | 'compute', string> = {
+export const SCREEN_TYPE_LABELS: Record<ScreenType | 'task' | 'compute' | 'decision', string> = {
   textInput: 'Text input',
   numberInput: 'Number input',
   dateInput: 'Date input',
@@ -542,6 +564,7 @@ export const SCREEN_TYPE_LABELS: Record<ScreenType | 'task' | 'compute', string>
   questionChoice: 'Question (choices)',
   task: 'Task',
   compute: 'Compute',
+  decision: 'Decision',
 }
 
 export function isScreenStep(step: Step): step is ScreenStep {

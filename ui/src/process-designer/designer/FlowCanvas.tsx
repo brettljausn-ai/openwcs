@@ -46,6 +46,7 @@ import {
   SCREEN_TYPE_ICONS,
   SCRIPT_TASK_TYPE,
   isComputeStep,
+  isDecisionStep,
   isScreenStep,
   isTaskStep,
   type ComputeStep,
@@ -160,12 +161,17 @@ function stepShortLabel(step: Step): string {
     const names = ((step as ComputeStep).set ?? []).filter((r) => r.var).map((r) => r.var)
     return names.length ? `Compute: ${names.join(', ')}` : 'Compute'
   }
+  if (isDecisionStep(step)) {
+    const n = (step.transitions ?? []).length
+    return n ? `Decision: ${n} rule${n === 1 ? '' : 's'}` : 'Decision'
+  }
   return (step as ScreenStep).screen
 }
 
 function stepIcon(step: Step): string {
   if (isTaskStep(step)) return SCREEN_TYPE_ICONS.task
   if (isComputeStep(step)) return SCREEN_TYPE_ICONS.compute
+  if (isDecisionStep(step)) return SCREEN_TYPE_ICONS.decision
   return SCREEN_TYPE_ICONS[(step as ScreenStep).screen]
 }
 
@@ -178,11 +184,13 @@ function StepNode({ data, selected }: NodeProps<Node<StepNodeData>>) {
   const isScript = isTaskStep(step) && step.task === SCRIPT_TASK_TYPE
   const isTask = isTaskStep(step) && !isScript
   const isCompute = isComputeStep(step)
+  const isDecision = isDecisionStep(step)
   const cls =
     'op-fc-node' +
     (selected ? ' is-selected' : '') +
     (isOrphan ? ' is-orphan' : '') +
-    (isSim ? ' is-sim' : '')
+    (isSim ? ' is-sim' : '') +
+    (isDecision ? ' is-decision-node' : '')
   return (
     <div className={cls} title={isOrphan ? t('notConnected', 'Not connected to the flow') : undefined}>
       <Handle type="target" position={Position.Left} className="op-fc-handle" />
@@ -197,6 +205,7 @@ function StepNode({ data, selected }: NodeProps<Node<StepNodeData>>) {
         {isTask && <span className="op-fc-badge is-task">{t('taskBadge', 'task')}</span>}
         {isScript && <span className="op-fc-badge is-script">{t('scriptBadge', 'script')}</span>}
         {isCompute && <span className="op-fc-badge is-compute">ƒ {t('computeBadge', 'compute')}</span>}
+        {isDecision && <span className="op-fc-badge is-decision">◆ {t('decisionBadge', 'decision')}</span>}
         {isOrphan && <span className="op-fc-badge is-orphan-badge">⚠ {t('notConnectedShort', 'not connected')}</span>}
       </div>
       {editable && (

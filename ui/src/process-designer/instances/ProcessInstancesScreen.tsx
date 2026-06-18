@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useT } from '../../i18n/useT'
 import { getInstance, listInstances, listProcesses } from '../api'
-import { isComputeStep, isScreenStep, type InstanceSummary, type ProcessInstance, type ProcessSummary } from '../model'
+import { isComputeStep, isDecisionStep, isScreenStep, type InstanceSummary, type ProcessInstance, type ProcessSummary } from '../model'
 
 const STATUS_OPTIONS = ['', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED']
 
@@ -192,6 +192,7 @@ export default function ProcessInstancesScreen() {
                       const kind = step
                         ? isScreenStep(step) ? step.screen
                           : isComputeStep(step) ? 'compute'
+                          : isDecisionStep(step) ? 'decision'
                           : `task: ${step.task}`
                         : '?'
                       return (

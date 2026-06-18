@@ -14,11 +14,13 @@ import { validateCondition, unknownExpressionVars } from '../condition'
 import {
   SCREEN_TYPE_LABELS,
   isComputeStep,
+  isDecisionStep,
   isScriptStep,
   taskTypeById,
   type Capabilities,
   type ComputeStep,
   type DataVar,
+  type DecisionStep,
   type ProcessDefinition,
   type ScreenStep,
   type Step,
@@ -46,6 +48,12 @@ export default function PropertiesPanel({ def, selectedId, tasks, onChangeStep }
       {step && selectedId ? (
         step.type === 'screen' ? (
           <ScreenProps
+            def={def}
+            step={step}
+            onChange={(s) => onChangeStep(selectedId, s)}
+          />
+        ) : isDecisionStep(step) ? (
+          <DecisionProps
             def={def}
             step={step}
             onChange={(s) => onChangeStep(selectedId, s)}
@@ -172,6 +180,45 @@ function StepWorkProps({
   return (
     <div className="op-pd-props-body">
       <h3>{heading}</h3>
+      <p className="muted op-pd-verify-summary-line">{summary}</p>
+
+      <SkipWhenField value={step.skipWhen ?? ''} vars={def.dataSchema} onChange={(v) => set({ skipWhen: v || undefined })} />
+    </div>
+  )
+}
+
+// --- decision step properties (router: if / elseif / else) ---------------------------------------
+
+/** One-line summary of a decision step, e.g. "Decision: 2 rules, else → packStation" (rules are
+ *  edited in DecisionDialog, "Edit decision", by the live preview). Only skip-when stays inline. */
+function decisionSummary(step: DecisionStep, t: (k: string, e: string) => string): string {
+  const n = (step.transitions ?? []).length
+  const rules = t('summaryDecisionRules', '{n} rules').replace('{n}', String(n))
+  const elseTarget = step.next
+    ? t('summaryDecisionElse', 'else → {step}').replace('{step}', step.next)
+    : t('summaryDecisionElseEnd', 'else → end')
+  return `${t('decisionStep', 'Decision')}: ${rules}, ${elseTarget}`
+}
+
+/** Decluttered properties for a DECISION step (a no-op router): a one-line summary of its rules + else
+ *  target + the step's skip-when. The rules + else + name are edited in the guided DecisionDialog
+ *  ("Edit decision", by the live preview). Default next + branches are also drawn on the canvas. */
+function DecisionProps({
+  def,
+  step,
+  onChange,
+}: {
+  def: ProcessDefinition
+  step: DecisionStep
+  onChange: (s: Step) => void
+}) {
+  const t = useT('processDesign')
+  const set = (patch: { skipWhen?: string }) => onChange({ ...step, ...patch } as Step)
+  const summary = useMemo(() => decisionSummary(step, t), [step, t])
+
+  return (
+    <div className="op-pd-props-body">
+      <h3>{t('decisionStep', 'Decision')}</h3>
       <p className="muted op-pd-verify-summary-line">{summary}</p>
 
       <SkipWhenField value={step.skipWhen ?? ''} vars={def.dataSchema} onChange={(v) => set({ skipWhen: v || undefined })} />

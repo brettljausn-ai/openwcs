@@ -1002,7 +1002,11 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-fc-badge.is-task { background: rgba(255,255,255,.08); color: var(--text-dim); }
 .op-fc-badge.is-script { background: rgba(244,184,96,.14); color: var(--warning); }
 .op-fc-badge.is-compute { background: rgba(141,198,63,.12); color: var(--herbal-lime); }
+.op-fc-badge.is-decision { background: rgba(120,170,255,.14); color: #9ec0ff; border: 1px solid rgba(120,170,255,.4); }
 .op-fc-badge.is-orphan-badge { background: rgba(244,184,96,.14); color: var(--warning); border: 1px solid var(--warning); }
+/* A decision node is a pure router (if/elseif/else): a cool-blue gateway accent distinguishes it. */
+.op-fc-node.is-decision-node { border-color: rgba(120,170,255,.45); background: linear-gradient(180deg, rgba(120,170,255,.07), rgba(12,28,21,.96)); }
+.op-fc-node.is-decision-node .op-fc-node-icon { color: #9ec0ff; }
 .op-fc-node-actions { position: absolute; top: -.6rem; right: -.4rem; display: none; gap: .2rem; }
 .op-fc-node:hover .op-fc-node-actions, .op-fc-node.is-selected .op-fc-node-actions { display: flex; }
 .op-fc-node-btn { width: 1.3rem; height: 1.3rem; font-size: .7rem; border-radius: 5px; border: 1px solid var(--glass-border); background: rgba(8,30,22,.95); color: var(--text-dim); cursor: pointer; }
@@ -1144,6 +1148,10 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-compute-expr { flex: 1 1 auto; min-width: 0; font-family: var(--font-mono); font-size: .82rem; }
 .op-pd-compute-row-actions { display: flex; gap: .2rem; flex: 0 0 auto; }
 .op-pd-compute-row-actions .op-pd-mini:disabled { opacity: .35; cursor: default; }
+
+/* Decision step rules: an "if/else if" keyword + a target-step picker per rule row. */
+.op-pd-decision-kw { flex: 0 0 auto; font-size: .72rem; font-weight: 700; color: #9ec0ff; min-width: 2.6rem; }
+.op-pd-decision-to { flex: 0 0 34%; min-width: 0; }
 
 .op-pd-chips { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .25rem; }
 .op-pd-chip { font-size: .68rem; font-family: var(--font-mono); padding: .1rem .35rem; border: 1px solid var(--glass-border); border-radius: 5px; background: transparent; color: var(--herbal-lime); cursor: pointer; }
