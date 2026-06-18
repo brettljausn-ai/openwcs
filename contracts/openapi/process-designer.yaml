@@ -431,13 +431,17 @@ components:
       type: object
       description: >
         "A screen step (renders a handheld screen, captures input), a task step (runs server-side
-        work), or a compute step (no-code, client-evaluated variable assignment). A compute step
+        work), a compute step (no-code, client-evaluated variable assignment), or a decision step
+        (no-code, client-evaluated router / gateway). A compute step
         carries a 'set' array of { var, expr } rows: the handheld runtime evaluates each expr in
         order against the data object and writes data[var] = eval(expr, data), then follows
-        next/transitions. The server only stores and validates compute (it is NOT a server task: no
-        task type, no checkpoint)."
+        next/transitions. A decision step has no screen, task or set: it routes only. Its ordered
+        'transitions' are the if/elseif rules (first matching when wins, evaluated client-side over
+        the data object) and 'next' is the else/default target. The runtime routes through a
+        decision step without rendering a screen or posting a checkpoint. The server only stores and
+        validates compute and decision (neither is a server task: no task type, no checkpoint)."
       properties:
-        type: { type: string, enum: [screen, task, compute] }
+        type: { type: string, enum: [screen, task, compute, decision] }
         screen:
           type: string
           enum: [textInput, numberInput, dateInput, acknowledge, questionYesNo, questionChoice]
@@ -477,10 +481,17 @@ components:
           description: "Data-object variable name to a task output name (renames the task output as it merges back)."
         transitions:
           type: array
+          description: >
+            "Ordered conditional routes (the if/elseif rules): first matching 'when' wins, evaluated
+            client-side over the data object. For a decision step these are the only branches (it has
+            no screen, task or set); the matching transition's 'to' is the next step."
           items: { $ref: '#/components/schemas/Transition' }
         next:
           type: string
-          description: "Default next step; null or no matching transition ends the instance."
+          description: >
+            "Default next step (the else / default route): used when no transition matches. For a
+            decision step this is the else target. Null or no matching transition ends the instance.
+            A decision step must have at least one transition or a next, else it is a dead end."
         skipWhen:
           type: string
           description: >

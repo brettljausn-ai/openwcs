@@ -6,7 +6,7 @@
 // match + no next = the instance ends (returns null).
 
 import { evaluateExpression, safeEvaluate } from '../condition'
-import { isComputeStep, type ComputeStep, type ProcessDefinition, type Step, type VerifyConfig, type VerifyResult } from '../model'
+import { isComputeStep, isDecisionStep, type ComputeStep, type ProcessDefinition, type Step, type VerifyConfig, type VerifyResult } from '../model'
 
 /** Write a captured screen value to the data object under config.writeTo (returns a NEW object). */
 export function writeValue(
@@ -124,11 +124,14 @@ export interface Landing {
 
 /**
  * Resolve the step we should actually LAND on, honouring `skipWhen` (Phase 2 conditional skips) AND
- * evaluating any `compute` steps along the way (they render no screen — like a skip-resolution):
- * starting from `id`, while a step is a compute step OR its `skipWhen` is true, process it without
+ * passing THROUGH any pass-through steps along the way (they render no screen — like a skip-resolution):
+ *   - a `compute` step writes its `set` rows into the data object, then routes onward;
+ *   - a `decision` step is a pure router (if/elseif/else): it writes NOTHING, it just evaluates its
+ *     `transitions` (first matching `when` over the data object wins) then `next` (the else target).
+ * starting from `id`, while a step is compute/decision OR its `skipWhen` is true, process it without
  * rendering and advance to its next/first-matching transition. Compute steps write their `set` rows
  * into the data object first (so transitions/next see the computed values). Returns the first
- * non-skipped, non-compute step id together with the (possibly updated) data object.
+ * non-skipped, renderable step id together with the (possibly updated) data object.
  *
  * Guards against infinite loops: revisiting an already-seen id terminates the chain (stepId: null)
  * rather than spinning. Used by both the runtime and the designer simulate; fully offline.
@@ -145,11 +148,14 @@ export function resolveLanding(
     const step = def.steps[cur]
     if (!step) return { stepId: null, data: d } // dangling id ends the instance
     const isCompute = isComputeStep(step)
+    const isDecision = isDecisionStep(step)
+    const passThrough = isCompute || isDecision // renders no screen; routes straight through
     const skips = !!step.skipWhen && safeEvaluate(step.skipWhen, d)
-    if (!isCompute && !skips) return { stepId: cur, data: d }
+    if (!passThrough && !skips) return { stepId: cur, data: d }
     if (seen.has(cur)) return { stepId: null, data: d } // loop guard: would cycle forever
     seen.add(cur)
     // A compute step that is NOT skipped writes its computed values before we resolve its onward path.
+    // A decision step assigns nothing; it only routes (nextStepId evaluates transitions then next).
     if (isCompute && !skips) d = applyCompute(step, d)
     cur = nextStepId(step, d) // no onward path -> null (instance ends)
   }

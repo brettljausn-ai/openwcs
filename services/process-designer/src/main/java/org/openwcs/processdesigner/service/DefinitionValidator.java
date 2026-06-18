@@ -23,6 +23,9 @@ import org.springframework.stereotype.Component;
  *   <li>compute steps (client-evaluated variable assignment) carry a non-empty {@code set} of
  *       {@code { var, expr }} rows whose {@code var} is a declared data-object variable and whose
  *       {@code expr} parses as the value-returning expression grammar (spec; see ExpressionParser);</li>
+ *   <li>decision steps (client-evaluated router / gateway: ordered if/elseif {@code transitions}
+ *       plus an else/default {@code next}, no screen/task/compute config) can route somewhere
+ *       (at least one transition or a {@code next}, else the step is a dead end);</li>
  *   <li>every transition {@code when} and every step {@code skipWhen} parses as the restricted
  *       condition grammar (spec §6); a malformed condition fails publish;</li>
  *   <li>a step with a {@code skipWhen} (Phase 2 conditional skip) still has a reachable onward path
@@ -160,9 +163,11 @@ public class DefinitionValidator {
                 }
             } else if ("compute".equals(stepType)) {
                 validateCompute(problems, id, step, variables);
+            } else if ("decision".equals(stepType)) {
+                validateDecision(problems, id, next, transitions);
             } else {
                 problems.add("Step '" + id + "' has unknown type '" + stepType
-                        + "' (expected screen|task|compute).");
+                        + "' (expected screen|task|compute|decision).");
             }
         }
 
@@ -351,6 +356,27 @@ public class DefinitionValidator {
                 }
             }
             row++;
+        }
+    }
+
+    /**
+     * Validates a {@code decision} step (no-code, client-evaluated router / gateway: if / elseif /
+     * else). The step carries an ordered {@code transitions} array of {@code { when, to }} rules
+     * (first matching {@code when} wins, evaluated client-side over the data object) and an optional
+     * {@code next} as the else/default target. It has NO screen, task, compute {@code set} or other
+     * executable config: the runtime routes through it without rendering a screen or posting a
+     * checkpoint, so the server only stores + validates it. The generic per-step checks already
+     * cover the rest: each transition {@code when} parses and references only declared variables,
+     * each {@code to} exists, {@code next} exists, reachability, and {@code skipWhen}. The only
+     * decision-specific rule is that it must be able to route somewhere: at least one transition OR
+     * a {@code next}, else it is a dead end.
+     */
+    private static void validateDecision(List<String> problems, String id, String next,
+                                         JsonNode transitions) {
+        boolean hasTransition = transitions != null && transitions.isArray() && !transitions.isEmpty();
+        if (next == null && !hasTransition) {
+            problems.add("decision step '" + id + "' has no outgoing route "
+                    + "(add a branch or a default next)");
         }
     }
 
