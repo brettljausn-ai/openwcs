@@ -5392,7 +5392,10 @@
     for (var i = 0; i < nodes.length; i++) {
       var key = nodes[i].getAttribute('data-i18n');
       var val = dict[key] != null ? dict[key] : I18N.en[key];
-      if (val != null) nodes[i].innerHTML = val;
+      if (val == null) continue;
+      // An <img> carries its translation in alt, not as child text; everything else uses innerHTML.
+      if (nodes[i].tagName === 'IMG') nodes[i].setAttribute('alt', val);
+      else nodes[i].innerHTML = val;
     }
     if (dict.__title) document.title = dict.__title;
     var code = document.getElementById('lang-code');
