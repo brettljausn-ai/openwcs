@@ -1156,6 +1156,15 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 /* Decision step rules: an "if/else if" keyword + a target-step picker per rule row. */
 .op-pd-decision-kw { flex: 0 0 auto; font-size: .72rem; font-weight: 700; color: #9ec0ff; min-width: 2.6rem; }
 .op-pd-decision-to { flex: 0 0 34%; min-width: 0; }
+/* Theme the rule-row condition input + target select (otherwise they fall back to native white). */
+.op-pd-compute-row input, .op-pd-compute-row select {
+  padding: .4rem .55rem; background: var(--glass-bg, rgba(255,255,255,.04)); border: 1px solid var(--glass-border);
+  border-radius: 7px; color: var(--text); font-size: .85rem;
+}
+.op-pd-compute-row select { cursor: pointer; }
+.op-pd-compute-row input:focus-visible, .op-pd-compute-row select:focus-visible {
+  outline: none; border-color: var(--herbal-lime); box-shadow: 0 0 0 3px rgba(141,198,63,.15);
+}
 
 .op-pd-chips { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .25rem; }
 .op-pd-chip { font-size: .68rem; font-family: var(--font-mono); padding: .1rem .35rem; border: 1px solid var(--glass-border); border-radius: 5px; background: transparent; color: var(--herbal-lime); cursor: pointer; }
