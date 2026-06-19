@@ -14,6 +14,7 @@ import { WarehouseProvider } from './warehouse/WarehouseContext'
 import { LanguageProvider } from './i18n/LanguageContext'
 import { IS_DEMO } from './demo/session'
 import DemoBanner from './demo/DemoBanner'
+import DemoErrorBoundary from './demo/DemoErrorBoundary'
 
 // Existing feature screens (re-homed into the shell).
 import TopologyEditor from './topology/TopologyEditor'
@@ -127,7 +128,11 @@ function Guarded({ screen, element }: { screen: ScreenDef; element?: JSX.Element
       />
     )
   }
-  return element ?? COMPONENTS[screen.key] ?? <ComingSoon title={screen.label} />
+  const content = element ?? COMPONENTS[screen.key] ?? <ComingSoon title={screen.label} />
+  // Demo-only safety net: a single screen that throws during render (e.g. an un-mocked endpoint
+  // returns an unexpected shape) must not blank the whole demo app. Keyed by screen so navigating
+  // to another screen recovers. Production keeps the bare content (no behaviour change).
+  return IS_DEMO ? <DemoErrorBoundary resetKey={screen.key}>{content}</DemoErrorBoundary> : content
 }
 
 const SYSTEM_INFO_SCREEN = SCREENS.find((s) => s.key === 'system-info')!
