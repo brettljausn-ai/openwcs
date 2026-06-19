@@ -660,3 +660,25 @@ footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; g
 @media (prefers-reduced-motion: reduce) {
   .contact-overlay, .contact-dialog { transition: none; }
 }
+
+/* --- Live-demo embed (the same-origin sandbox iframe on /live-demo) --------- */
+.ld-embed-section .wrap { max-width: var(--maxw-wide); }
+.ld-embed-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 1rem; margin-bottom: 1.1rem;
+}
+.ld-embed-frame {
+  position: relative; width: 100%;
+  border: 1px solid var(--glass-border-bright); border-radius: var(--radius);
+  overflow: hidden; background: var(--glass-bg); box-shadow: 0 18px 48px -18px rgba(0,0,0,.55);
+}
+.ld-iframe {
+  display: block; width: 100%; border: 0;
+  height: 78vh; min-height: 620px;
+}
+.ld-fallback {
+  margin: 1rem 0 0; color: var(--text-dim); font-size: .95rem; line-height: 1.6;
+}
+@media (max-width: 720px) {
+  .ld-iframe { height: 70vh; min-height: 480px; }
+}

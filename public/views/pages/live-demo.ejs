@@ -1,0 +1,71 @@
+<section class="hero">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="ld.eyebrow">Live demo · A real, read-only sandbox of the app <span class="pill pill-built" data-i18n="ld.pill">No login</span></p>
+      <h1 data-i18n="ld.h1">Try openWCS right here, <span class="lime">no sign-up, nothing saved.</span></h1>
+      <p class="lead" data-i18n="ld.lead">
+        This is the real openWCS app running entirely in your browser as a read-only sandbox. Open every
+        menu and browse the actual screens with sample data, but nothing can be changed and nothing is
+        saved anywhere. Reloading the page resets the demo to its starting point. The headline interaction
+        is the goods-to-person pick station: five totes arrive and you can pick them, full pick or short
+        pick, including the normal exceptions.
+      </p>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="ld.point1Tag">Read-only</div></div>
+          <h3 data-i18n="ld.point1H">Browse everything, change nothing</h3>
+          <p data-i18n="ld.point1P">Every menu opens and every screen renders with sample data, but all create, edit and delete controls are disabled. You cannot break anything.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="ld.point2Tag">Nothing saved</div></div>
+          <h3 data-i18n="ld.point2H">It all lives in your browser</h3>
+          <p data-i18n="ld.point2P">There is no backend and no database behind this demo. All state is in memory, so a page reload restores the original sample data and re-arms the five totes.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="ld.point3Tag">Pick five totes</div></div>
+          <h3 data-i18n="ld.point3H">The goods-to-person station</h3>
+          <p data-i18n="ld.point3P">Five totes arrive at the pick station. Present and confirm each one as a full pick or a short pick, trigger the usual exceptions, and reset to run it again.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ld-embed-section">
+    <div class="wrap">
+      <div class="ld-embed-bar">
+        <p class="eyebrow" data-i18n="ld.embedEyebrow">The sandbox</p>
+        <a class="btn btn-ghost btn-nav" href="/demo-app/" target="_blank" rel="noopener" data-i18n="ld.openNewTab">Open the demo in a new tab</a>
+      </div>
+      <div class="ld-embed-frame">
+        <iframe
+          class="ld-iframe"
+          src="/demo-app/"
+          title="openWCS live demo"
+          loading="lazy"
+          referrerpolicy="no-referrer"
+        ></iframe>
+      </div>
+      <noscript>
+        <p class="ld-fallback" data-i18n="ld.fallbackText">
+          The in-site sandbox needs JavaScript. You can open the full live environment instead.
+        </p>
+      </noscript>
+      <p class="ld-fallback">
+        <span data-i18n="ld.fallbackPrefix">Sandbox not loading?</span>
+        <a href="https://app.openwcs.ai" target="_blank" rel="noopener" data-i18n="ld.fallbackLink">Open the full demo box at app.openwcs.ai</a>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <p class="eyebrow" data-i18n="ld.ctaEyebrow">Open &amp; honest</p>
+        <h2 data-i18n="ld.ctaH">Like what you see? Run the real thing.</h2>
+        <p data-i18n="ld.ctaP">This sandbox is a frozen, read-only snapshot. The full demo box is a live environment you can log into, and the whole system is open source under AGPL-3.0, so you can self-host and change it.</p>
+        <div class="hero-cta" style="justify-content:center">
+          <a class="btn btn-primary" href="https://app.openwcs.ai" target="_blank" rel="noopener" data-i18n="ld.btnFullBox">Open the full demo box</a>
+          <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs" data-i18n="btnGitHub">View on GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
