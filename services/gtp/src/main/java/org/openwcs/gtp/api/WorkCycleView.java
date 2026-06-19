@@ -23,16 +23,19 @@ public record WorkCycleView(
         UUID targetHuId,
         UUID skuId,
         String mode,
+        String pickLayout,
+        Integer pickSlots,
         BigDecimal presentedQty,
         BigDecimal remainingQty,
         String status,
         List<PutInstructionView> puts,
         List<TaskLineView> taskLines) {
 
-    public static WorkCycleView from(WorkCycle c, String mode, List<PutInstruction> puts,
-                                     List<TaskLine> taskLines) {
+    public static WorkCycleView from(WorkCycle c, String mode, String pickLayout, Integer pickSlots,
+                                     List<PutInstruction> puts, List<TaskLine> taskLines) {
         return new WorkCycleView(c.getId(), c.getStationId(), c.getOperatingMode(),
                 c.getStockNodeId(), c.getStockHuId(), c.getTargetHuId(), c.getSkuId(), mode,
+                pickLayout, pickSlots,
                 c.getPresentedQty(), c.getRemainingQty(), c.getStatus(),
                 puts.stream().map(PutInstructionView::from).toList(),
                 taskLines.stream().map(TaskLineView::from).toList());

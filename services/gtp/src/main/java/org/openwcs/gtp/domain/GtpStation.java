@@ -49,6 +49,19 @@ public class GtpStation extends Auditable {
     @Column(name = "supported_modes", nullable = false)
     private String supportedModes = OperatingMode.PICKING.name();
 
+    /**
+     * How the station's picking is laid out and lit: ONE_TO_ONE (one stock HU serves one
+     * destination), ONE_TO_N (one stock HU fans out to {@link #pickSlots} lit slots), or PUT_WALL
+     * (a rack of lit cubbies, only valid when {@code mode} is PUT_WALL). Drives the operator console
+     * rendering and the pick-to-light driving.
+     */
+    @Column(name = "pick_layout", nullable = false)
+    private String pickLayout = "ONE_TO_ONE";
+
+    /** Slot count for ONE_TO_N picking (at least 2); null for ONE_TO_ONE and PUT_WALL. */
+    @Column(name = "pick_slots")
+    private Integer pickSlots;
+
     @Column(name = "status", nullable = false)
     private String status = "ACTIVE";
 
@@ -134,6 +147,22 @@ public class GtpStation extends Auditable {
 
     public boolean supports(OperatingMode mode) {
         return supportedModeSet().contains(mode);
+    }
+
+    public String getPickLayout() {
+        return pickLayout;
+    }
+
+    public void setPickLayout(String pickLayout) {
+        this.pickLayout = pickLayout;
+    }
+
+    public Integer getPickSlots() {
+        return pickSlots;
+    }
+
+    public void setPickSlots(Integer pickSlots) {
+        this.pickSlots = pickSlots;
     }
 
     public String getStatus() {

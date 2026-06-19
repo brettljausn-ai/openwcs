@@ -9,6 +9,7 @@ import org.openwcs.gtp.api.PresentStockRequest;
 import org.openwcs.gtp.api.StartCycleRequest;
 import org.openwcs.gtp.api.SubmitOutcomeRequest;
 import org.openwcs.gtp.client.InventoryClient;
+import org.openwcs.gtp.client.LightControlClient;
 import org.openwcs.gtp.client.MasterDataClient;
 import org.openwcs.gtp.domain.DestinationDemand;
 import org.openwcs.gtp.domain.GtpStation;
@@ -51,6 +52,7 @@ public class WorkCycleService {
     private final TaskLineRepository taskLines;
     private final MasterDataClient masterData;
     private final InventoryClient inventory;
+    private final LightControlClient lights;
 
     public WorkCycleService(GtpStationRepository stations,
                             StationNodeRepository nodes,
@@ -59,7 +61,8 @@ public class WorkCycleService {
                             PutInstructionRepository puts,
                             TaskLineRepository taskLines,
                             MasterDataClient masterData,
-                            InventoryClient inventory) {
+                            InventoryClient inventory,
+                            LightControlClient lights) {
         this.stations = stations;
         this.nodes = nodes;
         this.demands = demands;
@@ -68,6 +71,7 @@ public class WorkCycleService {
         this.taskLines = taskLines;
         this.masterData = masterData;
         this.inventory = inventory;
+        this.lights = lights;
     }
 
     /**
@@ -121,6 +125,17 @@ public class WorkCycleService {
             putCount++;
             log.debug("put-list entry for cycle {}: qty {} of sku {} to node {} (order {})",
                     cycle.getId(), put, request.skuId(), dest.getCode(), demand.getOrderRef());
+
+            // Best-effort pick-to-light: light this put location with its qty (never blocks the pick).
+            if (dest.getPutLightId() != null && !dest.getPutLightId().isBlank()) {
+                try {
+                    lights.illuminate(station.getWarehouseId(), station.getCode(),
+                            dest.getPutLightId(), put);
+                } catch (RuntimeException e) {
+                    log.warn("could not illuminate put-light {} at station {} (best-effort): {}",
+                            dest.getPutLightId(), station.getCode(), e.toString());
+                }
+            }
 
             available = available.subtract(put);
         }
@@ -449,8 +464,18 @@ public class WorkCycleService {
         instruction.setStatus(shortPut ? "SHORT" : "CONFIRMED");
 
         demand.setPuttedQty(demand.getPuttedQty().add(confirmed));
-        String stationCode = stations.findById(cycle.getStationId())
-                .map(GtpStation::getCode).orElse(null);
+        GtpStation station = stations.findById(cycle.getStationId()).orElse(null);
+        String stationCode = station == null ? null : station.getCode();
+
+        // Best-effort pick-to-light: clear this put's light now it is confirmed (never blocks).
+        if (station != null && instruction.getPutLightId() != null && !instruction.getPutLightId().isBlank()) {
+            try {
+                lights.clear(station.getWarehouseId(), station.getCode(), instruction.getPutLightId());
+            } catch (RuntimeException e) {
+                log.warn("could not clear put-light {} at station {} (best-effort): {}",
+                        instruction.getPutLightId(), station.getCode(), e.toString());
+            }
+        }
         if (shortPut) {
             log.warn("put {} confirmed SHORT at station {}: {} of {} lit for order {} (sku {}); "
                             + "remaining demand {} stays open for the next presentation",
@@ -483,10 +508,20 @@ public class WorkCycleService {
                 .orElseThrow(() -> new NotFoundException("work cycle", cycleId));
         int cancelledPuts = 0;
         int cancelledLines = 0;
+        GtpStation station = stations.findById(cycle.getStationId()).orElse(null);
         for (PutInstruction p : puts.findByWorkCycleId(cycleId)) {
             if ("OPEN".equals(p.getStatus())) {
                 p.setStatus("CANCELLED");
                 cancelledPuts++;
+                // Best-effort pick-to-light: clear any still-lit put as the cycle closes.
+                if (station != null && p.getPutLightId() != null && !p.getPutLightId().isBlank()) {
+                    try {
+                        lights.clear(station.getWarehouseId(), station.getCode(), p.getPutLightId());
+                    } catch (RuntimeException e) {
+                        log.warn("could not clear put-light {} at station {} on close (best-effort): {}",
+                                p.getPutLightId(), station.getCode(), e.toString());
+                    }
+                }
             }
         }
         for (TaskLine t : taskLines.findByWorkCycleId(cycleId)) {
@@ -528,6 +563,18 @@ public class WorkCycleService {
     @Transactional(readOnly = true)
     public String modeOf(UUID stationId) {
         return stations.findById(stationId).map(GtpStation::getMode).orElse(null);
+    }
+
+    /** A station's configured picking layout + slot count (for the runtime cycle view). */
+    @Transactional(readOnly = true)
+    public PickLayout pickLayoutOf(UUID stationId) {
+        return stations.findById(stationId)
+                .map(s -> new PickLayout(s.getPickLayout(), s.getPickSlots()))
+                .orElse(new PickLayout(null, null));
+    }
+
+    /** A station's picking layout (ONE_TO_ONE | ONE_TO_N | PUT_WALL) and ONE_TO_N slot count. */
+    public record PickLayout(String pickLayout, Integer pickSlots) {
     }
 
     private boolean allResolved(UUID cycleId) {

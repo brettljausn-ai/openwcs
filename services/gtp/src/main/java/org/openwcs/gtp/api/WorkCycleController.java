@@ -76,7 +76,9 @@ public class WorkCycleController {
     }
 
     private WorkCycleView view(WorkCycle cycle) {
+        WorkCycleService.PickLayout layout = service.pickLayoutOf(cycle.getStationId());
         return WorkCycleView.from(cycle, service.modeOf(cycle.getStationId()),
+                layout.pickLayout(), layout.pickSlots(),
                 service.putsOf(cycle.getId()), service.taskLinesOf(cycle.getId()));
     }
 }

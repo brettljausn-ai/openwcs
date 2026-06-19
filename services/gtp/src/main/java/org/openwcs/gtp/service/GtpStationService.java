@@ -67,6 +67,7 @@ public class GtpStationService {
         station.setName(request.name());
         station.setMode(mode);
         station.setSupportedModeSet(parseModes(request.supportedModes()));
+        applyPickLayout(station, request.pickLayout(), request.pickSlots(), "ONE_TO_ONE");
         stations.save(station);
 
         if (request.nodes() != null) {
@@ -110,7 +111,45 @@ public class GtpStationService {
         if (request.supportedModes() != null) {
             station.setSupportedModeSet(parseModes(request.supportedModes()));
         }
+        // A null pickLayout keeps the current layout (and its slots); a present one replaces both.
+        if (request.pickLayout() != null) {
+            applyPickLayout(station, request.pickLayout(), request.pickSlots(), station.getPickLayout());
+        }
         return station;
+    }
+
+    /**
+     * Resolve and validate a station's picking layout against its destination topology mode and apply
+     * it (with the matching pick-slots). A null/blank {@code requested} layout falls back to
+     * {@code fallback}. Rules: ONE_TO_N requires pickSlots greater than or equal to 2; PUT_WALL is
+     * only valid when the station mode is PUT_WALL; ONE_TO_ONE clears pickSlots.
+     */
+    private void applyPickLayout(GtpStation station, String requested, Integer pickSlots, String fallback) {
+        String layout = (requested == null || requested.isBlank()) ? fallback : requested.trim();
+        switch (layout) {
+            case "ONE_TO_ONE" -> {
+                station.setPickLayout("ONE_TO_ONE");
+                station.setPickSlots(null);
+            }
+            case "ONE_TO_N" -> {
+                if (pickSlots == null || pickSlots < 2) {
+                    throw new IllegalArgumentException(
+                            "pickSlots must be at least 2 for the ONE_TO_N pick layout");
+                }
+                station.setPickLayout("ONE_TO_N");
+                station.setPickSlots(pickSlots);
+            }
+            case "PUT_WALL" -> {
+                if (!"PUT_WALL".equals(station.getMode())) {
+                    throw new IllegalArgumentException(
+                            "the PUT_WALL pick layout requires the station mode to be PUT_WALL");
+                }
+                station.setPickLayout("PUT_WALL");
+                station.setPickSlots(null);
+            }
+            default -> throw new IllegalArgumentException(
+                    "pickLayout must be ONE_TO_ONE, ONE_TO_N or PUT_WALL: " + layout);
+        }
     }
 
     /** Delete a station (cascades to its nodes/demand/cycles via the schema's ON DELETE CASCADE). */

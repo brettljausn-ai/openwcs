@@ -17,6 +17,8 @@ public record WorkplaceView(
         String code,
         String mode,
         List<String> supportedModes,
+        String pickLayout,
+        Integer pickSlots,
         String status,
         boolean acceptingWork,
         boolean inUse,
@@ -24,7 +26,8 @@ public record WorkplaceView(
 
     public static WorkplaceView from(GtpStation s, List<StationNode> nodes, boolean inUse) {
         return new WorkplaceView(s.getId(), s.getWarehouseId(), s.getCode(), s.getMode(),
-                s.supportedModeSet().stream().map(OperatingMode::name).toList(), s.getStatus(),
+                s.supportedModeSet().stream().map(OperatingMode::name).toList(),
+                s.getPickLayout(), s.getPickSlots(), s.getStatus(),
                 s.isAcceptingWork(), inUse, nodes.stream().map(StationView.NodeView::from).toList());
     }
 }

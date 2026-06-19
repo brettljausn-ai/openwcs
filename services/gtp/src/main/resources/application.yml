@@ -34,8 +34,13 @@ openwcs:
     # longer calls slotting or dispatches store-back transports.
     flow-base-url: ${OPENWCS_FLOW_ORCHESTRATOR_BASE_URL:http://localhost:8085}
     txlog-base-url: ${OPENWCS_TXLOG_BASE_URL:http://localhost:8086}
-    # Work cycles resolve storage types from master-data (e.g. device family of a location).
+    # Work cycles resolve storage types from master-data (e.g. device family of a location), and
+    # read the global hardware-emulator flag from master-data to target pick-to-light driving.
     master-data-base-url: ${OPENWCS_MASTER_DATA_BASE_URL:http://localhost:8081}
+    # Pick-to-light (PTL) driving on present/confirm/close. Light tasks go to the PTL adapter, or to
+    # the equipment emulator when hardware-emulator mode is on (resolved like flow's dispatch).
+    ptl-base-url: ${OPENWCS_ADAPTER_PTL:http://localhost:9098}
+    emulator-url: ${OPENWCS_EMULATOR_URL:http://localhost:9097}
 
 management:
   endpoints:
