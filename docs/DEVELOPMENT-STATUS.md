@@ -56,6 +56,22 @@ scaling — see [`SCALING.md`](./SCALING.md)); Helm ⬜.
 "because ..." trigger, WARN for skipped/degraded paths with the consequence, DEBUG in loops)
 applied ✅ all services (Java + Go).
 
+**Public sandboxed live demo ✅** (fully client-side, no backend): a `VITE_DEMO=true` build of the
+existing `/ui` SPA (`npm run build:demo`, asset base `/demo-app/`) embedded on the marketing site at
+**`/live-demo`**. Behind the flag: a synthetic read-only session (no Keycloak, all menus visible via
+`can()`, all writes off via `canWrite()`/`writeAllowed()`); a mock service layer
+(`ui/src/demo/mockApi.ts`) consulted by the single `authFetch` chokepoint so **no `/api`, `/admin` or
+`/realms` request ever leaves the browser** (verified); GET responses from committed fixtures snapshotted
+from `app.openwcs.ai` (`ui/src/demo/fixtures/*.json`, captured by `tools/demo-snapshot.mjs`), unknown
+GETs return benign empty states, mutations are no-ops except the GTP pick endpoints; an in-memory pick
+engine (`ui/src/demo/pickEngine.ts`) arms **5 totes** at the goods-to-person station (induction queue
+REQUESTED → IN_TRANSIT → QUEUED, present, confirm full/short, close cycle, next tote, dirty-tote /
+broken-units exceptions, `reset()`); a `DemoBanner` ("Live demo, sample data, nothing is saved" +
+Restart). Nothing persists (a reload resets). The public Express server serves the bundle at
+**`/demo-app/`** from `public/static/demo` (gitignored); from `/public`, `npm run build:demo-app` builds
+and copies it. **CI runs `npm run build:demo`** so the demo build cannot silently break. Spec
+`docs/public-live-demo-spec.md`; AS-BUILT §7j.
+
 ---
 
 ## 2. Roadmap progress (build.md §15)
