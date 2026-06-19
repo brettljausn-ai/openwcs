@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -79,6 +80,25 @@ public class CountLine extends Auditable {
     /** At-station blind count state: PENDING | RECOUNT | ACCEPTED | ADJUSTED. */
     @Column(name = "station_count_state", nullable = false)
     private String stationCountState = "PENDING";
+
+    /** The operator who reserved this line via claim-next (the forwarded X-Auth-User), null if free. */
+    @Column(name = "reserved_by")
+    private String reservedBy;
+
+    /** When the reservation was taken (drives the stale-reservation sweeper's TTL). */
+    @Column(name = "reserved_at")
+    private Instant reservedAt;
+
+    /** The handheld/runtime instance that holds the reservation (used by release to free its lines). */
+    @Column(name = "reserved_by_instance")
+    private String reservedByInstance;
+
+    /**
+     * When the operator first recorded a count for this line. Once set, the line is immune to release
+     * and to the stale-reservation sweeper (the operator is mid-count). Null until counting starts.
+     */
+    @Column(name = "started_at")
+    private Instant startedAt;
 
     public UUID getId() {
         return id;
@@ -206,5 +226,37 @@ public class CountLine extends Auditable {
 
     public void setStationCountState(String stationCountState) {
         this.stationCountState = stationCountState;
+    }
+
+    public String getReservedBy() {
+        return reservedBy;
+    }
+
+    public void setReservedBy(String reservedBy) {
+        this.reservedBy = reservedBy;
+    }
+
+    public Instant getReservedAt() {
+        return reservedAt;
+    }
+
+    public void setReservedAt(Instant reservedAt) {
+        this.reservedAt = reservedAt;
+    }
+
+    public String getReservedByInstance() {
+        return reservedByInstance;
+    }
+
+    public void setReservedByInstance(String reservedByInstance) {
+        this.reservedByInstance = reservedByInstance;
+    }
+
+    public Instant getStartedAt() {
+        return startedAt;
+    }
+
+    public void setStartedAt(Instant startedAt) {
+        this.startedAt = startedAt;
     }
 }
