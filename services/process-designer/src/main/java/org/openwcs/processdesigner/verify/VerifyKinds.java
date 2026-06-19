@@ -28,9 +28,15 @@ public final class VerifyKinds {
      * reference. Resolves the same way as {@link #ORDER} (a flow can branch on the resolved orderType).
      */
     public static final String ASN = "asn";
+    /**
+     * Area scan: the scanned/typed value is resolved against master-data as an area code (or id),
+     * confirming the area exists and pulling its id/code so a flow can claim area-scoped work.
+     * Resolves via {@code GET /api/master-data/areas/resolve}.
+     */
+    public static final String AREA = "area";
 
     /** Ordered for the designer picker. */
-    public static final List<String> ALL = List.of(BARCODE, SKU, LOCATION, SKU_SCAN, ORDER, ASN);
+    public static final List<String> ALL = List.of(BARCODE, SKU, LOCATION, SKU_SCAN, ORDER, ASN, AREA);
 
     private static final Set<String> SET = Set.copyOf(ALL);
 

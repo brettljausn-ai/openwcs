@@ -49,6 +49,10 @@ public class Location extends Auditable {
     @Column(name = "parent_id")
     private UUID parentId;
 
+    /** The area (zone / sub-zone grouping) this location belongs to; null if unassigned. */
+    @Column(name = "area_id")
+    private UUID areaId;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "coordinates")
     private Map<String, Object> coordinates;
@@ -159,6 +163,14 @@ public class Location extends Auditable {
 
     public void setParentId(UUID parentId) {
         this.parentId = parentId;
+    }
+
+    public UUID getAreaId() {
+        return areaId;
+    }
+
+    public void setAreaId(UUID areaId) {
+        this.areaId = areaId;
     }
 
     public Map<String, Object> getCoordinates() {

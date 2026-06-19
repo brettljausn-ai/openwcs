@@ -162,6 +162,64 @@ class VerifyProxyTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void verifyAreaResolvesAndWritesAreaIdAndAreaCode() throws Exception {
+        // An area resolves its own attribute set: areaId/areaCode/name plus the area object. The proxy
+        // calls master-data areas/resolve (ref= query param) and forwards the operator identity.
+        String body = """
+            {
+              "found": true,
+              "area": { "id": "area-7", "code": "ZONE-A", "name": "Pick Zone A" }
+            }
+            """;
+        mockServerCustomizer.getServers().values().forEach(s ->
+                s.expect(ExpectedCount.manyTimes(), requestTo(Matchers.containsString(
+                                "/api/master-data/areas/resolve")))
+                        .andExpect(method(HttpMethod.GET))
+                        .andExpect(header("X-Auth-User", "carol"))
+                        .andRespond(withSuccess(body, MediaType.APPLICATION_JSON)));
+
+        mvc.perform(post("/api/process-designer/verify")
+                        .header("X-Auth-Roles", OPERATOR)
+                        .header("X-Auth-User", "carol")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"warehouseId\":\"" + WAREHOUSE + "\",\"kind\":\"area\",\"code\":\"ZONE-A\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.found").value(true))
+                .andExpect(jsonPath("$.id").value("area-7"))
+                .andExpect(jsonPath("$.code").value("ZONE-A"))
+                .andExpect(jsonPath("$.name").value("Pick Zone A"))
+                // Area-kind writable fields: areaId / areaCode (plus name) and the area object.
+                .andExpect(jsonPath("$.fields.areaId").value("area-7"))
+                .andExpect(jsonPath("$.fields.areaCode").value("ZONE-A"))
+                .andExpect(jsonPath("$.fields.name").value("Pick Zone A"))
+                .andExpect(jsonPath("$.fields.area.id").value("area-7"))
+                .andExpect(jsonPath("$.fields.area.code").value("ZONE-A"))
+                .andExpect(jsonPath("$.fields.area.name").value("Pick Zone A"))
+                // No SKU/location keys leak into an area result.
+                .andExpect(jsonPath("$.fields.uomCode").doesNotExist())
+                .andExpect(jsonPath("$.fields.purpose").doesNotExist())
+                .andExpect(jsonPath("$.fields.location").doesNotExist());
+    }
+
+    @Test
+    void verifyAreaNotFoundIsCleanPassthrough() throws Exception {
+        mockServerCustomizer.getServers().values().forEach(s ->
+                s.expect(ExpectedCount.manyTimes(), requestTo(Matchers.containsString(
+                                "/api/master-data/areas/resolve")))
+                        .andExpect(method(HttpMethod.GET))
+                        .andRespond(withSuccess("{\"found\":false}", MediaType.APPLICATION_JSON)));
+
+        mvc.perform(post("/api/process-designer/verify")
+                        .header("X-Auth-Roles", OPERATOR)
+                        .header("X-Auth-User", "carol")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"warehouseId\":\"" + WAREHOUSE + "\",\"kind\":\"area\",\"code\":\"nope\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.found").value(false))
+                .andExpect(jsonPath("$.id").value(Matchers.nullValue()));
+    }
+
+    @Test
     void verifyNotFoundIsCleanPassthrough() throws Exception {
         mockServerCustomizer.getServers().values().forEach(s ->
                 s.expect(ExpectedCount.manyTimes(), requestTo(Matchers.containsString(

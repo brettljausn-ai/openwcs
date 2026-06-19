@@ -49,8 +49,9 @@ class AssistAndCapabilitiesDefaultTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.verifyKinds[3]").value("skuScan"))
                 .andExpect(jsonPath("$.verifyKinds[4]").value("order"))
                 .andExpect(jsonPath("$.verifyKinds[5]").value("asn"))
+                .andExpect(jsonPath("$.verifyKinds[6]").value("area"))
                 .andExpect(jsonPath("$.verifyKinds",
-                        org.hamcrest.Matchers.hasItems("skuScan", "order", "asn")))
+                        org.hamcrest.Matchers.hasItems("skuScan", "order", "asn", "area")))
                 // Per-kind resolvable-field catalog: location vs SKU resolve different attributes.
                 // Scalars plus object fields (object:true with a sub drill-down list).
                 .andExpect(jsonPath("$.verifyFields.location").isArray())
@@ -121,7 +122,16 @@ class AssistAndCapabilitiesDefaultTest extends AbstractIntegrationTest {
                         org.hamcrest.Matchers.hasItem("ASN (object)")))
                 .andExpect(jsonPath("$.verifyFields.asn[?(@.key=='asn')].sub[*].key",
                         org.hamcrest.Matchers.containsInAnyOrder(
-                                "orderId", "orderRef", "orderType", "status", "customerRef", "lineCount")));
+                                "orderId", "orderRef", "orderType", "status", "customerRef", "lineCount")))
+                // area kind: scalars areaId/areaCode/name + object "area" with its sub drill-down fields.
+                .andExpect(jsonPath("$.verifyFields.area[*].key",
+                        org.hamcrest.Matchers.containsInAnyOrder("areaId", "areaCode", "name", "area")))
+                .andExpect(jsonPath("$.verifyFields.area[?(@.key=='area')].object").value(
+                        org.hamcrest.Matchers.hasItem(true)))
+                .andExpect(jsonPath("$.verifyFields.area[?(@.key=='area')].label").value(
+                        org.hamcrest.Matchers.hasItem("Area (object)")))
+                .andExpect(jsonPath("$.verifyFields.area[?(@.key=='area')].sub[*].key",
+                        org.hamcrest.Matchers.containsInAnyOrder("id", "code", "name")));
 
         // SUPERVISOR can view (PROCESS_DESIGN_VIEW) but cannot author scripts.
         mvc.perform(get("/api/process-designer/capabilities").header("X-Auth-Roles", "SUPERVISOR"))

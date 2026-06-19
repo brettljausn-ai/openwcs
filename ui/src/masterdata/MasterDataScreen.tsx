@@ -9,6 +9,7 @@ import InfoTip from '../ui/InfoTip'
 import { useT } from '../i18n/useT'
 import { checkOccupancy, countActiveHandlingUnits } from '../inventory/api'
 import {
+  Area,
   Barcode,
   Equipment,
   HandlingUnitType,
@@ -21,16 +22,19 @@ import {
   archiveHandlingUnitType,
   archiveStorageBlock,
   bulkCreateLocations,
+  createArea,
   createEquipment,
   createHandlingUnitType,
   createLabelTemplate,
   createLocation,
   createStorageBlock,
   createWarehouse,
+  deleteArea,
   deleteLabelTemplate,
   deleteLocation,
   deleteStorageBlock,
   deleteWarehouse,
+  listAreas,
   listBlockLocationIds,
   listEquipment,
   listHandlingUnitTypes,
@@ -43,6 +47,7 @@ import {
   listWarehouses,
   restoreHandlingUnitType,
   restoreStorageBlock,
+  updateArea,
   updateEquipment,
   updateHandlingUnitType,
   updateLabelTemplate,
@@ -60,6 +65,7 @@ import {
 type EntityKey =
   | 'warehouses'
   | 'skus'
+  | 'areas'
   | 'storage-blocks'
   | 'locations'
   | 'equipment'
@@ -69,6 +75,7 @@ type EntityKey =
 const ENTITIES: { key: EntityKey; labelKey: string; label: string; scoped: boolean }[] = [
   { key: 'warehouses', labelKey: 'entWarehouses', label: 'Warehouses', scoped: false },
   { key: 'skus', labelKey: 'entSkus', label: 'SKUs', scoped: false },
+  { key: 'areas', labelKey: 'entAreas', label: 'Areas', scoped: true },
   { key: 'storage-blocks', labelKey: 'entStorageBlocks', label: 'Storage blocks', scoped: true },
   { key: 'locations', labelKey: 'entLocations', label: 'Locations', scoped: true },
   { key: 'equipment', labelKey: 'entEquipment', label: 'Equipment', scoped: true },
@@ -139,6 +146,7 @@ export default function MasterDataScreen() {
 
       {entity === 'warehouses' && <WarehousesTab onWarehousesChanged={loadWarehouses} />}
       {entity === 'skus' && <SkusTab />}
+      {entity === 'areas' && <AreasTab warehouseId={warehouseId} warehouseName={warehouseName} />}
       {entity === 'storage-blocks' && <StorageBlocksTab warehouseId={warehouseId} warehouseName={warehouseName} />}
       {entity === 'locations' && (
         <LocationsTab warehouseId={warehouseId} warehouses={warehouses} warehouseName={warehouseName} />
@@ -749,6 +757,245 @@ function ReadField({ label, value }: { label: string; value: React.ReactNode }) 
       <label>{label}</label>
       <div className="md-read-value">{value}</div>
     </div>
+  )
+}
+
+// =========================================================================
+// Areas (warehouse-scoped)
+//
+// Logical zones a warehouse is divided into. Areas may nest arbitrarily via
+// parentAreaId (areas within areas). Locations may be assigned to an area.
+// =========================================================================
+
+// Order areas so each appears under its parent (depth-first), and tag each with a
+// nesting depth so the table can indent children beneath their parents.
+function areaHierarchy(areas: Area[]): { area: Area; depth: number }[] {
+  const byParent = new Map<string | null, Area[]>()
+  for (const a of areas) {
+    const key = a.parentAreaId ?? null
+    const list = byParent.get(key) ?? []
+    list.push(a)
+    byParent.set(key, list)
+  }
+  for (const list of byParent.values()) list.sort((x, y) => (x.code ?? '').localeCompare(y.code ?? ''))
+  const ids = new Set(areas.map((a) => a.id))
+  const out: { area: Area; depth: number }[] = []
+  const seen = new Set<string>()
+  const walk = (parentId: string | null, depth: number) => {
+    for (const a of byParent.get(parentId) ?? []) {
+      if (a.id && seen.has(a.id)) continue
+      if (a.id) seen.add(a.id)
+      out.push({ area: a, depth })
+      if (a.id) walk(a.id, depth + 1)
+    }
+  }
+  walk(null, 0)
+  // Orphans (parent missing / not in this warehouse) land at the top level.
+  for (const a of areas) {
+    if (a.parentAreaId && !ids.has(a.parentAreaId) && a.id && !seen.has(a.id)) {
+      seen.add(a.id)
+      out.push({ area: a, depth: 0 })
+      walk(a.id, 1)
+    }
+  }
+  return out
+}
+
+// The set of an area's own id plus all of its descendants (excluded as parent options
+// to prevent cycles).
+function areaDescendantIds(areas: Area[], rootId?: string | null): Set<string> {
+  const out = new Set<string>()
+  if (!rootId) return out
+  out.add(rootId)
+  let added = true
+  while (added) {
+    added = false
+    for (const a of areas) {
+      if (a.id && a.parentAreaId && out.has(a.parentAreaId) && !out.has(a.id)) {
+        out.add(a.id)
+        added = true
+      }
+    }
+  }
+  return out
+}
+
+function AreasTab({
+  warehouseId,
+  warehouseName,
+}: {
+  warehouseId: string
+  warehouseName: (id?: string | null) => string
+}) {
+  const t = useT('masterdata')
+  const canWrite = useMdWrite()
+  const [rows, setRows] = useState<Area[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Area | null>(null)
+  const [deleting, setDeleting] = useState<Area | null>(null)
+
+  const load = useCallback(async () => {
+    if (!warehouseId) {
+      setRows([])
+      return
+    }
+    setLoading(true)
+    try {
+      setError(null)
+      setRows(await listAreas(warehouseId))
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setLoading(false)
+    }
+  }, [warehouseId])
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const parentCode = (id?: string | null) => (id ? rows.find((a) => a.id === id)?.code ?? '—' : '—')
+  const depthOf = (id?: string) => areaHierarchy(rows).find((h) => h.area.id === id)?.depth ?? 0
+
+  const blank: Area = { warehouseId, code: '', name: '', parentAreaId: null, status: 'ACTIVE' }
+
+  if (!warehouseId) return <ScopeNotice warehouseId={warehouseId} />
+
+  return (
+    <div className="glass card-pad md-panel">
+      <Toolbar label={t('lblArea', 'area')} onAdd={() => setEditing(blank)} />
+      {error && <div className="alert alert-danger">{error}</div>}
+      <DataTable
+        rows={rows}
+        rowKey={(a) => a.id ?? a.code}
+        search={(a) => `${a.code} ${a.name ?? ''} ${parentCode(a.parentAreaId)} ${a.status ?? ''}`}
+        searchPlaceholder={t('searchAreas', 'Search areas…')}
+        initialSort={{ key: 'code', dir: 'asc' }}
+        empty={loading ? t('loading', 'Loading…') : t('noAreas', 'No areas for this warehouse.')}
+        columns={[
+          {
+            key: 'code',
+            header: t('colCode', 'Code'),
+            sortable: true,
+            sortValue: (a) => a.code ?? '',
+            render: (a) => (
+              <span style={{ paddingLeft: `${depthOf(a.id) * 1.25}rem` }}>
+                {depthOf(a.id) > 0 && <span className="muted" aria-hidden="true">↳ </span>}
+                {a.code}
+              </span>
+            ),
+          },
+          { key: 'name', header: t('colName', 'Name'), sortable: true, sortValue: (a) => a.name ?? '', render: (a) => a.name || '—' },
+          {
+            key: 'parent',
+            header: t('colParent', 'Parent'),
+            sortable: true,
+            sortValue: (a) => parentCode(a.parentAreaId),
+            render: (a) => parentCode(a.parentAreaId),
+          },
+          {
+            key: 'status',
+            header: t('colStatus', 'Status'),
+            sortable: true,
+            sortValue: (a) => a.status ?? '',
+            render: (a) => <StatusBadge status={a.status} />,
+          },
+          {
+            key: 'actions',
+            header: '',
+            render: (a) => (
+              <div className="md-row-actions">
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(a)}>
+                  {canWrite ? t('edit', 'Edit') : t('view', 'View')}
+                </button>
+                {canWrite && (
+                  <button className="btn btn-danger btn-sm" onClick={() => setDeleting(a)}>
+                    {t('delete', 'Delete')}
+                  </button>
+                )}
+              </div>
+            ),
+          },
+        ]}
+      />
+      <p className="muted" style={{ fontSize: '.8rem', marginTop: '.75rem' }}>
+        {t('warehouseLabel', 'Warehouse:')} {warehouseName(warehouseId)}. {t('areasNote', 'Areas group locations into logical zones and may nest within one another.')}
+      </p>
+
+      {editing && (
+        <AreaDialog
+          initial={{ ...editing, warehouseId }}
+          areas={rows}
+          onClose={() => setEditing(null)}
+          onSaved={load}
+        />
+      )}
+      {deleting && (
+        <ConfirmDelete
+          name={deleting.code}
+          onClose={() => setDeleting(null)}
+          onConfirm={async () => {
+            await deleteArea(deleting.id!)
+            await load()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function AreaDialog({
+  initial,
+  areas,
+  onClose,
+  onSaved,
+}: {
+  initial: Area
+  areas: Area[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const t = useT('masterdata')
+  const [d, setD] = useState<Area>(initial)
+  const valid = d.code.trim() !== ''
+  // Exclude the area itself and all of its descendants, to prevent cycles.
+  const excluded = areaDescendantIds(areas, initial.id)
+  const parentOptions = [
+    { value: '', label: t('optNoneTop', '— None (top level) —') },
+    ...areas
+      .filter((a) => a.id && !excluded.has(a.id))
+      .map((a) => ({ value: a.id ?? '', label: a.name ? `${a.code} (${a.name})` : a.code })),
+  ]
+  return (
+    <EditDialog
+      title={initial.id ? t('editArea', 'Edit area') : t('newArea', 'New area')}
+      draft={d}
+      canSave={valid}
+      onClose={onClose}
+      onSave={async (a) => {
+        if (a.id) await updateArea(a.id, a)
+        else await createArea(a)
+        onSaved()
+      }}
+    >
+      <Field label={<>{t('fldCode', 'Code')} <InfoTip text={t('tipAreaCode', 'Short unique code for this area within the warehouse.')} example="ZONE-A" /></>} required>
+        <input className="form-control" value={d.code} onChange={(e) => setD({ ...d, code: e.target.value })} />
+      </Field>
+      <Field label={<>{t('fldName', 'Name')} <InfoTip text={t('tipAreaName', 'Human-readable name of the area.')} example="Cold store" /></>}>
+        <input className="form-control" value={d.name ?? ''} onChange={(e) => setD({ ...d, name: e.target.value || null })} />
+      </Field>
+      <Field label={<>{t('fldParentArea', 'Parent area')} <InfoTip text={t('tipParentArea', 'The area this one sits inside; leave as None for a top-level area. An area cannot be its own ancestor.')} example="Ambient (for a sub-zone)" /></>}>
+        <Select
+          value={d.parentAreaId ?? ''}
+          onChange={(val) => setD({ ...d, parentAreaId: val || null })}
+          options={parentOptions}
+          ariaLabel={t('fldParentArea', 'Parent area')}
+        />
+      </Field>
+      <Field label={<>{t('fldStatus', 'Status')} <InfoTip text={t('tipStatusFull', 'Lifecycle state: ACTIVE is in use, INACTIVE is paused, ARCHIVED is retired.')} example="ACTIVE" /></>}>
+        <StatusSelect value={d.status} onChange={(v) => setD({ ...d, status: v })} />
+      </Field>
+    </EditDialog>
   )
 }
 
@@ -1624,6 +1871,7 @@ function LocationsTab({
   const canWrite = useMdWrite()
   const [rows, setRows] = useState<Location[]>([])
   const [blocks, setBlocks] = useState<StorageBlock[]>([])
+  const [areas, setAreas] = useState<Area[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<Location | null>(null)
@@ -1637,9 +1885,14 @@ function LocationsTab({
     setLoading(true)
     try {
       setError(null)
-      const [locs, blks] = await Promise.all([listLocations(warehouseId), listStorageBlocks(warehouseId)])
+      const [locs, blks, ars] = await Promise.all([
+        listLocations(warehouseId),
+        listStorageBlocks(warehouseId),
+        listAreas(warehouseId),
+      ])
       setRows(locs)
       setBlocks(blks)
+      setAreas(ars)
     } catch (e) {
       setError(errMsg(e))
     } finally {
@@ -1651,6 +1904,7 @@ function LocationsTab({
   }, [load])
 
   const blockCode = (id?: string | null) => blocks.find((b) => b.id === id)?.code ?? (id ? '—' : '—')
+  const areaCode = (id?: string | null) => (id ? areas.find((a) => a.id === id)?.code ?? '—' : '—')
 
   const blank: Location = {
     warehouseId,
@@ -1672,7 +1926,7 @@ function LocationsTab({
       <DataTable
         rows={rows}
         rowKey={(l) => l.id ?? l.code}
-        search={(l) => `${l.code} ${l.locationType} ${l.purpose} ${blockCode(l.blockId)} ${l.aisle ?? ''} ${l.side ?? ''} ${l.status ?? ''}`}
+        search={(l) => `${l.code} ${l.locationType} ${l.purpose} ${blockCode(l.blockId)} ${areaCode(l.areaId)} ${l.aisle ?? ''} ${l.side ?? ''} ${l.status ?? ''}`}
         searchPlaceholder={t('searchLocations', 'Search locations…')}
         initialSort={{ key: 'code', dir: 'asc' }}
         empty={loading ? t('loading', 'Loading…') : t('noLocations', 'No locations for this warehouse.')}
@@ -1698,6 +1952,13 @@ function LocationsTab({
             sortable: true,
             sortValue: (l) => blockCode(l.blockId),
             render: (l) => blockCode(l.blockId),
+          },
+          {
+            key: 'area',
+            header: t('colArea', 'Area'),
+            sortable: true,
+            sortValue: (l) => areaCode(l.areaId),
+            render: (l) => areaCode(l.areaId),
           },
           {
             key: 'aisle',
@@ -1758,6 +2019,7 @@ function LocationsTab({
         <LocationDialog
           initial={{ ...editing, warehouseId }}
           blocks={blocks}
+          areas={areas}
           onClose={() => setEditing(null)}
           onSaved={load}
         />
@@ -1779,11 +2041,13 @@ function LocationsTab({
 function LocationDialog({
   initial,
   blocks,
+  areas,
   onClose,
   onSaved,
 }: {
   initial: Location
   blocks: StorageBlock[]
+  areas: Area[]
   onClose: () => void
   onSaved: () => void
 }) {
@@ -1823,17 +2087,30 @@ function LocationDialog({
           />
         </Field>
       </div>
-      <Field label={<>{t('fldStorageBlock', 'Storage block')} <InfoTip text={t('tipLocStorageBlock', 'The storage block this location belongs to; leave as None for a standalone location.')} example="ASRS-A01 (SHUTTLE_ASRS)" /></>}>
-        <Select
-          value={d.blockId ?? ''}
-          onChange={(val) => setD({ ...d, blockId: val || null })}
-          options={[
-            { value: '', label: t('optNoneCap', '— None —') },
-            ...blocks.map((b) => ({ value: b.id ?? '', label: `${b.code} (${b.storageType})` })),
-          ]}
-          ariaLabel={t('fldStorageBlock', 'Storage block')}
-        />
-      </Field>
+      <div className="md-grid-2">
+        <Field label={<>{t('fldStorageBlock', 'Storage block')} <InfoTip text={t('tipLocStorageBlock', 'The storage block this location belongs to; leave as None for a standalone location.')} example="ASRS-A01 (SHUTTLE_ASRS)" /></>}>
+          <Select
+            value={d.blockId ?? ''}
+            onChange={(val) => setD({ ...d, blockId: val || null })}
+            options={[
+              { value: '', label: t('optNoneCap', '— None —') },
+              ...blocks.map((b) => ({ value: b.id ?? '', label: `${b.code} (${b.storageType})` })),
+            ]}
+            ariaLabel={t('fldStorageBlock', 'Storage block')}
+          />
+        </Field>
+        <Field label={<>{t('fldArea', 'Area')} <InfoTip text={t('tipLocArea', 'The logical area / zone this location sits in; leave as None if it is not assigned to an area.')} example="ZONE-A (Cold store)" /></>}>
+          <Select
+            value={d.areaId ?? ''}
+            onChange={(val) => setD({ ...d, areaId: val || null })}
+            options={[
+              { value: '', label: t('optNoneCap', '— None —') },
+              ...areas.map((a) => ({ value: a.id ?? '', label: a.name ? `${a.code} (${a.name})` : a.code })),
+            ]}
+            ariaLabel={t('fldArea', 'Area')}
+          />
+        </Field>
+      </div>
       <div className="md-grid-2">
         <Field label={<>{t('fldAisle', 'Aisle')} <InfoTip text={t('tipLocAisle', 'Aisle this location sits in; used for routing and grouping.')} example="A01" /></>}>
           <input

@@ -117,6 +117,11 @@ public class DispatchService {
         task.setFromLocationId(source.locationId());
         task.setStatus(DISPATCHED);
         task.setDeviceTaskId(deviceTaskId);
+        // Dispatch is the moment the operator commits to the collection move: stamp started_at (if not
+        // already) so the reservation can no longer be released or swept out from under them.
+        if (task.getStartedAt() == null) {
+            task.setStartedAt(java.time.Instant.now());
+        }
         ReplenishmentTask saved = tasks.save(task);
         log.info("replenishment task {} dispatched: sku {} from {} -> pick face {} (device task {})",
                 taskId, task.getSkuId(), source.locationId(), task.getToLocationId(), deviceTaskId);

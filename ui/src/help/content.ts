@@ -383,6 +383,27 @@ export const HELP: Record<string, ScreenHelp> = {
       "Search by partial code or description to find a SKU fast."
     ]
   },
+  "master-data:areas": {
+    "summary": "The logical zones a warehouse is divided into (for example ambient, cold store, mezzanine, returns). Areas may nest within one another, and each location can be assigned to an area. Scoped to the warehouse in the top bar.",
+    "sections": [
+      {
+        "heading": "What you do here",
+        "body": "Define the areas your warehouse is split into, so locations can be grouped by zone.\n1. Pick the warehouse, then click New.\n2. Set the Code, an optional Name and, for a sub-zone, a Parent area.\n3. Leave the Parent as None for a top-level area.\n\nKeep the tree current as the floor changes.\n1. Edit an area to rename it or move it under a different parent.\n2. Retire an area you no longer use by deleting it (it is archived, not erased)."
+      },
+      {
+        "heading": "On the floor",
+        "body": "You run a chilled section inside the main building. Create a top-level area Ambient and a child area Cold store under it, then assign the chilled locations to Cold store.\n\nYou reorganise a mezzanine into two zones. Add Mezzanine, then two child areas beneath it, and reassign the affected locations on the Locations screen."
+      },
+      {
+        "heading": "If something goes wrong",
+        "body": "If an area will not accept a parent: an area cannot sit inside itself or one of its own descendants, so those options are hidden to prevent cycles.\n\nIf a location shows no area: assign it on the Locations screen; the Area field there is optional."
+      }
+    ],
+    "tips": [
+      "Areas can nest arbitrarily deep; children are shown indented under their parent.",
+      "Assign a location to an area in the Locations catalog."
+    ]
+  },
   "master-data:storage-blocks": {
     "summary": "The storage pools the slotting and put-away engines work with: manual pick-face areas and automated systems (ASRS, AutoStore, AMR goods-to-person). Scoped to the warehouse in the top bar.",
     "sections": [

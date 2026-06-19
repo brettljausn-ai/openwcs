@@ -125,6 +125,17 @@ public final class VerifyFields {
                     Field.scalar("customerRef", "Customer reference"),
                     Field.scalar("lineCount", "Line count"))));
 
+    /** Area fields (kind area resolves a warehouse area header via master-data). */
+    private static final List<Field> AREA_FIELDS = List.of(
+            Field.scalar("areaId", "Area ID"),
+            Field.scalar("areaCode", "Area code"),
+            Field.scalar("name", "Area name"),
+            // The resolved area as a whole object (store it whole, or drill into one property).
+            Field.object("area", "Area (object)", List.of(
+                    Field.scalar("id", "Area ID"),
+                    Field.scalar("code", "Code"),
+                    Field.scalar("name", "Name"))));
+
     /** Per-kind catalog, keyed by verify kind. Insertion order matches {@link VerifyKinds#ALL}. */
     private static final Map<String, List<Field>> BY_KIND;
 
@@ -136,6 +147,7 @@ public final class VerifyFields {
         m.put(VerifyKinds.SKU_SCAN, SKU_FIELDS);
         m.put(VerifyKinds.ORDER, ORDER_FIELDS);
         m.put(VerifyKinds.ASN, ASN_FIELDS);
+        m.put(VerifyKinds.AREA, AREA_FIELDS);
         BY_KIND = Map.copyOf(m);
     }
 

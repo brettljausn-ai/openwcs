@@ -1,10 +1,12 @@
 package org.openwcs.counting.client;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -57,6 +59,20 @@ public class HttpMasterDataClient implements MasterDataClient {
         } catch (RuntimeException e) {
             log.debug("could not resolve SKU code for {}: {}", skuId, e.toString());
             return Optional.empty();
+        }
+    }
+
+    @Override
+    public List<UUID> areaLocationIds(UUID areaId) {
+        try {
+            List<UUID> ids = http.get()
+                    .uri("/api/master-data/areas/{id}/location-ids?recursive=true", areaId)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<UUID>>() {});
+            return ids == null ? List.of() : ids;
+        } catch (RuntimeException e) {
+            log.debug("could not resolve location ids for area {}: {}", areaId, e.toString());
+            return List.of();
         }
     }
 

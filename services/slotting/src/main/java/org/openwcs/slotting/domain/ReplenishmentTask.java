@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -56,6 +57,22 @@ public class ReplenishmentTask extends Auditable {
     /** The flow device-task created when this task was dispatched as a physical replenishment move. */
     @Column(name = "device_task_id")
     private UUID deviceTaskId;
+
+    /** Operator (X-Auth-User) this task is reserved to via claim-next, or null if unreserved. */
+    @Column(name = "reserved_by")
+    private String reservedBy;
+
+    /** When the reservation was taken (drives the stale-reservation sweeper), or null. */
+    @Column(name = "reserved_at")
+    private Instant reservedAt;
+
+    /** The handheld/runtime instance that holds the reservation (so release can target it), or null. */
+    @Column(name = "reserved_by_instance")
+    private String reservedByInstance;
+
+    /** When collection work began (set on dispatch): a started task is never released or swept. */
+    @Column(name = "started_at")
+    private Instant startedAt;
 
     public UUID getId() {
         return id;
@@ -143,5 +160,37 @@ public class ReplenishmentTask extends Auditable {
 
     public void setDeviceTaskId(UUID deviceTaskId) {
         this.deviceTaskId = deviceTaskId;
+    }
+
+    public String getReservedBy() {
+        return reservedBy;
+    }
+
+    public void setReservedBy(String reservedBy) {
+        this.reservedBy = reservedBy;
+    }
+
+    public Instant getReservedAt() {
+        return reservedAt;
+    }
+
+    public void setReservedAt(Instant reservedAt) {
+        this.reservedAt = reservedAt;
+    }
+
+    public String getReservedByInstance() {
+        return reservedByInstance;
+    }
+
+    public void setReservedByInstance(String reservedByInstance) {
+        this.reservedByInstance = reservedByInstance;
+    }
+
+    public Instant getStartedAt() {
+        return startedAt;
+    }
+
+    public void setStartedAt(Instant startedAt) {
+        this.startedAt = startedAt;
     }
 }

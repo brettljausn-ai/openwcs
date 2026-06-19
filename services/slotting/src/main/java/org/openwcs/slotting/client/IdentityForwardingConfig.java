@@ -8,14 +8,15 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
- * Propagates the caller's authenticated identity ({@code X-Auth-User}/{@code X-Auth-Roles})
- * onto outbound inter-service calls (slotting → master-data / inventory), so downstream RBAC
- * checks see the original user. Background jobs (no incoming request) forward nothing.
+ * Propagates the caller's authenticated identity ({@code X-Auth-User}/{@code X-Auth-Roles}/
+ * {@code X-Auth-Warehouses}) onto outbound inter-service calls (slotting to master-data / inventory),
+ * so downstream RBAC and warehouse-scope checks see the original user. Background jobs (no incoming
+ * request) forward nothing.
  */
 @Configuration
 public class IdentityForwardingConfig {
 
-    private static final String[] HEADERS = {"X-Auth-User", "X-Auth-Roles"};
+    private static final String[] HEADERS = {"X-Auth-User", "X-Auth-Roles", "X-Auth-Warehouses"};
 
     @Bean
     public RestClientCustomizer identityForwardingCustomizer() {
