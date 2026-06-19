@@ -1,0 +1,137 @@
+{
+  "inbound": {
+    "open": 8,
+    "expectedToday": 0,
+    "receiveErrorsToday": 0,
+    "projectedFinishIso": null
+  },
+  "outbound": {
+    "open": 24,
+    "releasedToday": 0,
+    "linesPickedToday": 0,
+    "shortsToday": 0,
+    "projectedFinishIso": null
+  },
+  "perHour": [
+    {
+      "hour": 0,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 1,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 2,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 3,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 4,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 5,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 6,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 7,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 8,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 9,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 10,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 11,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 12,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 13,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 14,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 15,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 16,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 17,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 18,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 19,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 20,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 21,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 22,
+      "inbound": 0,
+      "outbound": 0
+    },
+    {
+      "hour": 23,
+      "inbound": 0,
+      "outbound": 0
+    }
+  ]
+}

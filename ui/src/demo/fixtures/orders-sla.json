@@ -1,0 +1,76 @@
+{
+  "onTimeToCutoffPctToday": null,
+  "orderCycleTimeMedianMinToday": null,
+  "perDay": [
+    {
+      "day": "2026-06-06",
+      "onTimePct": null,
+      "cycleMedianMin": null
+    },
+    {
+      "day": "2026-06-07",
+      "onTimePct": null,
+      "cycleMedianMin": null
+    },
+    {
+      "day": "2026-06-08",
+      "onTimePct": null,
+      "cycleMedianMin": null
+    },
+    {
+      "day": "2026-06-09",
+      "onTimePct": null,
+      "cycleMedianMin": null
+    },
+    {
+      "day": "2026-06-10",
+      "onTimePct": 100,
+      "cycleMedianMin": 840
+    },
+    {
+      "day": "2026-06-11",
+      "onTimePct": null,
+      "cycleMedianMin": null
+    },
+    {
+      "day": "2026-06-12",
+      "onTimePct": null,
+      "cycleMedianMin": null
+    },
+    {
+      "day": "2026-06-13",
+      "onTimePct": null,
+      "cycleMedianMin": null
+    },
+    {
+      "day": "2026-06-14",
+      "onTimePct": 100,
+      "cycleMedianMin": 960
+    },
+    {
+      "day": "2026-06-15",
+      "onTimePct": null,
+      "cycleMedianMin": null
+    },
+    {
+      "day": "2026-06-16",
+      "onTimePct": null,
+      "cycleMedianMin": null
+    },
+    {
+      "day": "2026-06-17",
+      "onTimePct": null,
+      "cycleMedianMin": null
+    },
+    {
+      "day": "2026-06-18",
+      "onTimePct": null,
+      "cycleMedianMin": null
+    },
+    {
+      "day": "2026-06-19",
+      "onTimePct": null,
+      "cycleMedianMin": null
+    }
+  ]
+}

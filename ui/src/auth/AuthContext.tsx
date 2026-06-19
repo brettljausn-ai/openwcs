@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, ReactNode } fr
 import { passwordGrant, decodeJwt, refreshTokenGrant } from '../lib/keycloak'
 import { configureAuth, installAuthFetch } from '../lib/authFetch'
 import { AccessLevel, AccessOverrides, ScreenDef, SCREENS, accessLevel, accessibleScreens, canAccess, canWrite } from './screens'
+import { DEMO_SESSION, IS_DEMO } from '../demo/session'
 
 const STORAGE_KEY = 'openwcs.auth'
 
@@ -33,6 +34,9 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 function load(): Session | null {
+  // Public live demo: seed a fixed read-only session so RequireAuth passes and /login is never
+  // shown. No Keycloak, no real token (the fetch interceptor routes /api to the in-browser mock).
+  if (IS_DEMO) return { ...DEMO_SESSION }
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY)
     if (!raw) return null
@@ -78,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Persist + load per-screen access overrides (graceful: endpoint may not exist yet).
   useEffect(() => {
+    if (IS_DEMO) return // read-only is enforced below; no overrides fetch in the demo
     if (!session) {
       setOverrides({})
       return
@@ -98,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // (~minutes), so without this the session "dies" after a while and API calls start 401-ing
   // ("No warehouse access"). Refreshing reschedules itself off the new token.
   useEffect(() => {
+    if (IS_DEMO) return // the demo session never expires and has no refresh token
     if (!session) return
     const claims = decodeJwt(session.token)
     if (!claims.exp) return
@@ -136,14 +142,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionStorage.removeItem(STORAGE_KEY)
         setSession(null)
       },
-      can: (screen) => canAccess(screen, { roles, username, overrides }),
-      level: (screen) => accessLevel(screen, { roles, username, overrides }),
-      canWrite: (screen) => canWrite(screen, { roles, username, overrides }),
+      // Public live demo: read-only everywhere. Every screen/section is visible (can = true) but no
+      // write controls render (canWrite/writeAllowed = false). A clean short-circuit, not role math.
+      can: (screen) => (IS_DEMO ? true : canAccess(screen, { roles, username, overrides })),
+      level: (screen) => (IS_DEMO ? 'read' : accessLevel(screen, { roles, username, overrides })),
+      canWrite: (screen) => (IS_DEMO ? false : canWrite(screen, { roles, username, overrides })),
       writeAllowed: (screenKey) => {
+        if (IS_DEMO) return false
         const screen = SCREENS.find((s) => s.key === screenKey)
         return screen ? canWrite(screen, { roles, username, overrides }) : true
       },
-      myScreens: () => accessibleScreens({ roles, username, overrides }),
+      myScreens: () => (IS_DEMO ? SCREENS : accessibleScreens({ roles, username, overrides })),
     }
   }, [session, overrides])
 

@@ -1,0 +1,114 @@
+{
+  "a6ad02de-186b-40f5-8b93-b72f64b38c95": {
+    "id": "a6ad02de-186b-40f5-8b93-b72f64b38c95",
+    "code": "DEMO-SKU-001",
+    "description": "Star Wars Millennium Falcon model kit",
+    "imageUrl": "https://images.unsplash.com/photo-1560114928-40f1f1eb26a0?ixid=M3w4MjcwNjd8MHwxfHNlYXJjaHwyMXx8Y2F0c3xlbnwwfHx8fDE3ODA5MzAwNzN8MA&ixlib=rb-4.1.0&w=400&h=400&fit=max&q=80",
+    "baseUom": {
+      "code": "EA",
+      "lengthMm": 43,
+      "widthMm": 116,
+      "heightMm": 48,
+      "weightG": 122
+    },
+    "metadata": {}
+  },
+  "c1d05de0-5bfc-4e2c-a806-53b415f30d0a": {
+    "id": "c1d05de0-5bfc-4e2c-a806-53b415f30d0a",
+    "code": "DEMO-SKU-002",
+    "description": "Star Wars X-Wing model kit",
+    "imageUrl": "https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?ixid=M3w4MjcwNjd8MHwxfHNlYXJjaHw2fHxjYXRzfGVufDB8fHx8MTc4MDkzMDA3M3ww&ixlib=rb-4.1.0&w=400&h=400&fit=max&q=80",
+    "baseUom": {
+      "code": "EA",
+      "lengthMm": 13,
+      "widthMm": 181,
+      "heightMm": 90,
+      "weightG": 1079
+    },
+    "metadata": {}
+  },
+  "ea069315-61c1-4a0f-94e5-3286d340d659": {
+    "id": "ea069315-61c1-4a0f-94e5-3286d340d659",
+    "code": "DEMO-SKU-003",
+    "description": "Star Wars Darth Vader model kit",
+    "imageUrl": "https://images.unsplash.com/photo-1561948955-570b270e7c36?ixid=M3w4MjcwNjd8MHwxfHNlYXJjaHw3fHxjYXRzfGVufDB8fHx8MTc4MDkzMDA3M3ww&ixlib=rb-4.1.0&w=400&h=400&fit=max&q=80",
+    "baseUom": {
+      "code": "EA",
+      "lengthMm": 94,
+      "widthMm": 270,
+      "heightMm": 27,
+      "weightG": 1786
+    },
+    "metadata": {}
+  },
+  "4713fdd4-315d-4655-986c-713493500d7e": {
+    "id": "4713fdd4-315d-4655-986c-713493500d7e",
+    "code": "DEMO-SKU-004",
+    "description": "Star Wars Grogu model kit",
+    "imageUrl": "https://images.unsplash.com/photo-1574158622682-e40e69881006?ixid=M3w4MjcwNjd8MHwxfHNlYXJjaHwxNHx8Y2F0c3xlbnwwfHx8fDE3ODA5MzAwNzN8MA&ixlib=rb-4.1.0&w=400&h=400&fit=max&q=80",
+    "baseUom": {
+      "code": "EA",
+      "lengthMm": 61,
+      "widthMm": 50,
+      "heightMm": 53,
+      "weightG": 840
+    },
+    "metadata": {}
+  },
+  "5c397ef4-7b26-474d-85fa-bc08603d6243": {
+    "id": "5c397ef4-7b26-474d-85fa-bc08603d6243",
+    "code": "DEMO-SKU-005",
+    "description": "Star Wars Lightsaber model kit",
+    "imageUrl": "https://images.unsplash.com/photo-1548546738-8509cb246ed3?ixid=M3w4MjcwNjd8MHwxfHNlYXJjaHwyNHx8Y2F0c3xlbnwwfHx8fDE3ODA5MzAwNzN8MA&ixlib=rb-4.1.0&w=400&h=400&fit=max&q=80",
+    "baseUom": {
+      "code": "EA",
+      "lengthMm": 96,
+      "widthMm": 114,
+      "heightMm": 55,
+      "weightG": 810
+    },
+    "metadata": {}
+  },
+  "4c1bcaa3-8808-4000-80f3-abaf99102d81": {
+    "id": "4c1bcaa3-8808-4000-80f3-abaf99102d81",
+    "code": "DEMO-SKU-006",
+    "description": "Star Wars Stormtrooper model kit",
+    "imageUrl": "https://images.unsplash.com/photo-1503777119540-ce54b422baff?ixid=M3w4MjcwNjd8MHwxfHNlYXJjaHwxMXx8Y2F0c3xlbnwwfHx8fDE3ODA5MzAwNzN8MA&ixlib=rb-4.1.0&w=400&h=400&fit=max&q=80",
+    "baseUom": {
+      "code": "EA",
+      "lengthMm": 72,
+      "widthMm": 226,
+      "heightMm": 69,
+      "weightG": 1257
+    },
+    "metadata": {}
+  },
+  "2b6b6d5f-6d72-46b1-bdd3-572f9123bf22": {
+    "id": "2b6b6d5f-6d72-46b1-bdd3-572f9123bf22",
+    "code": "DEMO-SKU-007",
+    "description": "Star Wars BB-8 model kit",
+    "imageUrl": "https://images.unsplash.com/photo-1511044568932-338cba0ad803?ixid=M3w4MjcwNjd8MHwxfHNlYXJjaHwxM3x8Y2F0c3xlbnwwfHx8fDE3ODA5MzAwNzN8MA&ixlib=rb-4.1.0&w=400&h=400&fit=max&q=80",
+    "baseUom": {
+      "code": "EA",
+      "lengthMm": 99,
+      "widthMm": 243,
+      "heightMm": 72,
+      "weightG": 888
+    },
+    "metadata": {}
+  },
+  "d0bc4d35-1cac-4c3a-b46d-7705b68b26f4": {
+    "id": "d0bc4d35-1cac-4c3a-b46d-7705b68b26f4",
+    "code": "DEMO-SKU-008",
+    "description": "Star Wars Death Star model kit",
+    "imageUrl": "https://images.unsplash.com/photo-1548546738-8509cb246ed3?ixid=M3w4MjcwNjd8MHwxfHNlYXJjaHwyNHx8Y2F0c3xlbnwwfHx8fDE3ODA5MzAwNzN8MA&ixlib=rb-4.1.0&w=400&h=400&fit=max&q=80",
+    "baseUom": {
+      "code": "EA",
+      "lengthMm": 52,
+      "widthMm": 237,
+      "heightMm": 38,
+      "weightG": 827
+    },
+    "metadata": {}
+  }
+}

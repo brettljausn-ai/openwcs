@@ -68,7 +68,7 @@ function AppShellInner() {
     <div className={`app-shell${collapsed ? ' sidebar-collapsed' : ''}`}>
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <img src="/Logo_white_solo.png" alt="" />
+          <img src={`${import.meta.env.BASE_URL}Logo_white_solo.png`} alt="" />
           <span className="sidebar-wordmark">open<span className="accent">WCS</span></span>
         </div>
 
