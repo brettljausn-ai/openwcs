@@ -46,7 +46,7 @@ class StationCapacityTest {
     @Test
     void newStationUsesDefaultCapsAndCapacityCanBeSetAndReadBack() {
         GtpStation created = service.createStation(new CreateStationRequest(
-                UUID.randomUUID(), "GTP-CAP", null, "ORDER_LOCATION", List.of("PICKING"), List.of()));
+                UUID.randomUUID(), "GTP-CAP", null, "ORDER_LOCATION", List.of("PICKING"), null, null, List.of()));
 
         // Schema defaults.
         assertThat(created.getMaxInTransitPicking()).isEqualTo(4);
@@ -64,7 +64,7 @@ class StationCapacityTest {
     @Test
     void capacityRejectsNegativeCaps() {
         GtpStation station = service.createStation(new CreateStationRequest(
-                UUID.randomUUID(), "GTP-CAP-NEG", null, "PUT_WALL", List.of("PICKING"), List.of()));
+                UUID.randomUUID(), "GTP-CAP-NEG", null, "PUT_WALL", List.of("PICKING"), null, null, List.of()));
 
         assertThatThrownBy(() -> service.setCapacity(station.getId(), -1, 2))
                 .isInstanceOf(IllegalArgumentException.class);

@@ -9,7 +9,9 @@ import java.util.UUID;
  * Configure a GTP station and (optionally) its nodes in one call. {@code mode} is the destination
  * topology (ORDER_LOCATION or PUT_WALL). {@code supportedModes} is the optional set of operating
  * modes the station can run (PICKING | DECANTING | STOCK_COUNT | QC | MAINTENANCE); when omitted it
- * defaults to {@code [PICKING]}.
+ * defaults to {@code [PICKING]}. {@code pickLayout} is the picking layout (ONE_TO_ONE | ONE_TO_N |
+ * PUT_WALL); when omitted it defaults to ONE_TO_ONE. {@code pickSlots} is the slot count for
+ * ONE_TO_N (at least 2) and is otherwise null.
  */
 public record CreateStationRequest(
         @NotNull UUID warehouseId,
@@ -17,6 +19,8 @@ public record CreateStationRequest(
         String name,
         @NotBlank String mode,
         List<String> supportedModes,
+        String pickLayout,
+        Integer pickSlots,
         List<NodeSpec> nodes) {
 
     /** One node to create: STOCK (presentation) or ORDER (destination). */

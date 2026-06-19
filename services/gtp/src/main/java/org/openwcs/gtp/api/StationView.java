@@ -14,6 +14,8 @@ public record StationView(
         String name,
         String mode,
         List<String> supportedModes,
+        String pickLayout,
+        Integer pickSlots,
         String status,
         boolean acceptingWork,
         int maxInTransitPicking,
@@ -22,7 +24,8 @@ public record StationView(
 
     public static StationView from(GtpStation s, List<StationNode> nodes) {
         return new StationView(s.getId(), s.getWarehouseId(), s.getCode(), s.getName(), s.getMode(),
-                s.supportedModeSet().stream().map(OperatingMode::name).toList(), s.getStatus(),
+                s.supportedModeSet().stream().map(OperatingMode::name).toList(),
+                s.getPickLayout(), s.getPickSlots(), s.getStatus(),
                 s.isAcceptingWork(), s.getMaxInTransitPicking(), s.getMaxInTransitOther(),
                 nodes.stream().map(NodeView::from).toList());
     }

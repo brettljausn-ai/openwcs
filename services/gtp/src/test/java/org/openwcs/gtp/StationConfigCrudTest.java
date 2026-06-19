@@ -56,14 +56,14 @@ class StationConfigCrudTest {
     void createsStationWithNameThenUpdatesItsConfiguration() {
         UUID wh = UUID.randomUUID();
         GtpStation created = service.createStation(new CreateStationRequest(
-                wh, "GTP-1", "Aisle 1 Put-wall", "PUT_WALL", List.of("PICKING"), List.of()));
+                wh, "GTP-1", "Aisle 1 Put-wall", "PUT_WALL", List.of("PICKING"), null, null, List.of()));
 
         assertThat(created.getName()).isEqualTo("Aisle 1 Put-wall");
         assertThat(created.getMode()).isEqualTo("PUT_WALL");
 
         GtpStation updated = service.updateStation(created.getId(), new UpdateStationRequest(
                 "GTP-1A", "Aisle 1 Order-locations", "ORDER_LOCATION", "INACTIVE",
-                List.of("PICKING", "QC")));
+                List.of("PICKING", "QC"), null, null));
 
         GtpStation reloaded = stations.findById(created.getId()).orElseThrow();
         assertThat(reloaded.getCode()).isEqualTo("GTP-1A");
@@ -78,17 +78,17 @@ class StationConfigCrudTest {
     void updateRejectsDuplicateCodeAndKeepsModesWhenOmitted() {
         UUID wh = UUID.randomUUID();
         GtpStation a = service.createStation(new CreateStationRequest(
-                wh, "DUP-A", null, "ORDER_LOCATION", List.of("PICKING", "DECANTING"), List.of()));
+                wh, "DUP-A", null, "ORDER_LOCATION", List.of("PICKING", "DECANTING"), null, null, List.of()));
         service.createStation(new CreateStationRequest(
-                wh, "DUP-B", null, "ORDER_LOCATION", List.of("PICKING"), List.of()));
+                wh, "DUP-B", null, "ORDER_LOCATION", List.of("PICKING"), null, null, List.of()));
 
         // Renaming A to B's code in the same warehouse is a conflict.
         assertThatThrownBy(() -> service.updateStation(a.getId(), new UpdateStationRequest(
-                "DUP-B", null, "ORDER_LOCATION", null, null)))
+                "DUP-B", null, "ORDER_LOCATION", null, null, null, null)))
                 .isInstanceOf(IllegalStateException.class);
 
         // A null supportedModes keeps the existing set.
-        service.updateStation(a.getId(), new UpdateStationRequest("DUP-A2", null, "PUT_WALL", null, null));
+        service.updateStation(a.getId(), new UpdateStationRequest("DUP-A2", null, "PUT_WALL", null, null, null, null));
         GtpStation reloaded = stations.findById(a.getId()).orElseThrow();
         assertThat(reloaded.getCode()).isEqualTo("DUP-A2");
         assertThat(reloaded.supportedModeSet()).extracting(Enum::name)
@@ -98,7 +98,7 @@ class StationConfigCrudTest {
     @Test
     void addsUpdatesAndRemovesNodes() {
         GtpStation station = service.createStation(new CreateStationRequest(
-                UUID.randomUUID(), "GTP-N", null, "PUT_WALL", List.of("PICKING"), List.of()));
+                UUID.randomUUID(), "GTP-N", null, "PUT_WALL", List.of("PICKING"), null, null, List.of()));
 
         StationNode node = service.addNode(station.getId(),
                 new AddNodeRequest("ORDER", "A1", "light-A1", null, null, 1));
@@ -120,7 +120,7 @@ class StationConfigCrudTest {
     @Test
     void deletingStationCascadesToNodes() {
         GtpStation station = service.createStation(new CreateStationRequest(
-                UUID.randomUUID(), "GTP-DEL", null, "ORDER_LOCATION", List.of("PICKING"), List.of()));
+                UUID.randomUUID(), "GTP-DEL", null, "ORDER_LOCATION", List.of("PICKING"), null, null, List.of()));
         StationNode stock = service.addNode(station.getId(),
                 new AddNodeRequest("STOCK", "S1", null, null, null, 0));
 

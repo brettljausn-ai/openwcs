@@ -62,7 +62,7 @@ class DecantCompartmentRuleTest {
     private GtpStation decantStation() {
         GtpStation station = stationService.createStation(new CreateStationRequest(
                 UUID.randomUUID(), "GTP-" + UUID.randomUUID(), null, "ORDER_LOCATION",
-                List.of("PICKING", "DECANTING"), List.of()));
+                List.of("PICKING", "DECANTING"), null, null, List.of()));
         stationService.addNode(station.getId(), new AddNodeRequest("STOCK", "S1", null, null, null, 0));
         return station;
     }
