@@ -1,0 +1,15 @@
+{
+  "husReceivedToday": 0,
+  "huCount": 74,
+  "skuCountWithStock": 24,
+  "utilisationPct": 9.238451935081148,
+  "asrsUtilisationPct": 9.238451935081148,
+  "putawayBacklog": {
+    "count": 0,
+    "oldestAgeMin": null
+  },
+  "dockToStock": {
+    "medianMin": null,
+    "samples": 0
+  }
+}

@@ -1,0 +1,19 @@
+[
+  {
+    "createdAt": "2026-06-04T13:27:42.710560Z",
+    "updatedAt": "2026-06-04T15:55:39.167530Z",
+    "version": 2,
+    "id": "6d582eab-3865-4da0-9198-6c92685fe771",
+    "warehouseId": "394dfd10-f541-48b5-84d8-773322549a3b",
+    "code": "Shuttle Aisle 1",
+    "storageType": "SHUTTLE_ASRS",
+    "slottingGranularity": "BLOCK",
+    "equipmentId": "e472305e-800b-4021-a0a6-296504c76c19",
+    "gtp": false,
+    "allowedHuTypes": [
+      "TOTE",
+      "DEMO-STORAGE-HU"
+    ],
+    "status": "ACTIVE"
+  }
+]

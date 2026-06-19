@@ -1,0 +1,111 @@
+{
+  "activeBySeverity": {
+    "warning": 1,
+    "critical": 3
+  },
+  "perDay": [
+    {
+      "day": "2026-06-06",
+      "opened": 0,
+      "cleared": 0
+    },
+    {
+      "day": "2026-06-07",
+      "opened": 1,
+      "cleared": 1
+    },
+    {
+      "day": "2026-06-08",
+      "opened": 0,
+      "cleared": 0
+    },
+    {
+      "day": "2026-06-09",
+      "opened": 1,
+      "cleared": 1
+    },
+    {
+      "day": "2026-06-10",
+      "opened": 0,
+      "cleared": 0
+    },
+    {
+      "day": "2026-06-11",
+      "opened": 2,
+      "cleared": 2
+    },
+    {
+      "day": "2026-06-12",
+      "opened": 1,
+      "cleared": 1
+    },
+    {
+      "day": "2026-06-13",
+      "opened": 3,
+      "cleared": 2
+    },
+    {
+      "day": "2026-06-14",
+      "opened": 1,
+      "cleared": 1
+    },
+    {
+      "day": "2026-06-15",
+      "opened": 3,
+      "cleared": 0
+    },
+    {
+      "day": "2026-06-16",
+      "opened": 0,
+      "cleared": 0
+    },
+    {
+      "day": "2026-06-17",
+      "opened": 0,
+      "cleared": 0
+    },
+    {
+      "day": "2026-06-18",
+      "opened": 0,
+      "cleared": 0
+    },
+    {
+      "day": "2026-06-19",
+      "opened": 0,
+      "cleared": 0
+    }
+  ],
+  "chattering": [
+    {
+      "area": "ALLOCATION",
+      "metric": "stockBlockingPct",
+      "flaps": 4
+    }
+  ],
+  "stale": [
+    {
+      "id": "c466f6ca-ca06-4a2e-aaf3-e3a297e2cc63",
+      "area": "RECEIVING",
+      "metric": "receiveErrorsDay",
+      "ageMin": 8590
+    },
+    {
+      "id": "e65d291b-4e9d-4813-92d6-4053362d9a66",
+      "area": "SCAN",
+      "metric": "scanNoReadPct",
+      "ageMin": 5745
+    },
+    {
+      "id": "e81ff4ef-c89e-4a38-9864-b7bc5da444c8",
+      "area": "ASRS",
+      "metric": "asrsUtilisationPct",
+      "ageMin": 5725
+    },
+    {
+      "id": "4dd6b3a2-f4cb-4054-ae80-32a5d370fb84",
+      "area": "REPLENISHMENT",
+      "metric": "replenishmentOldestAgeMin",
+      "ageMin": 5589
+    }
+  ]
+}

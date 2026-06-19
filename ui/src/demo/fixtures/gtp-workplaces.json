@@ -1,0 +1,29 @@
+[
+  {
+    "id": "407fced6-5f56-4b56-8b3a-2641cfa5d027",
+    "warehouseId": "394dfd10-f541-48b5-84d8-773322549a3b",
+    "code": "PP1",
+    "mode": "ORDER_LOCATION",
+    "supportedModes": [
+      "PICKING",
+      "STOCK_COUNT"
+    ],
+    "status": "ACTIVE",
+    "acceptingWork": true,
+    "inUse": false,
+    "nodes": []
+  },
+  {
+    "id": "6443c0b1-f068-4dbc-bd72-1cae9028e5d6",
+    "warehouseId": "394dfd10-f541-48b5-84d8-773322549a3b",
+    "code": "D1",
+    "mode": "ORDER_LOCATION",
+    "supportedModes": [
+      "DECANTING"
+    ],
+    "status": "ACTIVE",
+    "acceptingWork": true,
+    "inUse": false,
+    "nodes": []
+  }
+]

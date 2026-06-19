@@ -1,0 +1,260 @@
+{
+  "a": 4,
+  "b": 6,
+  "c": 8,
+  "pareto": [
+    {
+      "skuId": "85235f14-70b1-495d-b025-7d447f83ea08",
+      "picks": 83.52,
+      "cumPct": 28.61
+    },
+    {
+      "skuId": "2bd6f17a-0081-4941-898f-7a633109dd7b",
+      "picks": 41.76,
+      "cumPct": 42.92
+    },
+    {
+      "skuId": "3bdcdc32-fcdf-4f68-b13c-2caaa725499e",
+      "picks": 27.84,
+      "cumPct": 52.45
+    },
+    {
+      "skuId": "b0b7ffe3-40fc-4e0c-a6c7-f058ac9aea85",
+      "picks": 20.88,
+      "cumPct": 59.61
+    },
+    {
+      "skuId": "9e301ad0-97ff-406d-9ecc-05c2ae01c6ee",
+      "picks": 16.7,
+      "cumPct": 65.33
+    },
+    {
+      "skuId": "94e4e08e-b403-486e-b050-aaf54955218c",
+      "picks": 13.92,
+      "cumPct": 70.1
+    },
+    {
+      "skuId": "ce743dd0-371f-475e-b51d-7992b6cdbd76",
+      "picks": 11.93,
+      "cumPct": 74.19
+    },
+    {
+      "skuId": "9ab6806a-27b6-4a88-b395-364053f29a60",
+      "picks": 10.44,
+      "cumPct": 77.76
+    },
+    {
+      "skuId": "034ef15e-c99a-4b69-bb43-e23dbd3738dc",
+      "picks": 9.28,
+      "cumPct": 80.94
+    },
+    {
+      "skuId": "862ff949-f018-4975-9d38-5a4c7e5c6ee5",
+      "picks": 8.35,
+      "cumPct": 83.8
+    },
+    {
+      "skuId": "ffb94cf1-4023-4381-8f1a-4c8705444586",
+      "picks": 7.59,
+      "cumPct": 86.4
+    },
+    {
+      "skuId": "f75372af-3e6e-4ddb-b14c-c34352840b46",
+      "picks": 6.96,
+      "cumPct": 88.79
+    },
+    {
+      "skuId": "05e0df38-c802-4715-b9ef-50403e98b38c",
+      "picks": 6.42,
+      "cumPct": 90.99
+    },
+    {
+      "skuId": "c45c252b-e99d-4fb5-8caa-8220e26dfac1",
+      "picks": 5.96,
+      "cumPct": 93.03
+    },
+    {
+      "skuId": "610d7ab3-a1df-4ced-96b1-abfb717d2c38",
+      "picks": 5.57,
+      "cumPct": 94.94
+    },
+    {
+      "skuId": "b997764a-93f3-4b53-a281-d8c503d1e951",
+      "picks": 5.22,
+      "cumPct": 96.73
+    },
+    {
+      "skuId": "33bb7f40-8d4f-40e7-87b7-57e95ce907e5",
+      "picks": 4.91,
+      "cumPct": 98.41
+    },
+    {
+      "skuId": "f3900226-f9aa-4c98-b22b-f36e069cd5b3",
+      "picks": 4.64,
+      "cumPct": 100
+    }
+  ],
+  "top": [
+    {
+      "skuId": "85235f14-70b1-495d-b025-7d447f83ea08",
+      "picks": 83.52
+    },
+    {
+      "skuId": "2bd6f17a-0081-4941-898f-7a633109dd7b",
+      "picks": 41.76
+    },
+    {
+      "skuId": "3bdcdc32-fcdf-4f68-b13c-2caaa725499e",
+      "picks": 27.84
+    },
+    {
+      "skuId": "b0b7ffe3-40fc-4e0c-a6c7-f058ac9aea85",
+      "picks": 20.88
+    },
+    {
+      "skuId": "9e301ad0-97ff-406d-9ecc-05c2ae01c6ee",
+      "picks": 16.7
+    },
+    {
+      "skuId": "94e4e08e-b403-486e-b050-aaf54955218c",
+      "picks": 13.92
+    },
+    {
+      "skuId": "ce743dd0-371f-475e-b51d-7992b6cdbd76",
+      "picks": 11.93
+    },
+    {
+      "skuId": "9ab6806a-27b6-4a88-b395-364053f29a60",
+      "picks": 10.44
+    },
+    {
+      "skuId": "034ef15e-c99a-4b69-bb43-e23dbd3738dc",
+      "picks": 9.28
+    },
+    {
+      "skuId": "862ff949-f018-4975-9d38-5a4c7e5c6ee5",
+      "picks": 8.35
+    }
+  ],
+  "bottom": [
+    {
+      "skuId": "f3900226-f9aa-4c98-b22b-f36e069cd5b3",
+      "picks": 4.64
+    },
+    {
+      "skuId": "33bb7f40-8d4f-40e7-87b7-57e95ce907e5",
+      "picks": 4.91
+    },
+    {
+      "skuId": "b997764a-93f3-4b53-a281-d8c503d1e951",
+      "picks": 5.22
+    },
+    {
+      "skuId": "610d7ab3-a1df-4ced-96b1-abfb717d2c38",
+      "picks": 5.57
+    },
+    {
+      "skuId": "c45c252b-e99d-4fb5-8caa-8220e26dfac1",
+      "picks": 5.96
+    },
+    {
+      "skuId": "05e0df38-c802-4715-b9ef-50403e98b38c",
+      "picks": 6.42
+    },
+    {
+      "skuId": "f75372af-3e6e-4ddb-b14c-c34352840b46",
+      "picks": 6.96
+    },
+    {
+      "skuId": "ffb94cf1-4023-4381-8f1a-4c8705444586",
+      "picks": 7.59
+    },
+    {
+      "skuId": "862ff949-f018-4975-9d38-5a4c7e5c6ee5",
+      "picks": 8.35
+    },
+    {
+      "skuId": "034ef15e-c99a-4b69-bb43-e23dbd3738dc",
+      "picks": 9.28
+    }
+  ],
+  "risers": [
+    {
+      "skuId": "85235f14-70b1-495d-b025-7d447f83ea08",
+      "pct14d": 75.47,
+      "pct90d": 45.76
+    },
+    {
+      "skuId": "94e4e08e-b403-486e-b050-aaf54955218c",
+      "pct14d": 4.4,
+      "pct90d": 3.39
+    },
+    {
+      "skuId": "b0b7ffe3-40fc-4e0c-a6c7-f058ac9aea85",
+      "pct14d": 4.4,
+      "pct90d": 3.39
+    },
+    {
+      "skuId": "f75372af-3e6e-4ddb-b14c-c34352840b46",
+      "pct14d": 1.26,
+      "pct90d": 1.02
+    },
+    {
+      "skuId": "ffb94cf1-4023-4381-8f1a-4c8705444586",
+      "pct14d": 1.26,
+      "pct90d": 1.02
+    }
+  ],
+  "fallers": [
+    {
+      "skuId": "3bdcdc32-fcdf-4f68-b13c-2caaa725499e",
+      "pct14d": 0,
+      "pct90d": 7.8
+    },
+    {
+      "skuId": "2bd6f17a-0081-4941-898f-7a633109dd7b",
+      "pct14d": 9.43,
+      "pct90d": 16.95
+    },
+    {
+      "skuId": "9e301ad0-97ff-406d-9ecc-05c2ae01c6ee",
+      "pct14d": 0,
+      "pct90d": 3.05
+    },
+    {
+      "skuId": "034ef15e-c99a-4b69-bb43-e23dbd3738dc",
+      "pct14d": 0,
+      "pct90d": 2.71
+    },
+    {
+      "skuId": "ce743dd0-371f-475e-b51d-7992b6cdbd76",
+      "pct14d": 0,
+      "pct90d": 2.71
+    },
+    {
+      "skuId": "9ab6806a-27b6-4a88-b395-364053f29a60",
+      "pct14d": 0,
+      "pct90d": 2.03
+    },
+    {
+      "skuId": "c45c252b-e99d-4fb5-8caa-8220e26dfac1",
+      "pct14d": 0,
+      "pct90d": 1.69
+    },
+    {
+      "skuId": "05e0df38-c802-4715-b9ef-50403e98b38c",
+      "pct14d": 0,
+      "pct90d": 1.36
+    },
+    {
+      "skuId": "f3900226-f9aa-4c98-b22b-f36e069cd5b3",
+      "pct14d": 0,
+      "pct90d": 1.02
+    },
+    {
+      "skuId": "33bb7f40-8d4f-40e7-87b7-57e95ce907e5",
+      "pct14d": 0,
+      "pct90d": 1.02
+    }
+  ]
+}
