@@ -225,6 +225,50 @@ spec:
     - port: 9094
       targetPort: 9094
 ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adapter-ptl
+  namespace: openwcs
+  labels: { app: adapter-ptl }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: adapter-ptl }
+  template:
+    metadata:
+      labels: { app: adapter-ptl }
+    spec:
+      containers:
+        - name: adapter-ptl
+          image: REGISTRY/openwcs-adapter-ptl:TAG
+          env:
+            - { name: PORT, value: "9098" }
+          ports:
+            - containerPort: 9098
+          readinessProbe:
+            httpGet: { path: /readyz, port: 9098 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 9098 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "100m", memory: "64Mi" }
+            limits: { memory: "128Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: adapter-ptl
+  namespace: openwcs
+spec:
+  selector: { app: adapter-ptl }
+  ports:
+    - port: 9098
+      targetPort: 9098
+---
 # conveyor-sniffer — SINGLE REPLICA ONLY.
 # It accepts a long-lived TCP telegram stream per conveyor controller on SNIFFER_LISTEN; round-robin
 # load balancing across replicas would fragment telegrams. Pinned to replicas: 1 with a Recreate

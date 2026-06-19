@@ -44,15 +44,48 @@ func TestSimulatesEachFamily(t *testing.T) {
 		{"AMR", "TRANSPORT"},
 		{"AUTOSTORE", "BIN_RETRIEVE"},
 		{"AUTOSTORE", "BIN_RELOCATE"},
+		{"PTL", "ILLUMINATE"},
+		{"PTL", "CLEAR"},
 	}
 	for _, c := range cases {
-		res := postTask(t, deviceTaskRequest{TaskID: "t", Family: c.family, Command: c.command, EquipmentID: "e1"})
+		res := postTask(t, deviceTaskRequest{TaskID: "t", Family: c.family, Command: c.command, EquipmentID: "e1", Payload: map[string]interface{}{"lightId": "L-1"}})
 		if res.Status != "COMPLETED" {
 			t.Fatalf("%s/%s: status = %q, want COMPLETED", c.family, c.command, res.Status)
 		}
 		if res.ResultPayload["family"] != c.family {
 			t.Fatalf("%s/%s: resultPayload.family = %v, want %s", c.family, c.command, res.ResultPayload["family"], c.family)
 		}
+	}
+}
+
+// The PTL family: ILLUMINATE lights a lamp (shown in GET /state with its qty/color), CLEAR turns it
+// off (gone from /state).
+func TestPTLIlluminateAndClearTracksLitSet(t *testing.T) {
+	res := postTask(t, deviceTaskRequest{
+		TaskID: "ptl-1", Family: "PTL", Command: "ILLUMINATE", EquipmentID: "station-1",
+		Payload: map[string]interface{}{"lightId": "L-09", "qty": 4, "color": "green"},
+	})
+	if res.Status != "COMPLETED" {
+		t.Fatalf("ILLUMINATE status = %q, want COMPLETED", res.Status)
+	}
+
+	snap := sim.snapshot()
+	lit, ok := snap["lit"].(map[string]litLight)
+	if !ok {
+		t.Fatalf("snapshot lit = %T, want map[string]litLight", snap["lit"])
+	}
+	if got := lit["L-09"]; got.Qty != 4 || got.Color != "green" {
+		t.Fatalf("lit[L-09] = %+v, want qty=4 color=green", got)
+	}
+
+	if res := postTask(t, deviceTaskRequest{
+		TaskID: "ptl-2", Family: "PTL", Command: "CLEAR", EquipmentID: "station-1",
+		Payload: map[string]interface{}{"lightId": "L-09"},
+	}); res.Status != "COMPLETED" {
+		t.Fatalf("CLEAR status = %q, want COMPLETED", res.Status)
+	}
+	if lit := sim.snapshot()["lit"].(map[string]litLight); func() bool { _, ok := lit["L-09"]; return ok }() {
+		t.Fatalf("lit[L-09] still present after CLEAR: %v", lit)
 	}
 }
 

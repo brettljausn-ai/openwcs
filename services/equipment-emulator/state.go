@@ -27,14 +27,40 @@ type deviceState struct {
 	totalFailed    int64
 	walks          int64 // completed live conveyor walks (ADR-0008 3d-2)
 
+	// lit is the set of currently illuminated pick-to-light lamps, keyed by lightId. ILLUMINATE adds
+	// (with the shown qty + optional color), CLEAR removes. Exposed in GET /state so the full stack can
+	// demonstrate lights without real hardware.
+	lit map[string]litLight
+
 	startTime     time.Time
 	ticks         int64
 	lastHeartbeat string
 }
 
+// litLight is one currently illuminated pick-to-light lamp: the quantity shown plus an optional color.
+type litLight struct {
+	Qty   int    `json:"qty"`
+	Color string `json:"color,omitempty"`
+}
+
 var sim = &deviceState{
 	families:  map[string]*familyState{},
+	lit:       map[string]litLight{},
 	startTime: time.Now(),
+}
+
+// illuminate turns a pick-to-light lamp on, showing qty (and an optional color).
+func (s *deviceState) illuminate(lightID string, qty int, color string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lit[lightID] = litLight{Qty: qty, Color: color}
+}
+
+// clearLight turns a pick-to-light lamp off.
+func (s *deviceState) clearLight(lightID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.lit, lightID)
 }
 
 // family returns (creating if needed) the per-family tallies. Caller holds the lock.
@@ -103,9 +129,14 @@ func (s *deviceState) snapshot() map[string]interface{} {
 			"commandCounts": counts,
 		}
 	}
+	lit := make(map[string]litLight, len(s.lit))
+	for id, l := range s.lit {
+		lit[id] = l
+	}
 	return map[string]interface{}{
 		"service":  serviceName,
 		"emulator": "ON",
+		"lit":      lit,
 		"config": map[string]interface{}{
 			"latencyOverrideMs": latencyOverrideMs.Load(),
 			"faultEvery":        faultEvery.Load(),
