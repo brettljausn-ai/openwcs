@@ -6,6 +6,7 @@ import { HandlingUnit, listHandlingUnits } from '../inventory/api'
 import { HandlingUnitType, SkuCard, getSkuCard, listHandlingUnitTypes } from '../masterdata/api'
 import {
   OperatingMode,
+  PickLayout,
   Workplace,
   WorkplaceSession,
   WorkCycle,
@@ -643,7 +644,8 @@ function OperatorConsole({
           cycle ? (
             // Active pick: one bordered box split left/right (source | target) with a center divider
             // carrying a source-to-target arrow, fitting the window (no page scroll). Each side scrolls
-            // its own overflow. The right side (CycleView) owns the focused confirmation input.
+            // its own overflow. The target side branches by the cycle's pickLayout (1-to-1 carton,
+            // 1-to-N slots, or put-wall lights); the flow qty in the middle is the sum of OPEN puts.
             <div className="op-gtp-pick glass">
               <div className="op-gtp-flow">
                 <section className="op-gtp-side op-gtp-source">
@@ -657,16 +659,26 @@ function OperatorConsole({
                   />
                 </section>
                 <div className="op-gtp-divider">
-                  {/* The flow quantity sits in the middle: arrow, units to move, arrow (source to target). */}
+                  {/* The flow quantity sits in the middle: arrow, units to move (sum of OPEN puts), arrow. */}
                   <div className="op-gtp-flow-qty">
                     <span className="op-gtp-arrow" aria-hidden="true">→</span>
-                    <span className="op-gtp-flow-qty-num">{cycle.puts.find((p) => p.status === 'OPEN')?.qty ?? ''}</span>
+                    <span className="op-gtp-flow-qty-num">{flowQty(cycle) || ''}</span>
                     <span className="op-gtp-arrow" aria-hidden="true">→</span>
                   </div>
                 </div>
                 <section className="op-gtp-side op-gtp-dest">
                   <span className="eyebrow op-gtp-side-label">{t('target', 'Target')}</span>
-                  <CycleView cycle={cycle} onChange={handleCycleChange} warehouseId={workplace.warehouseId} />
+                  {layoutOf(cycle) === 'ONE_TO_N' ? (
+                    <SlotsView
+                      cycle={cycle}
+                      workplace={workplace}
+                      onChange={handleCycleChange}
+                    />
+                  ) : layoutOf(cycle) === 'PUT_WALL' ? (
+                    <PutWallView cycle={cycle} onChange={handleCycleChange} />
+                  ) : (
+                    <CycleView cycle={cycle} onChange={handleCycleChange} warehouseId={workplace.warehouseId} />
+                  )}
                 </section>
               </div>
             </div>
@@ -2003,6 +2015,234 @@ function CycleView({
         </form>
       )}
       {/* No manual finish/close button: the tote is released automatically once all puts are confirmed. */}
+    </div>
+  )
+}
+
+// --- Multi-target pick layouts (1-to-N slots + put wall) ------------------------------------------
+
+// The effective pick layout for a cycle. Older backends may omit it; treat absent as the classic
+// single-carton flow so nothing regresses.
+function layoutOf(cycle: WorkCycle): PickLayout {
+  return cycle.pickLayout ?? 'ONE_TO_ONE'
+}
+
+// The middle flow quantity = total units to take from the source this pick = sum of OPEN put qtys.
+function flowQty(cycle: WorkCycle): number {
+  return cycle.puts.filter((p) => p.status === 'OPEN').reduce((sum, p) => sum + p.qty, 0)
+}
+
+// Shared confirm + auto-release behaviour for the multi-target layouts. confirm(put) is a full
+// confirm; confirm(put, n) is a short confirm. When no OPEN puts remain the cycle auto-releases
+// (mirrors CycleView's auto-release), so no operator "finish" action is needed.
+function usePutConfirm(cycle: WorkCycle, onChange: (c: WorkCycle | null) => void) {
+  const [error, setError] = useState<string | null>(null)
+  const openCount = cycle.puts.filter((p) => p.status === 'OPEN').length
+
+  const confirm = useCallback(
+    async (p: PutInstruction, qty?: number) => {
+      setError(null)
+      try {
+        const updated = await confirmPut(p.id, qty)
+        onChange({ ...cycle, puts: cycle.puts.map((x) => (x.id === p.id ? updated : x)) })
+      } catch (e) {
+        setError(String(e instanceof Error ? e.message : e))
+      }
+    },
+    [cycle, onChange],
+  )
+
+  const releasingRef = useRef(false)
+  useEffect(() => {
+    if (openCount > 0) {
+      releasingRef.current = false
+      return
+    }
+    if (cycle.puts.length === 0) return // no demand at all: nothing to release here
+    if (releasingRef.current) return
+    releasingRef.current = true
+    closeCycle(cycle.id)
+      .then(() => onChange(null))
+      .catch((e) => {
+        releasingRef.current = false
+        setError(String(e instanceof Error ? e.message : e))
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openCount, cycle.id])
+
+  return { confirm, error }
+}
+
+// A small "short" stepper inside a slot/light cell: lets the operator confirm fewer than the full
+// qty. Tapping the cell body confirms full; this control confirms `n` (1..qty-1). Stops click
+// propagation so adjusting the number does not also fire the full-confirm tap.
+function ShortControl({ put, onShort }: { put: PutInstruction; onShort: (n: number) => void }) {
+  const t = useT('gtpops')
+  const [n, setN] = useState(Math.max(1, put.qty - 1))
+  const clamp = (v: number) => Math.max(1, Math.min(put.qty - 1, v))
+  if (put.qty <= 1) return null // nothing to short on a single-unit put
+  return (
+    <div className="op-gtp-slot-short" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        className="op-gtp-slot-step"
+        aria-label={t('decrease', 'Decrease')}
+        onClick={() => setN((v) => clamp(v - 1))}
+      >
+        −
+      </button>
+      <span className="op-gtp-slot-short-n">{n}</span>
+      <button
+        type="button"
+        className="op-gtp-slot-step"
+        aria-label={t('increase', 'Increase')}
+        onClick={() => setN((v) => clamp(v + 1))}
+      >
+        +
+      </button>
+      <button
+        type="button"
+        className="op-gtp-slot-short-go"
+        onClick={() => onShort(clamp(n))}
+      >
+        {t('shortBtn', 'Short')}
+      </button>
+    </div>
+  )
+}
+
+// 1-to-N slots: render ALL slots left-to-right (wrapping). Slots come from the workplace's ORDER
+// nodes ordered by position; if none are available, fall back to cycle.pickSlots positions. Each slot
+// maps to a put by destinationNodeId, else by index order (the demo has no resolvable node ids). Slot
+// states: GREY = no put targets it this pick; ORANGE = an OPEN put targets it (shows its qty); GREEN
+// = the put is CONFIRMED. Tapping an ORANGE slot confirms its full qty; the short control confirms
+// fewer. Auto-releases when all puts are confirmed.
+function SlotsView({
+  cycle,
+  workplace,
+  onChange,
+}: {
+  cycle: WorkCycle
+  workplace: Workplace
+  onChange: (c: WorkCycle | null) => void
+}) {
+  const t = useT('gtpops')
+  const { confirm, error } = usePutConfirm(cycle, onChange)
+
+  // Slot identities: ORDER nodes by position, else a synthetic 1..N from the cycle's pickSlots.
+  const orderNodes = useMemo(
+    () => workplace.nodes.filter((n) => n.role === 'ORDER').sort((a, b) => a.position - b.position),
+    [workplace.nodes],
+  )
+  const slotCount = orderNodes.length > 0 ? orderNodes.length : Math.max(2, cycle.pickSlots ?? cycle.puts.length)
+
+  // Map each slot index to its put: prefer destinationNodeId when the node ids resolve, else fall
+  // back to put order (put[i] -> slot[i]). The fallback covers the demo, where node ids are synthetic.
+  const putForSlot = useMemo(() => {
+    const byNode = new Map<string, PutInstruction>()
+    if (orderNodes.length > 0) {
+      for (const p of cycle.puts) byNode.set(p.destinationNodeId, p)
+    }
+    const resolvedByNode = orderNodes.length > 0 && orderNodes.some((n) => byNode.has(n.id))
+    return (i: number): PutInstruction | null => {
+      if (resolvedByNode) return byNode.get(orderNodes[i]?.id ?? '') ?? null
+      return cycle.puts[i] ?? null
+    }
+  }, [cycle.puts, orderNodes])
+
+  const confirmedCount = cycle.puts.filter((p) => p.status !== 'OPEN').length
+
+  return (
+    <div className="op-gtp-cycle">
+      <div className="op-gtp-stats">
+        <Stat label={t('statRemainingStock', 'Remaining stock')} value={cycle.remainingQty == null ? '—' : String(cycle.remainingQty)} />
+        <Stat label={t('statPuts', 'Puts')} value={`${confirmedCount}/${cycle.puts.length}`} />
+        <span className={`badge ${confirmedCount === cycle.puts.length ? 'badge-success' : 'badge-info'}`}>{cycle.status}</span>
+      </div>
+
+      {error && <p className="badge badge-danger" style={{ flexShrink: 0 }}>{error}</p>}
+
+      <div className="op-gtp-slots">
+        {Array.from({ length: slotCount }, (_, i) => {
+          const put = putForSlot(i)
+          const node = orderNodes[i] ?? null
+          const label = node?.code ?? `${i + 1}`
+          const open = put != null && put.status === 'OPEN'
+          const confirmed = put != null && put.status !== 'OPEN'
+          const stateClass = open ? 'op-gtp-slot-open' : confirmed ? 'op-gtp-slot-done' : 'op-gtp-slot-idle'
+          return (
+            <button
+              key={i}
+              type="button"
+              className={`op-gtp-slot ${stateClass}`}
+              disabled={!open}
+              onClick={() => open && put && confirm(put)}
+              aria-label={
+                open
+                  ? t('slotTapConfirm', 'Slot {s}: put {q}, tap to confirm').replace('{s}', label).replace('{q}', String(put?.qty))
+                  : confirmed
+                    ? t('slotConfirmed', 'Slot {s}: confirmed').replace('{s}', label)
+                    : t('slotEmpty', 'Slot {s}: nothing to put').replace('{s}', label)
+              }
+            >
+              <span className="op-gtp-slot-code">{label}</span>
+              {open && put && <span className="op-gtp-slot-qty">{put.qty}</span>}
+              {confirmed && <span className="op-gtp-slot-check" aria-hidden="true">✓</span>}
+              {open && put && <ShortControl put={put} onShort={(n) => confirm(put, n)} />}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// Put wall: render ONLY the lit put cubbies (the puts that carry a putLightId). Each is a light cell
+// showing its qty, ORANGE until confirmed then GREEN. Tap to confirm full; the short control confirms
+// fewer. Flow qty (middle) is the sum of OPEN puts. Auto-releases when all are confirmed.
+function PutWallView({ cycle, onChange }: { cycle: WorkCycle; onChange: (c: WorkCycle | null) => void }) {
+  const t = useT('gtpops')
+  const { confirm, error } = usePutConfirm(cycle, onChange)
+  const lit = cycle.puts.filter((p) => p.putLightId)
+  const confirmedCount = lit.filter((p) => p.status !== 'OPEN').length
+
+  return (
+    <div className="op-gtp-cycle">
+      <div className="op-gtp-stats">
+        <Stat label={t('statRemainingStock', 'Remaining stock')} value={cycle.remainingQty == null ? '—' : String(cycle.remainingQty)} />
+        <Stat label={t('statLights', 'Lit cubbies')} value={`${confirmedCount}/${lit.length}`} />
+        <span className={`badge ${lit.length > 0 && confirmedCount === lit.length ? 'badge-success' : 'badge-info'}`}>{cycle.status}</span>
+      </div>
+
+      {error && <p className="badge badge-danger" style={{ flexShrink: 0 }}>{error}</p>}
+
+      {lit.length === 0 ? (
+        <p style={{ color: 'var(--text-dim)' }}>{t('noLitCubbies', 'No lit cubbies for this stock HU.')}</p>
+      ) : (
+        <div className="op-gtp-lights">
+          {lit.map((put) => {
+            const open = put.status === 'OPEN'
+            return (
+              <button
+                key={put.id}
+                type="button"
+                className={`op-gtp-light ${open ? 'op-gtp-light-open' : 'op-gtp-light-done'}`}
+                disabled={!open}
+                onClick={() => open && confirm(put)}
+                aria-label={
+                  open
+                    ? t('lightTapConfirm', 'Cubby {l}: put {q}, tap to confirm').replace('{l}', String(put.putLightId)).replace('{q}', String(put.qty))
+                    : t('lightConfirmed', 'Cubby {l}: confirmed').replace('{l}', String(put.putLightId))
+                }
+              >
+                <span className="op-gtp-light-id">{put.putLightId}</span>
+                {open ? <span className="op-gtp-light-qty">{put.qty}</span> : <span className="op-gtp-light-check" aria-hidden="true">✓</span>}
+                {open && <ShortControl put={put} onShort={(n) => confirm(put, n)} />}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

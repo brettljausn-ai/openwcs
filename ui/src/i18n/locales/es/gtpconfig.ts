@@ -97,4 +97,18 @@ export default {
     'Limita cuántas HUs pueden tener un transporte sin picking activo (decantar, contar, QC, mantenimiento) entrante a este puesto a la vez.',
   noLocations: 'No hay ubicaciones en este almacén.',
   noMatchingCode: 'Ningún código coincidente.',
+  pickLayout: 'Disposición de picking',
+  pickLayoutTip:
+    'Cómo presenta la pantalla de picking del operario los destinos. 1-a-1 = una caja de destino por picking; 1-a-N = una fila fija de casillas entre las que reparte el picking; Muro de clasificación = solo se muestran las casillas encendidas.',
+  pickLayout_ONE_TO_ONE: '1-a-1 (caja única)',
+  pickLayout_ONE_TO_N: '1-a-N (casillas)',
+  pickLayout_PUT_WALL: 'Muro de clasificación (casillas encendidas)',
+  pickSlots: 'Casillas de picking',
+  pickSlotsTip:
+    'Cuántas casillas muestra la pantalla 1-a-N (los destinos de pedido dispuestos de izquierda a derecha). Mínimo 2.',
+  pickSlotsMin: 'Introduzca 2 casillas o más.',
+  putWallHint:
+    'Muro de clasificación: configure cada casilla y su id de put-light como un nodo ORDER abajo (id de put-light + ubicación).',
+  putWallNeedsTopology:
+    'La disposición de muro de clasificación necesita la topología de destino PUT_WALL. Ajuste la topología de arriba a PUT_WALL.',
 }

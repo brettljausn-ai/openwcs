@@ -20,6 +20,15 @@ export const OPERATING_MODE_LABELS: Record<OperatingMode, string> = {
 export type StationMode = 'ORDER_LOCATION' | 'PUT_WALL'
 export const STATION_MODES: StationMode[] = ['ORDER_LOCATION', 'PUT_WALL']
 
+// Picking layout: how the operator pick screen presents the put target(s).
+//   ONE_TO_ONE = one destination carton per pick (the classic single-target flow).
+//   ONE_TO_N   = a fixed row of N slots; each pick may target one (or more) of them.
+//   PUT_WALL   = only the lit put cubbies are shown (requires station mode PUT_WALL).
+export type PickLayout = 'ONE_TO_ONE' | 'ONE_TO_N' | 'PUT_WALL'
+export const PICK_LAYOUTS: PickLayout[] = ['ONE_TO_ONE', 'ONE_TO_N', 'PUT_WALL']
+// Default slot count offered when ONE_TO_N is chosen.
+export const DEFAULT_PICK_SLOTS = 7
+
 export type NodeRole = 'STOCK' | 'ORDER'
 export const NODE_ROLES: NodeRole[] = ['STOCK', 'ORDER']
 
@@ -44,6 +53,10 @@ export interface Station {
   status: string
   maxInTransitPicking: number
   maxInTransitOther: number
+  // Picking layout for the operator pick screen (see PickLayout). pickSlots is the slot count for
+  // ONE_TO_N (>= 2); null for the other layouts.
+  pickLayout: PickLayout
+  pickSlots: number | null
   nodes: StationNode[]
 }
 
@@ -53,6 +66,8 @@ export interface CreateStationBody {
   name?: string | null
   mode: StationMode
   supportedModes: OperatingMode[]
+  pickLayout: PickLayout
+  pickSlots?: number | null
 }
 
 export interface UpdateStationBody {
@@ -61,6 +76,8 @@ export interface UpdateStationBody {
   mode: StationMode
   status: string
   supportedModes: OperatingMode[]
+  pickLayout: PickLayout
+  pickSlots?: number | null
 }
 
 export interface NodeBody {
