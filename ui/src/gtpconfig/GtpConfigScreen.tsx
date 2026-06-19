@@ -6,12 +6,15 @@ import LocationPicker from './LocationPicker'
 import { listWarehouses, Warehouse } from '../masterdata/api'
 import {
   CreateStationBody,
+  DEFAULT_PICK_SLOTS,
   NODE_ROLES,
   NodeBody,
   NodeRole,
   OPERATING_MODES,
   OPERATING_MODE_LABELS,
   OperatingMode,
+  PICK_LAYOUTS,
+  PickLayout,
   STATION_MODES,
   Station,
   StationMode,
@@ -429,8 +432,20 @@ function StationDialog({
   const [mode, setMode] = useState<StationMode>(initial?.mode ?? 'ORDER_LOCATION')
   const [status, setStatus] = useState(initial?.status ?? 'ACTIVE')
   const [modes, setModes] = useState<OperatingMode[]>(initial?.supportedModes ?? ['PICKING'])
+  const [pickLayout, setPickLayout] = useState<PickLayout>(initial?.pickLayout ?? 'ONE_TO_ONE')
+  // Slot count for ONE_TO_N. Seed from the station (or the default) so a fresh ONE_TO_N has a value.
+  const [pickSlots, setPickSlots] = useState(String(initial?.pickSlots ?? DEFAULT_PICK_SLOTS))
 
-  const valid = code.trim() !== '' && modes.length > 0
+  const pickSlotsNum = Number(pickSlots)
+  const pickSlotsValid =
+    pickLayout !== 'ONE_TO_N' ||
+    (pickSlots.trim() !== '' && Number.isInteger(pickSlotsNum) && pickSlotsNum >= 2)
+  // Put-wall layout requires the put-wall destination topology (validated server-side too).
+  const layoutTopologyOk = pickLayout !== 'PUT_WALL' || mode === 'PUT_WALL'
+  const valid = code.trim() !== '' && modes.length > 0 && pickSlotsValid && layoutTopologyOk
+
+  // Only ONE_TO_N persists a slot count; the others send null.
+  const pickSlotsBody = pickLayout === 'ONE_TO_N' ? pickSlotsNum : null
 
   return (
     <EditDialog
@@ -445,6 +460,8 @@ function StationDialog({
             mode,
             status,
             supportedModes: modes,
+            pickLayout,
+            pickSlots: pickSlotsBody,
           }
           onSaved(await updateStation(initial.id, body))
         } else {
@@ -454,6 +471,8 @@ function StationDialog({
             name: name.trim() || null,
             mode,
             supportedModes: modes,
+            pickLayout,
+            pickSlots: pickSlotsBody,
           }
           onSaved(await createStation(body))
         }
@@ -567,8 +586,94 @@ function StationDialog({
       >
         <ModeCheckboxes value={modes} onChange={setModes} />
       </Field>
+
+      {/* Picking layout: how the operator pick screen renders the put target(s). A PICKING concept,
+          so only shown when PICKING is one of the operating modes. */}
+      {modes.includes('PICKING') && (
+        <div className="gtp-grid-2">
+          <Field
+            label={
+              <>
+                {t('pickLayout', 'Picking layout')}{' '}
+                <InfoTip
+                  text={t(
+                    'pickLayoutTip',
+                    'How the operator pick screen presents the put target(s). 1-to-1 = one destination carton per pick; 1-to-N = a fixed row of slots the pick distributes into; Put wall = only the lit cubbies are shown.',
+                  )}
+                  example="1-to-N"
+                />
+              </>
+            }
+            required
+          >
+            <Select
+              ariaLabel={t('pickLayout', 'Picking layout')}
+              value={pickLayout}
+              onChange={(v) => setPickLayout(v as PickLayout)}
+              options={PICK_LAYOUTS.map((l) => ({ value: l, label: pickLayoutLabel(t, l) }))}
+            />
+          </Field>
+          {pickLayout === 'ONE_TO_N' && (
+            <Field
+              label={
+                <>
+                  {t('pickSlots', 'Pick slots')}{' '}
+                  <InfoTip
+                    text={t(
+                      'pickSlotsTip',
+                      'How many slots the 1-to-N pick screen shows (the order destinations laid out left-to-right). Minimum 2.',
+                    )}
+                    example="7"
+                  />
+                </>
+              }
+              required
+            >
+              <input
+                className="form-control"
+                type="number"
+                min={2}
+                value={pickSlots}
+                onChange={(e) => setPickSlots(e.target.value)}
+              />
+              {!pickSlotsValid && (
+                <span className="muted" style={{ fontSize: '.75rem', color: '#ff8a80' }}>
+                  {t('pickSlotsMin', 'Enter 2 or more slots.')}
+                </span>
+              )}
+            </Field>
+          )}
+        </div>
+      )}
+
+      {/* Put wall: cubbies + put-light ids are configured per ORDER node below; no extra fields here. */}
+      {modes.includes('PICKING') && pickLayout === 'PUT_WALL' && (
+        <p className="muted" style={{ fontSize: '.8rem', margin: 0 }}>
+          {layoutTopologyOk
+            ? t(
+                'putWallHint',
+                'Put wall: configure each cubby and its put-light id as an ORDER node below (put-light id + location).',
+              )
+            : t(
+                'putWallNeedsTopology',
+                'Put wall layout needs the PUT_WALL destination topology. Set the topology above to PUT_WALL.',
+              )}
+        </p>
+      )}
     </EditDialog>
   )
+}
+
+// Friendly, translatable labels for the pick-layout codes (the enum values read as code).
+function pickLayoutLabel(t: (key: string, english: string) => string, l: PickLayout): string {
+  switch (l) {
+    case 'ONE_TO_ONE':
+      return t('pickLayout_ONE_TO_ONE', '1-to-1 (single carton)')
+    case 'ONE_TO_N':
+      return t('pickLayout_ONE_TO_N', '1-to-N (slots)')
+    case 'PUT_WALL':
+      return t('pickLayout_PUT_WALL', 'Put wall (lit cubbies)')
+  }
 }
 
 // =========================================================================

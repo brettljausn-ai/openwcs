@@ -1466,4 +1466,100 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
   flex-shrink: 0;
   margin-top: auto;
 }
+/* --- Multi-target pick layouts (1-to-N slots + put wall) --- */
+/* Slots / lights grid: a wrapping row that scrolls inside the target side when there are many. */
+.op-gtp-slots,
+.op-gtp-lights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  align-content: flex-start;
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+  padding: .25rem;
+}
+/* A single slot/light cell. Tap to confirm; states grey/orange/green below. */
+.op-gtp-slot,
+.op-gtp-light {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .25rem;
+  width: 7.5rem;
+  min-height: 7.5rem;
+  padding: .65rem .5rem;
+  border-radius: 14px;
+  font: inherit;
+  cursor: pointer;
+  transition: transform .08s ease, box-shadow .15s ease;
+}
+.op-gtp-slot:not(:disabled):active,
+.op-gtp-light:not(:disabled):active { transform: scale(.97); }
+.op-gtp-slot:disabled,
+.op-gtp-light:disabled { cursor: default; }
+.op-gtp-slot-code,
+.op-gtp-light-id { font-size: .8rem; font-weight: 600; letter-spacing: .03em; opacity: .85; }
+.op-gtp-slot-qty,
+.op-gtp-light-qty { font-size: 2.4rem; font-weight: 800; line-height: 1; }
+.op-gtp-slot-check,
+.op-gtp-light-check { font-size: 2.2rem; font-weight: 800; line-height: 1; }
+/* GREY: nothing to put into this slot this pick. */
+.op-gtp-slot-idle {
+  color: var(--text-faint);
+  background: rgba(255, 255, 255, .03);
+  border: 1px dashed var(--glass-border);
+}
+/* ORANGE: an OPEN put targets this slot/light, awaiting confirm. */
+.op-gtp-slot-open,
+.op-gtp-light-open {
+  color: var(--warning, #f4b860);
+  background: rgba(244, 184, 96, .12);
+  border: 2px solid var(--warning, #f4b860);
+  box-shadow: 0 0 16px rgba(244, 184, 96, .35);
+}
+/* GREEN: the put is confirmed. */
+.op-gtp-slot-done,
+.op-gtp-light-done {
+  color: var(--herbal-lime, #8dc63f);
+  background: rgba(141, 198, 63, .12);
+  border: 2px solid var(--herbal-lime, #8dc63f);
+}
+/* Inline short stepper inside an orange cell. */
+.op-gtp-slot-short {
+  display: flex;
+  align-items: center;
+  gap: .25rem;
+  margin-top: .15rem;
+}
+.op-gtp-slot-step {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text);
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid var(--glass-border);
+}
+.op-gtp-slot-short-n { min-width: 1.2rem; text-align: center; font-weight: 700; color: var(--text); }
+.op-gtp-slot-short-go {
+  margin-left: .15rem;
+  padding: .1rem .4rem;
+  border-radius: 6px;
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  cursor: pointer;
+  color: var(--warning, #f4b860);
+  background: transparent;
+  border: 1px solid var(--warning, #f4b860);
+}
+
 .op-pd-assist-draft-code { background: rgba(244,184,96,.06); border-color: rgba(244,184,96,.35); }

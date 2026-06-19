@@ -35,6 +35,7 @@ openwcs:
       ASRS: ${OPENWCS_ADAPTER_ASRS:http://localhost:9096}
       AMR: ${OPENWCS_ADAPTER_AMR:http://localhost:9093}
       AUTOSTORE: ${OPENWCS_ADAPTER_AUTOSTORE:http://localhost:9094}
+      PTL: ${OPENWCS_ADAPTER_PTL:http://localhost:9098}
     # Single equipment-emulator: when HARDWARE_EMULATOR_ENABLED is on, every family is dispatched
     # here instead of to the per-family adapters above.
     emulator-url: ${OPENWCS_EMULATOR_URL:http://localhost:9097}

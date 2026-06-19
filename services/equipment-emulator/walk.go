@@ -107,6 +107,21 @@ func payloadString(payload map[string]interface{}, key string) string {
 	return ""
 }
 
+// payloadInt returns payload[key] as an int when present (JSON numbers decode to float64). Missing or
+// non-numeric values yield 0. Used by the PTL family for the quantity a light shows.
+func payloadInt(payload map[string]interface{}, key string) int {
+	if payload == nil {
+		return 0
+	}
+	switch v := payload[key].(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	}
+	return 0
+}
+
 // walkBarcode is what the conveyor "reads" at each scan point: the HU code, falling back to the
 // huId string when no code is present.
 func walkBarcode(payload map[string]interface{}) string {

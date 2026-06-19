@@ -97,4 +97,18 @@ export default {
     'Begrenzt, wie viele HUs gleichzeitig einen aktiven Nicht-Picking-Transport (Dekantieren, Zählen, QC, Wartung) zu diesem Arbeitsplatz unterwegs haben dürfen.',
   noLocations: 'Keine Lagerplätze in diesem Lager.',
   noMatchingCode: 'Kein passender Code.',
+  pickLayout: 'Kommissionier-Layout',
+  pickLayoutTip:
+    'Wie der Bediener-Kommissionierbildschirm die Put-Ziele darstellt. 1-zu-1 = ein Zielkarton pro Pick; 1-zu-N = eine feste Reihe von Fächern, auf die der Pick verteilt; Put-Wall = nur die beleuchteten Fächer werden gezeigt.',
+  pickLayout_ONE_TO_ONE: '1-zu-1 (einzelner Karton)',
+  pickLayout_ONE_TO_N: '1-zu-N (Fächer)',
+  pickLayout_PUT_WALL: 'Put-Wall (beleuchtete Fächer)',
+  pickSlots: 'Kommissionier-Fächer',
+  pickSlotsTip:
+    'Wie viele Fächer der 1-zu-N-Kommissionierbildschirm zeigt (die Auftragsziele von links nach rechts angeordnet). Minimum 2.',
+  pickSlotsMin: 'Geben Sie 2 oder mehr Fächer ein.',
+  putWallHint:
+    'Put-Wall: Konfigurieren Sie jedes Fach und seine Put-Light-ID unten als ORDER-Knoten (Put-Light-ID + Lagerplatz).',
+  putWallNeedsTopology:
+    'Das Put-Wall-Layout benötigt die PUT_WALL-Zieltopologie. Setzen Sie die Topologie oben auf PUT_WALL.',
 }

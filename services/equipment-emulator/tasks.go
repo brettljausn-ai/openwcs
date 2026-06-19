@@ -43,6 +43,8 @@ var commandsByFamily = map[string]map[string]bool{
 	"CONVEYOR":  {"CONVEY": true, "DIVERT": true, "MERGE": true, "SCAN": true},
 	"AMR":       {"TRANSPORT": true, "MOVE": true, "SCAN": true},
 	"AUTOSTORE": {"BIN_STORE": true, "BIN_RETRIEVE": true, "BIN_RELOCATE": true, "SCAN": true},
+	// PTL (put/pick-to-light): ILLUMINATE turns a light on showing a pick quantity, CLEAR turns it off.
+	"PTL": {"ILLUMINATE": true, "CLEAR": true},
 }
 
 // supportedFamilies lists the families the emulator simulates (sorted, for stable info output).
@@ -214,9 +216,26 @@ func runTask(family string, req deviceTaskRequest) deviceTaskResult {
 
 	time.Sleep(d)
 
+	// Decide the deterministic simulated fault once (the check advances a counter, so it must not be
+	// called twice for one task): used both to skip the PTL light update and to fail the task below.
+	faulted := shouldFault()
+
+	// PTL: reflect the light change in the emulator state so GET /state shows the lit set, the same way
+	// the real ptl-adapter tracks it. ILLUMINATE turns a light on showing qty (+ optional color); CLEAR
+	// turns it off. Applied only when the task is not faulted, matching a controller that did not act.
+	if family == "PTL" && !faulted {
+		lightID := payloadString(req.Payload, "lightId")
+		switch req.Command {
+		case "ILLUMINATE":
+			sim.illuminate(lightID, payloadInt(req.Payload, "qty"), payloadString(req.Payload, "color"))
+		case "CLEAR":
+			sim.clearLight(lightID)
+		}
+	}
+
 	// Inject a deterministic simulated equipment fault when configured (OPENWCS_EMULATOR_FAULT_RATE
 	// or POST /config): 1 in every N tasks fails.
-	if shouldFault() {
+	if faulted {
 		sim.recordFailed(family, req.Command)
 		log.Printf("%s: WARNING task %s (%s %s for %s%s, equipment %s) SIMULATED FAULT after %s: deterministic fault injection hit (faultEvery=%d); task FAILED, flow must retry or resolve",
 			serviceName, req.TaskID, family, req.Command, huRef(req.Payload), routeRef(req.Payload), orUnknown(req.EquipmentID), d, faultEvery.Load())

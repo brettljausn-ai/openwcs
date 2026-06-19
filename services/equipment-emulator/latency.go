@@ -17,6 +17,9 @@ var defaultLatency = map[string]map[string]time.Duration{
 	"CONVEYOR":  {"CONVEY": 600 * time.Millisecond, "DIVERT": 400 * time.Millisecond, "MERGE": 400 * time.Millisecond, "SCAN": 150 * time.Millisecond},
 	"AMR":       {"TRANSPORT": 1200 * time.Millisecond, "MOVE": 600 * time.Millisecond, "SCAN": 150 * time.Millisecond},
 	"AUTOSTORE": {"BIN_STORE": 800 * time.Millisecond, "BIN_RETRIEVE": 800 * time.Millisecond, "BIN_RELOCATE": 3000 * time.Millisecond, "SCAN": 150 * time.Millisecond},
+	// PTL: lighting a lamp / clearing it is near-instant on real controllers, but keep a small,
+	// realistic delay so the demo shows the device taking a moment to react.
+	"PTL": {"ILLUMINATE": 200 * time.Millisecond, "CLEAR": 150 * time.Millisecond},
 }
 
 const fallbackLatency = 300 * time.Millisecond

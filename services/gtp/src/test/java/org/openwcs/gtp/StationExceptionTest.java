@@ -78,7 +78,7 @@ class StationExceptionTest {
 
     private GtpStation station(String code) {
         GtpStation s = stations.createStation(new CreateStationRequest(
-                UUID.randomUUID(), code, null, "ORDER_LOCATION", List.of("PICKING", "STOCK_COUNT"), List.of()));
+                UUID.randomUUID(), code, null, "ORDER_LOCATION", List.of("PICKING", "STOCK_COUNT"), null, null, List.of()));
         return stations.setCapacity(s.getId(), 4, 2);
     }
 

@@ -230,6 +230,11 @@ services:
       # leg); broken-product write-offs go to txlog. gtp no longer calls slotting itself.
       OPENWCS_FLOW_ORCHESTRATOR_BASE_URL: http://flow-orchestrator:8085
       OPENWCS_TXLOG_BASE_URL: http://txlog:8086
+      # Configurable GTP picking: drive put-to-light hardware over the uniform device contract. gtp
+      # POSTs ILLUMINATE/CLEAR to the ptl-adapter for real controllers, or to the equipment-emulator
+      # when the hardware-emulator flag is ON (lights demonstrated without hardware).
+      OPENWCS_ADAPTER_PTL: http://ptl-adapter:9098
+      OPENWCS_EMULATOR_URL: http://equipment-emulator:9097
 
   counting:
     restart: unless-stopped
@@ -295,7 +300,7 @@ services:
       - openwcs-logs:/var/log/openwcs
     build: ../services/flow-orchestrator
     ports: ["8085:8085"]
-    depends_on: [postgres, kafka, conveyor-adapter, equipment-emulator]
+    depends_on: [postgres, kafka, conveyor-adapter, ptl-adapter, equipment-emulator]
     environment:
       # Owns the `flow` schema; dispatches device tasks to adapters over the uniform contract (build.md §8).
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/openwcs
@@ -307,6 +312,8 @@ services:
       OPENWCS_ADAPTER_ASRS: http://asrs-adapter:9096
       OPENWCS_ADAPTER_AMR: http://amr-geekplus-adapter:9093
       OPENWCS_ADAPTER_AUTOSTORE: http://autostore-adapter:9094
+      # Pick-to-light adapter for the configurable GTP picking epic (put-to-light ILLUMINATE/CLEAR).
+      OPENWCS_ADAPTER_PTL: http://ptl-adapter:9098
       # When the hardware-emulator flag is ON, dispatch every family to the single equipment-emulator
       # instead of the per-family adapters above; the flag itself is read from master-data.
       OPENWCS_EMULATOR_URL: http://equipment-emulator:9097
@@ -499,6 +506,21 @@ services:
     # No master-data/DB/Kafka dependency: emulation moved to equipment-emulator, and these adapters
     # only hold the (unimplemented) real-hardware protocol path.
     depends_on: [postgres, kafka]
+
+  ptl-adapter:
+    restart: unless-stopped
+    profiles: ["apps"]
+    volumes:
+      - openwcs-logs:/var/log/openwcs
+    build:
+      context: ../services/adapters/ptl
+      args:
+        VERSION: "${OPENWCS_VERSION:-0.1.0-SNAPSHOT}"
+        GIT_SHA: "${OPENWCS_GIT_SHA:-dev}"
+        BUILD_TIME: "${OPENWCS_BUILD_TIME:-unknown}"
+    # Pick-to-light adapter (configurable GTP picking): gtp POSTs ILLUMINATE/CLEAR over the uniform
+    # device contract. Stateless, no DB/Kafka; holds the (unimplemented) real controller protocol path.
+    ports: ["9098:9098"]
 
   asrs-adapter:
     restart: unless-stopped
