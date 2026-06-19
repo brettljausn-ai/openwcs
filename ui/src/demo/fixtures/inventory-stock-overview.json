@@ -1,0 +1,242 @@
+[
+  {
+    "skuId": "c1d05de0-5bfc-4e2c-a806-53b415f30d0a",
+    "locationId": "92f5bfed-688d-4f21-916e-4e7c63e29b3e",
+    "huId": "77ba51f9-5bc8-49ae-ad0d-c578af327936",
+    "huCode": "DEMO-HU-001",
+    "status": "AVAILABLE",
+    "qty": 44,
+    "reserved": 0,
+    "available": 44
+  },
+  {
+    "skuId": "ea069315-61c1-4a0f-94e5-3286d340d659",
+    "locationId": "a193bb44-258f-42f1-867f-53255da3b778",
+    "huId": "649e2cc4-c278-4544-abb5-b86c32af1bfe",
+    "huCode": "DEMO-HU-002",
+    "status": "AVAILABLE",
+    "qty": 27,
+    "reserved": 0,
+    "available": 27
+  },
+  {
+    "skuId": "4713fdd4-315d-4655-986c-713493500d7e",
+    "locationId": "d52c72a3-4720-4909-88f8-8d691c3f87fd",
+    "huId": "56d1b57a-ec05-4601-b3e2-ef03f7be1529",
+    "huCode": "DEMO-HU-003",
+    "status": "AVAILABLE",
+    "qty": 7,
+    "reserved": 0,
+    "available": 7
+  },
+  {
+    "skuId": "5c397ef4-7b26-474d-85fa-bc08603d6243",
+    "locationId": "b2bf5ad7-5aae-4878-a2e5-0bce9d7ece73",
+    "huId": "5c99f1fc-71fc-481c-a95c-6d9c33461144",
+    "huCode": "DEMO-HU-004",
+    "status": "AVAILABLE",
+    "qty": 29,
+    "reserved": 0,
+    "available": 29
+  },
+  {
+    "skuId": "4c1bcaa3-8808-4000-80f3-abaf99102d81",
+    "locationId": "85b8a26b-a259-4027-8cd5-7bcadb62095c",
+    "huId": "275c2cf9-d2c8-471c-a8ec-4bd35a62fcb7",
+    "huCode": "DEMO-HU-005",
+    "status": "AVAILABLE",
+    "qty": 7,
+    "reserved": 0,
+    "available": 7
+  },
+  {
+    "skuId": "2b6b6d5f-6d72-46b1-bdd3-572f9123bf22",
+    "locationId": "128f49b2-8dbd-4581-8883-c80557de06bb",
+    "huId": "62f567dd-555f-4484-9534-1e37a8f87007",
+    "huCode": "DEMO-HU-006",
+    "status": "AVAILABLE",
+    "qty": 34,
+    "reserved": 0,
+    "available": 34
+  },
+  {
+    "skuId": "d0bc4d35-1cac-4c3a-b46d-7705b68b26f4",
+    "locationId": "0c10cfe0-2f17-44cc-9dc9-43118ab4e67c",
+    "huId": "dc94d516-c33e-4fdd-8aec-067c4221ee29",
+    "huCode": "DEMO-HU-007",
+    "status": "AVAILABLE",
+    "qty": 12,
+    "reserved": 0,
+    "available": 12
+  },
+  {
+    "skuId": "55ccdf04-29d4-48c0-81a7-b73fac91d829",
+    "locationId": "1a82e84b-690a-40df-a786-d4d890746c19",
+    "huId": "8b56470b-5ce1-497d-8081-6de6671f01bd",
+    "huCode": "DEMO-HU-008",
+    "status": "AVAILABLE",
+    "qty": 29,
+    "reserved": 0,
+    "available": 29
+  },
+  {
+    "skuId": "ee3c6e66-8f1f-4aad-88ac-281e3711af36",
+    "locationId": "7c76b8a0-b8f4-45bb-a0a0-3b8e2638218b",
+    "huId": "14349ced-5b8a-4d03-b69c-601b8818d18b",
+    "huCode": "DEMO-HU-009",
+    "status": "AVAILABLE",
+    "qty": 12,
+    "reserved": 0,
+    "available": 12
+  },
+  {
+    "skuId": "e1633729-4d10-4d09-aecd-fc25900cf4ff",
+    "locationId": "293477e5-cf21-452f-9785-39b27d471ddb",
+    "huId": "bd7ecf29-9fc4-4e1d-971a-dffeef64d65a",
+    "huCode": "DEMO-HU-010",
+    "status": "AVAILABLE",
+    "qty": 16,
+    "reserved": 0,
+    "available": 16
+  },
+  {
+    "skuId": "73fb0d5a-7b92-4563-b53a-852cd52e674d",
+    "locationId": "acd1644d-1be4-4b6d-8677-96ec4d9cb55d",
+    "huId": "3ec2b604-6aa7-4929-a250-ace728d5b8f2",
+    "huCode": "DEMO-HU-011",
+    "status": "AVAILABLE",
+    "qty": 28,
+    "reserved": 0,
+    "available": 28
+  },
+  {
+    "skuId": "e3875589-c668-458d-a454-2cb6c42c1677",
+    "locationId": "9dacf1b7-8b70-479c-b3c9-5923a14b430a",
+    "huId": "39d3a000-b087-4527-8a9d-bef9faa29946",
+    "huCode": "DEMO-HU-012",
+    "status": "AVAILABLE",
+    "qty": 46,
+    "reserved": 0,
+    "available": 46
+  },
+  {
+    "skuId": "7b188d20-25e8-48d4-bab5-91b88b2789a0",
+    "locationId": "b504a77c-41eb-4fdf-8d8f-6d65c9628ac1",
+    "huId": "93a72a85-1d7e-4e7f-810e-211a285d9e2d",
+    "huCode": "DEMO-HU-013",
+    "status": "AVAILABLE",
+    "qty": 22,
+    "reserved": 0,
+    "available": 22
+  },
+  {
+    "skuId": "f8c68b6b-7e05-4eec-adc6-5615f1a0ed34",
+    "locationId": "f63cf3d0-133b-499c-96d3-91e0e9a1cf7e",
+    "huId": "7823d161-da6d-4a0a-bfb3-71b37c49127d",
+    "huCode": "DEMO-HU-014",
+    "status": "AVAILABLE",
+    "qty": 41,
+    "reserved": 0,
+    "available": 41
+  },
+  {
+    "skuId": "859d7293-287d-4ec5-a9f1-a3d5831eb0fb",
+    "locationId": "529df8ae-afe1-4924-baec-75369b491c9f",
+    "huId": "a3c15802-1adb-4839-a38b-06ee17e558ab",
+    "huCode": "DEMO-HU-015",
+    "status": "AVAILABLE",
+    "qty": 13,
+    "reserved": 0,
+    "available": 13
+  },
+  {
+    "skuId": "03916088-bc9f-4c20-8d1e-0aef09c197f6",
+    "locationId": "0c5cb734-56eb-4979-a388-a6eaa2b52a9c",
+    "huId": "3aab8cc9-4512-437b-82a6-31ae932839f9",
+    "huCode": "DEMO-HU-016",
+    "status": "AVAILABLE",
+    "qty": 12,
+    "reserved": 0,
+    "available": 12
+  },
+  {
+    "skuId": "3e178a78-f868-4977-8c61-dea7db36f96f",
+    "locationId": "bace5341-a0bf-4e4b-9adb-542033531888",
+    "huId": "29d56df0-f7e1-4fa8-a43b-b144f8e5d179",
+    "huCode": "DEMO-HU-017",
+    "status": "AVAILABLE",
+    "qty": 39,
+    "reserved": 0,
+    "available": 39
+  },
+  {
+    "skuId": "a140056b-03f3-4705-83fe-ee12827ac59c",
+    "locationId": "649c8ac3-b60e-4be9-ad70-995658f8d1fb",
+    "huId": "4ff5ddd9-9d2a-4eff-a392-149f04894abc",
+    "huCode": "DEMO-HU-018",
+    "status": "AVAILABLE",
+    "qty": 8,
+    "reserved": 0,
+    "available": 8
+  },
+  {
+    "skuId": "409412d1-df86-4a8a-8ec4-6132cc485173",
+    "locationId": "1a9b0029-2495-433a-84d7-20d5ae75ee1c",
+    "huId": "ed4b73bc-edfb-4134-88b0-7ecf686fee90",
+    "huCode": "DEMO-HU-019",
+    "status": "AVAILABLE",
+    "qty": 28,
+    "reserved": 0,
+    "available": 28
+  },
+  {
+    "skuId": "59ba5229-d8ad-46b6-b38c-35fe36d2aa18",
+    "locationId": "15b9566d-ab48-470c-89f3-5d977dcfe617",
+    "huId": "18494da9-ac1a-4a24-b3d8-ef19a82370a3",
+    "huCode": "DEMO-HU-020",
+    "status": "AVAILABLE",
+    "qty": 26,
+    "reserved": 0,
+    "available": 26
+  },
+  {
+    "skuId": "ee7bdcbb-f4df-404b-8fef-ff4f7f2685e2",
+    "locationId": "f3932ed0-1172-4e9b-a021-f57e18e0e93d",
+    "huId": "62818fb9-b863-44f2-ba2d-83834092d1e4",
+    "huCode": "DEMO-HU-021",
+    "status": "AVAILABLE",
+    "qty": 32,
+    "reserved": 0,
+    "available": 32
+  },
+  {
+    "skuId": "00fa42a4-a1d3-4cf8-9bde-ec8b09e78e46",
+    "locationId": "7e99320f-2b44-42c5-bdb5-9b09b31e7afd",
+    "huId": "d70cd192-9203-4fc9-a724-1fabcfafc4a4",
+    "huCode": "DEMO-HU-022",
+    "status": "AVAILABLE",
+    "qty": 9,
+    "reserved": 0,
+    "available": 9
+  },
+  {
+    "skuId": "dfbbcd09-ba72-4faf-b70a-86ae4b7f0bd2",
+    "locationId": "9ed181d3-030c-41d9-9b93-6c288613ff35",
+    "huId": "615e4551-9122-4206-9426-7f00b8c5aa6a",
+    "huCode": "DEMO-HU-023",
+    "status": "AVAILABLE",
+    "qty": 18,
+    "reserved": 0,
+    "available": 18
+  },
+  {
+    "skuId": "a6ad02de-186b-40f5-8b93-b72f64b38c95",
+    "locationId": "28a2a439-ce98-427e-955e-2ea723b3393f",
+    "huId": "f8216e91-90ba-43fc-8e8d-127a58421b01",
+    "huCode": "DEMO-HU-000",
+    "status": "AVAILABLE",
+    "qty": 5,
+    "reserved": 0,
+    "available": 5
+  }
+]

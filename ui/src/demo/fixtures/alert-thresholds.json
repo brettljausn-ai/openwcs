@@ -1,0 +1,8 @@
+{
+  "scanNoReadPct": 1,
+  "replenishmentOldestAgeMin": 120,
+  "asrsUtilisationPct": 85,
+  "putawayBacklogAgeMin": 120,
+  "receiveErrorsDay": 5,
+  "blockedLinesPct": 5
+}

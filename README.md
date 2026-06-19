@@ -262,6 +262,28 @@ catalog plus handling units and stock** for the current warehouse, then explore 
 screen end-to-end. Turning demo mode off performs a **full operational reset** —
 purging transactional data across services while keeping config, equipment and users.
 
+### Public sandboxed live demo (no backend)
+
+The marketing site ships a **fully client-side, read-only sandbox** of the real app at
+**`/live-demo`**: no login, nothing saved (a reload resets it). It is a `VITE_DEMO=true` build of
+this same `/ui` SPA, so it reuses every component, menu and screen. Behind the flag the SPA runs a
+synthetic read-only session (Keycloak skipped, all menus visible, every write disabled) and a **mock
+service layer (`ui/src/demo/mockApi.ts`) wired into the single `authFetch` chokepoint**, so **no
+request ever leaves the browser**: GET responses come from committed fixtures snapshotted from the
+demo box (`ui/src/demo/fixtures/`), unknown GETs return clean empty states, and writes are no-ops
+except an in-memory pick engine that arms **5 totes at the goods-to-person station** (full pick, short
+pick, exceptions). A reload restarts it.
+
+Build and run it locally:
+```bash
+cd ui && npm run build:demo        # VITE_DEMO build, asset base /demo-app/, output dist/
+# then copy dist/* into public/static/demo/, OR do both in one step from /public:
+cd public && npm run build:demo-app
+```
+The page is **`/live-demo`** and the public Express server serves the bundle at **`/demo-app/`**
+(static + SPA fallback) from `public/static/demo` (gitignored). CI also runs `npm run build:demo` so
+the demo build cannot silently break. Spec: [`docs/public-live-demo-spec.md`](./docs/public-live-demo-spec.md).
+
 ### 5. Stand up a demo server (Ubuntu)
 One command on a fresh Ubuntu 22.04/24.04 box installs Docker + JDK 21, clones,
 builds the jars, and starts the whole stack:

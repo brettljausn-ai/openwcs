@@ -1,0 +1,24 @@
+{
+  "content": [
+    {
+      "createdAt": "2026-06-03T18:10:21.673795Z",
+      "updatedAt": "2026-06-04T11:53:31.399537Z",
+      "version": 1,
+      "id": "394dfd10-f541-48b5-84d8-773322549a3b",
+      "code": "DEMO",
+      "name": "Demo DC",
+      "timezone": "UTC",
+      "status": "ACTIVE",
+      "addressLine1": "12 Grimmauld Place",
+      "addressLine2": null,
+      "city": "London",
+      "region": null,
+      "postalCode": "WC1N 3EU",
+      "country": "Great Britain"
+    }
+  ],
+  "page": 0,
+  "size": 200,
+  "totalElements": 1,
+  "totalPages": 1
+}

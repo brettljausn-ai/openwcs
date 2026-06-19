@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:demo": "VITE_DEMO=true tsc && VITE_DEMO=true vite build",
     "preview": "vite preview",
+    "preview:demo": "VITE_DEMO=true vite preview",
+    "test:demo": "tsx --test test/pickEngine.test.ts",
     "screenshots": "tsx scripts/screenshots.ts"
   },
   "dependencies": {

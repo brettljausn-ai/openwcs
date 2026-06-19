@@ -1,0 +1,42 @@
+[
+  {
+    "id": "4dd6b3a2-f4cb-4054-ae80-32a5d370fb84",
+    "area": "REPLENISHMENT",
+    "severity": "CRITICAL",
+    "metric": "replenishmentOldestAgeMin",
+    "value": 5710,
+    "threshold": 120,
+    "sinceIso": "2026-06-15T12:43:50.329312Z",
+    "state": "OPEN"
+  },
+  {
+    "id": "e81ff4ef-c89e-4a38-9864-b7bc5da444c8",
+    "area": "ASRS",
+    "severity": "CRITICAL",
+    "metric": "asrsUtilisationPct",
+    "value": 96,
+    "threshold": 90,
+    "sinceIso": "2026-06-15T10:26:56.208992Z",
+    "state": "OPEN"
+  },
+  {
+    "id": "e65d291b-4e9d-4813-92d6-4053362d9a66",
+    "area": "SCAN",
+    "severity": "WARNING",
+    "metric": "scanNoReadPct",
+    "value": 6.2,
+    "threshold": 5,
+    "sinceIso": "2026-06-15T10:06:56.208992Z",
+    "state": "OPEN"
+  },
+  {
+    "id": "c466f6ca-ca06-4a2e-aaf3-e3a297e2cc63",
+    "area": "RECEIVING",
+    "severity": "CRITICAL",
+    "metric": "receiveErrorsDay",
+    "value": 12,
+    "threshold": 5,
+    "sinceIso": "2026-06-13T10:41:56.208992Z",
+    "state": "OPEN"
+  }
+]

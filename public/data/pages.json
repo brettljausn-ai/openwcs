@@ -111,6 +111,13 @@
     "headMeta": "<title data-i18n=\"lic.title\">License — openWCS is AGPL-3.0</title>\n  <meta name=\"description\" content=\"openWCS is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). Plain-language explanation: the four freedoms, copyleft, the AGPL network clause (§13), and what it means for self-hosting, modifying and offering openWCS as a service.\">\n  <meta name=\"theme-color\" content=\"#061812\">\n  <link rel=\"canonical\" href=\"https://openwcs.ai/license\">\n  <link rel=\"icon\" type=\"image/png\" href=\"/favicon.png\">\n  <meta property=\"og:title\" content=\"openWCS license — AGPL-3.0, explained\">\n  <meta property=\"og:description\" content=\"What the AGPL-3.0 license means for openWCS: the four freedoms, strong copyleft, the network-use clause, and what you can and must do.\">\n  <meta property=\"og:type\" content=\"article\">\n  <meta property=\"og:image\" content=\"https://openwcs.ai/openwcs.png\">",
     "scripts": ""
   },
+  "/live-demo": {
+    "file": "live-demo.html",
+    "view": "pages/live-demo",
+    "bodyId": "top",
+    "headMeta": "<title data-i18n=\"ld.title\">Live demo — openWCS</title>\n  <meta name=\"description\" content=\"Try openWCS right now: a real, read-only sandbox of the app that runs entirely in your browser. No login, nothing saved, reloading resets it. Open every menu, browse the real screens with sample data, and pick five totes at the goods-to-person station.\">\n  <meta name=\"theme-color\" content=\"#061812\">\n  <link rel=\"canonical\" href=\"https://openwcs.ai/live-demo\">\n  <link rel=\"icon\" type=\"image/png\" href=\"/favicon.png\">\n  <meta property=\"og:title\" content=\"Live demo — openWCS\">\n  <meta property=\"og:description\" content=\"A real, read-only sandbox of the openWCS app in your browser: no login, nothing saved, resets on reload. Browse every screen and pick five totes at the goods-to-person station.\">\n  <meta property=\"og:type\" content=\"website\">\n  <meta property=\"og:url\" content=\"https://openwcs.ai/live-demo\">\n  <meta property=\"og:image\" content=\"https://openwcs.ai/openwcs.png\">",
+    "scripts": ""
+  },
   "/living-docs": {
     "file": "living-docs.html",
     "view": "pages/living-docs",

@@ -80,7 +80,7 @@ export default function Login() {
       {mode === 'signin' ? (
         <form className="glass login-card" onSubmit={submit}>
           <div className="login-brand">
-            <img src="/Logo_white_solo.png" alt="" />
+            <img src={`${import.meta.env.BASE_URL}Logo_white_solo.png`} alt="" />
             <span className="login-wordmark">open<span className="accent">WCS</span></span>
           </div>
           <div className="login-sub">Warehouse Control System — sign in to continue</div>
@@ -113,7 +113,7 @@ export default function Login() {
       ) : (
         <form className="glass login-card" onSubmit={submitChange}>
           <div className="login-brand">
-            <img src="/Logo_white_solo.png" alt="" />
+            <img src={`${import.meta.env.BASE_URL}Logo_white_solo.png`} alt="" />
             <span className="login-wordmark">open<span className="accent">WCS</span></span>
           </div>
           <div className="login-sub">Change your password</div>

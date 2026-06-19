@@ -12,6 +12,8 @@ import BackendOverlay from './shell/BackendOverlay'
 import Dashboard from './Dashboard'
 import { WarehouseProvider } from './warehouse/WarehouseContext'
 import { LanguageProvider } from './i18n/LanguageContext'
+import { IS_DEMO } from './demo/session'
+import DemoBanner from './demo/DemoBanner'
 
 // Existing feature screens (re-homed into the shell).
 import TopologyEditor from './topology/TopologyEditor'
@@ -222,8 +224,11 @@ function Shell() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    // Public live demo bundle is served under /demo-app/ (same-origin); give the router that basename
+    // so in-app links resolve under the subpath. Normal builds keep the root basename.
+    <BrowserRouter basename={IS_DEMO ? '/demo-app' : undefined}>
       <BackendOverlay />
+      {IS_DEMO && <DemoBanner />}
       <AuthProvider>
         <Shell />
       </AuthProvider>

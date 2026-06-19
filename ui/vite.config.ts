@@ -8,10 +8,21 @@ import { VitePWA } from 'vite-plugin-pwa'
 // API calls are served NetworkFirst with a tiny timeout and are NOT cached stale: picking needs
 // fresh data, so on a real network failure we fall through to the offline queue rather than to a
 // stale cached queue. registerType 'autoUpdate' rolls new builds out silently (no operator prompt).
+// Public live demo build: VITE_DEMO=true serves the bundle same-origin under /demo-app/ (the public
+// site embeds it in an iframe). The flag is read from the process env here (the CLI sets it) so the
+// normal `vite build` is unaffected and stays at base '/'. The PWA service worker is skipped in the
+// demo: a precaching SW scoped to a sub-path inside an iframe adds nothing and only complicates the
+// static deploy.
+const isDemo = process.env.VITE_DEMO === 'true'
+
 export default defineConfig({
+  base: isDemo ? '/demo-app/' : '/',
   plugins: [
     react(),
     VitePWA({
+      // In the demo, disable the service worker (no precaching SW inside the iframe) but keep the
+      // plugin loaded so `virtual:pwa-register` still resolves to a no-op registerSW in main.tsx.
+      disable: isDemo,
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       includeAssets: ['favicon.png', 'Logo_white_solo.png'],

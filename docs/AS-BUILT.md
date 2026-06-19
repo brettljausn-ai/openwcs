@@ -1263,6 +1263,60 @@ move in-progress work and replay exactly what an operator saw.
 
 ---
 
+## 7j. Public sandboxed live demo (read-only, fully client-side)
+
+A public, fully client-side sandboxed demo of the real openWCS app, embedded on the marketing site at
+**`/live-demo`**. It is read-only, runs entirely in the visitor's browser over a snapshot of the demo
+box's data, and **persists nothing** (a reload resets it). No login, no backend, no risk.
+
+- **A demo build of the same SPA, not a fork.** A build-time flag `VITE_DEMO=true` (read via
+  `import.meta.env.VITE_DEMO`) produces a demo variant of `/ui` with asset base `/demo-app/`
+  (`npm run build:demo`). The same components, shell, menus and pick screens are reused; the flag
+  toggles three things: a synthetic auth session, the mock fetch layer, and the demo banner.
+- **Synthetic read-only session** (`ui/src/demo/session.ts`, consumed via `ui/src/demo/useDemoMode.ts`):
+  on boot, a fixed `demo` session is seeded, Keycloak is skipped entirely (`/login` is never shown), and
+  the session resolves so `can()` is true for every screen (all menus visible) while `canWrite()` /
+  `writeAllowed()` are false everywhere (every create/edit/delete control is hidden or disabled).
+- **Mock service layer (the core)** `ui/src/demo/mockApi.ts`: the single `authFetch` chokepoint
+  (`ui/src/lib/authFetch.ts`, through which every `/api`, `/admin` and `/realms` call passes) routes to
+  the mock instead of the network when `VITE_DEMO`, so **no request ever leaves the browser** (verified:
+  zero offsite requests). This is also a hard guarantee: the demo build cannot reach or mutate any real
+  service. GET requests resolve from committed fixtures; unknown GETs return benign empty states (`[]` /
+  `{}` / zeroed shapes) so screens render an empty state, never an error; mutations (POST/PUT/DELETE) are
+  no-op successes EXCEPT the whitelisted GTP pick-station endpoints, which drive the in-memory pick engine.
+- **Demo-box data snapshot (fixtures)** `ui/src/demo/fixtures/*.json`: GET responses snapshotted from
+  `app.openwcs.ai` by `tools/demo-snapshot.mjs` and committed. Coverage is the **headline screens**:
+  the dashboards (orders/inventory/SLA/dispatch, replenishment, ABC, automation summary, alerts +
+  alert thresholds), master data (warehouses, SKUs, locations, areas, storage blocks, HU types),
+  inventory (stock overview, handling units), orders (dispatch, pick-tasks), GTP workplaces and a few
+  SKU cards, plus the warehouse-access fixture. Other screens render clean empty states. The demo is
+  honest sample data, not a claim of full data on every screen.
+- **In-memory pick engine** `ui/src/demo/pickEngine.ts` (the only "live" state): on demo start it arms
+  **5 totes** at the goods-to-person (GTP) station and walks the induction queue REQUESTED → IN_TRANSIT →
+  QUEUED on a short timer so the queue visibly fills. It answers the GTP endpoints (present a tote,
+  confirm a put **full** or **short**, **close the cycle** and present the **next tote**, plus the
+  **dirty-tote / broken-units exceptions**). A `reset()` re-arms all 5; no timers or state survive a
+  reload.
+- **Demo banner** `ui/src/demo/DemoBanner.tsx`: a persistent strip reading "Live demo, sample data,
+  nothing is saved" with a **Restart** action.
+- **The public page + serving.** `/live-demo` (template `public/views/pages/live-demo.ejs`, route in
+  `public/data/pages.json`) frames the demo and embeds it full-bleed via `<iframe src="/demo-app/">`.
+  The public Express server (`public/server.js`) serves the demo bundle at **`/demo-app/`** (static +
+  SPA deep-link fallback) from `public/static/demo` (gitignored generated output). The primary nav
+  **Live demo** now points to the in-site sandbox, with a secondary **Full demo box** link to
+  `https://app.openwcs.ai`. i18n keys (`ld.*`) added in en/de/fr/es with parity (`i18n-check` passes).
+- **Build / deploy.** `cd ui && npm run build:demo` then copy `dist` into `public/static/demo`, OR from
+  `/public` run `npm run build:demo-app` (`public/scripts/build-demo-app.js` does both in one command).
+  CI now also runs `npm run build:demo` in the UI job so the demo build cannot silently break. The
+  user experience verified end to end in a browser: land on the Control room dashboard, open every menu
+  read-only, and pick the 5 totes (full pick, short pick, exceptions).
+- **Maintenance rule** (spec §10a + memory): the demo is a standing update target like the README,
+  AS-BUILT, wiki and public site: any relevant product change (new/renamed screens, changed API
+  response shapes, picking / GTP contract changes) should refresh the fixtures and keep `mockApi.ts` /
+  `pickEngine.ts` in step in the same PR. Spec: `docs/public-live-demo-spec.md`.
+
+---
+
 ## 8. The two working vertical slices
 
 **Goods-in → stock:** `POST /api/txlog/events {GoodsReceived}` → outbox relay →

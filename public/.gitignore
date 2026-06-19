@@ -3,3 +3,6 @@ dist/
 npm-debug.log*
 .DS_Store
 .env
+
+# Live-demo SPA bundle (generated output: cd ui && npm run build:demo, then copy into here).
+static/demo/

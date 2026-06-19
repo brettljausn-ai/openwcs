@@ -32,6 +32,12 @@ export function installAuthFetch() {
   const native = window.fetch.bind(window)
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+    // Public live demo: route every /api and /admin call to the in-browser mock so NO request ever
+    // leaves the browser. Guarded by the build-time flag so normal builds are byte-for-byte the same.
+    if (import.meta.env.VITE_DEMO === 'true' && needsAuth(url)) {
+      const { mockFetch } = await import('../demo/mockApi')
+      return mockFetch(input, init)
+    }
     const token = getToken()
     let nextInit = init
     if (token && needsAuth(url)) {
