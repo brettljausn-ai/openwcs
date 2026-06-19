@@ -161,12 +161,18 @@ Following the existing public-site pattern (`/public`, EJS + `data/pages.json` +
 - i18n: every visible string gets a `data-i18n` key in en/de/fr/es in `public/static/i18n.js`, and
   `node public/static/i18n-check.js` must pass (CI parity guard).
 
-### 6.1 Embedding (recommended: same-origin, served by the public site)
-Build the demo SPA and serve its static output from the public site itself (for example copy the
-`build:demo` output to `public/static/demo/` and have the Express server serve it at `/demo-app`).
-The `/live-demo` page embeds it full-bleed via an `<iframe src="/demo-app">`. Same-origin avoids
+### 6.1 Embedding (same-origin, served by the public site)
+The demo SPA is built from `ui/` (`npm run build:demo`, base `/demo-app/`) and its static output is
+**committed into `public/static/demo/`** and served by the public Express app at `/demo-app/`. The
+`/live-demo` page embeds it full-bleed via an `<iframe src="/demo-app/">`. Same-origin avoids
 `X-Frame-Options`/CSP friction, removes any dependency on the app stack being up, and keeps the
-marketing site fast and resilient. The demo is just static files.
+marketing site fast and resilient.
+
+Why committed (not gitignored build output): openwcs.ai is a Hostinger Node app whose application
+root is only the `public/` folder, with no `ui/` build toolchain on the host, so it cannot build the
+bundle at deploy time. Committing it is the only way it ships. Rebuild and re-commit it with
+`npm run build:demo-app` (from `public/`) whenever a product change affects the demo (see the
+keep-demo-updated rule). The bundle is one folder (~4 MB, replaced wholesale each build).
 
 Alternative (if we prefer separation): host the demo build at `demo.openwcs.ai` and either iframe it
 (set `frame-ancestors openwcs.ai` via CSP) or link to it full-screen. Recommendation is same-origin

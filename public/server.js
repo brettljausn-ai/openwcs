@@ -120,12 +120,13 @@ app.post('/api/contact', express.json({ limit: '16kb' }), async (req, res) => {
 
 // --- Live-demo SPA (same-origin sandbox) ------------------------------------
 // The /live-demo marketing page embeds the real app as a read-only, in-browser sandbox via
-// <iframe src="/demo-app/">. The demo bundle is GENERATED OUTPUT (treat it like ui/dist): it is not
-// committed. Produce and place it with:
-//     cd ui && npm run build:demo        # builds the VITE_DEMO variant with base path /demo-app/
-//     cp -r ui/dist-demo/* public/static/demo/   # copy the bundle into the served directory
-// public/static/demo/ is gitignored. Until the bundle is copied in, /demo-app/ returns 404 and the
-// /live-demo page shows its "open the full demo box" fallback link, so the page still renders cleanly.
+// <iframe src="/demo-app/">. The demo bundle is built from the ui/ workspace but COMMITTED into
+// public/static/demo/ so it ships with the public/ folder: the openwcs.ai host serves only public/
+// and has no ui build toolchain, so it cannot build the bundle itself. Rebuild and re-commit it
+// whenever the app changes in a way the demo shows (see keep-demo-updated):
+//     npm run build:demo-app   (from public/, runs the ui build then copies the bundle in here)
+// If the bundle is ever missing, /demo-app/ returns 404 and the /live-demo page falls back to its
+// "open the full demo box" link, so the page still renders cleanly.
 const demoDir = path.join(__dirname, 'static', 'demo');
 app.use('/demo-app', express.static(demoDir, { maxAge: '1h', index: 'index.html' }));
 // SPA deep-link fallback: any /demo-app/* path the static middleware did not resolve to a real file
