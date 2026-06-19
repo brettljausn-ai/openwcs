@@ -76,6 +76,37 @@
   <section>
     <div class="wrap">
       <div class="section-head">
+        <p class="eyebrow" data-i18n="pick.fiEyebrow">Reliable fulfilment</p>
+        <h2 data-i18n="pick.fiH">A pick that is correct, not just fast.</h2>
+        <p data-i18n="pick.fiP">
+          Confirming a pick does the right thing to the books, not just decrement a number. It checks
+          what is actually on hand, releases the order's reservation so availability stays honest, and
+          records who picked it.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="pick.fiTag1">Never negative</div><span class="pill pill-built" data-i18n="pick.fiPill1">Built</span></div>
+          <h3 data-i18n="pick.fiH1">Stock can't go negative</h3>
+          <p data-i18n="pick.fiP1">Before a pick is booked, openWCS reads what is pickable at that location and clamps the booked quantity to what is on hand, marking the line short if it has to. Even if something slips through, the stock projection refuses to take a quantity below zero. A miskey or a double scan never produces negative stock.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="pick.fiTag2">Honest availability</div><span class="pill pill-built" data-i18n="pick.fiPill2">Built</span></div>
+          <h3 data-i18n="pick.fiH2">Reservation released on pick</h3>
+          <p data-i18n="pick.fiP2">A pick consumes the order line's reservation as it draws the stock down, so available-to-promise is not double-counted. What is shown as free to promise stays accurate the moment a pick happens, not after a later reconciliation.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="pick.fiTag3">Attributed</div><span class="pill pill-built" data-i18n="pick.fiPill3">Built</span></div>
+          <h3 data-i18n="pick.fiH3">Every action has a name</h3>
+          <p data-i18n="pick.fiP3">Each pick records the operator who did it, the handheld process run it came from, and the order type, so any stock movement is traceable back to a person and a flow without a forensic dig.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
         <p class="eyebrow" data-i18n="pick.eyebrow4">At a glance</p>
         <h2 data-i18n="pick.h4">Plan today → operators confirm today.</h2>
       </div>

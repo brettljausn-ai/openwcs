@@ -57,6 +57,14 @@ public class OrderLineTransaction {
     @Column(name = "actor")
     private String actor;
 
+    /** Handheld process instance that drove this posting (null for direct/non-process callers). */
+    @Column(name = "process_instance_id")
+    private String processInstanceId;
+
+    /** Order type this posting was made under (INBOUND / OUTBOUND / COUNT / ADJUSTMENT), for traceability. */
+    @Column(name = "order_type")
+    private String orderType;
+
     @CreationTimestamp
     @Column(name = "posted_at", updatable = false, nullable = false)
     private Instant postedAt;
@@ -119,6 +127,24 @@ public class OrderLineTransaction {
 
     public String getActor() {
         return actor;
+    }
+
+    public String getProcessInstanceId() {
+        return processInstanceId;
+    }
+
+    /** Stamp the handheld process instance that drove this posting (audit / traceability). */
+    public void setProcessInstanceId(String processInstanceId) {
+        this.processInstanceId = processInstanceId;
+    }
+
+    public String getOrderType() {
+        return orderType;
+    }
+
+    /** Stamp the order type this posting was made under (audit / traceability). */
+    public void setOrderType(String orderType) {
+        this.orderType = orderType;
     }
 
     public Instant getPostedAt() {

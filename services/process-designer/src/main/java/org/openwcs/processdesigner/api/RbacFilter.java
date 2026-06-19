@@ -54,6 +54,9 @@ public class RbacFilter extends OncePerRequestFilter {
                 && !HttpMethod.GET.matches(request.getMethod());
         // AI task-assist (spec §7.3) is a design-time authoring aid -> edit permission.
         boolean assist = uri.startsWith("/api/process-designer/assist");
-        return defWrite || assist ? Permission.PROCESS_DESIGN_EDIT : Permission.PROCESS_DESIGN_VIEW;
+        // Reassigning a running instance to another operator is a supervisor action -> edit permission
+        // (operators with VIEW can start / checkpoint / step / resume their own runs, but not reassign).
+        boolean reassign = uri.startsWith("/api/process-designer/instances/") && uri.endsWith("/reassign");
+        return defWrite || assist || reassign ? Permission.PROCESS_DESIGN_EDIT : Permission.PROCESS_DESIGN_VIEW;
     }
 }

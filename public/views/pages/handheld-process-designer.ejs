@@ -175,6 +175,43 @@
   <section>
     <div class="wrap">
       <div class="section-head">
+        <p class="eyebrow" data-i18n="hpd.rfEyebrow">RF resilience</p>
+        <h2 data-i18n="hpd.rfH">Refresh, swap the device, re-login: keep going.</h2>
+        <p class="lead" data-i18n="hpd.rfLead">
+          On a warehouse floor a handheld drops its Wi-Fi, runs flat, or gets handed to the next shift.
+          The runtime records every screen advance to the server, so the operator picks up on the exact
+          step they were on, with the data they had already entered, no matter which device they sign
+          back in on. Supervisors can see who is on what, move work between people, and replay a run.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.rfTag1">Exact resume</div><span class="pill pill-built" data-i18n="hpd.rfPill1">Built</span></div>
+          <h3 data-i18n="hpd.rfH1">Resume on the exact step</h3>
+          <p data-i18n="hpd.rfP1">Every screen advance is written to a durable on-device queue and posted to the server, which keeps the precise current step and the data so far. A refresh, a switched device or an RF re-login resumes on that exact step, not back at the last task. The operator menu has a "Resume in-progress work" launcher for their own running flows.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.rfTag2">RF users + reassign</div><span class="pill pill-built" data-i18n="hpd.rfPill2">Built</span></div>
+          <h3 data-i18n="hpd.rfH2">See who is on what, move it</h3>
+          <p data-i18n="hpd.rfP2">A supervisor RF-users screen lists the active operators on handheld processes, the process each is running and the current workstep. A reassign action moves an in-progress run to another operator, keeping the original starter on record. Good for breaks, shift changes and a stuck handheld.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.rfTag3">Replay + attribution</div><span class="pill pill-built" data-i18n="hpd.rfPill3">Built</span></div>
+          <h3 data-i18n="hpd.rfH3">Replay what they saw, by name</h3>
+          <p data-i18n="hpd.rfP3">A replay viewer steps through exactly what an operator saw and entered, using the same screen renderer as the live handheld. And the operator's username is carried into every task, so every resulting stock transaction is attributed to the person who did it.</p>
+        </div>
+      </div>
+      <p class="lead" data-i18n="hpd.rfNote">
+        Three fulfilment tasks ship ready to drop into a flow: book picked stock to an order line, load
+        an order from a scanned code, and an exception step to reduce stock for a stated reason (which
+        refuses to take more than is on hand, so stock never goes negative).
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
         <p class="eyebrow" data-i18n="hpd.eyebrow4">Two controlled escape hatches</p>
         <h2 data-i18n="hpd.h4">When a curated task is not enough, safely.</h2>
         <p data-i18n="hpd.p12">

@@ -166,16 +166,22 @@ public class OrderController {
      * quantity, marking it SHORT on a short confirm. Requires ORDER_POST_TRANSACTION (held by
      * OPERATOR in the shipped role catalog — the picking write permission); the operator is
      * taken from the gateway-forwarded {@code X-Auth-User} and recorded for audit. 409 when
-     * the line is not pickable.
+     * the line is not pickable. The driving handheld process instance is read from the request
+     * body ({@code processInstanceId}), falling back to the {@code X-Process-Instance} header.
      */
     @PostMapping("/pick-tasks/{lineId}/confirm")
     public PickTaskView confirmPick(
             @PathVariable UUID lineId,
             @RequestHeader(name = "X-Auth-User", required = false) String authUser,
+            @RequestHeader(name = "X-Process-Instance", required = false) String processInstance,
             @RequestHeader(name = ROLES, required = false) String roles,
             @Valid @RequestBody ConfirmPickRequest request) {
         guard.require(roles, Permission.ORDER_POST_TRANSACTION);
-        return service.confirmPick(lineId, request, authUser);
+        ConfirmPickRequest effective = request.processInstanceId() != null || processInstance == null
+                ? request
+                : new ConfirmPickRequest(request.pickedQty(), request.shortPick(), request.locationId(),
+                        processInstance);
+        return service.confirmPick(lineId, effective, authUser);
     }
 
     /**

@@ -30,6 +30,7 @@ export default {
   topology: 'Topología de automatización',
   processes: 'Procesos',
   'process:design': 'Diseñador de procesos',
+  'process:rf-users': 'Usuarios RF',
   slotting: 'Slotting',
   'master-data:equipment': 'Equipos',
   'master-data:warehouses': 'Almacenes',

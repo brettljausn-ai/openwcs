@@ -56,6 +56,9 @@ class PickTaskAuthorizationTest {
     @MockBean
     org.openwcs.orders.client.MasterDataClient masterData;
 
+    @MockBean
+    org.openwcs.orders.client.InventoryClient inventory;
+
     @Autowired
     MockMvc mockMvc;
 
@@ -84,6 +87,10 @@ class PickTaskAuthorizationTest {
     }
 
     private String confirmBody() throws Exception {
+        // Ample stock at the pick face so the available-at-location guard never clamps these picks.
+        when(inventory.availabilityAtLocation(any(), any(), any()))
+                .thenReturn(new org.openwcs.orders.client.InventoryClient.Availability(
+                        new BigDecimal("999"), BigDecimal.ZERO, new BigDecimal("999")));
         return om.writeValueAsString(Map.of("pickedQty", 5));
     }
 

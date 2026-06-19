@@ -250,6 +250,11 @@ paths:
           required: false
           schema: { type: string, enum: [RUNNING, DONE] }
         - { name: warehouseId, in: query, required: false, schema: { type: string, format: uuid } }
+        - name: assignedTo
+          in: query
+          required: false
+          description: "Filter to instances currently assigned to this operator (my open work / resume-by-user)."
+          schema: { type: string }
         - { name: limit, in: query, required: false, schema: { type: integer, default: 50 } }
       responses:
         "200":
@@ -320,6 +325,75 @@ paths:
         "400": { description: "Step is not a task step or is unknown" }
         "404": { description: Instance or step not found }
         "502": { description: "The curated task failed, the instance did not advance" }
+
+  /instances/{id}/step:
+    post:
+      tags: [Instances]
+      summary: Record a per-screen step advance (exact resume + replay)
+      description: >
+        The mobile client posts this on every SCREEN advance so the server's current step + data
+        object stay exact for a mid-flow device swap. The posted data is merged into the instance,
+        current_step is set to stepId, and an ordered step-history event is appended (entered_by =
+        X-Auth-User). Idempotent on (instanceId, seq): re-posting the same seq returns the current
+        state without re-applying.
+      operationId: stepInstance
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StepEventRequest' }
+      responses:
+        "200":
+          description: Updated instance state (exact current step + merged data)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InstanceView' }
+        "404": { description: Instance not found }
+
+  /instances/{id}/reassign:
+    post:
+      tags: [Instances]
+      summary: Reassign a running instance to another operator (supervisor)
+      description: >
+        Sets assigned_to = toUser and appends an audit step event (step_type "reassign", data
+        {from, to}, entered_by = X-Auth-User). started_by (who created the run) is kept. Gated by
+        PROCESS_DESIGN_EDIT (supervisor / admin).
+      operationId: reassignInstance
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReassignRequest' }
+      responses:
+        "200":
+          description: Updated instance state (assignedTo moved to toUser)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InstanceView' }
+        "403": { description: "Missing PROCESS_DESIGN_EDIT" }
+        "404": { description: Instance not found }
+
+  /instances/{id}/steps:
+    get:
+      tags: [Instances]
+      summary: The instance's step history (ordered, for replay)
+      description: "The ordered (oldest first) step-history events for the instance: screen advances, task checkpoints, and audit rows (e.g. reassign), so a supervisor can replay what an operator did."
+      operationId: listInstanceSteps
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Ordered step events (oldest first)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/StepEvent' }
+        "404": { description: Instance not found }
 
   /assist/task:
     post:
@@ -585,6 +659,10 @@ components:
           type: object
           additionalProperties: true
         currentStep: { type: string, nullable: true }
+        assignedTo:
+          type: string
+          nullable: true
+          description: "The operator the run is currently assigned to (for resume-by-user)."
 
     CheckpointRequest:
       type: object
@@ -593,7 +671,68 @@ components:
         data:
           type: object
           additionalProperties: true
+        seq:
+          type: integer
+          format: int64
+          nullable: true
+          description: "Optional position for the resulting step-history event; if omitted the server appends after the current highest seq."
       required: [stepId]
+
+    StepEventRequest:
+      type: object
+      description: "A per-screen step advance the mobile client posts on every SCREEN advance (exact resume + replay)."
+      properties:
+        seq:
+          type: integer
+          format: int64
+          description: "The monotonic position of this advance within the instance (idempotency key with the instance id)."
+        stepId:
+          type: string
+          nullable: true
+          description: "The step the client advanced TO."
+        stepType:
+          type: string
+          nullable: true
+          description: "The type of that step, e.g. screen."
+        data:
+          type: object
+          additionalProperties: true
+          description: "The data object captured so far, merged into the instance."
+      required: [seq]
+
+    ReassignRequest:
+      type: object
+      description: "Reassign a running instance to another operator (supervisor)."
+      properties:
+        toUser:
+          type: string
+          description: "The operator to assign the run to (started_by is kept)."
+      required: [toUser]
+
+    StepEvent:
+      type: object
+      description: "One ordered entry in an instance's step history (a screen advance, a task checkpoint, or an audit row), for replay."
+      properties:
+        id: { type: string, format: uuid }
+        seq:
+          type: integer
+          format: int64
+          description: "The monotonic position of this event within the instance."
+        stepId: { type: string, nullable: true }
+        stepType:
+          type: string
+          nullable: true
+          description: "The step's type (e.g. screen, task) or an audit type (e.g. reassign)."
+        data:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: "The merged data object as of this event (or {from, to} for a reassign audit row)."
+        enteredBy:
+          type: string
+          nullable: true
+          description: "The operator (X-Auth-User) who posted this advance."
+        at: { type: string, format: date-time }
 
     CheckpointResult:
       type: object
@@ -645,6 +784,10 @@ components:
         status: { type: string, enum: [RUNNING, DONE] }
         currentStep: { type: string, nullable: true }
         startedBy: { type: string }
+        assignedTo:
+          type: string
+          nullable: true
+          description: "The operator the run is currently assigned to (for my open work / resume-by-user)."
         warehouseId: { type: string, format: uuid, nullable: true }
         startedAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
