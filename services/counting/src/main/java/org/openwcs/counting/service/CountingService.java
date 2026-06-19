@@ -130,6 +130,10 @@ public class CountingService {
             if (entry.countedQty() == null) {
                 throw new IllegalArgumentException("countedQty is required for line " + entry.countLineId());
             }
+            // First recorded count starts the line: a started line is immune to release / the sweeper.
+            if (line.getStartedAt() == null) {
+                line.setStartedAt(Instant.now());
+            }
             line.setCountedQty(entry.countedQty());
             line.setVariance(entry.countedQty().subtract(line.getExpectedQty()));
             line.setStatus("COUNTED");
@@ -260,6 +264,12 @@ public class CountingService {
         }
         if ("ACCEPTED".equals(state)) {
             return new StationCountResult("ACCEPTED", "This tote was already counted.");
+        }
+
+        // The operator is actively counting this line now: starting it makes it immune to release /
+        // the stale-reservation sweeper (do not yank a tote out from under a working operator).
+        if (line.getStartedAt() == null) {
+            line.setStartedAt(Instant.now());
         }
 
         boolean firstCount = !"RECOUNT".equals(state) || line.getStationLastCount() == null;

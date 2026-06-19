@@ -1,5 +1,6 @@
 package org.openwcs.counting.client;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -22,6 +23,13 @@ public interface MasterDataClient {
 
     /** A SKU's host code, if resolvable (used to label the transport / queue entry). */
     Optional<String> skuCode(UUID skuId);
+
+    /**
+     * The location ids that fall inside a Master Data Area subtree (recursive: the area plus all of
+     * its descendant areas). Used by claim-next to scope the candidate count lines to the area an
+     * operator is working. Returns an empty list when the area is unknown or has no locations.
+     */
+    List<UUID> areaLocationIds(UUID areaId);
 
     /** True when a storage type is an ASRS-family automated system. */
     static boolean isAsrsFamily(String storageType) {

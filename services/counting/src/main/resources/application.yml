@@ -42,6 +42,11 @@ openwcs:
     # ABC cadence sweep: emits due CountTasks from active schedules. Quoted cron; off-peak so it
     # never fires during tests with the default schedule.
     schedule-cron: ${OPENWCS_COUNTING_SCHEDULE_CRON:0 0 1 * * *}
+    # Per-operator line reservation (area-driven counting). A reservation that never starts counting
+    # is reclaimed by the sweeper once it ages past this TTL; the sweep runs on the interval below
+    # (milliseconds). A started line is never reclaimed.
+    reservation-ttl: ${OPENWCS_COUNTING_RESERVATION_TTL:15m}
+    reservation-sweep-interval: ${OPENWCS_COUNTING_RESERVATION_SWEEP_INTERVAL:300000}
 
 management:
   endpoints:
