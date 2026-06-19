@@ -901,6 +901,15 @@ The **pick-and-put work cycle** (`work_cycle` + `put_instruction`):
 **Short-pick / exception handling:** if the presented qty can't cover all demand, the surplus
 demand simply stays OPEN for the next stock HU of that SKU.
 
+**Redesigned PICKING console** (`ui/src/gtpops/GtpOpsScreen.tsx`, CSS `op-gtp-*` in
+`ui/src/theme/app.css`): while an operator is actively picking, the screen is a two-area layout that
+fits the browser window (no page scroll). The TOP bordered area shows the stock (the source/active
+tote at the station plus the SKU); the LOWER bordered area (the bigger half) shows the target tote
+(compartment view) plus the confirmation area. Confirmation is a single focused quantity input
+(autofocused, defaulting to the required qty): Enter or Confirm books a full pick, a lower value
+books a short pick (clamped, no negatives); focus returns to the input after each confirm and as the
+next put becomes active. The backend calls (confirm put / close cycle) are unchanged.
+
 ### Operating modes
 
 Orthogonal to the destination topology (`mode`), a station **supports a set of operating modes**
@@ -1289,8 +1298,14 @@ box's data, and **persists nothing** (a reload resets it). No login, no backend,
   the dashboards (orders/inventory/SLA/dispatch, replenishment, ABC, automation summary, alerts +
   alert thresholds), master data (warehouses, SKUs, locations, areas, storage blocks, HU types),
   inventory (stock overview, handling units), orders (dispatch, pick-tasks), GTP workplaces and a few
-  SKU cards, plus the warehouse-access fixture. Other screens render clean empty states. The demo is
-  honest sample data, not a claim of full data on every screen.
+  SKU cards, plus the warehouse-access fixture. The **Reporting screens** are now covered too: the
+  Reporting endpoints are mocked (inventory stock-by-sku and storage-density; flow scan-quality /
+  traffic / transit-times / storage-movements / device-movements; orders flow by direction,
+  INBOUND vs OUTBOUND), snapshotted from the demo box, so Stock, ASRS, Material flow and
+  Inbound/Outbound render with data instead of a blank screen. The blank Stock screen was a crash
+  (the unmocked stock-by-sku returned an object and the report spread it as an array); `emptyFor`
+  was hardened so any unmapped report path returns `[]`. Other screens render clean empty states.
+  The demo is honest sample data, not a claim of full data on every screen.
 - **In-memory pick engine** `ui/src/demo/pickEngine.ts` (the only "live" state): on demo start it arms
   **5 totes** at the goods-to-person (GTP) station and walks the induction queue REQUESTED → IN_TRANSIT →
   QUEUED on a short timer so the queue visibly fills. It answers the GTP endpoints (present a tote,
@@ -1302,7 +1317,10 @@ box's data, and **persists nothing** (a reload resets it). No login, no backend,
 - **The public page + serving.** `/live-demo` (template `public/views/pages/live-demo.ejs`, route in
   `public/data/pages.json`) frames the demo and embeds it full-bleed via `<iframe src="/demo-app/">`.
   The public Express server (`public/server.js`) serves the demo bundle at **`/demo-app/`** (static +
-  SPA deep-link fallback) from `public/static/demo` (gitignored generated output). The primary nav
+  SPA deep-link fallback) from `public/static/demo` (the committed generated output, rebuilt to
+  include the Reporting mocks and the console redesign). A demo-only layout fix wraps the demo banner
+  plus the app in one 100vh column (`.demo-root` in `ui/src/App.tsx`) so the banner does not push the
+  app-shell past the viewport and fit-to-window screens stay inside the iframe. The primary nav
   **Live demo** now points to the in-site sandbox, with a secondary **Full demo box** link to
   `https://app.openwcs.ai`. i18n keys (`ld.*`) added in en/de/fr/es with parity (`i18n-check` passes).
 - **Build / deploy.** `cd ui && npm run build:demo` then copy `dist` into `public/static/demo`, OR from
