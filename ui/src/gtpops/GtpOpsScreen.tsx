@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import InfoTip from '../ui/InfoTip'
 import { useT } from '../i18n/useT'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import { useSidebar } from '../shell/SidebarContext'
@@ -641,27 +640,40 @@ function OperatorConsole({
         />
       ) : activeMode === 'PICKING' ? (
         head || cycle ? (
-          <>
-            <ActiveTotePanel
-              head={head}
-              cycle={cycle}
-              warehouseId={workplace.warehouseId}
-              error={presentError}
-              fill={!cycle}
-            />
-            {cycle && (
+          cycle ? (
+            // Active pick: a clean two-area layout that fits in the window (no page scroll).
+            // TOP box = the STOCK (source tote + SKU). BOTTOM box = the TARGET tote + the focused
+            // confirmation input. Both areas scroll internally; CycleView owns the bottom box.
+            <div className="op-gtp-pick">
+              <ActiveTotePanel
+                head={head}
+                cycle={cycle}
+                warehouseId={workplace.warehouseId}
+                error={presentError}
+                embedded
+              />
               <CycleView cycle={cycle} onChange={handleCycleChange} warehouseId={workplace.warehouseId} />
-            )}
-            {!cycle && presentError && (
-              <button
-                className="btn btn-primary btn-lg"
-                style={{ alignSelf: 'flex-start' }}
-                onClick={completeHeadAndAdvance}
-              >
-                {t('markToteDone', 'Mark tote done & advance')}
-              </button>
-            )}
-          </>
+            </div>
+          ) : (
+            <>
+              <ActiveTotePanel
+                head={head}
+                cycle={cycle}
+                warehouseId={workplace.warehouseId}
+                error={presentError}
+                fill
+              />
+              {presentError && (
+                <button
+                  className="btn btn-primary btn-lg"
+                  style={{ alignSelf: 'flex-start' }}
+                  onClick={completeHeadAndAdvance}
+                >
+                  {t('markToteDone', 'Mark tote done & advance')}
+                </button>
+              )}
+            </>
+          )
         ) : (
           <WaitingForTotes loaded={queueLoaded} />
         )
@@ -1493,6 +1505,7 @@ function ActiveTotePanel({
   warehouseId,
   error,
   fill,
+  embedded,
   accent = GREEN_ACCENT,
 }: {
   head: StationQueueEntry | null
@@ -1500,6 +1513,9 @@ function ActiveTotePanel({
   warehouseId: string
   error: string | null
   fill?: boolean
+  // embedded: compact variant used as the TOP bordered box inside the two-area pick layout.
+  // Drops the bottom margin and the 60vh fill, scrolls its own overflow, sits as one .glass box.
+  embedded?: boolean
   accent?: ModeAccent // per-mode accent (counting orange etc.); defaults to the green picking accent
 }) {
   const t = useT('gtpops')
@@ -1532,10 +1548,10 @@ function ActiveTotePanel({
 
   return (
     <div
-      className="glass"
+      className={`glass${embedded ? ' op-gtp-stock' : ''}`}
       style={{
         padding: fill ? '2.5rem' : '1.5rem',
-        marginBottom: '1.25rem',
+        marginBottom: embedded ? 0 : '1.25rem',
         display: 'flex',
         gap: fill ? '3rem' : '1.75rem',
         flexWrap: 'wrap',
@@ -1813,6 +1829,25 @@ function CycleView({
   // The active put is the next OPEN instruction; we visualise its destination tote.
   const activePut = openPuts[0] ?? null
   const activeIndex = activePut ? cycle.puts.findIndex((p) => p.id === activePut.id) : -1
+  const confirmedCount = cycle.puts.length - openPuts.length
+  // 1-based "Put X of N" position of the active put among all puts.
+  const activePosition = activeIndex < 0 ? cycle.puts.length : activeIndex + 1
+
+  // Focused picked-quantity input: defaults to the active put's required qty, autofocused.
+  const [qtyText, setQtyText] = useState<string>(activePut ? String(activePut.qty) : '')
+  const qtyRef = useRef<HTMLInputElement | null>(null)
+
+  // When the active put changes (cycle start, or after a confirm), reset the input to the new
+  // required qty and refocus it so the operator can key the next pick straight away.
+  useEffect(() => {
+    if (!activePut) return
+    setQtyText(String(activePut.qty))
+    const el = qtyRef.current
+    if (el) {
+      el.focus()
+      el.select()
+    }
+  }, [activePut?.id])
 
   async function confirm(p: PutInstruction, qty?: number) {
     setError(null)
@@ -1834,39 +1869,93 @@ function CycleView({
     }
   }
 
+  // Submit the focused quantity input. Full pick when value === required qty; short pick when less;
+  // clamp values above the required qty down to it; reject negatives / non-numbers.
+  function submitQty() {
+    if (!activePut) return
+    const raw = Number(qtyText)
+    if (!Number.isFinite(raw) || raw < 0) return
+    const value = Math.min(Math.floor(raw), activePut.qty)
+    if (value >= activePut.qty) {
+      void confirm(activePut)
+    } else {
+      void confirm(activePut, value)
+    }
+  }
+
+  const isShort = activePut != null && Number(qtyText) >= 0 && Math.floor(Number(qtyText)) < activePut.qty
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div className="glass" style={{ padding: '1.1rem 1.4rem', display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'center' }}>
+    <div className="glass op-gtp-target">
+      <div className="glass" style={{ padding: '1.1rem 1.4rem', display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
         <Stat label={t('statOperatingMode', 'Operating mode')} value={cycle.operatingMode} />
         <Stat label={t('statRemainingStock', 'Remaining stock')} value={cycle.remainingQty == null ? '—' : String(cycle.remainingQty)} />
-        <Stat label={t('statPuts', 'Puts')} value={`${cycle.puts.length - openPuts.length}/${cycle.puts.length}`} />
+        <Stat label={t('statPuts', 'Puts')} value={`${confirmedCount}/${cycle.puts.length}`} />
         <span className={`badge ${done ? 'badge-success' : 'badge-info'}`} style={{ marginLeft: 'auto' }}>
           {cycle.status}
         </span>
       </div>
 
-      {error && <p className="badge badge-danger">{error}</p>}
+      {error && <p className="badge badge-danger" style={{ flexShrink: 0 }}>{error}</p>}
 
-      {activePut && (
+      {activePut ? (
         <ToteView
           put={activePut}
           putIndex={activeIndex < 0 ? 0 : activeIndex}
           skuId={cycle.skuId}
           warehouseId={warehouseId}
+          embedded
         />
-      )}
-
-      {cycle.puts.length === 0 ? (
+      ) : cycle.puts.length === 0 ? (
         <p style={{ color: 'var(--text-dim)' }}>{t('noMatchingDemand', 'No matching demand — nothing to put for this stock HU.')}</p>
       ) : (
-        <div style={{ display: 'grid', gap: '.85rem', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-          {cycle.puts.map((p) => (
-            <PutCard key={p.id} put={p} onConfirm={confirm} />
-          ))}
-        </div>
+        <p style={{ color: 'var(--herbal-lime)', fontWeight: 600 }}>{t('allPutsConfirmed', 'All puts confirmed. Close the cycle to send the HU away.')}</p>
       )}
 
-      <button className="btn btn-ghost btn-lg" style={{ alignSelf: 'flex-start' }} onClick={finish}>
+      {activePut && (
+        <form
+          className="op-gtp-confirm"
+          onSubmit={(e) => {
+            e.preventDefault()
+            submitQty()
+          }}
+        >
+          <div className="op-gtp-confirm-meta">
+            <span className="eyebrow">
+              {t('putXofN', 'Put {i} of {n}').replace('{i}', String(activePosition)).replace('{n}', String(cycle.puts.length))}
+            </span>
+            <div style={{ fontWeight: 600 }}>
+              {t('order', 'Order')} {activePut.orderRef}
+              {activePut.putLightId ? ` · ${t('light', 'Light')} ${activePut.putLightId}` : ''}
+            </div>
+          </div>
+          <label className="op-gtp-confirm-qty">
+            <span className="op-gtp-qty-label">{t('pickedQty', 'Picked quantity')}</span>
+            <input
+              ref={qtyRef}
+              className="op-gtp-qty-input"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              max={activePut.qty}
+              value={qtyText}
+              autoFocus
+              onChange={(e) => setQtyText(e.target.value)}
+            />
+            <span className="op-gtp-qty-req">/ {activePut.qty}</span>
+          </label>
+          <button type="submit" className="btn btn-primary btn-lg">
+            {t('confirm', 'Confirm')}
+          </button>
+          {isShort && (
+            <span className="badge badge-warning op-gtp-short-hint">
+              {t('shortPickHint', 'Short pick: {n} of {req}').replace('{n}', String(Math.floor(Number(qtyText)))).replace('{req}', String(activePut.qty))}
+            </span>
+          )}
+        </form>
+      )}
+
+      <button className="btn btn-ghost btn-lg op-gtp-close-cycle" onClick={finish}>
         {done ? t('finishCloseCycle', 'Finish & close cycle') : t('closeCycle', 'Close cycle (send HU away)')}
       </button>
     </div>
@@ -1883,11 +1972,15 @@ function ToteView({
   putIndex,
   skuId,
   warehouseId,
+  embedded,
 }: {
   put: PutInstruction
   putIndex: number
   skuId: string | null
   warehouseId: string
+  // embedded: when inside the bottom box of the two-area pick layout, drop the .glass border/background
+  // so we don't nest a card inside a card.
+  embedded?: boolean
 }) {
   const t = useT('gtpops')
   const [hus, setHus] = useState<HandlingUnit[]>([])
@@ -1925,14 +2018,14 @@ function ToteView({
 
   return (
     <div
-      className="glass"
+      className={embedded ? 'op-gtp-tote-embedded' : 'glass'}
       style={{
-        padding: '1.5rem',
+        padding: embedded ? 0 : '1.5rem',
         display: 'flex',
         gap: '1.75rem',
         flexWrap: 'wrap',
         alignItems: 'center',
-        borderColor: 'rgba(141, 198, 63, .35)',
+        ...(embedded ? {} : { borderColor: 'rgba(141, 198, 63, .35)' }),
       }}
     >
       <div>
@@ -2024,64 +2117,6 @@ function gridFor(n: number): { cols: number; rows: number } {
     case 8: return { cols: 4, rows: 2 }
     default: return { cols: 4, rows: 2 }
   }
-}
-
-function PutCard({ put, onConfirm }: { put: PutInstruction; onConfirm: (p: PutInstruction, qty?: number) => void }) {
-  const t = useT('gtpops')
-  const [short, setShort] = useState('')
-  const open = put.status === 'OPEN'
-  const badge =
-    put.status === 'CONFIRMED'
-      ? 'badge-success'
-      : put.status === 'SHORT'
-        ? 'badge-warning'
-        : put.status === 'CANCELLED'
-          ? 'badge-danger'
-          : 'badge-info'
-  return (
-    <div
-      className="glass"
-      style={{ padding: '1.1rem', display: 'flex', flexDirection: 'column', gap: '.6rem', opacity: open ? 1 : 0.7 }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <strong style={{ fontSize: '1.05rem' }}>{put.orderRef}</strong>
-        <span className={`badge ${badge}`}>{put.status}</span>
-      </div>
-      <div style={{ fontSize: '2.2rem', fontWeight: 600, color: 'var(--herbal-lime)', lineHeight: 1 }}>
-        {put.qty}
-      </div>
-      <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: '.8rem' }}>
-        {put.putLightId ? `${t('light', 'Light')} ${put.putLightId}` : t('destination', 'Destination')}
-        {put.orderHuId ? ` · HU ${put.orderHuId.slice(0, 8)}` : ''}
-      </p>
-      {open && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', marginTop: '.25rem' }}>
-          <button className="btn btn-primary btn-lg btn-block" onClick={() => onConfirm(put)}>
-            {t('confirmPut', 'Confirm put ({n})').replace('{n}', String(put.qty))}
-          </button>
-          <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
-            <input
-              className="form-control"
-              type="number"
-              min="0"
-              max={put.qty}
-              value={short}
-              placeholder={t('shortQty', 'short qty')}
-              onChange={(e) => setShort(e.target.value)}
-            />
-            <InfoTip text={t('shortPutTip', 'Enter the actual quantity put when you cannot complete the full amount — confirms a short put for the remaining units. Must be less than the requested quantity.')} example="2" />
-            <button
-              className="btn btn-ghost"
-              disabled={!(Number(short) > 0 && Number(short) < put.qty)}
-              onClick={() => onConfirm(put, Number(short))}
-            >
-              {t('short', 'Short')}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
 }
 
 // --- small helpers --------------------------------------------------------------------------------

@@ -109,6 +109,11 @@ export default {
   shortPutTip:
     'Saisissez la quantité réellement rangée lorsque vous ne pouvez pas atteindre le total : confirme un rangement partiel pour les unités restantes. Doit être inférieure à la quantité demandée.',
   short: 'Partiel',
+  putXofN: 'Rangement {i} sur {n}',
+  pickedQty: 'Quantité préparée',
+  confirm: 'Confirmer',
+  shortPickHint: 'Préparation partielle : {n} sur {req}',
+  allPutsConfirmed: 'Tous les rangements confirmés. Fermez le cycle pour expédier la UM.',
   mode_PICKING: 'Préparation',
   mode_DECANTING: 'Décantage',
   mode_DECANT_MULTI: 'Décantage multiple',
