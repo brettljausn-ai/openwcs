@@ -51,6 +51,9 @@ public class ProcessInstance {
     @Column(name = "started_by")
     private String startedBy;
 
+    @Column(name = "assigned_to")
+    private String assignedTo;
+
     @Column(name = "warehouse_id")
     private UUID warehouseId;
 
@@ -116,6 +119,14 @@ public class ProcessInstance {
 
     public void setStartedBy(String startedBy) {
         this.startedBy = startedBy;
+    }
+
+    public String getAssignedTo() {
+        return assignedTo;
+    }
+
+    public void setAssignedTo(String assignedTo) {
+        this.assignedTo = assignedTo;
     }
 
     public UUID getWarehouseId() {

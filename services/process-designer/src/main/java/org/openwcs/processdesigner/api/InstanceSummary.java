@@ -15,12 +15,14 @@ public record InstanceSummary(
         String status,
         String currentStep,
         String startedBy,
+        String assignedTo,
         UUID warehouseId,
         Instant startedAt,
         Instant updatedAt) {
 
     public static InstanceSummary from(ProcessInstance i) {
         return new InstanceSummary(i.getId(), i.getProcessKey(), i.getDefVersion(), i.getStatus(),
-                i.getCurrentStep(), i.getStartedBy(), i.getWarehouseId(), i.getStartedAt(), i.getUpdatedAt());
+                i.getCurrentStep(), i.getStartedBy(), i.getAssignedTo(), i.getWarehouseId(),
+                i.getStartedAt(), i.getUpdatedAt());
     }
 }

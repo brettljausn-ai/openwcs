@@ -37,8 +37,9 @@ public class InstanceController {
     public List<InstanceSummary> list(@RequestParam(required = false) String processKey,
                                       @RequestParam(required = false) String status,
                                       @RequestParam(required = false) UUID warehouseId,
+                                      @RequestParam(required = false) String assignedTo,
                                       @RequestParam(required = false) Integer limit) {
-        return service.list(processKey, status, warehouseId, limit);
+        return service.list(processKey, status, warehouseId, assignedTo, limit);
     }
 
     @PostMapping
@@ -49,8 +50,32 @@ public class InstanceController {
     }
 
     @PostMapping("/{id}/checkpoint")
-    public CheckpointResult checkpoint(@PathVariable UUID id, @Valid @RequestBody CheckpointRequest req) {
-        return service.checkpoint(id, req.stepId(), req.data());
+    public CheckpointResult checkpoint(@PathVariable UUID id, @Valid @RequestBody CheckpointRequest req,
+                                       @RequestHeader(name = "X-Auth-User", required = false) String actor) {
+        return service.checkpoint(id, req.stepId(), req.data(), req.seq(), actor);
+    }
+
+    /**
+     * Record a per-screen step advance (exact resume + replay). The mobile client posts this on every
+     * SCREEN advance so the server's current step + data stay exact. Idempotent on (instanceId, seq).
+     */
+    @PostMapping("/{id}/step")
+    public InstanceView step(@PathVariable UUID id, @Valid @RequestBody StepEventRequest req,
+                             @RequestHeader(name = "X-Auth-User", required = false) String actor) {
+        return service.step(id, req.seq(), req.stepId(), req.stepType(), req.data(), actor);
+    }
+
+    /** Reassign a running instance to another operator (supervisor-gated by the RBAC filter). */
+    @PostMapping("/{id}/reassign")
+    public InstanceView reassign(@PathVariable UUID id, @Valid @RequestBody ReassignRequest req,
+                                 @RequestHeader(name = "X-Auth-User", required = false) String actor) {
+        return service.reassign(id, req.toUser(), actor);
+    }
+
+    /** The instance's step history in order (oldest first), for replay / resume. */
+    @GetMapping("/{id}/steps")
+    public List<StepEventView> steps(@PathVariable UUID id) {
+        return service.steps(id);
     }
 
     @GetMapping("/{id}")

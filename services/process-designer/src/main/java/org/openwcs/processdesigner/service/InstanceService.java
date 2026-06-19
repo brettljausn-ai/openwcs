@@ -12,10 +12,13 @@ import org.openwcs.processdesigner.api.CheckpointResult;
 import org.openwcs.processdesigner.api.InstanceSummary;
 import org.openwcs.processdesigner.api.InstanceView;
 import org.openwcs.processdesigner.api.NotFoundException;
+import org.openwcs.processdesigner.api.StepEventView;
 import org.openwcs.processdesigner.domain.ProcessDefinition;
 import org.openwcs.processdesigner.domain.ProcessInstance;
+import org.openwcs.processdesigner.domain.ProcessStepEvent;
 import org.openwcs.processdesigner.domain.ProcessStepResult;
 import org.openwcs.processdesigner.repo.ProcessInstanceRepository;
+import org.openwcs.processdesigner.repo.ProcessStepEventRepository;
 import org.openwcs.processdesigner.repo.ProcessStepResultRepository;
 import org.openwcs.processdesigner.task.ProcessTask;
 import org.openwcs.processdesigner.task.TaskExecutionException;
@@ -44,14 +47,17 @@ public class InstanceService {
 
     private final ProcessInstanceRepository instances;
     private final ProcessStepResultRepository stepResults;
+    private final ProcessStepEventRepository stepEvents;
     private final DefinitionService definitions;
     private final TaskRegistry taskRegistry;
     private final ObjectMapper mapper;
 
     public InstanceService(ProcessInstanceRepository instances, ProcessStepResultRepository stepResults,
-                           DefinitionService definitions, TaskRegistry taskRegistry, ObjectMapper mapper) {
+                           ProcessStepEventRepository stepEvents, DefinitionService definitions,
+                           TaskRegistry taskRegistry, ObjectMapper mapper) {
         this.instances = instances;
         this.stepResults = stepResults;
+        this.stepEvents = stepEvents;
         this.definitions = definitions;
         this.taskRegistry = taskRegistry;
         this.mapper = mapper;
@@ -70,6 +76,9 @@ public class InstanceService {
         instance.setData(mapper.createObjectNode());
         instance.setCurrentStep(start);
         instance.setStartedBy(startedBy);
+        // The starter owns the run until a supervisor reassigns it (startedBy stays the audit of
+        // who created it, assignedTo drives "my open work" / resume-by-user).
+        instance.setAssignedTo(startedBy);
         instance.setWarehouseId(warehouseId);
         ProcessInstance saved = instances.save(instance);
         log.info("process instance {} started: {} v{} at step '{}'",
@@ -79,14 +88,18 @@ public class InstanceService {
 
     /**
      * Instance monitoring list (spec §14): newest-first summaries, optionally filtered by processKey /
-     * status / warehouseId, capped at {@code limit} (clamped 1..500, default 50).
+     * status / warehouseId / assignedTo, capped at {@code limit} (clamped 1..500, default 50). The
+     * assignedTo filter drives "my open work" / resume-by-user.
      */
     @Transactional(readOnly = true)
-    public List<InstanceSummary> list(String processKey, String status, UUID warehouseId, Integer limit) {
+    public List<InstanceSummary> list(String processKey, String status, UUID warehouseId, String assignedTo,
+                                      Integer limit) {
         int capped = limit == null ? 50 : Math.max(1, Math.min(limit, 500));
         String key = blankToNull(processKey);
         String st = status == null || status.isBlank() ? null : status.toUpperCase();
-        return instances.search(key, st, warehouseId, org.springframework.data.domain.PageRequest.of(0, capped))
+        String assignee = blankToNull(assignedTo);
+        return instances.search(key, st, warehouseId, assignee,
+                        org.springframework.data.domain.PageRequest.of(0, capped))
                 .stream().map(InstanceSummary::from).toList();
     }
 
@@ -102,10 +115,11 @@ public class InstanceService {
     }
 
     @Transactional
-    public CheckpointResult checkpoint(UUID instanceId, String stepId, JsonNode posted) {
+    public CheckpointResult checkpoint(UUID instanceId, String stepId, JsonNode posted, Long seq, String actor) {
         ProcessInstance instance = load(instanceId);
 
         // Idempotency: a re-post of an already-processed (instance, step) returns the stored result.
+        // The step-history event was written on the first run, so a re-post does NOT append a duplicate.
         var prior = stepResults.findByInstanceIdAndStepId(instanceId, stepId);
         if (prior.isPresent()) {
             ProcessStepResult r = prior.get();
@@ -147,6 +161,12 @@ public class InstanceService {
                 inputs.putIfAbsent("warehouseId", instance.getWarehouseId().toString());
             }
             inputs.putIfAbsent("instanceId", instance.getId().toString());
+            // The operator's username rides along so a task that stamps an actor onto a downstream
+            // transaction (e.g. a txlog event's actor field) persists who actually did it. The
+            // forwarded X-Auth-* headers still carry identity for RBAC; this is the in-body record.
+            if (actor != null && !actor.isBlank()) {
+                inputs.putIfAbsent("actor", actor);
+            }
         }
 
         // Run the curated task. A failure aborts the transaction (no ledger row, no advance) -> 502.
@@ -168,9 +188,87 @@ public class InstanceService {
 
         // Record the idempotency ledger row (same transaction as the instance update).
         stepResults.save(new ProcessStepResult(instanceId, stepId, data, next, done));
+        // Append a step-history event so replay is continuous across screen advances + task steps.
+        // The recorded step_type is the definition step's type ("task"), matching how screen advances
+        // record their type. Guarded by the ledger above (a re-post returned early), so it never
+        // double-appends.
+        appendStepEvent(instance, seq, stepId, text(step, "type"), data, actor);
         log.info("checkpoint {}#{} ran task '{}' -> next '{}'{}",
                 instanceId, stepId, taskType, next, done ? " (instance done)" : "");
         return new CheckpointResult(data, instance.getCurrentStep(), done);
+    }
+
+    /**
+     * Record a per-screen step advance (spec: per-screen step history for exact resume + replay). The
+     * mobile client posts this on every SCREEN advance so the server's current step + data object are
+     * exact for a mid-flow device swap. Idempotent on (instanceId, seq): re-posting the same seq
+     * returns the current state without re-applying. Otherwise it appends the event (entered_by =
+     * actor), merges the posted data into the instance, sets current_step = stepId, and touches the
+     * instance.
+     */
+    @Transactional
+    public InstanceView step(UUID instanceId, long seq, String stepId, String stepType, JsonNode posted,
+                             String actor) {
+        ProcessInstance instance = load(instanceId);
+        ProcessDefinition def = definitions.get(instance.getProcessKey(), instance.getDefVersion());
+        if (stepEvents.existsByInstanceIdAndSeq(instanceId, seq)) {
+            log.info("step {}#{} (seq {}) already recorded; returning current state (idempotent)",
+                    instanceId, stepId, seq);
+            return view(instance, def.getJson());
+        }
+        ObjectNode data = mergedData(instance.getData(), posted);
+        instance.setData(data);
+        if (stepId != null) {
+            instance.setCurrentStep(stepId);
+        }
+        stepEvents.save(new ProcessStepEvent(instanceId, seq, stepId, stepType, data, actor));
+        log.info("step {}#{} (seq {}, type {}) recorded by {}", instanceId, stepId, seq, stepType, actor);
+        return view(instance, def.getJson());
+    }
+
+    /**
+     * Reassign a running instance to another operator (supervisor-gated at the controller). Sets
+     * assigned_to = toUser, keeps started_by (the immutable audit of who created the run), and writes
+     * an audit step event ({@code step_type = "reassign"}, data = {@code {from, to}}).
+     */
+    @Transactional
+    public InstanceView reassign(UUID instanceId, String toUser, String actor) {
+        ProcessInstance instance = load(instanceId);
+        ProcessDefinition def = definitions.get(instance.getProcessKey(), instance.getDefVersion());
+        String from = instance.getAssignedTo();
+        instance.setAssignedTo(toUser);
+        ObjectNode auditData = mapper.createObjectNode();
+        auditData.put("from", from);
+        auditData.put("to", toUser);
+        stepEvents.save(new ProcessStepEvent(instanceId, nextSeq(instanceId), instance.getCurrentStep(),
+                "reassign", auditData, actor));
+        log.info("instance {} reassigned from {} to {} by {}", instanceId, from, toUser, actor);
+        return view(instance, def.getJson());
+    }
+
+    /** The instance's step history in order (oldest first), for replay / resume. */
+    @Transactional(readOnly = true)
+    public List<StepEventView> steps(UUID instanceId) {
+        load(instanceId); // 404 if the instance does not exist
+        return stepEvents.findByInstanceIdOrderBySeq(instanceId).stream().map(StepEventView::from).toList();
+    }
+
+    /** Append a step-history event, deriving the seq server-side when the caller did not supply one. */
+    private void appendStepEvent(ProcessInstance instance, Long seq, String stepId, String stepType,
+                                 JsonNode data, String actor) {
+        long resolved = seq != null ? seq : nextSeq(instance.getId());
+        // If the resolved seq is already taken (e.g. a client-supplied seq collides), fall back to the
+        // next free seq rather than failing the whole checkpoint on the history row.
+        if (stepEvents.existsByInstanceIdAndSeq(instance.getId(), resolved)) {
+            resolved = nextSeq(instance.getId());
+        }
+        stepEvents.save(new ProcessStepEvent(instance.getId(), resolved, stepId, stepType, data, actor));
+    }
+
+    /** The next free monotonic seq for the instance (max recorded + 1, starting at 1). */
+    private long nextSeq(UUID instanceId) {
+        Long max = stepEvents.maxSeq(instanceId);
+        return max == null ? 1L : max + 1L;
     }
 
     /**
@@ -288,7 +386,7 @@ public class InstanceService {
 
     private InstanceView view(ProcessInstance i, JsonNode defJson) {
         return new InstanceView(i.getId(), i.getProcessKey(), i.getDefVersion(), i.getStatus(),
-                defJson, i.getData(), i.getCurrentStep());
+                defJson, i.getData(), i.getCurrentStep(), i.getAssignedTo());
     }
 
     private static String text(JsonNode node, String field) {
