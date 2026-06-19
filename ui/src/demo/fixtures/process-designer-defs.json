@@ -1,0 +1,90 @@
+[
+  {
+    "id": "95a6665c-012c-4c7c-8f90-e16fefd32913",
+    "processKey": "stock-check",
+    "version": 2,
+    "status": "DRAFT",
+    "title": "Stock Check",
+    "icon": "inventory",
+    "publishedAt": null,
+    "publishedBy": null,
+    "updatedAt": "2026-06-18T08:37:36.167482Z"
+  },
+  {
+    "id": "7fe838b0-8c8f-458d-8bf8-16ca8c81cbbf",
+    "processKey": "stock-check",
+    "version": 1,
+    "status": "ACTIVE",
+    "title": "Stock Check",
+    "icon": "inventory",
+    "publishedAt": "2026-06-16T10:35:24.349312Z",
+    "publishedBy": "system",
+    "updatedAt": "2026-06-16T10:35:24.349312Z"
+  },
+  {
+    "id": "fbaf190e-faee-405b-8a82-a1bdc8db51b1",
+    "processKey": "stock-check-by-area",
+    "version": 1,
+    "status": "ACTIVE",
+    "title": "Stock Check by Area (reference)",
+    "icon": "inventory",
+    "publishedAt": "2026-06-19T08:48:46.615346Z",
+    "publishedBy": "system",
+    "updatedAt": "2026-06-19T08:48:46.615346Z"
+  },
+  {
+    "id": "1a2bf32d-47ca-4911-b965-9991871f9009",
+    "processKey": "stock-count-ref",
+    "version": 5,
+    "status": "ACTIVE",
+    "title": "Stock Count (reference)",
+    "icon": "inventory",
+    "publishedAt": "2026-06-18T11:38:20.119478Z",
+    "publishedBy": "admin",
+    "updatedAt": "2026-06-18T11:38:20.120007Z"
+  },
+  {
+    "id": "d424b17b-7f9f-4fa2-b3f5-085d5aef65c9",
+    "processKey": "stock-count-ref",
+    "version": 4,
+    "status": "ARCHIVED",
+    "title": "Stock Count (reference)",
+    "icon": "inventory",
+    "publishedAt": "2026-06-18T11:37:55.931990Z",
+    "publishedBy": "admin",
+    "updatedAt": "2026-06-18T11:38:20.116980Z"
+  },
+  {
+    "id": "124a2255-71db-407f-87ce-bb39e0a6f131",
+    "processKey": "stock-count-ref",
+    "version": 3,
+    "status": "ARCHIVED",
+    "title": "Stock Count (reference)",
+    "icon": "inventory",
+    "publishedAt": "2026-06-18T11:21:44.569022Z",
+    "publishedBy": "admin",
+    "updatedAt": "2026-06-18T11:37:55.925173Z"
+  },
+  {
+    "id": "d3c6eb2f-6347-4510-8a95-b4fbc425ea6d",
+    "processKey": "stock-count-ref",
+    "version": 2,
+    "status": "ARCHIVED",
+    "title": "Stock Count (reference)",
+    "icon": "inventory",
+    "publishedAt": "2026-06-18T11:17:41.548025Z",
+    "publishedBy": "admin",
+    "updatedAt": "2026-06-18T11:21:44.566536Z"
+  },
+  {
+    "id": "3de127e4-f1d3-4ded-89a8-cdbf46869a42",
+    "processKey": "stock-count-ref",
+    "version": 1,
+    "status": "ARCHIVED",
+    "title": "Stock Count (reference)",
+    "icon": "inventory",
+    "publishedAt": "2026-06-18T10:38:44.425304Z",
+    "publishedBy": "system",
+    "updatedAt": "2026-06-18T11:17:41.545549Z"
+  }
+]

@@ -1307,36 +1307,63 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-assist-maps code { font-size: .76rem; color: var(--herbal-lime); }
 .op-pd-assist-rationale { font-size: .78rem; line-height: 1.4; margin: 0; }
 
-/* --- GTP picking: two-area viewport-fitting layout (active cycle) --- */
-/* Sized so both bordered boxes fit the window under the app shell + page head + mode pills,
-   so the page itself does not scroll. Each area scrolls its own overflow instead. */
-/* The GTP operator console fills the content area as a flex column so the pick layout below can
-   take exactly the remaining height (no fixed vh offset, so it fits with or without the demo banner). */
+/* --- GTP picking: one bordered box, source (left) | target (right), with a center divider that
+   carries a source-to-target flow arrow. Fills the window so the page does not scroll; each side
+   scrolls its own overflow. Mirrors the single-border feel of the cycle-count panel. --- */
+/* The operator console fills the content area as a flex column so the pick box can take the remaining
+   height (no fixed vh offset, so it fits with or without the demo banner). */
 .op-gtp-console { display: flex; flex-direction: column; }
 .op-gtp-pick {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
   flex: 1;
   min-height: 0;
-}
-/* TOP box: the STOCK (source tote + SKU). One bordered .glass box, roughly the smaller half. */
-.op-gtp-stock {
-  flex: 0 1 38%;
-  min-height: 0;
-  overflow: auto;
-}
-/* BOTTOM box: the TARGET tote + confirmation area. One bordered .glass box, the bigger half. */
-.op-gtp-target {
-  flex: 1 1 62%;
-  min-height: 0;
-  overflow: auto;
-  padding: 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  padding: 1.25rem;
+  overflow: hidden;
 }
-/* ToteView when embedded inside the bottom box: borderless so it is not a card inside a card. */
+.op-gtp-flow { flex: 1; min-height: 0; display: flex; align-items: stretch; }
+.op-gtp-side {
+  flex: 1 1 50%;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: .85rem;
+  padding: .25rem .75rem;
+}
+.op-gtp-side-label { color: var(--text-dim); }
+/* Bare source content (image + identity), no inner card border. */
+.op-gtp-source-card { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+/* Right side (the cycle): stats + tote + confirm, no inner card border. */
+.op-gtp-cycle { display: flex; flex-direction: column; gap: 1rem; min-height: 0; flex: 1; }
+.op-gtp-stats { display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; flex-shrink: 0; }
+/* Center divider line with the flow arrow (source to target). */
+.op-gtp-divider { position: relative; flex: 0 0 3rem; display: flex; align-items: center; justify-content: center; }
+.op-gtp-divider::before { content: ''; position: absolute; top: .5rem; bottom: .5rem; left: 50%; width: 1px; background: var(--glass-border); }
+.op-gtp-arrow {
+  position: relative;
+  z-index: 1;
+  width: 2.4rem;
+  height: 2.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--glass-bg, rgba(255, 255, 255, .04));
+  border: 1px solid var(--herbal-lime, #8dc63f);
+  color: var(--herbal-lime, #8dc63f);
+  font-size: 1.3rem;
+  line-height: 1;
+}
+/* Narrow screens: stack source over target and turn the arrow to point down. */
+@media (max-width: 860px) {
+  .op-gtp-flow { flex-direction: column; }
+  .op-gtp-divider { flex: 0 0 2.25rem; }
+  .op-gtp-divider::before { top: 50%; bottom: auto; left: .5rem; right: .5rem; width: auto; height: 1px; }
+  .op-gtp-arrow { transform: rotate(90deg); }
+}
+/* ToteView when embedded inside the box: borderless so it is not a card inside a card. */
 .op-gtp-tote-embedded {
   background: transparent;
   border: 0;

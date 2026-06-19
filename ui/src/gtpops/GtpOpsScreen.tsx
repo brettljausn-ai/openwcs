@@ -641,18 +641,29 @@ function OperatorConsole({
       ) : activeMode === 'PICKING' ? (
         head || cycle ? (
           cycle ? (
-            // Active pick: a clean two-area layout that fits in the window (no page scroll).
-            // TOP box = the STOCK (source tote + SKU). BOTTOM box = the TARGET tote + the focused
-            // confirmation input. Both areas scroll internally; CycleView owns the bottom box.
-            <div className="op-gtp-pick">
-              <ActiveTotePanel
-                head={head}
-                cycle={cycle}
-                warehouseId={workplace.warehouseId}
-                error={presentError}
-                embedded
-              />
-              <CycleView cycle={cycle} onChange={handleCycleChange} warehouseId={workplace.warehouseId} />
+            // Active pick: one bordered box split left/right (source | target) with a center divider
+            // carrying a source-to-target arrow, fitting the window (no page scroll). Each side scrolls
+            // its own overflow. The right side (CycleView) owns the focused confirmation input.
+            <div className="op-gtp-pick glass">
+              <div className="op-gtp-flow">
+                <section className="op-gtp-side op-gtp-source">
+                  <span className="eyebrow op-gtp-side-label">{t('source', 'Source')}</span>
+                  <ActiveTotePanel
+                    head={head}
+                    cycle={cycle}
+                    warehouseId={workplace.warehouseId}
+                    error={presentError}
+                    embedded
+                  />
+                </section>
+                <div className="op-gtp-divider" aria-hidden="true">
+                  <span className="op-gtp-arrow">→</span>
+                </div>
+                <section className="op-gtp-side op-gtp-dest">
+                  <span className="eyebrow op-gtp-side-label">{t('target', 'Target')}</span>
+                  <CycleView cycle={cycle} onChange={handleCycleChange} warehouseId={workplace.warehouseId} />
+                </section>
+              </div>
             </div>
           ) : (
             <>
@@ -1548,16 +1559,16 @@ function ActiveTotePanel({
 
   return (
     <div
-      className={`glass${embedded ? ' op-gtp-stock' : ''}`}
+      className={embedded ? 'op-gtp-source-card' : 'glass'}
       style={{
-        padding: fill ? '2.5rem' : '1.5rem',
+        padding: embedded ? 0 : fill ? '2.5rem' : '1.5rem',
         marginBottom: embedded ? 0 : '1.25rem',
         display: 'flex',
         gap: fill ? '3rem' : '1.75rem',
         flexWrap: 'wrap',
-        alignItems: 'center',
+        alignItems: embedded ? 'flex-start' : 'center',
         justifyContent: fill ? 'center' : 'flex-start',
-        borderColor: accent.border,
+        ...(embedded ? {} : { borderColor: accent.border }),
         ...(fill ? { flex: 1, minHeight: '60vh' } : {}),
       }}
     >
@@ -1886,8 +1897,8 @@ function CycleView({
   const isShort = activePut != null && Number(qtyText) >= 0 && Math.floor(Number(qtyText)) < activePut.qty
 
   return (
-    <div className="glass op-gtp-target">
-      <div className="glass" style={{ padding: '1.1rem 1.4rem', display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
+    <div className="op-gtp-cycle">
+      <div className="op-gtp-stats">
         <Stat label={t('statOperatingMode', 'Operating mode')} value={cycle.operatingMode} />
         <Stat label={t('statRemainingStock', 'Remaining stock')} value={cycle.remainingQty == null ? '—' : String(cycle.remainingQty)} />
         <Stat label={t('statPuts', 'Puts')} value={`${confirmedCount}/${cycle.puts.length}`} />

@@ -1,0 +1,265 @@
+[
+  {
+    "id": "e56d7eaa-6138-49d4-94b9-f4bd045d4831",
+    "warehouseId": "394dfd10-f541-48b5-84d8-773322549a3b",
+    "family": "ASRS",
+    "equipmentId": null,
+    "command": "STORE",
+    "payload": {
+      "huId": "f8216e91-90ba-43fc-8e8d-127a58421b01",
+      "huCode": "DEMO-HU-000",
+      "locationId": "28a2a439-ce98-427e-955e-2ea723b3393f"
+    },
+    "correlationId": "f8216e91-90ba-43fc-8e8d-127a58421b01",
+    "status": "COMPLETED",
+    "detail": "asrs simulated STORE",
+    "result": {
+      "family": "ASRS",
+      "command": "STORE",
+      "equipment": "",
+      "simulated": true,
+      "durationMs": 900
+    },
+    "actor": "system",
+    "createdAt": "2026-06-16T14:06:55.824509Z"
+  },
+  {
+    "id": "3dda162a-b0d0-45e9-bbfa-87995582e5ee",
+    "warehouseId": "394dfd10-f541-48b5-84d8-773322549a3b",
+    "family": "CONVEYOR",
+    "equipmentId": null,
+    "command": "CONVEY",
+    "payload": {
+      "huId": "f8216e91-90ba-43fc-8e8d-127a58421b01",
+      "huCode": "DEMO-HU-000",
+      "entryNode": "PP1#0",
+      "destinationNode": "ASRS-1#0",
+      "sourceWorkplaceId": "407fced6-5f56-4b56-8b3a-2641cfa5d027",
+      "destinationLocationId": "28a2a439-ce98-427e-955e-2ea723b3393f"
+    },
+    "correlationId": "f8216e91-90ba-43fc-8e8d-127a58421b01",
+    "status": "COMPLETED",
+    "detail": "conveyor walked CONVEY to ASRS-1#0",
+    "result": {
+      "scans": 14,
+      "family": "CONVEYOR",
+      "walked": true,
+      "command": "CONVEY",
+      "decisions": [
+        {
+          "event": "HELD",
+          "point": "PP1#0",
+          "decision": "No route plan and no default at divert PP1#0: tote stops"
+        },
+        {
+          "event": "ROUTED",
+          "point": "PP1#0",
+          "decision": "to BIN_CONVEYOR-1#17"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#17",
+          "decision": "to BIN_CONVEYOR-1#18"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#18",
+          "decision": "to BIN_CONVEYOR-1#19"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#19",
+          "decision": "to BIN_CONVEYOR-1#20"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#20",
+          "decision": "to BIN_CONVEYOR-1#21"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#21",
+          "decision": "to BIN_CONVEYOR-1#7"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#7",
+          "decision": "to BIN_CONVEYOR-1#0"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#0",
+          "decision": "to BIN_CONVEYOR-1#1"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#1",
+          "decision": "to BIN_CONVEYOR-1#2"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#2",
+          "decision": "to BIN_CONVEYOR-1#8"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#8",
+          "decision": "to ASRS-1#1"
+        },
+        {
+          "event": "ROUTED",
+          "point": "ASRS-1#1",
+          "decision": "to ASRS-1#0"
+        },
+        {
+          "event": "ARRIVED",
+          "point": "ASRS-1#0",
+          "decision": "ASRS-1#0"
+        }
+      ],
+      "equipment": "",
+      "simulated": true,
+      "durationMs": 33117,
+      "recirculations": 1
+    },
+    "actor": "system",
+    "createdAt": "2026-06-16T14:06:22.686597Z"
+  },
+  {
+    "id": "1110c346-2199-46fb-97fd-6c96b97fa30a",
+    "warehouseId": "394dfd10-f541-48b5-84d8-773322549a3b",
+    "family": "CONVEYOR",
+    "equipmentId": null,
+    "command": "CONVEY",
+    "payload": {
+      "huId": "f8216e91-90ba-43fc-8e8d-127a58421b01",
+      "huCode": "DEMO-HU-000",
+      "entryNode": "ASRS-1#2",
+      "destinationNode": "PP1#0",
+      "destinationWorkplaceId": "407fced6-5f56-4b56-8b3a-2641cfa5d027"
+    },
+    "correlationId": "f8216e91-90ba-43fc-8e8d-127a58421b01",
+    "status": "COMPLETED",
+    "detail": "conveyor walked CONVEY to PP1#0",
+    "result": {
+      "scans": 13,
+      "family": "CONVEYOR",
+      "walked": true,
+      "command": "CONVEY",
+      "decisions": [
+        {
+          "event": "ROUTED",
+          "point": "ASRS-1#2",
+          "decision": "to ASRS-1#3"
+        },
+        {
+          "event": "ROUTED",
+          "point": "ASRS-1#3",
+          "decision": "to BIN_CONVEYOR-1#9"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#9",
+          "decision": "to BIN_CONVEYOR-1#3"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#3",
+          "decision": "to BIN_CONVEYOR-1#fp2"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#fp2",
+          "decision": "to BIN_CONVEYOR-1#4"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#4",
+          "decision": "to BIN_CONVEYOR-1#10"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#10",
+          "decision": "to BIN_CONVEYOR-1#5"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#5",
+          "decision": "to BIN_CONVEYOR-1#6"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#6",
+          "decision": "to BIN_CONVEYOR-1#15"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#15",
+          "decision": "to BIN_CONVEYOR-1#16"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#16",
+          "decision": "to BIN_CONVEYOR-1#17"
+        },
+        {
+          "event": "ROUTED",
+          "point": "BIN_CONVEYOR-1#17",
+          "decision": "to PP1#0"
+        },
+        {
+          "event": "ARRIVED",
+          "point": "PP1#0",
+          "decision": "PP1#0"
+        }
+      ],
+      "equipment": "",
+      "simulated": true,
+      "durationMs": 36137,
+      "recirculations": 0
+    },
+    "actor": "system",
+    "createdAt": "2026-06-16T14:05:23.768562Z"
+  },
+  {
+    "id": "c4dfebe5-d7b9-4fc5-ad42-cd9aaf28d064",
+    "warehouseId": "394dfd10-f541-48b5-84d8-773322549a3b",
+    "family": "ASRS",
+    "equipmentId": null,
+    "command": "RETRIEVE",
+    "payload": {
+      "huId": "f8216e91-90ba-43fc-8e8d-127a58421b01",
+      "huCode": "DEMO-HU-000",
+      "locationId": "c6215096-b8a7-485e-900d-299c6a960cfb",
+      "destinationWorkplaceId": "407fced6-5f56-4b56-8b3a-2641cfa5d027"
+    },
+    "correlationId": "f8216e91-90ba-43fc-8e8d-127a58421b01",
+    "status": "COMPLETED",
+    "detail": "asrs simulated RETRIEVE",
+    "result": {
+      "family": "ASRS",
+      "command": "RETRIEVE",
+      "equipment": "",
+      "simulated": true,
+      "durationMs": 900
+    },
+    "actor": "system",
+    "createdAt": "2026-06-16T14:05:22.497868Z"
+  },
+  {
+    "id": "590908cd-8132-4d63-8ec3-002615726938",
+    "warehouseId": "394dfd10-f541-48b5-84d8-773322549a3b",
+    "family": "CONVEYOR",
+    "equipmentId": "02ab6198-6c9a-4f5f-a415-6e3b263a8056",
+    "command": "CONVEY",
+    "payload": {
+      "demo": true
+    },
+    "correlationId": null,
+    "status": "FAILED",
+    "detail": "Demo: simulated device fault for the automation dashboard.",
+    "result": null,
+    "actor": "demo",
+    "createdAt": "2026-06-15T10:41:56.511850Z"
+  }
+]
