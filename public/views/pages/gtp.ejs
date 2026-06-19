@@ -116,6 +116,68 @@
   <section>
     <div class="wrap">
       <div class="section-head">
+        <p class="eyebrow" data-i18n="gtp.eyebrow8">Configurable picking layout</p>
+        <h2 data-i18n="gtp.h23">One station, <span class="lime">three pick layouts.</span></h2>
+        <p data-i18n="gtp.p21">
+          Pick a station's layout to match how operators work it. The same engine drives all three;
+          the operator console renders the target side to suit, and pick-to-light lights exactly the
+          slots or cubbies in play.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="gtp.tag16">ONE_TO_ONE</div><span class="pill pill-built" data-i18n="gtp.pill5">Built</span></div>
+          <h3 data-i18n="gtp.h24">One source, one target</h3>
+          <p data-i18n="gtp.p22">The classic single-carton pick: one stock HU serves one destination at a time. The console shows a single focused quantity field — confirm a full pick or type a lower number for a short.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="gtp.tag17">ONE_TO_N</div><span class="pill pill-built" data-i18n="gtp.pill6">Built</span></div>
+          <h3 data-i18n="gtp.h25">A batch of lit pick slots</h3>
+          <p data-i18n="gtp.p23">One stock HU fans out to N lit pick slots (N configurable, at least two). The console renders all slots left-to-right: grey when unused, orange with the qty to take, green once picked. Tap a slot to confirm, or step down for a short.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="gtp.tag18">PUT_WALL</div><span class="pill pill-built" data-i18n="gtp.pill7">Built</span></div>
+          <h3 data-i18n="gtp.h26">Only the cubbies in play</h3>
+          <p data-i18n="gtp.p24">A rack of lit cubbies. The console lights only the put lights this pick needs — orange until picked, green once confirmed — so the operator follows the lights across the wall. Tap a light to confirm.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="gtp.eyebrow9">Pick-to-light, driven</p>
+        <h2 data-i18n="gtp.h27">The lights are <span class="lime">physically driven.</span></h2>
+        <p data-i18n="gtp.p25">
+          Pick-to-light is built. The station service lights each put light when a stock HU is
+          presented and clears it on confirm and on close, through a dedicated pick-to-light adapter
+          (or the hardware emulator when you have no controller wired yet).
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="gtp.tag19">PTL adapter</div><span class="pill pill-built" data-i18n="gtp.pill8">Built</span></div>
+          <h3 data-i18n="gtp.h28">A real device adapter</h3>
+          <p data-i18n="gtp.p26">A standalone pick-to-light adapter speaks the same uniform device contract as every other family: ILLUMINATE a light showing a quantity, CLEAR it on confirm. Wire your controller behind it.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="gtp.tag20">Best-effort</div>
+          <h3 data-i18n="gtp.h29">Lights never block the pick</h3>
+          <p data-i18n="gtp.p27">Driving the lights is best-effort with short timeouts: a light that is slow or offline is logged and skipped, never stalling the operator. The pick is the source of truth, the lights follow it.</p>
+        </div>
+        <div class="card">
+          <div class="tag" data-i18n="gtp.tag21">Emulator-ready</div>
+          <h3 data-i18n="gtp.h30">No hardware? No problem</h3>
+          <p data-i18n="gtp.p28">With the hardware emulator on, the same ILLUMINATE / CLEAR commands drive the built-in emulator instead, which tracks the lit lights — so you can run the whole flow before any controller is connected.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
         <p class="eyebrow" data-i18n="gtp.eyebrow7">Inbound queue &amp; station control</p>
         <h2 data-i18n="gtp.h18">HUs arrive, <span class="lime">queue, get worked.</span></h2>
         <p data-i18n="gtp.p16">
@@ -174,7 +236,7 @@
       <div class="cta-band">
         <p class="eyebrow" data-i18n="gtp.eyebrow6">Built &amp; open</p>
         <h2 data-i18n="gtp.h6">Run goods-to-person, your way.</h2>
-        <p data-i18n="gtp.p15">The station engine is open source and records the put-lights and HUs it drives. Physical light hardware and retrieving HUs to the station are adapter / flow-orchestrator follow-ups — the batch logic is live today.</p>
+        <p data-i18n="gtp.p15">The station engine is open source, drives pick-to-light through a real device adapter, and renders any of the three pick layouts. Wiring a specific light controller or AMR fleet behind the adapters is the integration step — the batch logic and the lights are live today.</p>
         <div class="hero-cta" style="justify-content:center">
           <a class="btn btn-primary" href="/automation">Automation hub</a>
           <a class="btn btn-ghost" href="https://github.com/brettljausn-ai/openwcs" data-i18n="gtp.btn1">View on GitHub</a>
