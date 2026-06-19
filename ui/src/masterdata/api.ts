@@ -87,6 +87,18 @@ export interface StorageBlock {
   status: string
 }
 
+export interface Area {
+  id?: string
+  warehouseId: string
+  code: string
+  name?: string | null
+  parentAreaId?: string | null
+  status: string
+  createdAt?: string
+  updatedAt?: string
+  version?: number
+}
+
 export interface Location {
   id?: string
   warehouseId: string
@@ -94,6 +106,7 @@ export interface Location {
   locationType: string
   purpose: string
   parentId?: string | null
+  areaId?: string | null
   equipmentId?: string | null
   blockId?: string | null
   status: string
@@ -247,6 +260,21 @@ export async function listBlockLocationIds(warehouseId: string, blockId: string)
   )
   const list = Array.isArray(res) ? res : res.content
   return list.map((l) => l.id).filter((id): id is string => !!id)
+}
+
+// ----------------------------------------------------------------------- Areas
+// Logical zones a warehouse is divided into; areas may nest arbitrarily via parentAreaId.
+export async function listAreas(warehouseId: string): Promise<Area[]> {
+  return unwrap(await fetch(`${base}/areas?warehouseId=${encodeURIComponent(warehouseId)}`))
+}
+export async function createArea(a: Area): Promise<Area> {
+  return unwrap(await fetch(`${base}/areas`, { method: 'POST', headers: json, body: JSON.stringify(a) }))
+}
+export async function updateArea(id: string, a: Area): Promise<Area> {
+  return unwrap(await fetch(`${base}/areas/${id}`, { method: 'PUT', headers: json, body: JSON.stringify(a) }))
+}
+export async function deleteArea(id: string): Promise<void> {
+  return expectOk(await fetch(`${base}/areas/${id}`, { method: 'DELETE' }))
 }
 
 // ------------------------------------------------------------------ Locations

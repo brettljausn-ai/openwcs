@@ -34,6 +34,7 @@ export default {
   'master-data:equipment': '设备',
   'master-data:warehouses': '仓库',
   'master-data:skus': '商品 (SKU)',
+  'master-data:areas': '区域',
   'master-data:storage-blocks': '存储区',
   'master-data:locations': '库位',
   'master-data:handling-unit-types': '搬运单元类型',
