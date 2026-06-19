@@ -58,6 +58,9 @@ class StockProjectionServiceTest {
     @Autowired
     org.openwcs.inventory.repo.HandlingUnitRepository handlingUnits;
 
+    @Autowired
+    org.openwcs.inventory.repo.ReservationRepository reservations;
+
     private long seq = 1;
 
     private EventEnvelope envelope(String type, Map<String, Object> payload) {
@@ -227,6 +230,145 @@ class StockProjectionServiceTest {
         assertThat(stock.findBucket(wh, sku, null, station, tote.getHuId(), "AVAILABLE"))
                 .get().satisfies(s -> assertThat(s.getQty()).isEqualByComparingTo("15"));
         assertThat(stock.findBucket(wh, sku, null, staleSlot, tote.getHuId(), "AVAILABLE")).isEmpty();
+    }
+
+    private org.openwcs.inventory.domain.Reservation seedHeld(UUID wh, UUID sku, BigDecimal qty) {
+        org.openwcs.inventory.domain.Reservation r = new org.openwcs.inventory.domain.Reservation();
+        r.setWarehouseId(wh);
+        r.setSkuId(sku);
+        r.setQty(qty);
+        r.setStatus("HELD");
+        return reservations.save(r);
+    }
+
+    /**
+     * A pick that names its reservation must draw the reservation down by the same qty, so ATP
+     * (on-hand minus HELD) drops by the picked qty exactly once, not twice. Here the whole held qty
+     * is picked, so the reservation is fully consumed (status CONSUMED) and stops counting in sumHeld.
+     */
+    @Test
+    void pickConsumesNamedReservationSoAtpDropsOnce() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID loc = UUID.randomUUID();
+
+        projection.apply(envelope(InventoryEventTypes.GOODS_RECEIVED, Map.of(
+                "warehouseId", wh, "skuId", sku, "locationId", loc, "qty", new BigDecimal("10"))));
+        var reservation = seedHeld(wh, sku, new BigDecimal("4"));
+
+        // Before the pick: on-hand 10, held 4, ATP 6.
+        assertThat(stock.sumAvailable(wh, sku)).isEqualByComparingTo("10");
+        assertThat(reservations.sumHeld(wh, sku)).isEqualByComparingTo("4");
+
+        projection.apply(envelope(InventoryEventTypes.PICKED, Map.of(
+                "warehouseId", wh, "skuId", sku, "locationId", loc, "qty", new BigDecimal("4"),
+                "reservationId", reservation.getId())));
+
+        // On-hand dropped by 4, held dropped by 4: ATP is 6 both before and after (drew down once).
+        assertThat(stock.sumAvailable(wh, sku)).isEqualByComparingTo("6");
+        assertThat(reservations.sumHeld(wh, sku)).isEqualByComparingTo("0");
+        assertThat(reservations.findById(reservation.getId()))
+                .get().satisfies(r -> assertThat(r.getStatus()).isEqualTo("CONSUMED"));
+    }
+
+    /** A partial pick reduces the reservation qty and keeps it HELD. */
+    @Test
+    void partialPickReducesReservationAndKeepsItHeld() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID loc = UUID.randomUUID();
+
+        projection.apply(envelope(InventoryEventTypes.GOODS_RECEIVED, Map.of(
+                "warehouseId", wh, "skuId", sku, "locationId", loc, "qty", new BigDecimal("10"))));
+        var reservation = seedHeld(wh, sku, new BigDecimal("6"));
+
+        projection.apply(envelope(InventoryEventTypes.PICKED, Map.of(
+                "warehouseId", wh, "skuId", sku, "locationId", loc, "qty", new BigDecimal("2"),
+                "reservationId", reservation.getId())));
+
+        assertThat(stock.sumAvailable(wh, sku)).isEqualByComparingTo("8");
+        assertThat(reservations.sumHeld(wh, sku)).isEqualByComparingTo("4");
+        assertThat(reservations.findById(reservation.getId()))
+                .get().satisfies(r -> {
+                    assertThat(r.getStatus()).isEqualTo("HELD");
+                    assertThat(r.getQty()).isEqualByComparingTo("4");
+                });
+    }
+
+    /** A redelivered Picked (same event_id) must not double-consume the reservation. */
+    @Test
+    void redeliveredPickDoesNotDoubleConsumeReservation() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID loc = UUID.randomUUID();
+
+        projection.apply(envelope(InventoryEventTypes.GOODS_RECEIVED, Map.of(
+                "warehouseId", wh, "skuId", sku, "locationId", loc, "qty", new BigDecimal("10"))));
+        var reservation = seedHeld(wh, sku, new BigDecimal("6"));
+
+        EventEnvelope pick = envelope(InventoryEventTypes.PICKED, Map.of(
+                "warehouseId", wh, "skuId", sku, "locationId", loc, "qty", new BigDecimal("2"),
+                "reservationId", reservation.getId()));
+        projection.apply(pick);
+        projection.apply(pick); // redelivery / replay
+
+        assertThat(stock.sumAvailable(wh, sku)).isEqualByComparingTo("8");
+        assertThat(reservations.sumHeld(wh, sku)).isEqualByComparingTo("4");
+        assertThat(reservations.findById(reservation.getId()))
+                .get().satisfies(r -> assertThat(r.getQty()).isEqualByComparingTo("4"));
+    }
+
+    /** Back-compat: a Picked without a reservationId just decrements stock (no reservation touched). */
+    @Test
+    void pickWithoutReservationIdStillDecrementsStock() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID loc = UUID.randomUUID();
+
+        projection.apply(envelope(InventoryEventTypes.GOODS_RECEIVED, Map.of(
+                "warehouseId", wh, "skuId", sku, "locationId", loc, "qty", new BigDecimal("10"))));
+        var reservation = seedHeld(wh, sku, new BigDecimal("4"));
+
+        projection.apply(envelope(InventoryEventTypes.PICKED, Map.of(
+                "warehouseId", wh, "skuId", sku, "locationId", loc, "qty", new BigDecimal("3"))));
+
+        assertThat(stock.sumAvailable(wh, sku)).isEqualByComparingTo("7");
+        // Reservation untouched: still HELD at its original qty.
+        assertThat(reservations.sumHeld(wh, sku)).isEqualByComparingTo("4");
+        assertThat(reservations.findById(reservation.getId()))
+                .get().satisfies(r -> assertThat(r.getStatus()).isEqualTo("HELD"));
+    }
+
+    /** An Adjust carrying the new optional reason deserializes and projects the delta as usual. */
+    @Test
+    void adjustWithReasonDeserializesAndProjects() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID loc = UUID.randomUUID();
+
+        projection.apply(envelope(InventoryEventTypes.GOODS_RECEIVED, Map.of(
+                "warehouseId", wh, "skuId", sku, "locationId", loc, "qty", new BigDecimal("10"))));
+        projection.apply(envelope(InventoryEventTypes.STOCK_ADJUSTED, Map.of(
+                "warehouseId", wh, "skuId", sku, "locationId", loc,
+                "qtyDelta", new BigDecimal("-2"), "reason", "damage")));
+
+        assertThat(stock.sumAvailable(wh, sku)).isEqualByComparingTo("8");
+    }
+
+    /** The non-negative stock guard stays intact: over-decrementing a bucket still throws. */
+    @Test
+    void overDecrementStillThrows() {
+        UUID wh = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID loc = UUID.randomUUID();
+
+        projection.apply(envelope(InventoryEventTypes.GOODS_RECEIVED, Map.of(
+                "warehouseId", wh, "skuId", sku, "locationId", loc, "qty", new BigDecimal("3"))));
+
+        EventEnvelope overPick = envelope(InventoryEventTypes.PICKED, Map.of(
+                "warehouseId", wh, "skuId", sku, "locationId", loc, "qty", new BigDecimal("5")));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> projection.apply(overPick))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
