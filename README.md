@@ -281,8 +281,11 @@ cd ui && npm run build:demo        # VITE_DEMO build, asset base /demo-app/, out
 cd public && npm run build:demo-app
 ```
 The page is **`/live-demo`** and the public Express server serves the bundle at **`/demo-app/`**
-(static + SPA fallback) from `public/static/demo` (gitignored). CI also runs `npm run build:demo` so
-the demo build cannot silently break. Spec: [`docs/public-live-demo-spec.md`](./docs/public-live-demo-spec.md).
+(static + SPA fallback) from `public/static/demo`. That bundle is **committed** to the repo (the
+openwcs.ai host serves only `public/` and has no `ui/` build toolchain, so it cannot build it):
+rebuild and re-commit it with `npm run build:demo-app` whenever a product change affects the demo.
+CI also runs `npm run build:demo` so the demo build cannot silently break. Spec:
+[`docs/public-live-demo-spec.md`](./docs/public-live-demo-spec.md).
 
 ### 5. Stand up a demo server (Ubuntu)
 One command on a fresh Ubuntu 22.04/24.04 box installs Docker + JDK 21, clones,

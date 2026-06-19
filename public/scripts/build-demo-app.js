@@ -2,8 +2,10 @@
 // Build the sandboxed demo SPA (the VITE_DEMO variant of /ui) and copy it into
 // public/static/demo so the public site serves it same-origin at /demo-app/.
 //
-// Run from the public site deploy: `npm run build:demo-app` (from /public).
-// The output (public/static/demo) is generated and gitignored, like dist.
+// Run with `npm run build:demo-app` (from /public). The output (public/static/demo) is COMMITTED
+// to the repo so it ships with the public/ folder: the openwcs.ai host serves only public/ and has
+// no ui build toolchain, so it cannot build the bundle itself. Rerun this and commit the result
+// whenever the app changes in a way the demo shows (see the keep-demo-updated rule).
 //
 // The demo is fully client-side: a synthetic read-only session plus an in-browser
 // mock at the authFetch chokepoint, so nothing reaches a backend and nothing persists.
