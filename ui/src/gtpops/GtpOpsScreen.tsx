@@ -534,7 +534,7 @@ function OperatorConsole({
   }
 
   return (
-    <div className="app-content">
+    <div className="app-content op-gtp-console">
       <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
           <h1>{workplace.code}</h1>
@@ -627,7 +627,7 @@ function OperatorConsole({
         </div>
       )}
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 16rem)' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {head && head.mode !== activeMode && !cycle ? (
         // The arrived tote needs a different mode than the station is in (e.g. a count tote while the
         // screen is in PICKING). Don't show an empty "nothing to do" state — tell the operator which
