@@ -84,6 +84,17 @@ async function main() {
 
     'flow-automation-summary': { url: `/api/flow/reports/automation-summary?warehouseId={WID}`, cap: 0 },
 
+    // Reporting section (the /reporting/* screens). All return arrays except orders flow (object).
+    'reporting-stock-by-sku': { url: `/api/inventory/reports/stock-by-sku?warehouseId={WID}`, cap: 200 },
+    'reporting-storage-density': { url: `/api/inventory/reports/storage-density?warehouseId={WID}&days=90`, cap: 0 },
+    'reporting-scan-quality': { url: `/api/flow/reports/scan-quality?warehouseId={WID}&days=14`, cap: 0 },
+    'reporting-traffic': { url: `/api/flow/reports/traffic?warehouseId={WID}&days=14`, cap: 0 },
+    'reporting-transit-times': { url: `/api/flow/reports/transit-times?warehouseId={WID}&days=14`, cap: 0 },
+    'reporting-storage-movements': { url: `/api/flow/reports/storage-movements?warehouseId={WID}&days=14`, cap: 0 },
+    'reporting-device-movements': { url: `/api/flow/reports/device-movements?warehouseId={WID}&days=14`, cap: 0 },
+    'orders-flow-inbound': { url: `/api/orders/reports/flow?warehouseId={WID}&direction=INBOUND&days=90`, cap: 0 },
+    'orders-flow-outbound': { url: `/api/orders/reports/flow?warehouseId={WID}&direction=OUTBOUND&days=90`, cap: 0 },
+
     'notification-alerts': { url: `/api/notification/alerts?warehouseId={WID}`, cap: 60 },
     'notification-alerts-health': { url: `/api/notification/alerts/health?warehouseId={WID}&days=14`, cap: 0 },
 

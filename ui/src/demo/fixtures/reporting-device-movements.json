@@ -1,0 +1,23 @@
+[
+  {
+    "equipment": "BIN_CONVEYOR-1",
+    "family": "CONVEYOR",
+    "day": "2026-06-15",
+    "completed": 0,
+    "failed": 1
+  },
+  {
+    "equipment": "ASRS",
+    "family": "ASRS",
+    "day": "2026-06-16",
+    "completed": 2,
+    "failed": 0
+  },
+  {
+    "equipment": "CONVEYOR",
+    "family": "CONVEYOR",
+    "day": "2026-06-16",
+    "completed": 2,
+    "failed": 0
+  }
+]

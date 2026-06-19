@@ -1,0 +1,645 @@
+{
+  "expected": 6,
+  "active": 8,
+  "started": 2,
+  "perDay": [
+    {
+      "day": "2026-03-22",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-03-23",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-03-24",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-03-25",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-03-26",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-03-27",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-03-28",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-03-29",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-03-30",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-03-31",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-01",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-02",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-03",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-04",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-05",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-06",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-07",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-08",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-09",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-10",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-11",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-12",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-13",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-14",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-15",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-16",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-17",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-18",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-19",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-20",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-21",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-22",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-23",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-24",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-25",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-26",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-27",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-28",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-29",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-04-30",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-01",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-02",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-03",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-04",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-05",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-06",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-07",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-08",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-09",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-10",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-11",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-12",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-13",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-14",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-15",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-16",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-17",
+      "received": 1,
+      "started": 1,
+      "completed": 1
+    },
+    {
+      "day": "2026-05-18",
+      "received": 1,
+      "started": 1,
+      "completed": 1
+    },
+    {
+      "day": "2026-05-19",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-20",
+      "received": 1,
+      "started": 1,
+      "completed": 1
+    },
+    {
+      "day": "2026-05-21",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-22",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-23",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-24",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-25",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-26",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-27",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-28",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-29",
+      "received": 1,
+      "started": 1,
+      "completed": 1
+    },
+    {
+      "day": "2026-05-30",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-05-31",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-06-01",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-06-02",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-06-03",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-06-04",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-06-05",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-06-06",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-06-07",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-06-08",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-06-09",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-06-10",
+      "received": 1,
+      "started": 1,
+      "completed": 1
+    },
+    {
+      "day": "2026-06-11",
+      "received": 1,
+      "started": 1,
+      "completed": 1
+    },
+    {
+      "day": "2026-06-12",
+      "received": 4,
+      "started": 4,
+      "completed": 4
+    },
+    {
+      "day": "2026-06-13",
+      "received": 1,
+      "started": 1,
+      "completed": 1
+    },
+    {
+      "day": "2026-06-14",
+      "received": 1,
+      "started": 1,
+      "completed": 1
+    },
+    {
+      "day": "2026-06-15",
+      "received": 14,
+      "started": 8,
+      "completed": 6
+    },
+    {
+      "day": "2026-06-16",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-06-17",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-06-18",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    },
+    {
+      "day": "2026-06-19",
+      "received": 0,
+      "started": 0,
+      "completed": 0
+    }
+  ],
+  "hourOfDay": [
+    {
+      "hour": 0,
+      "count": 0
+    },
+    {
+      "hour": 1,
+      "count": 0
+    },
+    {
+      "hour": 2,
+      "count": 0
+    },
+    {
+      "hour": 3,
+      "count": 2
+    },
+    {
+      "hour": 4,
+      "count": 3
+    },
+    {
+      "hour": 5,
+      "count": 3
+    },
+    {
+      "hour": 6,
+      "count": 2
+    },
+    {
+      "hour": 7,
+      "count": 2
+    },
+    {
+      "hour": 8,
+      "count": 2
+    },
+    {
+      "hour": 9,
+      "count": 0
+    },
+    {
+      "hour": 10,
+      "count": 12
+    },
+    {
+      "hour": 11,
+      "count": 0
+    },
+    {
+      "hour": 12,
+      "count": 0
+    },
+    {
+      "hour": 13,
+      "count": 0
+    },
+    {
+      "hour": 14,
+      "count": 0
+    },
+    {
+      "hour": 15,
+      "count": 0
+    },
+    {
+      "hour": 16,
+      "count": 0
+    },
+    {
+      "hour": 17,
+      "count": 0
+    },
+    {
+      "hour": 18,
+      "count": 0
+    },
+    {
+      "hour": 19,
+      "count": 0
+    },
+    {
+      "hour": 20,
+      "count": 0
+    },
+    {
+      "hour": 21,
+      "count": 0
+    },
+    {
+      "hour": 22,
+      "count": 0
+    },
+    {
+      "hour": 23,
+      "count": 0
+    }
+  ]
+}

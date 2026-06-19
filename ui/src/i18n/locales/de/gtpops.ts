@@ -109,6 +109,11 @@ export default {
   shortPutTip:
     'Geben Sie die tatsächlich eingelagerte Menge ein, wenn Sie die volle Menge nicht erreichen können: bestätigt eine Mindereinlagerung für die verbleibenden Einheiten. Muss kleiner als die angeforderte Menge sein.',
   short: 'Minder',
+  putXofN: 'Einlagerung {i} von {n}',
+  pickedQty: 'Kommissionierte Menge',
+  confirm: 'Bestätigen',
+  shortPickHint: 'Minderkommissionierung: {n} von {req}',
+  allPutsConfirmed: 'Alle Einlagerungen bestätigt. Zyklus schließen, um die HU wegzuschicken.',
   mode_PICKING: 'Kommissionieren',
   mode_DECANTING: 'Dekantieren',
   mode_DECANT_MULTI: 'Mehrfach-Dekantieren',

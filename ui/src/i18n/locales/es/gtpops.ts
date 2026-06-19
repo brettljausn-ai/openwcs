@@ -109,6 +109,11 @@ export default {
   shortPutTip:
     'Introduzca la cantidad realmente colocada cuando no pueda completar el total: confirma una colocación parcial para las unidades restantes. Debe ser menor que la cantidad solicitada.',
   short: 'Parcial',
+  putXofN: 'Ubicación {i} de {n}',
+  pickedQty: 'Cantidad preparada',
+  confirm: 'Confirmar',
+  shortPickHint: 'Preparación parcial: {n} de {req}',
+  allPutsConfirmed: 'Todas las ubicaciones confirmadas. Cierre el ciclo para enviar la UM.',
   mode_PICKING: 'Preparación',
   mode_DECANTING: 'Decantado',
   mode_DECANT_MULTI: 'Decantado múltiple',

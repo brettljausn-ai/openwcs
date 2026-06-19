@@ -228,10 +228,20 @@ export default function App() {
     // so in-app links resolve under the subpath. Normal builds keep the root basename.
     <BrowserRouter basename={IS_DEMO ? '/demo-app' : undefined}>
       <BackendOverlay />
-      {IS_DEMO && <DemoBanner />}
-      <AuthProvider>
-        <Shell />
-      </AuthProvider>
+      {IS_DEMO ? (
+        // Demo: banner + app share one 100vh column so the banner does not push the app-shell past
+        // the viewport (the app-shell fills the remaining height). Keeps fit-to-window screens fitting.
+        <div className="demo-root">
+          <DemoBanner />
+          <AuthProvider>
+            <Shell />
+          </AuthProvider>
+        </div>
+      ) : (
+        <AuthProvider>
+          <Shell />
+        </AuthProvider>
+      )}
     </BrowserRouter>
   )
 }

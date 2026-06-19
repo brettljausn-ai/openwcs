@@ -1,0 +1,14 @@
+[
+  {
+    "locationId": "28a2a439-ce98-427e-955e-2ea723b3393f",
+    "day": "2026-06-16",
+    "stores": 1,
+    "retrieves": 0
+  },
+  {
+    "locationId": "c6215096-b8a7-485e-900d-299c6a960cfb",
+    "day": "2026-06-16",
+    "stores": 0,
+    "retrieves": 1
+  }
+]

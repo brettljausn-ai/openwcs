@@ -4,7 +4,7 @@
     "area": "REPLENISHMENT",
     "severity": "CRITICAL",
     "metric": "replenishmentOldestAgeMin",
-    "value": 5710,
+    "value": 5787,
     "threshold": 120,
     "sinceIso": "2026-06-15T12:43:50.329312Z",
     "state": "OPEN"
