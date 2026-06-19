@@ -31,6 +31,15 @@ import notificationAlerts from './fixtures/notification-alerts.json'
 import notificationAlertsHealth from './fixtures/notification-alerts-health.json'
 import iamWarehouseAccessMe from './fixtures/iam-warehouse-access-me.json'
 import skuCards from './fixtures/sku-cards.json'
+import repStockBySku from './fixtures/reporting-stock-by-sku.json'
+import repStorageDensity from './fixtures/reporting-storage-density.json'
+import repScanQuality from './fixtures/reporting-scan-quality.json'
+import repTraffic from './fixtures/reporting-traffic.json'
+import repTransitTimes from './fixtures/reporting-transit-times.json'
+import repStorageMovements from './fixtures/reporting-storage-movements.json'
+import repDeviceMovements from './fixtures/reporting-device-movements.json'
+import ordersFlowInbound from './fixtures/orders-flow-inbound.json'
+import ordersFlowOutbound from './fixtures/orders-flow-outbound.json'
 
 type Json = unknown
 
@@ -95,6 +104,15 @@ const GET_EXACT: Record<string, Json> = {
   '/api/inventory/stock/overview': invStockOverview,
   '/api/inventory/handling-units': invHandlingUnits,
   '/api/inventory/reports/dashboard': invDashboard,
+  '/api/inventory/reports/stock-by-sku': repStockBySku,
+  '/api/inventory/reports/storage-density': repStorageDensity,
+
+  // Reporting section (the /reporting/* screens): array datasets snapshotted from the demo box.
+  '/api/flow/reports/scan-quality': repScanQuality,
+  '/api/flow/reports/traffic': repTraffic,
+  '/api/flow/reports/transit-times': repTransitTimes,
+  '/api/flow/reports/storage-movements': repStorageMovements,
+  '/api/flow/reports/device-movements': repDeviceMovements,
 
   '/api/orders/reports/dashboard': ordersDashboard,
   '/api/orders/reports/sla': ordersSla,
@@ -136,6 +154,12 @@ function skuCard(skuId: string): Json {
 // Heuristic empty payload for an unmapped GET so the screen renders an empty state, never an error.
 // List-ish paths get []; paged-ish get {content:[]}; everything else {}.
 function emptyFor(path: string): Json {
+  // Report datasets the /reporting/* screens spread into arrays: any unmapped report path must
+  // return [] (never {}), or the screen crashes on [...rows]. Belt-and-suspenders for the explicit
+  // fixtures above.
+  if (/\/reports?\/|stock-by-sku|storage-density|scan-quality|movements|transit-times|traffic/.test(path)) {
+    return []
+  }
   if (/\/(list|tasks|alerts|events|services|definitions|instances|areas|locations|skus|warehouses|equipment|shippers|templates|blocks|units|orders|pick-tasks|queue)\b/.test(path)) {
     // Master-data list endpoints that the app reads as pages return {content:[]}; the simpler
     // services return bare arrays. Defaulting to [] is safe for both (callers tolerate arrays or
@@ -162,6 +186,11 @@ function resolveGet(path: string, query: URLSearchParams): Json {
   // GTP workplaces (GET): /api/gtp/workplaces?warehouseId=
   if (path === '/api/gtp/workplaces') {
     return engine.listWorkplaces(query.get('warehouseId') ?? '')
+  }
+
+  // Order flow report is direction-scoped: /api/orders/reports/flow?direction=INBOUND|OUTBOUND
+  if (path === '/api/orders/reports/flow') {
+    return query.get('direction') === 'OUTBOUND' ? ordersFlowOutbound : ordersFlowInbound
   }
 
   return emptyFor(path)
