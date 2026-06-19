@@ -1302,4 +1302,91 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-assist-maps ul { margin: .15rem 0 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: .15rem; }
 .op-pd-assist-maps code { font-size: .76rem; color: var(--herbal-lime); }
 .op-pd-assist-rationale { font-size: .78rem; line-height: 1.4; margin: 0; }
+
+/* --- GTP picking: two-area viewport-fitting layout (active cycle) --- */
+/* Sized so both bordered boxes fit the window under the app shell + page head + mode pills,
+   so the page itself does not scroll. Each area scrolls its own overflow instead. */
+.op-gtp-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  height: calc(100vh - 14rem);
+  min-height: 460px;
+}
+/* TOP box: the STOCK (source tote + SKU). One bordered .glass box, roughly the smaller half. */
+.op-gtp-stock {
+  flex: 0 1 38%;
+  min-height: 0;
+  overflow: auto;
+}
+/* BOTTOM box: the TARGET tote + confirmation area. One bordered .glass box, the bigger half. */
+.op-gtp-target {
+  flex: 1 1 62%;
+  min-height: 0;
+  overflow: auto;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+/* ToteView when embedded inside the bottom box: borderless so it is not a card inside a card. */
+.op-gtp-tote-embedded {
+  background: transparent;
+  border: 0;
+}
+/* Confirmation row: meta, big quantity input, confirm button, optional short hint. */
+.op-gtp-confirm {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 1rem;
+  flex-shrink: 0;
+  padding-top: .25rem;
+  border-top: 1px solid var(--glass-border);
+}
+.op-gtp-confirm-meta {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  min-width: 160px;
+}
+.op-gtp-confirm-qty {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+}
+.op-gtp-qty-label {
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-faint);
+}
+/* The focused, autofocused picked-quantity field: large, centered, big font. */
+.op-gtp-qty-input {
+  width: 9rem;
+  text-align: center;
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: .35rem .5rem;
+  color: var(--herbal-lime);
+  background: var(--glass-bg, rgba(255, 255, 255, .04));
+  border: 2px solid var(--herbal-lime);
+  border-radius: 12px;
+}
+.op-gtp-qty-input:focus {
+  outline: none;
+  box-shadow: 0 0 18px rgba(141, 198, 63, .45);
+}
+.op-gtp-qty-req {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.op-gtp-short-hint { align-self: center; }
+.op-gtp-close-cycle {
+  align-self: flex-start;
+  flex-shrink: 0;
+  margin-top: auto;
+}
 .op-pd-assist-draft-code { background: rgba(244,184,96,.06); border-color: rgba(244,184,96,.35); }
