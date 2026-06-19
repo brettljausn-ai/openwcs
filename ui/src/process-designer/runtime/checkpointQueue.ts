@@ -52,10 +52,14 @@ let idbAvailable = typeof indexedDB !== 'undefined'
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1)
+    // Version 2: the step-event queue (stepQueue.ts) shares this database in its own store, so both
+    // queues open at the SAME version (opening at a lower version than the stored one throws
+    // VersionError). We create the checkpoint store if missing and never drop the step store.
+    const req = indexedDB.open(DB_NAME, 2)
     req.onupgradeneeded = () => {
       const db = req.result
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' })
+      if (!db.objectStoreNames.contains('step-queue')) db.createObjectStore('step-queue', { keyPath: 'id' })
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)

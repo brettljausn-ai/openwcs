@@ -5,4 +5,7 @@ export default {
   noProcesses: 'Für Ihr Konto sind keine Prozesse verfügbar.',
   comingSoon: 'Demnächst',
   comingSoonBody: 'Dieser Prozess ist auf dem Handheld noch nicht verfügbar. Er steht auf der Umsetzungsliste.',
+  resumeTitle: 'Laufende Arbeit fortsetzen',
+  resumeSubtitle: 'Machen Sie dort weiter, wo Sie aufgehört haben, auf diesem oder einem anderen Gerät.',
+  resumeStepPrefix: 'Schritt:',
 }

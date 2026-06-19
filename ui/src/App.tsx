@@ -18,6 +18,7 @@ import TopologyEditor from './topology/TopologyEditor'
 import ProcessDesigner from './process/ProcessDesigner'
 import ProcessDesignScreen from './process-designer/designer/ProcessDesignScreen'
 import ProcessInstancesScreen from './process-designer/instances/ProcessInstancesScreen'
+import RfUsersScreen from './process-designer/rfusers/RfUsersScreen'
 import ProcessRuntimeScreen from './process-designer/runtime/ProcessRuntimeScreen'
 import SlottingScreen from './slotting/SlottingScreen'
 
@@ -68,6 +69,7 @@ const COMPONENTS: Record<string, JSX.Element> = {
   processes: <ProcessDesigner />,
   'process:design': <ProcessDesignScreen />,
   'process:instances': <ProcessInstancesScreen />,
+  'process:rf-users': <RfUsersScreen />,
   slotting: <SlottingScreen />,
   inbound: <InboundScreen />,
   outbound: <OutboundScreen />,

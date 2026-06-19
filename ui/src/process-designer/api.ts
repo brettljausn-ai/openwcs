@@ -13,6 +13,7 @@ import type {
   ProcessInstance,
   ProcessSummary,
   ServerTaskType,
+  StepEvent,
   VerifyKind,
   VerifyResult,
 } from './model'
@@ -86,6 +87,54 @@ export async function checkpoint(
 /** Resume a running instance (device swap / reload). */
 export async function getInstance(instanceId: string): Promise<ProcessInstance> {
   return json(await fetch(`${BASE}/instances/${encodeURIComponent(instanceId)}`))
+}
+
+// --- Cross-device resume: per-screen step events -------------------------------------------------
+
+/** Record one screen advance on the server: POST /instances/{id}/step. Idempotent on
+ *  (instanceId, seq) so re-posting a queued event (offline retry) is a no-op server-side. The server
+ *  keeps the exact current_step + data so a refresh / new device / re-login resumes EXACTLY here. The
+ *  durable step-event queue (stepQueue.ts) calls this; the runtime never blocks on it. Returns the
+ *  updated instance view. */
+export async function postStepEvent(
+  instanceId: string,
+  event: { seq: number; stepId: string; stepType: string; data: Record<string, unknown> },
+): Promise<ProcessInstance> {
+  return json(
+    await fetch(`${BASE}/instances/${encodeURIComponent(instanceId)}/step`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+    }),
+  )
+}
+
+/** The ordered recorded step events for an instance (GET /instances/{id}/steps). Drives the replay
+ *  viewer and lets the runtime derive the next seq on resume (max existing seq + 1). */
+export async function getInstanceSteps(instanceId: string): Promise<StepEvent[]> {
+  return json(await fetch(`${BASE}/instances/${encodeURIComponent(instanceId)}/steps`))
+}
+
+/** The current operator's RUNNING instances (resume launcher). Filters server-side on assignedTo +
+ *  status so a re-logged-in operator / another device sees exactly their in-progress work. */
+export async function listMyInstances(user: string): Promise<InstanceSummary[]> {
+  return listInstances({ assignedTo: user, status: 'RUNNING' })
+}
+
+/** Reassign a running instance to another operator (supervisor RF-Users screen).
+ *  POST /instances/{id}/reassign {toUser}. */
+export async function reassignInstance(instanceId: string, toUser: string): Promise<void> {
+  const res = await fetch(`${BASE}/instances/${encodeURIComponent(instanceId)}/reassign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ toUser }),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    const err = new Error(humanError(body, res.status, res.statusText)) as Error & { httpStatus?: number }
+    err.httpStatus = res.status
+    throw err
+  }
 }
 
 // --- Designer -------------------------------------------------------------------------------------
@@ -224,6 +273,8 @@ export interface InstanceQuery {
   processKey?: string
   status?: string
   warehouseId?: string
+  /** The operator the instance is assigned to (resume launcher + RF-Users active-operators list). */
+  assignedTo?: string
   limit?: number
 }
 
@@ -233,6 +284,7 @@ export async function listInstances(q: InstanceQuery = {}): Promise<InstanceSumm
   if (q.processKey) params.set('processKey', q.processKey)
   if (q.status) params.set('status', q.status)
   if (q.warehouseId) params.set('warehouseId', q.warehouseId)
+  if (q.assignedTo) params.set('assignedTo', q.assignedTo)
   if (q.limit != null) params.set('limit', String(q.limit))
   const qs = params.toString()
   return json(await fetch(`${BASE}/instances${qs ? `?${qs}` : ''}`))

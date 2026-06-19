@@ -16,13 +16,23 @@
 // crash). The branchy render below reads from already-computed state.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useT } from '../../i18n/useT'
 import { useWarehouse } from '../../warehouse/WarehouseContext'
 import { useCatalog } from '../../lib/useCatalog'
 import ProcessScreenView from '../screens/ProcessScreenView'
-import { isScreenStep, isTaskStep, type CheckpointResult, type ProcessInstance, type VerifyConfig, type VerifyResult } from '../model'
-import { getActiveDef, getInstance, startInstance, verifyCode } from '../api'
+import {
+  isComputeStep,
+  isDecisionStep,
+  isScreenStep,
+  isTaskStep,
+  type CheckpointResult,
+  type ProcessInstance,
+  type Step,
+  type VerifyConfig,
+  type VerifyResult,
+} from '../model'
+import { getActiveDef, getInstance, getInstanceSteps, startInstance, verifyCode } from '../api'
 import { applyVerifyWrites, nextStepId, resolveLanding, stepOf, writeValue } from './walker'
 import {
   enqueueCheckpoint,
@@ -34,6 +44,7 @@ import {
   subscribe,
   type QueuedCheckpoint,
 } from './checkpointQueue'
+import { enqueueStep, flushStepsForInstance, startStepDrainer } from './stepQueue'
 
 function isNetworkFailure(e: unknown): boolean {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return true
@@ -48,11 +59,51 @@ function sessionKey(key: string): string {
   return `owcs.process.instance.${key}`
 }
 
+// The next per-instance step-event seq, persisted so a refresh on the SAME device keeps numbering
+// monotonic without a server round-trip. On a NEW device / re-login we derive it from the server's
+// recorded steps (max seq + 1). The server dedups on (instanceId, seq), so a slightly stale local seq
+// is self-correcting.
+function seqKey(instanceId: string): string {
+  return `owcs.process.seq.${instanceId}`
+}
+function readSeq(instanceId: string): number {
+  const raw = sessionStorage.getItem(seqKey(instanceId))
+  const n = raw == null ? NaN : Number(raw)
+  return Number.isFinite(n) ? n : 0
+}
+function writeSeq(instanceId: string, seq: number): void {
+  try {
+    sessionStorage.setItem(seqKey(instanceId), String(seq))
+  } catch {
+    /* best effort */
+  }
+}
+
+/** The step kind string recorded on a step event (mirrors the definition: screen type, or
+ *  task/compute/decision). Kept here so the runtime and the replay viewer agree. */
+export function stepTypeOf(step: Step | undefined): string {
+  if (!step) return 'unknown'
+  if (isScreenStep(step)) return step.screen
+  if (isTaskStep(step)) return `task:${step.task}`
+  if (isComputeStep(step)) return 'compute'
+  if (isDecisionStep(step)) return 'decision'
+  return 'unknown'
+}
+
 export default function ProcessRuntimeScreen() {
   const { key = '' } = useParams<{ key: string }>()
+  const [searchParams] = useSearchParams()
+  // Cross-device / re-login resume: the operator's "Resume in-progress work" launcher opens
+  // /process/:key?instance=<id>. When present it pins which instance to resume (taking precedence over
+  // the sessionStorage pointer), so a different device or a fresh login continues that exact work.
+  const resumeInstanceId = searchParams.get('instance') || ''
   const t = useT('processRuntime')
   const { currentWarehouseId: warehouseId } = useWarehouse()
   const catalog = useCatalog(warehouseId)
+
+  // Next step-event seq for the live instance (monotonic per instance). Held in a ref so the screen
+  // submit handler always reads the latest without re-creating callbacks; mirrored into sessionStorage.
+  const seqRef = useRef(0)
 
   const [instance, setInstance] = useState<ProcessInstance | null>(null)
   const [loading, setLoading] = useState(false)
@@ -69,9 +120,10 @@ export default function ProcessRuntimeScreen() {
   // hold the resolved result + the post-write data here and render a UOM picker over the screen.
   const [uomChoice, setUomChoice] = useState<{ result: VerifyResult; verify: VerifyConfig; baseData: Record<string, unknown> } | null>(null)
 
-  // Subscribe to the checkpoint queue + start the drainer once.
+  // Subscribe to the checkpoint queue + start both drainers once (checkpoints AND step events).
   useEffect(() => {
     startQueueDrainer()
+    startStepDrainer()
     return subscribe(setQueue)
   }, [])
 
@@ -87,39 +139,66 @@ export default function ProcessRuntimeScreen() {
     return () => setCheckpointApplier(null)
   }, [])
 
+  // Resume an existing instance by id: FLUSH any queued step events for it first (so the server has
+  // applied every advance), then GET the instance and adopt the server's EXACT current_step + data,
+  // and seed the next seq from the server's recorded steps (max seq + 1). This is what makes a refresh
+  // / new device / re-login continue exactly where the operator left off.
+  const resume = useCallback(async (instanceId: string): Promise<ProcessInstance> => {
+    await flushStepsForInstance(instanceId).catch(() => {})
+    const resumed = await getInstance(instanceId)
+    // Derive the next seq: prefer the server step trail, fall back to the local sessionStorage value.
+    let nextSeq = readSeq(instanceId)
+    try {
+      const steps = await getInstanceSteps(instanceId)
+      const maxSeq = steps.reduce((m, s) => Math.max(m, s.seq ?? 0), 0)
+      nextSeq = Math.max(nextSeq, maxSeq + 1)
+    } catch {
+      // Older server / offline: keep the local seq. The server dedups on (instanceId, seq) anyway.
+    }
+    if (nextSeq < 1) nextSeq = 1
+    seqRef.current = nextSeq
+    writeSeq(instanceId, nextSeq)
+    return resumed
+  }, [])
+
   // Start (or resume) the instance when the key / warehouse is ready.
   const begin = useCallback(async () => {
     if (!warehouseId) return
     setLoading(true)
     setError(null)
     try {
-      const stored = sessionStorage.getItem(sessionKey(key))
-      if (stored) {
+      // 1) An explicit ?instance=<id> (from the resume launcher / a different device) wins.
+      const pinned = resumeInstanceId || sessionStorage.getItem(sessionKey(key))
+      if (pinned) {
         try {
-          const resumed = await getInstance(stored)
+          const resumed = await resume(pinned)
+          sessionStorage.setItem(sessionKey(key), resumed.instanceId)
           setInstance(resumed)
           setLoading(false)
           return
         } catch {
-          sessionStorage.removeItem(sessionKey(key)) // stale id — start fresh
+          if (!resumeInstanceId) sessionStorage.removeItem(sessionKey(key)) // stale local id — start fresh
         }
       }
-      // Starting requires connectivity (spec §9). Prefetch the active def too (SW-cached).
+      // 2) No instance to resume: start a fresh one. Requires connectivity (spec §9). Prefetch the
+      //    active def too (SW-cached). A new instance starts numbering step events at seq 1.
       await getActiveDef(key).catch(() => null)
       const inst = await startInstance(key, warehouseId)
       sessionStorage.setItem(sessionKey(key), inst.instanceId)
+      seqRef.current = 1
+      writeSeq(inst.instanceId, 1)
       setInstance(inst)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
     }
-  }, [key, warehouseId])
+  }, [key, warehouseId, resumeInstanceId, resume])
 
   useEffect(() => {
     void begin()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, warehouseId])
+  }, [key, warehouseId, resumeInstanceId])
 
   const def = instance?.def ?? null
   const currentStep = instance?.currentStep ?? ''
@@ -141,6 +220,26 @@ export default function ProcessRuntimeScreen() {
       return { ...prev, data: landed.data, currentStep: landed.stepId ?? '' }
     })
   }, [])
+
+  // Record one screen advance durably (offline-first): allocate the next per-instance seq, enqueue a
+  // step event with the step we are LEAVING + its stepType + the post-write data, then return. The
+  // queue drains in the background; the operator is never blocked. The server keeps the exact
+  // current_step + data from the latest event, so a refresh / new device / re-login resumes here.
+  const recordStep = useCallback(
+    (instanceId: string, leftStep: Step | undefined, leftStepId: string, data: Record<string, unknown>) => {
+      const seq = seqRef.current
+      seqRef.current = seq + 1
+      writeSeq(instanceId, seqRef.current)
+      void enqueueStep({
+        instanceId,
+        seq,
+        stepId: leftStepId,
+        stepType: stepTypeOf(leftStep),
+        data,
+      })
+    },
+    [],
+  )
 
   // When an instance is first started/resumed, the server-provided currentStep may itself carry a
   // true skipWhen or be a compute step — resolve it once so the first rendered screen is never a
@@ -169,8 +268,9 @@ export default function ProcessRuntimeScreen() {
       const cfg = step.config
       const baseData = writeValue(instance.data, cfg.writeTo, value)
 
-      // No verify block: the original purely-local advance.
+      // No verify block: the original purely-local advance. Record the advance durably first.
       if (!cfg.verify) {
+        recordStep(instance.instanceId, step, currentStep, baseData)
         advanceTo(nextStepId(step, baseData), baseData)
         return
       }
@@ -193,6 +293,7 @@ export default function ProcessRuntimeScreen() {
       const onNotVerified = () => {
         if (verify.onNotFound.mode === 'goto' && verify.onNotFound.step) {
           setVerifyState('idle')
+          recordStep(instance.instanceId, step, currentStep, baseData)
           advanceTo(verify.onNotFound.step, baseData)
         } else {
           setVerifyState('notfound')
@@ -216,6 +317,7 @@ export default function ProcessRuntimeScreen() {
           const data = applyVerifyWrites(baseData, verify, res)
           setVerifyState('idle')
           setVerifyNote(res.ambiguous ? '__ambiguous__' : null)
+          recordStep(instance.instanceId, step, currentStep, data)
           advanceTo(nextStepId(step, data), data)
         })
         .catch((e) => {
@@ -228,7 +330,7 @@ export default function ProcessRuntimeScreen() {
         })
         .finally(finish)
     },
-    [instance, step, advanceTo, warehouseId],
+    [instance, step, currentStep, advanceTo, recordStep, warehouseId],
   )
 
   // skuScan UOM picker: the operator picked a unit — write it into the uomCode-mapped variable, apply
@@ -240,9 +342,10 @@ export default function ProcessRuntimeScreen() {
       const { result, verify, baseData } = uomChoice
       const data = applyVerifyWrites(baseData, verify, result, uomCode)
       setUomChoice(null)
+      if (instance) recordStep(instance.instanceId, step, currentStep, data)
       advanceTo(nextStepId(step, data), data)
     },
-    [uomChoice, step, advanceTo],
+    [uomChoice, step, currentStep, instance, advanceTo, recordStep],
   )
 
   // TASK run: POST checkpoint; on success merge + advance; on network failure queue + HOLD.
@@ -265,7 +368,12 @@ export default function ProcessRuntimeScreen() {
         throw err
       }
       const result = (await res.json()) as CheckpointResult
-      advanceTo(result.done ? null : result.currentStep, { ...instance.data, ...result.data })
+      const merged = { ...instance.data, ...result.data }
+      // Record the task step in the durable trail too (for the replay viewer). The checkpoint endpoint
+      // already persisted + advanced server-side; this step event is idempotent on (instanceId, seq)
+      // and only adds the task to the recorded trail.
+      recordStep(instance.instanceId, step, currentStep, merged)
+      advanceTo(result.done ? null : result.currentStep, merged)
     } catch (e) {
       if (isNetworkFailure(e)) {
         // Hold at the task: queue durably + show pending sync (do NOT advance — downstream may read
@@ -277,7 +385,7 @@ export default function ProcessRuntimeScreen() {
     } finally {
       runTaskRef.current = false
     }
-  }, [instance, step, currentStep, advanceTo])
+  }, [instance, step, currentStep, advanceTo, recordStep])
 
   // Auto-run a task step when we land on one and there is no pending/failed queue item for it.
   useEffect(() => {
@@ -286,9 +394,12 @@ export default function ProcessRuntimeScreen() {
     }
   }, [step, instance, pending, failed, runTask])
 
-  // Clear the resume pointer once the instance completes.
+  // Clear the resume pointer + seq counter once the instance completes.
   useEffect(() => {
-    if (done && instance) sessionStorage.removeItem(sessionKey(key))
+    if (done && instance) {
+      sessionStorage.removeItem(sessionKey(key))
+      sessionStorage.removeItem(seqKey(instance.instanceId))
+    }
   }, [done, instance, key])
 
   // --- render (all hooks above) --------------------------------------------------------------------
