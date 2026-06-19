@@ -1,21 +1,30 @@
 // In-memory GTP pick engine for the public live demo (VITE_DEMO builds only).
 //
-// This is the ONLY live state in the demo. On start it arms 5 totes for the PP1 pick station, each
-// carrying a real demo SKU (from the fixtures), a quantity and a destination order. The totes walk
-// REQUESTED -> IN_TRANSIT -> QUEUED on short timers so the induction queue visibly fills. The engine
-// answers exactly the GTP endpoints the GtpOpsScreen console calls, with the exact shapes from
-// gtpops/api.ts (Workplace, WorkplaceSession, StationQueueEntry, WorkCycle, PutInstruction) so the
-// screen and the mock cannot drift.
+// This is the ONLY live state in the demo. It arms a handful of totes for the pick station the
+// operator has claimed, each carrying a real demo SKU (from the fixtures), a quantity and one or more
+// destination puts. The totes walk REQUESTED -> IN_TRANSIT -> QUEUED on short timers so the induction
+// queue visibly fills. The engine answers exactly the GTP endpoints the GtpOpsScreen console calls,
+// with the exact shapes from gtpops/api.ts (Workplace, WorkplaceSession, StationQueueEntry, WorkCycle,
+// PutInstruction) so the screen and the mock cannot drift.
+//
+// Pick layout (per ADR / config epic): the station's `pickLayout` decides how many puts a cycle has
+// and how the operator screen renders the target side:
+//   ONE_TO_ONE = one destination carton, one put (the classic flow).
+//   ONE_TO_N   = a fixed row of N slots; a cycle fans the tote's units across a few of the slots
+//                (several puts, varied qty, some slots unused), each put bound to an ORDER node.
+//   PUT_WALL   = only the lit cubbies are shown; a cycle has several puts, each with a putLightId.
 //
 // Nothing here is persisted: a page reload re-imports the module and re-seeds from fixtures. reset()
-// re-arms all 5 totes (used by the Restart action).
+// re-arms the current station. Claiming a different station re-seeds for that station.
 
 import type {
   Workplace,
+  WorkplaceNode,
   WorkplaceSession,
   StationQueueEntry,
   WorkCycle,
   PutInstruction,
+  PickLayout,
   SessionStatus,
 } from '../gtpops/api'
 import gtpWorkplaces from './fixtures/gtp-workplaces.json'
@@ -38,14 +47,37 @@ function demoSkus(): DemoSku[] {
   return list.length ? list : [{ id: 'sku-demo', code: 'DEMO-SKU', description: 'Demo SKU' }]
 }
 
-// The station the demo drives: the first PICKING-capable workplace from the snapshot (PP1).
-function pickStation(): Workplace {
-  const all = gtpWorkplaces as Workplace[]
-  const picking = all.find((w) => w.supportedModes.includes('PICKING'))
-  return picking ?? all[0]
+function allWorkplaces(): Workplace[] {
+  return gtpWorkplaces as Workplace[]
 }
 
-// One armed tote and its derived demand. confirmedQty/exception track operator actions.
+// The default station the demo arms before anything is claimed: the first PICKING-capable workplace.
+function defaultStation(): Workplace {
+  const all = allWorkplaces()
+  return all.find((w) => w.supportedModes.includes('PICKING')) ?? all[0]
+}
+
+function stationById(id: string): Workplace {
+  return allWorkplaces().find((w) => w.id === id) ?? defaultStation()
+}
+
+function layoutOf(station: Workplace): PickLayout {
+  return station.pickLayout ?? 'ONE_TO_ONE'
+}
+
+// One put in a demo cycle: the destination + the running confirm state.
+interface DemoPut {
+  id: string
+  destinationNodeId: string
+  orderHuId: string
+  putLightId: string | null
+  qty: number
+  confirmedQty: number
+  status: PutInstruction['status']
+}
+
+// One armed tote and its derived demand. The puts array carries one (1-to-1) or several (1-to-N /
+// put wall) destinations. done tracks completion of the whole tote.
 interface DemoTote {
   entryId: string
   huId: string
@@ -54,17 +86,13 @@ interface DemoTote {
   skuCode: string
   qty: number
   orderRef: string
-  destinationHuId: string
   status: StationQueueEntry['status']
   arrivalSeq: number | null
   requestedAt: string
   inTransitAt: string | null
   queuedAt: string | null
-  // Per-cycle working state once presented:
   cycleId: string | null
-  putId: string
-  confirmedQty: number | null
-  putStatus: PutInstruction['status']
+  puts: DemoPut[]
   done: boolean
 }
 
@@ -86,15 +114,82 @@ function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-// Build the 5 starting totes from real demo SKUs. Quantities are small whole numbers; one tote is a
-// larger qty so a short pick reads naturally.
+function orderNodes(station: Workplace): WorkplaceNode[] {
+  return station.nodes.filter((n) => n.role === 'ORDER').sort((a, b) => a.position - b.position)
+}
+
+// Build the puts for one tote, given the station's pick layout. The tote's total qty is split across
+// the chosen destinations so the source "units to move" reads naturally.
+function buildPuts(station: Workplace, tote: DemoTote, index: number): DemoPut[] {
+  const layout = layoutOf(station)
+  const nodes = orderNodes(station)
+
+  if (layout === 'ONE_TO_ONE' || nodes.length === 0) {
+    // Classic single carton: one put for the whole tote (unchanged behaviour).
+    return [
+      {
+        id: uid('put'),
+        destinationNodeId: nodes[0]?.id ?? uid('node'),
+        orderHuId: uid('dhu'),
+        putLightId: nodes[0]?.putLightId ?? null,
+        qty: tote.qty,
+        confirmedQty: 0,
+        status: 'OPEN',
+      },
+    ]
+  }
+
+  // Multi-target: pick a few destinations (varied per tote so some slots/cubbies stay unused) and
+  // split the tote's qty across them. Pattern lengths rotate by tote index for visible variety.
+  const patterns = [
+    [0, 2, 4],
+    [1, 3],
+    [0, 1, 5],
+    [2, 6],
+    [0, 3, 4, 6],
+  ]
+  const chosen = patterns[index % patterns.length].filter((i) => i < nodes.length)
+  const targets = chosen.length ? chosen : [0]
+  const qtys = splitQty(tote.qty, targets.length)
+  return targets.map((nodeIdx, i) => {
+    const node = nodes[nodeIdx]
+    return {
+      id: uid('put'),
+      destinationNodeId: node.id,
+      orderHuId: uid('dhu'),
+      putLightId: node.putLightId,
+      qty: qtys[i],
+      confirmedQty: 0,
+      status: 'OPEN' as const,
+    }
+  })
+}
+
+// Split a total into `parts` positive whole numbers (each >= 1), as even as possible.
+function splitQty(total: number, parts: number): number[] {
+  const n = Math.max(1, Math.min(parts, total))
+  const base = Math.floor(total / n)
+  const out = Array.from({ length: n }, () => Math.max(1, base))
+  let used = out.reduce((s, v) => s + v, 0)
+  let i = 0
+  // Distribute the remainder one unit at a time.
+  while (used < total) {
+    out[i % n] += 1
+    used += 1
+    i += 1
+  }
+  return out
+}
+
+// Build the starting totes for a station from real demo SKUs. A couple carry a larger qty so a short
+// pick reads naturally and so the multi-target split has units to spread.
 function armTotes(station: Workplace): DemoTote[] {
   const skus = demoSkus()
-  const qtys = [3, 5, 2, 8, 4]
+  const qtys = [6, 5, 9, 4, 7]
   const totes: DemoTote[] = []
   for (let i = 0; i < 5; i++) {
     const sku = skus[i % skus.length]
-    totes.push({
+    const tote: DemoTote = {
       entryId: uid('entry'),
       huId: uid('hu'),
       huCode: `TOTE-${String(i + 1).padStart(3, '0')}`,
@@ -102,18 +197,17 @@ function armTotes(station: Workplace): DemoTote[] {
       skuCode: sku.code,
       qty: qtys[i],
       orderRef: `SO-${5200 + i}`,
-      destinationHuId: uid('dhu'),
       status: 'REQUESTED',
       arrivalSeq: null,
       requestedAt: nowIso(),
       inTransitAt: null,
       queuedAt: null,
       cycleId: null,
-      putId: uid('put'),
-      confirmedQty: null,
-      putStatus: 'OPEN',
+      puts: [],
       done: false,
-    })
+    }
+    tote.puts = buildPuts(station, tote, i)
+    totes.push(tote)
   }
   return totes
 }
@@ -150,11 +244,10 @@ function scheduleArrival(tote: DemoTote, index: number): void {
   )
 }
 
-// (Re)seed the engine: arm 5 totes and start their arrival timers. Idempotent (safe to call on first
-// access and on reset).
-export function seed(): void {
+// (Re)seed the engine for a station: arm 5 totes and start their arrival timers. Idempotent.
+export function seed(stationId?: string): void {
   if (state) clearTimers()
-  const station = pickStation()
+  const station = stationId ? stationById(stationId) : defaultStation()
   state = { station, sessionId: null, totes: armTotes(station), timers: [], arrivalCounter: 0 }
   state.totes.forEach((t, i) => scheduleArrival(t, i))
 }
@@ -165,7 +258,7 @@ function ensure(): EngineState {
 }
 
 export function reset(): void {
-  seed()
+  seed(state?.station.id)
 }
 
 // --- GTP endpoint handlers (return the exact gtpops/api.ts shapes) --------------------------------
@@ -173,12 +266,16 @@ export function reset(): void {
 export function listWorkplaces(_warehouseId: string): Workplace[] {
   const s = ensure()
   // The demo is scoped to a single warehouse, so return every snapshot workplace (the launcher looks
-  // real); the demo drives the PICKING station, shown free and accepting work.
-  const all = gtpWorkplaces as Workplace[]
-  return all.map((w) => (w.id === s.station.id ? { ...w, inUse: false, acceptingWork: true } : w))
+  // real); the currently-armed station is shown free and accepting work.
+  return allWorkplaces().map((w) => (w.id === s.station.id ? { ...w, inUse: false, acceptingWork: true } : w))
 }
 
 export function claimWorkplace(stationId: string): WorkplaceSession {
+  // Claiming a different pick station re-seeds the engine for it so its layout's totes/puts are armed.
+  if (!state || state.station.id !== stationId) {
+    const station = stationById(stationId)
+    if (station.supportedModes.includes('PICKING')) seed(stationId)
+  }
   const s = ensure()
   s.sessionId = uid('sess')
   return {
@@ -233,43 +330,51 @@ function toteByEntry(entryId: string): DemoTote | undefined {
   return state?.totes.find((t) => t.entryId === entryId)
 }
 function toteByPut(putId: string): DemoTote | undefined {
-  return state?.totes.find((t) => t.putId === putId)
+  return state?.totes.find((t) => t.puts.some((p) => p.id === putId))
 }
 function toteByCycle(cycleId: string): DemoTote | undefined {
   return state?.totes.find((t) => t.cycleId === cycleId)
 }
 
-function buildCycle(stationId: string, tote: DemoTote): WorkCycle {
-  const put: PutInstruction = {
-    id: tote.putId,
-    destinationNodeId: uid('node'),
-    destinationDemandId: uid('demand'),
+function toPutInstruction(tote: DemoTote, p: DemoPut): PutInstruction {
+  return {
+    id: p.id,
+    destinationNodeId: p.destinationNodeId,
+    destinationDemandId: `demand-${p.id}`,
     orderRef: tote.orderRef,
-    orderLineId: uid('line'),
-    orderHuId: tote.destinationHuId,
-    putLightId: `L${(tote.arrivalSeq ?? 1)}`,
-    qty: tote.qty,
-    confirmedQty: tote.confirmedQty ?? 0,
-    status: tote.putStatus,
+    orderLineId: `line-${p.id}`,
+    orderHuId: p.orderHuId,
+    putLightId: p.putLightId,
+    qty: p.qty,
+    confirmedQty: p.confirmedQty,
+    status: p.status,
   }
+}
+
+function buildCycle(stationId: string, tote: DemoTote): WorkCycle {
+  const station = state?.station ?? stationById(stationId)
+  const open = tote.puts.filter((p) => p.status === 'OPEN')
+  const remaining = open.reduce((s, p) => s + p.qty, 0)
   return {
     id: tote.cycleId as string,
     stationId,
     operatingMode: 'PICKING',
     stockNodeId: uid('stocknode'),
     stockHuId: tote.huId,
-    targetHuId: tote.destinationHuId,
+    targetHuId: tote.puts[0]?.orderHuId ?? null,
     skuId: tote.skuId,
-    mode: 'ORDER_LOCATION',
+    mode: station.mode === 'PUT_WALL' ? 'PUT_WALL' : 'ORDER_LOCATION',
     presentedQty: tote.qty,
-    remainingQty: tote.qty - (tote.confirmedQty ?? 0),
-    status: tote.putStatus === 'OPEN' ? 'OPEN' : 'COMPLETED',
-    puts: [put],
+    remainingQty: remaining,
+    status: open.length === 0 ? 'COMPLETED' : 'OPEN',
+    pickLayout: layoutOf(station),
+    pickSlots: station.pickSlots ?? null,
+    puts: tote.puts.map((p) => toPutInstruction(tote, p)),
     taskLines: [],
   }
 }
 
-// present: the console presents the arrived head tote's stock HU. Open a work cycle with one put.
+// present: the console presents the arrived head tote's stock HU. Open a work cycle with its puts.
 export function presentStock(
   stationId: string,
   body: { stockHuId: string; skuId: string; qty: number },
@@ -278,35 +383,24 @@ export function presentStock(
   const tote = toteByHu(body.stockHuId)
   if (!tote) throw new Error('No tote at the station for this stock HU.')
   if (!tote.cycleId) tote.cycleId = uid('cycle')
-  tote.putStatus = 'OPEN'
-  tote.confirmedQty = null
   return buildCycle(stationId, tote)
 }
 
-// confirm-put: full (no qty) or short (qty < requested). Records the outcome on the tote's put.
+// confirm-put: full (no qty) or short (qty < requested). Records the outcome on the matching put.
 export function confirmPut(putId: string, qty?: number): PutInstruction {
   ensure()
   const tote = toteByPut(putId)
   if (!tote) throw new Error('Unknown put instruction.')
-  if (qty != null && qty < tote.qty) {
-    tote.confirmedQty = qty
-    tote.putStatus = 'SHORT'
+  const put = tote.puts.find((p) => p.id === putId)
+  if (!put) throw new Error('Unknown put instruction.')
+  if (qty != null && qty < put.qty) {
+    put.confirmedQty = qty
+    put.status = 'SHORT'
   } else {
-    tote.confirmedQty = tote.qty
-    tote.putStatus = 'CONFIRMED'
+    put.confirmedQty = put.qty
+    put.status = 'CONFIRMED'
   }
-  return {
-    id: tote.putId,
-    destinationNodeId: uid('node'),
-    destinationDemandId: uid('demand'),
-    orderRef: tote.orderRef,
-    orderLineId: uid('line'),
-    orderHuId: tote.destinationHuId,
-    putLightId: `L${(tote.arrivalSeq ?? 1)}`,
-    qty: tote.qty,
-    confirmedQty: tote.confirmedQty ?? 0,
-    status: tote.putStatus,
-  }
+  return toPutInstruction(tote, put)
 }
 
 // close-cycle: complete the cycle. The console then completes the queue entry (below) to advance.
@@ -378,7 +472,7 @@ export function progress(): { total: number; picked: number; short: number; rema
   let remaining = 0
   for (const t of s.totes) {
     if (t.done) {
-      if (t.putStatus === 'SHORT') short++
+      if (t.puts.some((p) => p.status === 'SHORT')) short++
       else picked++
     } else {
       remaining++

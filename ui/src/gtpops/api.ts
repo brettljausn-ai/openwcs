@@ -7,6 +7,9 @@
 
 export type OperatingMode = 'PICKING' | 'DECANTING' | 'STOCK_COUNT' | 'QC' | 'MAINTENANCE'
 
+// How the operator pick screen lays out the put target(s). Mirrors gtpconfig PickLayout.
+export type PickLayout = 'ONE_TO_ONE' | 'ONE_TO_N' | 'PUT_WALL'
+
 export interface WorkplaceNode {
   id: string
   role: 'STOCK' | 'ORDER'
@@ -27,6 +30,10 @@ export interface Workplace {
   status: string
   acceptingWork?: boolean
   inUse: boolean
+  // Picking layout for this workplace's pick screen (ONE_TO_ONE | ONE_TO_N | PUT_WALL), and the slot
+  // count for ONE_TO_N (null otherwise). May be absent on older backends; treated as ONE_TO_ONE.
+  pickLayout?: PickLayout
+  pickSlots?: number | null
   nodes: WorkplaceNode[]
 }
 
@@ -84,6 +91,10 @@ export interface WorkCycle {
   presentedQty: number | null
   remainingQty: number | null
   status: 'OPEN' | 'COMPLETED' | 'CLOSED'
+  // Picking layout + slot count carried on the cycle so the pick screen can branch the target side
+  // without re-reading the workplace. May be absent on older backends; treated as ONE_TO_ONE.
+  pickLayout?: PickLayout
+  pickSlots?: number | null
   puts: PutInstruction[]
   taskLines: TaskLine[]
 }

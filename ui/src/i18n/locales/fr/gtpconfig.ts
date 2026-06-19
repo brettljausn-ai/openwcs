@@ -97,4 +97,18 @@ export default {
     'Plafonne le nombre de HUs pouvant avoir un transport hors picking actif (décantage, comptage, QC, maintenance) entrant vers ce poste en même temps.',
   noLocations: 'Aucun emplacement dans cet entrepôt.',
   noMatchingCode: 'Aucun code correspondant.',
+  pickLayout: 'Disposition de prélèvement',
+  pickLayoutTip:
+    "Comment l'écran de prélèvement présente la ou les destinations. 1-vers-1 = un carton de destination par prélèvement ; 1-vers-N = une rangée fixe de cases que le prélèvement répartit ; Mur de tri = seules les cases allumées sont affichées.",
+  pickLayout_ONE_TO_ONE: '1-vers-1 (carton unique)',
+  pickLayout_ONE_TO_N: '1-vers-N (cases)',
+  pickLayout_PUT_WALL: 'Mur de tri (cases allumées)',
+  pickSlots: 'Cases de prélèvement',
+  pickSlotsTip:
+    "Combien de cases l'écran 1-vers-N affiche (les destinations de commande disposées de gauche à droite). Minimum 2.",
+  pickSlotsMin: 'Saisissez 2 cases ou plus.',
+  putWallHint:
+    "Mur de tri : configurez chaque case et son identifiant put-light comme un nœud ORDER ci-dessous (identifiant put-light + emplacement).",
+  putWallNeedsTopology:
+    'La disposition mur de tri nécessite la topologie de destination PUT_WALL. Réglez la topologie ci-dessus sur PUT_WALL.',
 }

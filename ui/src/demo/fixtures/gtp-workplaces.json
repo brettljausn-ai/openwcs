@@ -11,7 +11,54 @@
     "status": "ACTIVE",
     "acceptingWork": true,
     "inUse": false,
+    "pickLayout": "ONE_TO_ONE",
+    "pickSlots": null,
     "nodes": []
+  },
+  {
+    "id": "b1d2c3e4-aaaa-4bbb-8ccc-000000000001",
+    "warehouseId": "394dfd10-f541-48b5-84d8-773322549a3b",
+    "code": "PP2",
+    "mode": "ORDER_LOCATION",
+    "supportedModes": [
+      "PICKING"
+    ],
+    "status": "ACTIVE",
+    "acceptingWork": true,
+    "inUse": false,
+    "pickLayout": "ONE_TO_N",
+    "pickSlots": 7,
+    "nodes": [
+      { "id": "ord-pp2-1", "role": "ORDER", "code": "S1", "putLightId": null, "locationId": null, "orderHuId": null, "position": 1, "status": "ACTIVE" },
+      { "id": "ord-pp2-2", "role": "ORDER", "code": "S2", "putLightId": null, "locationId": null, "orderHuId": null, "position": 2, "status": "ACTIVE" },
+      { "id": "ord-pp2-3", "role": "ORDER", "code": "S3", "putLightId": null, "locationId": null, "orderHuId": null, "position": 3, "status": "ACTIVE" },
+      { "id": "ord-pp2-4", "role": "ORDER", "code": "S4", "putLightId": null, "locationId": null, "orderHuId": null, "position": 4, "status": "ACTIVE" },
+      { "id": "ord-pp2-5", "role": "ORDER", "code": "S5", "putLightId": null, "locationId": null, "orderHuId": null, "position": 5, "status": "ACTIVE" },
+      { "id": "ord-pp2-6", "role": "ORDER", "code": "S6", "putLightId": null, "locationId": null, "orderHuId": null, "position": 6, "status": "ACTIVE" },
+      { "id": "ord-pp2-7", "role": "ORDER", "code": "S7", "putLightId": null, "locationId": null, "orderHuId": null, "position": 7, "status": "ACTIVE" }
+    ]
+  },
+  {
+    "id": "b1d2c3e4-aaaa-4bbb-8ccc-000000000002",
+    "warehouseId": "394dfd10-f541-48b5-84d8-773322549a3b",
+    "code": "PW1",
+    "mode": "PUT_WALL",
+    "supportedModes": [
+      "PICKING"
+    ],
+    "status": "ACTIVE",
+    "acceptingWork": true,
+    "inUse": false,
+    "pickLayout": "PUT_WALL",
+    "pickSlots": null,
+    "nodes": [
+      { "id": "ord-pw1-1", "role": "ORDER", "code": "C1", "putLightId": "PTL-A1", "locationId": null, "orderHuId": null, "position": 1, "status": "ACTIVE" },
+      { "id": "ord-pw1-2", "role": "ORDER", "code": "C2", "putLightId": "PTL-A2", "locationId": null, "orderHuId": null, "position": 2, "status": "ACTIVE" },
+      { "id": "ord-pw1-3", "role": "ORDER", "code": "C3", "putLightId": "PTL-A3", "locationId": null, "orderHuId": null, "position": 3, "status": "ACTIVE" },
+      { "id": "ord-pw1-4", "role": "ORDER", "code": "C4", "putLightId": "PTL-A4", "locationId": null, "orderHuId": null, "position": 4, "status": "ACTIVE" },
+      { "id": "ord-pw1-5", "role": "ORDER", "code": "C5", "putLightId": "PTL-A5", "locationId": null, "orderHuId": null, "position": 5, "status": "ACTIVE" },
+      { "id": "ord-pw1-6", "role": "ORDER", "code": "C6", "putLightId": "PTL-A6", "locationId": null, "orderHuId": null, "position": 6, "status": "ACTIVE" }
+    ]
   },
   {
     "id": "6443c0b1-f068-4dbc-bd72-1cae9028e5d6",
@@ -24,6 +71,8 @@
     "status": "ACTIVE",
     "acceptingWork": true,
     "inUse": false,
+    "pickLayout": "ONE_TO_ONE",
+    "pickSlots": null,
     "nodes": []
   }
 ]

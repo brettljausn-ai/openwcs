@@ -88,4 +88,15 @@ export default {
     '限制同一时间最多有多少 HU 处于运往此工作站的有效非 picking 运输（分装、盘点、QC、维护）。',
   noLocations: '此仓库中没有库位。',
   noMatchingCode: '没有匹配的代码。',
+  pickLayout: '拣选布局',
+  pickLayoutTip:
+    '操作员拣选界面如何呈现投放目标。1对1 = 每次拣选一个目标纸箱；1对N = 一排固定的格口，拣选量分配到其中；播种墙 = 仅显示亮灯的格口。',
+  pickLayout_ONE_TO_ONE: '1对1（单一纸箱）',
+  pickLayout_ONE_TO_N: '1对N（格口）',
+  pickLayout_PUT_WALL: '播种墙（亮灯格口）',
+  pickSlots: '拣选格口',
+  pickSlotsTip: '1对N 界面显示多少个格口（从左到右排列的订单目标）。最少 2 个。',
+  pickSlotsMin: '请输入 2 个或更多格口。',
+  putWallHint: '播种墙：在下方将每个格口及其 put-light id 配置为 ORDER 节点（put-light id + 库位）。',
+  putWallNeedsTopology: '播种墙布局需要 PUT_WALL 目标拓扑。请将上方的拓扑设置为 PUT_WALL。',
 }
