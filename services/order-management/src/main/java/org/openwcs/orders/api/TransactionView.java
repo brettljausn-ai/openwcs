@@ -15,10 +15,13 @@ public record TransactionView(
         UUID batchId,
         UUID eventId,
         String actor,
+        String processInstanceId,
+        String orderType,
         Instant postedAt) {
 
     public static TransactionView from(OrderLineTransaction t) {
         return new TransactionView(t.getId(), t.getTxnType().name(), t.getQty(), t.getLocationId(),
-                t.getHuId(), t.getBatchId(), t.getEventId(), t.getActor(), t.getPostedAt());
+                t.getHuId(), t.getBatchId(), t.getEventId(), t.getActor(),
+                t.getProcessInstanceId(), t.getOrderType(), t.getPostedAt());
     }
 }

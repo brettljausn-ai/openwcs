@@ -16,6 +16,7 @@ import org.openwcs.orders.api.PickTaskView;
 import org.openwcs.orders.api.PostTransactionRequest;
 import org.openwcs.orders.api.ResolveOrderResult;
 import org.openwcs.orders.client.AllocationClient;
+import org.openwcs.orders.client.InventoryClient;
 import org.openwcs.orders.client.MasterDataClient;
 import org.openwcs.orders.domain.LineStatus;
 import org.openwcs.orders.domain.OrderLine;
@@ -52,16 +53,18 @@ public class OrderService {
     private final OrderOutboxRepository outbox;
     private final MasterDataClient masterData;
     private final RouteDispatchService routeDispatch;
+    private final InventoryClient inventory;
 
     public OrderService(OutboundOrderRepository orders, OrderLineRepository lines, AllocationClient allocation,
                         OrderOutboxRepository outbox, MasterDataClient masterData,
-                        RouteDispatchService routeDispatch) {
+                        RouteDispatchService routeDispatch, InventoryClient inventory) {
         this.orders = orders;
         this.lines = lines;
         this.allocation = allocation;
         this.outbox = outbox;
         this.masterData = masterData;
         this.routeDispatch = routeDispatch;
+        this.inventory = inventory;
     }
 
     @Transactional
@@ -413,26 +416,53 @@ public class OrderService {
                     + requested + " (already picked " + alreadyPicked + ") on line " + lineId);
         }
 
+        UUID location = request.locationId() != null ? request.locationId() : PickTaskView.pickLocationOf(line);
+
+        // Available-at-location guard: never drive stock negative. Read the pickable quantity at
+        // the pick face and clamp the booked qty to it. If the operator picked more than is
+        // available there, book only what is available and mark the line SHORT (a zero-available
+        // face books nothing). Best-effort: a read failure (or unknown location) must not block
+        // the pick, so we fall back to the requested quantity.
+        BigDecimal bookedQty = pickedQty;
+        boolean clampedShort = false;
+        if (pickedQty.signum() > 0 && location != null) {
+            BigDecimal available = availableAt(order, line, location);
+            if (available != null && available.compareTo(pickedQty) < 0) {
+                bookedQty = available.max(BigDecimal.ZERO);
+                clampedShort = true;
+                log.warn("pick on order {} line {} clamped: operator picked {} but only {} available at"
+                                + " location {}; booking {} and marking SHORT",
+                        order.getOrderRef(), line.getLineNo(), pickedQty, available, location, bookedQty);
+            }
+        }
+
         // Post the Picked stock transaction (same outbox→txlog path as postTransaction): record
         // the line transaction + the outbox row in ONE local transaction so the audit is durable.
-        UUID location = request.locationId() != null ? request.locationId() : PickTaskView.pickLocationOf(line);
-        if (pickedQty.signum() > 0) {
-            Map<String, Object> payload = pickPayload(order, line, pickedQty, location);
-            OrderLineTransaction txn = new OrderLineTransaction(line, TransactionType.PICK, pickedQty,
+        if (bookedQty.signum() > 0) {
+            String processInstanceId = request.processInstanceId();
+            String orderType = order.getOrderType().name();
+            UUID reservationId = line.getReservationId();
+            Map<String, Object> payload =
+                    pickPayload(order, line, bookedQty, location, reservationId, orderType, processInstanceId, actor);
+            OrderLineTransaction txn = new OrderLineTransaction(line, TransactionType.PICK, bookedQty,
                     location, null, null, null, actor);
+            txn.setProcessInstanceId(processInstanceId);
+            txn.setOrderType(orderType);
             line.addTransaction(txn);
             orders.flush(); // assign the transaction id for the outbox foreign key
             outbox.save(new OrderOutboxMessage(
                     txn.getId(), line.getId().toString(), "Picked", order.getId(), actor, payload));
         }
 
-        // Advance status: a short confirm under the requested qty marks the line SHORT.
+        // Advance status: a short confirm under the requested qty (operator-flagged or clamped to
+        // the available stock) marks the line SHORT.
         BigDecimal nowPicked = PickTaskView.pickedQtyOf(line);
-        if (request.isShort() && nowPicked.compareTo(requested) < 0) {
+        if ((request.isShort() || clampedShort) && nowPicked.compareTo(requested) < 0) {
             line.setStatus(LineStatus.SHORT);
         }
         log.info("pick confirmed on order {} line {} by {}: +{} (now {} of {}{})", order.getOrderRef(),
-                line.getLineNo(), actor, pickedQty, nowPicked, requested, request.isShort() ? ", short" : "");
+                line.getLineNo(), actor, bookedQty, nowPicked, requested,
+                (request.isShort() || clampedShort) ? ", short" : "");
         return PickTaskView.from(order, line);
     }
 
@@ -446,14 +476,49 @@ public class OrderService {
         return orderOpen && lineOpen && qtyRemains;
     }
 
-    /** Picked event payload (mirrors {@link #buildPayload} for a PICK): carries qty (not signed). */
-    private static Map<String, Object> pickPayload(OutboundOrder order, OrderLine line, BigDecimal qty, UUID location) {
+    /**
+     * Pickable quantity at the pick face, or null when it cannot be determined (so the caller
+     * skips the clamp and falls back to the requested qty). Best-effort: a read failure must
+     * never block the pick. Uses availableToPromise (onHand − reserved at the location), the
+     * quantity that may be taken from that face without driving stock negative.
+     */
+    private BigDecimal availableAt(OutboundOrder order, OrderLine line, UUID location) {
+        try {
+            InventoryClient.Availability availability =
+                    inventory.availabilityAtLocation(order.getWarehouseId(), line.getSkuId(), location);
+            return availability == null ? null : availability.availableToPromise();
+        } catch (RuntimeException e) {
+            log.warn("availability read failed for order {} line {} at location {}: {}; proceeding without"
+                            + " the available-at-location clamp",
+                    order.getOrderRef(), line.getLineNo(), location, e.toString());
+            return null;
+        }
+    }
+
+    /**
+     * Picked event payload (mirrors {@link #buildPayload} for a PICK): carries qty (not signed),
+     * plus the reservation to consume, the order type, the driving process instance, and the
+     * operator (actor) so downstream consumers (inventory projection) can consume the reservation
+     * and trace the pick. {@code reservationId} is omitted when no reservation is known (inventory
+     * then decrements only). {@code processInstanceId} is omitted when the caller ran no process.
+     */
+    private static Map<String, Object> pickPayload(OutboundOrder order, OrderLine line, BigDecimal qty,
+                                                   UUID location, UUID reservationId, String orderType,
+                                                   String processInstanceId, String actor) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("warehouseId", order.getWarehouseId());
         payload.put("skuId", line.getSkuId());
         payload.put("locationId", location);
         payload.put("uomCode", "EACH");
         payload.put("qty", qty);
+        payload.put("orderType", orderType);
+        payload.put("actor", actor);
+        if (reservationId != null) {
+            payload.put("reservationId", reservationId);
+        }
+        if (processInstanceId != null) {
+            payload.put("processInstanceId", processInstanceId);
+        }
         return payload;
     }
 

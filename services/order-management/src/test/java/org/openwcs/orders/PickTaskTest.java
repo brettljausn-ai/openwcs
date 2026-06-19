@@ -17,7 +17,10 @@ import org.openwcs.orders.api.IllegalOrderStateException;
 import org.openwcs.orders.api.OrderView;
 import org.openwcs.orders.api.PickTaskView;
 import org.openwcs.orders.client.AllocationClient;
+import org.openwcs.orders.client.InventoryClient;
+import org.openwcs.orders.domain.OrderLineTransaction;
 import org.openwcs.orders.domain.OrderOutboxMessage;
+import org.openwcs.orders.repo.OrderLineTransactionRepository;
 import org.openwcs.orders.repo.OrderOutboxRepository;
 import org.openwcs.orders.service.OrderService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,11 +60,17 @@ class PickTaskTest {
     @MockBean
     org.openwcs.orders.client.MasterDataClient masterData;
 
+    @MockBean
+    org.openwcs.orders.client.InventoryClient inventory;
+
     @Autowired
     OrderService service;
 
     @Autowired
     OrderOutboxRepository outbox;
+
+    @Autowired
+    OrderLineTransactionRepository transactions;
 
     /** Create an OUTBOUND order and fully allocate it (status ALLOCATED, lines ALLOCATED). */
     private OrderView allocatedOrder(String ref, UUID warehouse, UUID sku, String qty) {
@@ -70,6 +79,11 @@ class PickTaskTest {
 
     /** As above, with the allocation service returning {@code pickLocation} as the line's pick face. */
     private OrderView allocatedOrder(String ref, UUID warehouse, UUID sku, String qty, UUID pickLocation) {
+        // Default: ample stock at the pick face so the available-at-location guard never clamps.
+        // Individual tests override this to exercise the clamp.
+        when(inventory.availabilityAtLocation(any(), any(), any()))
+                .thenReturn(new InventoryClient.Availability(
+                        new BigDecimal("999"), BigDecimal.ZERO, new BigDecimal("999")));
         OrderView created = service.create(new CreateOrderRequest(
                 ref, warehouse, "OUTBOUND", null, null, null, null, null, null, null,
                 List.of(new CreateOrderRequest.Line(sku, new BigDecimal(qty)))));
@@ -126,7 +140,7 @@ class PickTaskTest {
         UUID lineId = service.pickTasks(warehouse).get(0).lineId();
 
         PickTaskView after = service.confirmPick(lineId,
-                new ConfirmPickRequest(new BigDecimal("5"), false, location), "operator-1");
+                new ConfirmPickRequest(new BigDecimal("5"), false, location, "proc-42"), "operator-1");
 
         assertThat(after.pickedQty()).isEqualByComparingTo("5");
         assertThat(after.remainingQty()).isEqualByComparingTo("0");
@@ -145,9 +159,104 @@ class PickTaskTest {
         assertThat(event.getPublishedAt()).isNull();   // relay disabled
         assertThat(new BigDecimal(event.getPayload().get("qty").toString())).isEqualByComparingTo("5");
         assertThat(event.getPayload().get("skuId").toString()).isEqualTo(sku.toString());
+        // The payload carries the order type, the driving process instance, and the operator so
+        // downstream consumers can consume the reservation and trace the pick.
+        assertThat(event.getPayload().get("orderType")).isEqualTo("OUTBOUND");
+        assertThat(event.getPayload().get("processInstanceId")).isEqualTo("proc-42");
+        assertThat(event.getPayload().get("actor")).isEqualTo("operator-1");
+
+        // The transaction itself is stamped with actor + process instance + order type.
+        OrderLineTransaction txn = transactions.findById(event.getLineTxnId()).orElseThrow();
+        assertThat(txn.getActor()).isEqualTo("operator-1");
+        assertThat(txn.getProcessInstanceId()).isEqualTo("proc-42");
+        assertThat(txn.getOrderType()).isEqualTo("OUTBOUND");
 
         // Fully picked → drops out of the queue.
         assertThat(service.pickTasks(warehouse)).isEmpty();
+    }
+
+    @Test
+    void pickWithoutProcessInstanceStillWorks() {
+        UUID warehouse = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID location = UUID.randomUUID();
+        UUID orderId = allocatedOrder("ORD-PQ-NOPROC", warehouse, sku, "4").id();
+        UUID lineId = service.pickTasks(warehouse).get(0).lineId();
+
+        // processInstanceId absent (backward-compatible caller).
+        PickTaskView after = service.confirmPick(lineId,
+                new ConfirmPickRequest(new BigDecimal("4"), false, location, null), "operator-1");
+
+        assertThat(after.pickedQty()).isEqualByComparingTo("4");
+        assertThat(after.remainingQty()).isEqualByComparingTo("0");
+
+        OrderOutboxMessage event = outbox.findAll().stream()
+                .filter(m -> "Picked".equals(m.getEventType()))
+                .filter(m -> orderId.equals(m.getCorrelationId()))
+                .findFirst().orElseThrow();
+        // Omitted process instance key (not a null value); order type + actor still present.
+        assertThat(event.getPayload()).doesNotContainKey("processInstanceId");
+        assertThat(event.getPayload().get("orderType")).isEqualTo("OUTBOUND");
+        assertThat(event.getPayload().get("actor")).isEqualTo("operator-1");
+
+        OrderLineTransaction txn = transactions.findById(event.getLineTxnId()).orElseThrow();
+        assertThat(txn.getProcessInstanceId()).isNull();
+        assertThat(txn.getOrderType()).isEqualTo("OUTBOUND");
+    }
+
+    @Test
+    void overPickAtLocationClampsToAvailableAndMarksShort() {
+        UUID warehouse = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID location = UUID.randomUUID();
+        UUID orderId = allocatedOrder("ORD-PQ-CLAMP", warehouse, sku, "5").id();
+        UUID lineId = service.pickTasks(warehouse).get(0).lineId();
+
+        // Only 3 are actually available at the pick face, but the operator confirms 5.
+        when(inventory.availabilityAtLocation(eq(warehouse), eq(sku), eq(location)))
+                .thenReturn(new InventoryClient.Availability(
+                        new BigDecimal("3"), BigDecimal.ZERO, new BigDecimal("3")));
+
+        PickTaskView after = service.confirmPick(lineId,
+                new ConfirmPickRequest(new BigDecimal("5"), false, location, null), "operator-1");
+
+        // Booked qty clamped to the available 3; line marked SHORT.
+        assertThat(after.pickedQty()).isEqualByComparingTo("3");
+        assertThat(after.status()).isEqualTo("SHORT");
+
+        OrderOutboxMessage event = outbox.findAll().stream()
+                .filter(m -> "Picked".equals(m.getEventType()))
+                .filter(m -> orderId.equals(m.getCorrelationId()))
+                .findFirst().orElseThrow();
+        // Never posts more than is available at the face.
+        assertThat(new BigDecimal(event.getPayload().get("qty").toString())).isEqualByComparingTo("3");
+    }
+
+    @Test
+    void pickAtAnEmptyLocationBooksNothingAndMarksShort() {
+        UUID warehouse = UUID.randomUUID();
+        UUID sku = UUID.randomUUID();
+        UUID location = UUID.randomUUID();
+        UUID orderId = allocatedOrder("ORD-PQ-EMPTY", warehouse, sku, "5").id();
+        UUID lineId = service.pickTasks(warehouse).get(0).lineId();
+
+        // Zero available at the face: book nothing, mark SHORT.
+        when(inventory.availabilityAtLocation(eq(warehouse), eq(sku), eq(location)))
+                .thenReturn(new InventoryClient.Availability(
+                        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO));
+
+        PickTaskView after = service.confirmPick(lineId,
+                new ConfirmPickRequest(new BigDecimal("5"), false, location, null), "operator-1");
+
+        assertThat(after.pickedQty()).isEqualByComparingTo("0");
+        assertThat(after.status()).isEqualTo("SHORT");
+
+        // No Picked event posted (nothing booked).
+        List<OrderOutboxMessage> picked = outbox.findAll().stream()
+                .filter(m -> "Picked".equals(m.getEventType()))
+                .filter(m -> orderId.equals(m.getCorrelationId()))
+                .toList();
+        assertThat(picked).isEmpty();
     }
 
     @Test
@@ -160,7 +269,7 @@ class PickTaskTest {
 
         // Operator could only pick 3 of 5 and flags the line short.
         PickTaskView after = service.confirmPick(lineId,
-                new ConfirmPickRequest(new BigDecimal("3"), true, location), "operator-1");
+                new ConfirmPickRequest(new BigDecimal("3"), true, location, null), "operator-1");
 
         assertThat(after.pickedQty()).isEqualByComparingTo("3");
         assertThat(after.status()).isEqualTo("SHORT");
@@ -176,11 +285,11 @@ class PickTaskTest {
         UUID location = UUID.randomUUID();
         allocatedOrder("ORD-PQ-4", warehouse, sku, "2");
         UUID lineId = service.pickTasks(warehouse).get(0).lineId();
-        service.confirmPick(lineId, new ConfirmPickRequest(new BigDecimal("2"), false, location), "operator-1");
+        service.confirmPick(lineId, new ConfirmPickRequest(new BigDecimal("2"), false, location, null), "operator-1");
 
         // Already fully picked → no longer pickable.
         assertThatThrownBy(() -> service.confirmPick(lineId,
-                new ConfirmPickRequest(new BigDecimal("1"), false, location), "operator-1"))
+                new ConfirmPickRequest(new BigDecimal("1"), false, location, null), "operator-1"))
                 .isInstanceOf(IllegalOrderStateException.class)
                 .hasMessageContaining("not pickable");
     }
@@ -188,7 +297,7 @@ class PickTaskTest {
     @Test
     void confirmRejectsAnUnknownLine() {
         assertThatThrownBy(() -> service.confirmPick(UUID.randomUUID(),
-                new ConfirmPickRequest(BigDecimal.ONE, false, null), "operator-1"))
+                new ConfirmPickRequest(BigDecimal.ONE, false, null, null), "operator-1"))
                 .isInstanceOf(IllegalOrderStateException.class);
     }
 }

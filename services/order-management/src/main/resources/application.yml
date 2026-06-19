@@ -40,6 +40,9 @@ openwcs:
       enabled: true
       interval-ms: 1000
       batch-size: 100
+  order-management:
+    # Inventory service: available-at-location guard on pick confirm (never drive stock negative).
+    inventory-base-url: ${OPENWCS_INVENTORY_BASE_URL:http://localhost:8082}
 
 management:
   endpoints:
