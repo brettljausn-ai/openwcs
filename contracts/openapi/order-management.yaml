@@ -229,7 +229,19 @@ paths:
         taken from the gateway-forwarded X-Auth-User header (required for audit). Requires
         ORDER_POST_TRANSACTION (held by OPERATOR in the shipped role catalog, the picking write
         permission). 409 when the line is not pickable (cancelled order, non-allocated line, or
-        already fully picked) or an over-pick. Returns the updated pick-task row.
+        already fully picked) or an over-pick beyond the requested quantity. Available-at-location
+        guard: a pick can never drive stock negative, so the booked quantity is clamped to what is
+        available at the pick face (read from inventory); if the operator confirmed more than is
+        available there, the surplus is dropped and the line is marked SHORT (a zero-available face
+        books nothing). The Picked event payload carries the reservation to consume (when known),
+        the order type, the driving process instance, and the operator. Returns the updated
+        pick-task row, reflecting the booked-vs-requested quantity.
+      parameters:
+        - name: X-Process-Instance
+          in: header
+          required: false
+          schema: { type: string }
+          description: "Handheld process instance that drove this pick; used when the request body omits processInstanceId."
       operationId: confirmPick
       requestBody:
         required: true
@@ -477,6 +489,7 @@ components:
         pickedQty: { type: number, description: "Quantity just picked (positive; zero records nothing)." }
         short: { type: boolean, nullable: true, description: "Mark the line SHORT when the remaining quantity cannot be fully picked." }
         locationId: { type: string, format: uuid, nullable: true, description: "Bin picked from, recorded on the Picked transaction; reuses the last known location when omitted." }
+        processInstanceId: { type: string, nullable: true, description: "Handheld process instance that drove this pick (for traceability); falls back to the X-Process-Instance header when omitted." }
     Order:
       type: object
       properties:
@@ -525,6 +538,8 @@ components:
         batchId: { type: string, format: uuid, nullable: true }
         eventId: { type: string, format: uuid, description: The transaction-log event applied. }
         actor: { type: string, nullable: true }
+        processInstanceId: { type: string, nullable: true, description: "Handheld process instance that drove this posting (null for direct callers)." }
+        orderType: { $ref: '#/components/schemas/OrderType' }
         postedAt: { type: string, format: date-time }
     OrderPage:
       type: object
