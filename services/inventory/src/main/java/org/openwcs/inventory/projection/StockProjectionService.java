@@ -15,6 +15,7 @@ import java.util.UUID;
 import org.openwcs.common.EventEnvelope;
 import org.openwcs.inventory.domain.ProcessedEvent;
 import org.openwcs.inventory.domain.ProjectionOffset;
+import org.openwcs.inventory.domain.Reservation;
 import org.openwcs.inventory.domain.Stock;
 import org.openwcs.inventory.projection.StockMovementPayloads.Adjust;
 import org.openwcs.inventory.projection.StockMovementPayloads.BucketQty;
@@ -23,6 +24,7 @@ import org.openwcs.inventory.projection.StockMovementPayloads.StatusChange;
 import org.openwcs.inventory.repo.HandlingUnitRepository;
 import org.openwcs.inventory.repo.ProcessedEventRepository;
 import org.openwcs.inventory.repo.ProjectionOffsetRepository;
+import org.openwcs.inventory.repo.ReservationRepository;
 import org.openwcs.inventory.repo.StockRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,17 +62,20 @@ public class StockProjectionService {
     private final ProcessedEventRepository processedEvents;
     private final ProjectionOffsetRepository offsets;
     private final HandlingUnitRepository handlingUnits;
+    private final ReservationRepository reservations;
     private final ObjectMapper objectMapper;
 
     public StockProjectionService(StockRepository stock,
                                   ProcessedEventRepository processedEvents,
                                   ProjectionOffsetRepository offsets,
                                   HandlingUnitRepository handlingUnits,
+                                  ReservationRepository reservations,
                                   ObjectMapper objectMapper) {
         this.stock = stock;
         this.processedEvents = processedEvents;
         this.offsets = offsets;
         this.handlingUnits = handlingUnits;
+        this.reservations = reservations;
         this.objectMapper = objectMapper;
     }
 
@@ -106,8 +111,14 @@ public class StockProjectionService {
             case PICKED -> {
                 BucketQty p = payload(env, BucketQty.class);
                 UUID loc = bucketLocation(p.huId(), p.locationId(), type, eventId);
+                BigDecimal pickedQty = required(p.qty(), "qty");
                 addToBucket(p.warehouseId(), p.skuId(), p.batchId(), loc, p.huId(),
-                        p.status(), required(p.qty(), "qty").negate(), p.uomCode(), eventId, type);
+                        p.status(), pickedQty.negate(), p.uomCode(), eventId, type);
+                // Consuming the picked stock must also draw down the order line's reservation, else
+                // available-to-promise (on-hand minus HELD reservation) double-counts the pick. Same
+                // transaction + same processed_event guard as the stock decrement, so a redelivered
+                // Picked never double-consumes.
+                consumeReservation(p.reservationId(), pickedQty, eventId);
             }
             case PUTAWAY_COMPLETED, STOCK_MOVED -> {
                 // Deliberate from→to moves keep their explicit locations — the move IS the truth here.
@@ -227,6 +238,52 @@ public class StockProjectionService {
                     skuId, locationId, huId, resolvedStatus, previousQty, newQty, row.getUomCode(),
                     eventType, eventId);
         }
+    }
+
+    /**
+     * Draw a picked quantity down from the named order-line reservation so available-to-promise stays
+     * honest (a HELD reservation still counts against ATP, so consuming stock without consuming the
+     * reservation double-counts the pick).
+     *
+     * <p>Partial pick: reduce {@link Reservation#getQty()} by the picked qty, keep status HELD.
+     * Full pick (remaining reaches zero or less): mark status CONSUMED so {@code sumHeld} (which filters
+     * status='HELD') stops counting it. The {@code reservation_qty_pos_chk} CHECK forbids qty=0, so we
+     * leave qty at its last positive value and rely on status alone to exclude a consumed reservation;
+     * a CONSUMED row is never summed regardless of its qty.
+     *
+     * <p>Back-compat: a null reservationId, a missing reservation, or one already CONSUMED is a no-op,
+     * so legacy Picked events (and replays) just decrement stock as before. Runs inside the same
+     * idempotent apply transaction as the stock decrement.
+     */
+    private void consumeReservation(UUID reservationId, BigDecimal pickedQty, UUID eventId) {
+        if (reservationId == null) {
+            return;
+        }
+        Reservation reservation = reservations.findById(reservationId).orElse(null);
+        if (reservation == null) {
+            log.info("picked event {} names reservation {} but it no longer exists; decrementing stock"
+                    + " only (reservation already gone)", eventId, reservationId);
+            return;
+        }
+        if (!"HELD".equals(reservation.getStatus())) {
+            log.info("picked event {}: reservation {} is {} (not HELD); leaving it untouched", eventId,
+                    reservationId, reservation.getStatus());
+            return;
+        }
+
+        BigDecimal remaining = reservation.getQty().subtract(pickedQty);
+        if (remaining.signum() <= 0) {
+            // Fully consumed (or over-picked against this reservation): mark CONSUMED so it drops out
+            // of sumHeld. qty stays positive to respect reservation_qty_pos_chk.
+            reservation.setStatus("CONSUMED");
+            log.info("reservation {} fully consumed by picked event {} (held {} picked {})",
+                    reservationId, eventId, reservation.getQty(), pickedQty);
+        } else {
+            reservation.setQty(remaining);
+            log.info("reservation {} partially consumed by picked event {} (picked {}, {} still held)",
+                    reservationId, eventId, pickedQty, remaining);
+        }
+        reservations.save(reservation);
     }
 
     private void advanceOffset(EventEnvelope env) {
