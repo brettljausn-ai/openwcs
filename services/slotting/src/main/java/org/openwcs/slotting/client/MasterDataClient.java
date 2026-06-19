@@ -26,6 +26,13 @@ public interface MasterDataClient {
     /** Whether master-data demo mode (DEMO_MODE_ENABLED) is currently ON; false on any error. */
     boolean demoEnabled();
 
+    /**
+     * All location ids in an area's subtree (the area itself plus, recursively, every descendant
+     * area). Backs the area-scoped replenishment claim: an operator services the pick faces on their
+     * area/level. Returns an empty list when the area is unknown or has no locations.
+     */
+    List<UUID> areaLocationIds(UUID areaId);
+
     record StorageLocation(
             UUID id,
             String code,
