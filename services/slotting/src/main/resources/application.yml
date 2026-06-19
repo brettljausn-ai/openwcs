@@ -53,6 +53,10 @@ openwcs:
     txlog-topic: txlog.stream
     # Off-peak window for opportunistic top-off + re-slotting (PR3/PR4); quoted cron.
     offpeak-cron: ${OPENWCS_SLOTTING_OFFPEAK_CRON:0 0 2 * * *}
+    # Per-operator replenishment claim (Master Data Areas): how long a claimed-but-not-started
+    # reservation lives before the sweeper frees it, and how often the sweeper runs (millis).
+    reservation-ttl: ${OPENWCS_SLOTTING_RESERVATION_TTL:15m}
+    reservation-sweep-interval: ${OPENWCS_SLOTTING_RESERVATION_SWEEP_INTERVAL:300000}
 
 management:
   endpoints:

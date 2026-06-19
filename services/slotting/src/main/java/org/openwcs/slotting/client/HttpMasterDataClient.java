@@ -75,6 +75,19 @@ public class HttpMasterDataClient implements MasterDataClient {
     }
 
     @Override
+    public List<UUID> areaLocationIds(UUID areaId) {
+        try {
+            UUID[] ids = http.get()
+                    .uri("/api/master-data/areas/{id}/location-ids?recursive=true", areaId)
+                    .retrieve()
+                    .body(UUID[].class);
+            return ids == null ? List.of() : List.of(ids);
+        } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
+            return List.of();
+        }
+    }
+
+    @Override
     public boolean demoEnabled() {
         try {
             DemoStatus s = http.get().uri("/api/master-data/demo").retrieve().body(DemoStatus.class);
