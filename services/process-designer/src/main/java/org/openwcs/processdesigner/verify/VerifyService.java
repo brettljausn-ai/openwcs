@@ -55,6 +55,10 @@ public class VerifyService {
             return verifyOrder(kind, warehouseId, code);
         }
 
+        if (VerifyKinds.AREA.equals(kind)) {
+            return verifyArea(warehouseId, code);
+        }
+
         Map<String, Object> body = switch (kind) {
             case VerifyKinds.BARCODE -> get("/api/master-data/resolve/sku-by-barcode", warehouseId, code);
             case VerifyKinds.SKU -> get("/api/master-data/resolve/sku", warehouseId, code);
@@ -150,6 +154,56 @@ public class VerifyService {
         // id/code/name surface the order ref + best-effort customer name. matchedAs stays null (its
         // enum is barcode|sku); a flow branches on the resolved orderType via the fields/object instead.
         return new VerifyResult(true, null, orderId, orderRef, customerRef,
+                null, null, null, List.of(), false, detail, fields);
+    }
+
+    /**
+     * Area resolve. Calls master-data {@code GET /api/master-data/areas/resolve?warehouseId=&ref=<code>}
+     * and normalises {@code {found, area:{id,code,name}}} into the verify shape, writing the area's
+     * {@code areaId}/{@code areaCode} (and {@code name}) so a flow can claim area-scoped work. The
+     * resolve endpoint returns 200 with {@code found:false} on a miss (a clean passthrough).
+     */
+    private VerifyResult verifyArea(String warehouseId, String code) {
+        java.net.URI uri = UriComponentsBuilder.fromPath("/api/master-data/areas/resolve")
+                .queryParam("warehouseId", warehouseId)
+                .queryParam("ref", code)
+                .build()
+                .encode()
+                .toUri();
+        Map<String, Object> body;
+        try {
+            Map<String, Object> response = http.get()
+                    .uri(uri)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() { });
+            body = response == null ? Map.of() : response;
+        } catch (RestClientException e) {
+            throw new VerifyException("Verify call to master-data failed: " + e.getMessage(), e);
+        }
+
+        if (!asBool(body.get("found"))) {
+            return notFound(body);
+        }
+        Map<String, Object> area = asMap(body.get("area"));
+        String id = asString(area.get("id"));
+        String areaCode = asString(area.get("code"));
+        String name = asString(area.get("name"));
+        Map<String, Object> detail = new HashMap<>(area);
+
+        // Area resolvable fields (keys must match the VerifyFields catalog for kind=area).
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("areaId", id);
+        fields.put("areaCode", areaCode);
+        fields.put("name", name);
+        // Object field "area": the resolved area as a whole object.
+        Map<String, Object> areaObject = new HashMap<>();
+        areaObject.put("id", id);
+        areaObject.put("code", areaCode);
+        areaObject.put("name", name);
+        fields.put("area", areaObject);
+
+        // id/code/name surface the area id/code/name; matchedAs stays null (its enum is barcode|sku).
+        return new VerifyResult(true, null, id, areaCode, name,
                 null, null, null, List.of(), false, detail, fields);
     }
 
