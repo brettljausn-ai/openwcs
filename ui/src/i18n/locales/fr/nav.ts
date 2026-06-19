@@ -34,6 +34,7 @@ export default {
   'master-data:equipment': 'Équipements',
   'master-data:warehouses': 'Entrepôts',
   'master-data:skus': 'Articles (SKU)',
+  'master-data:areas': 'Zones',
   'master-data:storage-blocks': 'Zones de stockage',
   'master-data:locations': 'Emplacements',
   'master-data:handling-unit-types': 'Types d\'unités de manutention',

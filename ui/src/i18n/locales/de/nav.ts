@@ -34,6 +34,7 @@ export default {
   'master-data:equipment': 'Geräte',
   'master-data:warehouses': 'Lager',
   'master-data:skus': 'Artikel (SKUs)',
+  'master-data:areas': 'Bereiche',
   'master-data:storage-blocks': 'Lagerbereiche',
   'master-data:locations': 'Lagerplätze',
   'master-data:handling-unit-types': 'Ladehilfsmitteltypen',

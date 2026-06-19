@@ -83,6 +83,7 @@ const COMPONENTS: Record<string, JSX.Element> = {
   'handling-units': <HandlingUnitsScreen />,
   'master-data:warehouses': <MasterDataScreen />,
   'master-data:skus': <MasterDataScreen />,
+  'master-data:areas': <MasterDataScreen />,
   'master-data:storage-blocks': <MasterDataScreen />,
   'master-data:locations': <MasterDataScreen />,
   'master-data:equipment': <MasterDataScreen />,
