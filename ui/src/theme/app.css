@@ -1333,35 +1333,76 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
   padding: .25rem .75rem;
 }
 .op-gtp-side-label { color: var(--text-dim); }
-/* Bare source content (image + identity), no inner card border. */
-.op-gtp-source-card { display: flex; gap: 1.25rem; flex-wrap: wrap; }
-/* Right side (the cycle): stats + tote + confirm, no inner card border. */
+/* Bare source content (large image + identity stacked), no inner card border. */
+.op-gtp-source-card { display: flex; }
+/* Right side (the cycle): stats + carton + confirm, no inner card border. */
 .op-gtp-cycle { display: flex; flex-direction: column; gap: 1rem; min-height: 0; flex: 1; }
-.op-gtp-stats { display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; flex-shrink: 0; }
-/* Center divider line with the flow arrow (source to target). */
-.op-gtp-divider { position: relative; flex: 0 0 3rem; display: flex; align-items: center; justify-content: center; }
-.op-gtp-divider::before { content: ''; position: absolute; top: .5rem; bottom: .5rem; left: 50%; width: 1px; background: var(--glass-border); }
-.op-gtp-arrow {
-  position: relative;
-  z-index: 1;
-  width: 2.4rem;
-  height: 2.4rem;
+/* Nice-to-have stats anchored on the right. */
+.op-gtp-stats { display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; justify-content: flex-end; flex-shrink: 0; }
+/* Center column: the flow quantity (arrow, units to move, arrow). It is the divider between the two
+   sides, so it is a little wider, with a hairline on each edge. */
+.op-gtp-divider { flex: 0 0 7rem; display: flex; align-items: center; justify-content: center; border-left: 1px solid var(--glass-border); border-right: 1px solid var(--glass-border); }
+.op-gtp-flow-qty {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: .45rem;
+  padding: .5rem .7rem;
   border-radius: 999px;
   background: var(--glass-bg, rgba(255, 255, 255, .04));
   border: 1px solid var(--herbal-lime, #8dc63f);
-  color: var(--herbal-lime, #8dc63f);
-  font-size: 1.3rem;
-  line-height: 1;
 }
-/* Narrow screens: stack source over target and turn the arrow to point down. */
+.op-gtp-flow-qty-num { font-size: 2.6rem; font-weight: 800; line-height: 1; color: var(--herbal-lime, #8dc63f); }
+.op-gtp-arrow { color: var(--herbal-lime, #8dc63f); font-size: 1.25rem; line-height: 1; }
+/* Destination carton: a kraft-cardboard box with an open-lid edge, compartments inside. */
+.op-gtp-carton-wrap { display: flex; flex-direction: column; align-items: center; gap: .6rem; }
+.op-gtp-carton-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--text-faint); }
+.op-gtp-carton {
+  display: grid;
+  gap: 8px;
+  max-width: 100%;
+  padding: 14px;
+  border-radius: 6px;
+  border: 3px solid #c79a5a;
+  border-top-width: 8px;
+  background: rgba(199, 154, 90, .1);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, .35), 0 8px 22px rgba(0, 0, 0, .3);
+}
+.op-gtp-comp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .15rem;
+  border-radius: 5px;
+  min-height: 64px;
+  font-weight: 700;
+  color: var(--text-faint);
+  background: rgba(0, 0, 0, .18);
+  border: 1px dashed rgba(199, 154, 90, .5);
+}
+.op-gtp-comp-num { font-size: 1.3rem; line-height: 1; }
+.op-gtp-comp-label { font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; }
+.op-gtp-comp-on {
+  color: #0b0f0a;
+  background: var(--herbal-lime, #8dc63f);
+  border: 2px solid var(--herbal-lime, #8dc63f);
+  box-shadow: 0 0 18px rgba(141, 198, 63, .5);
+}
+.op-gtp-comp-on .op-gtp-comp-num { font-size: 1.9rem; }
+/* Presenting loader spinner. */
+.op-gtp-spinner {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 999px;
+  border: 3px solid var(--glass-border);
+  border-top-color: var(--herbal-lime, #8dc63f);
+  animation: op-gtp-spin 0.9s linear infinite;
+}
+@keyframes op-gtp-spin { to { transform: rotate(360deg); } }
+/* Narrow screens: stack source over target; the flow row becomes a thin horizontal band. */
 @media (max-width: 860px) {
   .op-gtp-flow { flex-direction: column; }
-  .op-gtp-divider { flex: 0 0 2.25rem; }
-  .op-gtp-divider::before { top: 50%; bottom: auto; left: .5rem; right: .5rem; width: auto; height: 1px; }
-  .op-gtp-arrow { transform: rotate(90deg); }
+  .op-gtp-divider { flex: 0 0 auto; border: 0; border-top: 1px solid var(--glass-border); border-bottom: 1px solid var(--glass-border); padding: .5rem 0; }
 }
 /* ToteView when embedded inside the box: borderless so it is not a card inside a card. */
 .op-gtp-tote-embedded {
