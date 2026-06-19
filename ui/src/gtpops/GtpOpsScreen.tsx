@@ -1598,10 +1598,10 @@ function ActiveTotePanel({
         padding: embedded ? 0 : fill ? '2.5rem' : '1.5rem',
         marginBottom: embedded ? 0 : '1.25rem',
         display: 'flex',
-        flexDirection: embedded ? 'column' : 'row',
-        gap: fill ? '3rem' : embedded ? '1.1rem' : '1.75rem',
-        flexWrap: embedded ? 'nowrap' : 'wrap',
-        alignItems: embedded ? 'flex-start' : 'center',
+        flexDirection: 'row',
+        gap: fill ? '3rem' : '1.75rem',
+        flexWrap: 'wrap',
+        alignItems: 'center',
         justifyContent: fill ? 'center' : 'flex-start',
         ...(embedded ? {} : { borderColor: accent.border }),
         ...(fill ? { flex: 1, minHeight: '60vh' } : {}),
@@ -1612,8 +1612,8 @@ function ActiveTotePanel({
           src={imageUrl}
           alt={skuCode ?? 'SKU'}
           style={{
-            width: fill ? 'min(38vw, 420px)' : embedded ? 'min(26vw, 360px)' : 148,
-            height: fill ? 'min(38vw, 420px)' : embedded ? 'min(26vw, 360px)' : 148,
+            width: fill ? 'min(38vw, 420px)' : embedded ? 'min(20vw, 300px)' : 148,
+            height: fill ? 'min(38vw, 420px)' : embedded ? 'min(20vw, 300px)' : 148,
             objectFit: 'cover',
             borderRadius: fill ? 18 : embedded ? 16 : 12,
             border: '1px solid var(--glass-border)',
