@@ -3,7 +3,7 @@ import { useT } from '../i18n/useT'
 import { useWarehouse } from '../warehouse/WarehouseContext'
 import { useSidebar } from '../shell/SidebarContext'
 import { HandlingUnit, listHandlingUnits } from '../inventory/api'
-import { HandlingUnitType, Sku, SkuCard, getSkuCard, listHandlingUnitTypes, listSkus } from '../masterdata/api'
+import { HandlingUnitType, SkuCard, getSkuCard, listHandlingUnitTypes } from '../masterdata/api'
 import {
   OperatingMode,
   Workplace,
@@ -656,8 +656,13 @@ function OperatorConsole({
                     embedded
                   />
                 </section>
-                <div className="op-gtp-divider" aria-hidden="true">
-                  <span className="op-gtp-arrow">→</span>
+                <div className="op-gtp-divider">
+                  {/* The flow quantity sits in the middle: arrow, units to move, arrow (source to target). */}
+                  <div className="op-gtp-flow-qty">
+                    <span className="op-gtp-arrow" aria-hidden="true">→</span>
+                    <span className="op-gtp-flow-qty-num">{cycle.puts.find((p) => p.status === 'OPEN')?.qty ?? ''}</span>
+                    <span className="op-gtp-arrow" aria-hidden="true">→</span>
+                  </div>
                 </div>
                 <section className="op-gtp-side op-gtp-dest">
                   <span className="eyebrow op-gtp-side-label">{t('target', 'Target')}</span>
@@ -665,7 +670,8 @@ function OperatorConsole({
                 </section>
               </div>
             </div>
-          ) : (
+          ) : presentError ? (
+            // Present failed: show the tote with context and let the operator advance past it.
             <>
               <ActiveTotePanel
                 head={head}
@@ -674,16 +680,18 @@ function OperatorConsole({
                 error={presentError}
                 fill
               />
-              {presentError && (
-                <button
-                  className="btn btn-primary btn-lg"
-                  style={{ alignSelf: 'flex-start' }}
-                  onClick={completeHeadAndAdvance}
-                >
-                  {t('markToteDone', 'Mark tote done & advance')}
-                </button>
-              )}
+              <button
+                className="btn btn-primary btn-lg"
+                style={{ alignSelf: 'flex-start' }}
+                onClick={completeHeadAndAdvance}
+              >
+                {t('markToteDone', 'Mark tote done & advance')}
+              </button>
             </>
+          ) : (
+            // Presenting: wait until both sides are ready, so the pick screen does not flash the
+            // source first and then add the target a moment later.
+            <Presenting />
           )
         ) : (
           <WaitingForTotes loaded={queueLoaded} />
@@ -995,6 +1003,32 @@ function ExceptionsDrawer({
 }
 
 // Calm idle state shown when no tote is at the station and nothing is in progress.
+// Shown while a tote is being presented (head arrived, cycle not ready yet). Avoids flashing the
+// source side first and then adding the target a moment later: the full pick screen appears at once.
+function Presenting() {
+  const t = useT('gtpops')
+  return (
+    <div
+      className="glass"
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        padding: '3rem',
+        minHeight: '60vh',
+      }}
+    >
+      <div className="op-gtp-spinner" aria-hidden="true" />
+      <p style={{ color: 'var(--text-dim)', marginTop: '1.1rem', fontSize: '1.05rem' }}>
+        {t('presenting', 'Bringing the tote to the station.')}
+      </p>
+    </div>
+  )
+}
+
 function WaitingForTotes({ loaded }: { loaded: boolean }) {
   const t = useT('gtpops')
   return (
@@ -1564,8 +1598,9 @@ function ActiveTotePanel({
         padding: embedded ? 0 : fill ? '2.5rem' : '1.5rem',
         marginBottom: embedded ? 0 : '1.25rem',
         display: 'flex',
-        gap: fill ? '3rem' : '1.75rem',
-        flexWrap: 'wrap',
+        flexDirection: embedded ? 'column' : 'row',
+        gap: fill ? '3rem' : embedded ? '1.1rem' : '1.75rem',
+        flexWrap: embedded ? 'nowrap' : 'wrap',
         alignItems: embedded ? 'flex-start' : 'center',
         justifyContent: fill ? 'center' : 'flex-start',
         ...(embedded ? {} : { borderColor: accent.border }),
@@ -1577,10 +1612,10 @@ function ActiveTotePanel({
           src={imageUrl}
           alt={skuCode ?? 'SKU'}
           style={{
-            width: fill ? 'min(38vw, 420px)' : 148,
-            height: fill ? 'min(38vw, 420px)' : 148,
+            width: fill ? 'min(38vw, 420px)' : embedded ? 'min(26vw, 360px)' : 148,
+            height: fill ? 'min(38vw, 420px)' : embedded ? 'min(26vw, 360px)' : 148,
             objectFit: 'cover',
-            borderRadius: fill ? 18 : 12,
+            borderRadius: fill ? 18 : embedded ? 16 : 12,
             border: '1px solid var(--glass-border)',
           }}
           onError={(e) => {
@@ -1841,8 +1876,6 @@ function CycleView({
   const activePut = openPuts[0] ?? null
   const activeIndex = activePut ? cycle.puts.findIndex((p) => p.id === activePut.id) : -1
   const confirmedCount = cycle.puts.length - openPuts.length
-  // 1-based "Put X of N" position of the active put among all puts.
-  const activePosition = activeIndex < 0 ? cycle.puts.length : activeIndex + 1
 
   // Focused picked-quantity input: defaults to the active put's required qty, autofocused.
   const [qtyText, setQtyText] = useState<string>(activePut ? String(activePut.qty) : '')
@@ -1912,11 +1945,11 @@ function CycleView({
 
   return (
     <div className="op-gtp-cycle">
+      {/* Nice-to-have stats, anchored on the right (operating mode dropped as too much detail). */}
       <div className="op-gtp-stats">
-        <Stat label={t('statOperatingMode', 'Operating mode')} value={cycle.operatingMode} />
         <Stat label={t('statRemainingStock', 'Remaining stock')} value={cycle.remainingQty == null ? '—' : String(cycle.remainingQty)} />
         <Stat label={t('statPuts', 'Puts')} value={`${confirmedCount}/${cycle.puts.length}`} />
-        <span className={`badge ${done ? 'badge-success' : 'badge-info'}`} style={{ marginLeft: 'auto' }}>
+        <span className={`badge ${done ? 'badge-success' : 'badge-info'}`}>
           {cycle.status}
         </span>
       </div>
@@ -1927,14 +1960,13 @@ function CycleView({
         <ToteView
           put={activePut}
           putIndex={activeIndex < 0 ? 0 : activeIndex}
-          skuId={cycle.skuId}
           warehouseId={warehouseId}
           embedded
         />
       ) : cycle.puts.length === 0 ? (
         <p style={{ color: 'var(--text-dim)' }}>{t('noMatchingDemand', 'No matching demand — nothing to put for this stock HU.')}</p>
       ) : (
-        <p style={{ color: 'var(--herbal-lime)', fontWeight: 600 }}>{t('allPutsConfirmed', 'All puts confirmed. Close the cycle to send the HU away.')}</p>
+        <p style={{ color: 'var(--herbal-lime)', fontWeight: 600 }}>{t('allPutsConfirmed', 'All puts confirmed, releasing the tote.')}</p>
       )}
 
       {activePut && (
@@ -1945,15 +1977,6 @@ function CycleView({
             submitQty()
           }}
         >
-          <div className="op-gtp-confirm-meta">
-            <span className="eyebrow">
-              {t('putXofN', 'Put {i} of {n}').replace('{i}', String(activePosition)).replace('{n}', String(cycle.puts.length))}
-            </span>
-            <div style={{ fontWeight: 600 }}>
-              {t('order', 'Order')} {activePut.orderRef}
-              {activePut.putLightId ? ` · ${t('light', 'Light')} ${activePut.putLightId}` : ''}
-            </div>
-          </div>
           <label className="op-gtp-confirm-qty">
             <span className="op-gtp-qty-label">{t('pickedQty', 'Picked quantity')}</span>
             <input
@@ -1992,13 +2015,11 @@ function CycleView({
 function ToteView({
   put,
   putIndex,
-  skuId,
   warehouseId,
   embedded,
 }: {
   put: PutInstruction
   putIndex: number
-  skuId: string | null
   warehouseId: string
   // embedded: when inside the bottom box of the two-area pick layout, drop the .glass border/background
   // so we don't nest a card inside a card.
@@ -2007,7 +2028,6 @@ function ToteView({
   const t = useT('gtpops')
   const [hus, setHus] = useState<HandlingUnit[]>([])
   const [huTypes, setHuTypes] = useState<HandlingUnitType[]>([])
-  const [skus, setSkus] = useState<Sku[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -2017,9 +2037,6 @@ function ToteView({
     listHandlingUnitTypes()
       .then((l) => !cancelled && setHuTypes(l))
       .catch(() => !cancelled && setHuTypes([]))
-    listSkus()
-      .then((l) => !cancelled && setSkus(l))
-      .catch(() => !cancelled && setSkus([]))
     return () => {
       cancelled = true
     }
@@ -2027,10 +2044,9 @@ function ToteView({
 
   const destHu = useMemo(() => hus.find((h) => h.huId === put.orderHuId) ?? null, [hus, put.orderHuId])
   const huType = useMemo(
-    () => (destHu?.huTypeId ? huTypes.find((t) => t.id === destHu.huTypeId) ?? null : null),
+    () => (destHu?.huTypeId ? huTypes.find((ht) => ht.id === destHu.huTypeId) ?? null : null),
     [huTypes, destHu],
   )
-  const sku = useMemo(() => (skuId ? skus.find((s) => s.id === skuId) ?? null : null), [skus, skuId])
 
   // Compartments clamp to 1..8 (single-compartment totes show one cell). Default to 1 when unknown.
   const compartments = Math.max(1, Math.min(8, huType?.compartments ?? 1))
@@ -2038,79 +2054,44 @@ function ToteView({
   const activeCompartment = (putIndex % compartments) + 1
   const { cols, rows } = gridFor(compartments)
 
+  // The target side shows ONLY the destination carton: the product is the same SKU as the source tote
+  // on the left, and the quantity sits on the centre flow arrow, so no product info is repeated here.
   return (
     <div
       className={embedded ? 'op-gtp-tote-embedded' : 'glass'}
       style={{
         padding: embedded ? 0 : '1.5rem',
         display: 'flex',
-        gap: '1.75rem',
-        flexWrap: 'wrap',
+        justifyContent: 'center',
         alignItems: 'center',
+        flex: 1,
         ...(embedded ? {} : { borderColor: 'rgba(141, 198, 63, .35)' }),
       }}
     >
-      <div>
-        <div style={{ fontSize: '.7rem', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--text-faint)', marginBottom: '.5rem' }}>
-          {t('destinationTote', 'Destination tote')} {destHu ? `· ${destHu.code}` : ''}
+      <div className="op-gtp-carton-wrap">
+        <div className="op-gtp-carton-label">
+          {t('destinationTote', 'Destination tote')}
+          {destHu ? ` · ${destHu.code}` : ''}
         </div>
         <div
+          className="op-gtp-carton"
           style={{
-            display: 'grid',
             gridTemplateColumns: `repeat(${cols}, 1fr)`,
             gridTemplateRows: `repeat(${rows}, 1fr)`,
-            gap: 6,
-            width: Math.min(360, 84 * cols),
             aspectRatio: `${cols} / ${rows}`,
-            padding: 8,
-            borderRadius: 12,
-            border: '2px solid var(--glass-border)',
-            background: 'rgba(255,255,255,.03)',
+            width: Math.min(460, 150 * cols),
           }}
         >
           {Array.from({ length: compartments }, (_, i) => {
             const slot = i + 1
             const on = slot === activeCompartment
             return (
-              <div
-                key={slot}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 8,
-                  fontWeight: 600,
-                  fontSize: '.95rem',
-                  minHeight: 56,
-                  color: on ? '#0b0f0a' : 'var(--text-dim)',
-                  background: on ? 'var(--herbal-lime)' : 'rgba(255,255,255,.04)',
-                  border: on ? '2px solid var(--herbal-lime)' : '1px solid var(--glass-border)',
-                  boxShadow: on ? '0 0 18px rgba(141, 198, 63, .45)' : 'none',
-                }}
-              >
-                {slot}
+              <div key={slot} className={`op-gtp-comp${on ? ' op-gtp-comp-on' : ''}`}>
+                {on && <span className="op-gtp-comp-label">{t('comp', 'Comp.')}</span>}
+                <span className="op-gtp-comp-num">{slot}</span>
               </div>
             )
           })}
-        </div>
-        <div style={{ marginTop: '.5rem', fontSize: '.8rem', color: 'var(--text-dim)' }}>
-          {t('putIntoCompartment', 'Put into compartment')} <strong style={{ color: 'var(--herbal-lime)' }}>{activeCompartment}</strong>
-          {compartments > 1 ? ` ${t('ofCompartments', 'of {n}').replace('{n}', String(compartments))}` : ''}
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem', minWidth: 200 }}>
-        <span className="eyebrow">{t('activePut', 'Active put')}</span>
-        {/* No product image on the target: it is the same SKU as the source tote shown on the left. */}
-        <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{sku ? sku.code : 'SKU'}</div>
-        {sku?.description && <div style={{ color: 'var(--text-dim)', fontSize: '.85rem' }}>{sku.description}</div>}
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem', marginTop: '.25rem' }}>
-          <span style={{ fontSize: '.8rem', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--text-faint)' }}>{t('put', 'PUT')}</span>
-          <span style={{ fontSize: '2.4rem', fontWeight: 700, color: 'var(--herbal-lime)', lineHeight: 1 }}>{put.qty}</span>
-        </div>
-        <div style={{ color: 'var(--text-dim)', fontSize: '.8rem' }}>
-          {t('order', 'Order')} {put.orderRef}
-          {put.putLightId ? ` · ${t('light', 'Light')} ${put.putLightId}` : ''}
         </div>
       </div>
     </div>
