@@ -40,6 +40,17 @@ import repStorageMovements from './fixtures/reporting-storage-movements.json'
 import repDeviceMovements from './fixtures/reporting-device-movements.json'
 import ordersFlowInbound from './fixtures/orders-flow-inbound.json'
 import ordersFlowOutbound from './fixtures/orders-flow-outbound.json'
+import countingTasks from './fixtures/counting-tasks.json'
+import countingSchedules from './fixtures/counting-schedules.json'
+import flowDeviceTasks from './fixtures/flow-device-tasks.json'
+import processDesignerDefs from './fixtures/process-designer-defs.json'
+import slottingPickSlots from './fixtures/slotting-pick-slots.json'
+import slottingStorageProfiles from './fixtures/slotting-storage-profiles.json'
+import gtpStations from './fixtures/gtp-stations.json'
+import iamWarehouseAccess from './fixtures/iam-warehouse-access.json'
+import adminDbSchemas from './fixtures/admin-db-schemas.json'
+import kcUsers from './fixtures/kc-users.json'
+import kcUsersCount from './fixtures/kc-users-count.json'
 
 type Json = unknown
 
@@ -130,8 +141,24 @@ const GET_EXACT: Record<string, Json> = {
   '/api/notification/alerts/health': notificationAlertsHealth,
 
   '/api/iam/warehouse-access/me': iamWarehouseAccessMe,
+  // Per-user warehouse-access map (Warehouse access admin screen). Object keyed by username.
+  '/api/iam/warehouse-access': iamWarehouseAccess,
   '/api/iam/screen-access': {},
   '/api/iam/me/language': { language: 'en' },
+
+  // Screens that previously blanked the demo. Each lists from a service the SPA reads as an array
+  // (counting / transport / process-designer / slotting / gtp-config / admin database / users).
+  '/api/counting/tasks': countingTasks,
+  '/api/counting/schedules': countingSchedules,
+  '/api/flow/device-tasks': flowDeviceTasks,
+  '/api/process-designer/defs': processDesignerDefs,
+  '/api/slotting/pick-slots': slottingPickSlots,
+  '/api/slotting/storage-profiles': slottingStorageProfiles,
+  '/api/gtp/stations': gtpStations,
+  '/api/master-data/admin/db/schemas': adminDbSchemas,
+  // Keycloak admin (Warehouse access + User management screens) go same-origin via /admin/realms/**.
+  '/admin/realms/openwcs/users': kcUsers,
+  '/admin/realms/openwcs/users/count': kcUsersCount,
 
   // Backend demo-seeding status: the demo SPA's curated harness, not the backend seeder. Report off
   // so the in-app "seed demo data" buttons stay hidden (they would be no-ops anyway).
@@ -151,22 +178,30 @@ function skuCard(skuId: string): Json {
   return { id: skuId, code: skuId.slice(0, 8), description: null, imageUrl: null, baseUom: null, metadata: {} }
 }
 
-// Heuristic empty payload for an unmapped GET so the screen renders an empty state, never an error.
-// List-ish paths get []; paged-ish get {content:[]}; everything else {}.
+// Empty payload for an unmapped GET so the screen renders an empty state, never an error. The
+// failing-screen audit showed every list endpoint these screens hit reads the body as a bare array
+// and calls .map/.filter/.find on it directly, so an object ({}) crashes the whole SPA. The safe
+// default for an unmapped GET is therefore [] (an empty list). Only two narrow cases differ:
+//   - a clearly-paged master-data list the app reads as a page -> {content:[]}
+//   - a clearly-single-object resource (path ends in an /{id}-looking segment) -> {}
+// Known endpoints are matched in GET_EXACT first; this is the catch-all safety net.
 function emptyFor(path: string): Json {
-  // Report datasets the /reporting/* screens spread into arrays: any unmapped report path must
-  // return [] (never {}), or the screen crashes on [...rows]. Belt-and-suspenders for the explicit
-  // fixtures above.
-  if (/\/reports?\/|stock-by-sku|storage-density|scan-quality|movements|transit-times|traffic/.test(path)) {
-    return []
+  // Paged master-data list endpoints the app reads as {content:[...]} pages (e.g. SKUs, warehouses,
+  // locations). The known ones ship full fixtures above; an unmapped one still needs the page shape.
+  if (/^\/api\/master-data\/(warehouses|skus|locations|areas|storage-blocks|equipment|shippers)\b/.test(path)) {
+    return { content: [], totalElements: 0, totalPages: 0, number: 0, size: 0 }
   }
-  if (/\/(list|tasks|alerts|events|services|definitions|instances|areas|locations|skus|warehouses|equipment|shippers|templates|blocks|units|orders|pick-tasks|queue)\b/.test(path)) {
-    // Master-data list endpoints that the app reads as pages return {content:[]}; the simpler
-    // services return bare arrays. Defaulting to [] is safe for both (callers tolerate arrays or
-    // {content}); the known paged ones are handled in GET_EXACT above.
-    return []
-  }
-  return {}
+  // A single-object resource: the last path segment looks like an id (uuid / long hex / numeric),
+  // not a collection name. These callers read one object, so {} is the right empty shape.
+  const last = path.split('/').filter(Boolean).pop() ?? ''
+  const looksLikeId =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(last) ||
+    /^[0-9a-f]{16,}$/i.test(last) ||
+    /^\d+$/.test(last)
+  if (looksLikeId) return {}
+  // Everything else (a collection / list endpoint) defaults to an empty array, so .map/.filter/.find
+  // never throw and the screen renders its empty state instead of blanking the app.
+  return []
 }
 
 function resolveGet(path: string, query: URLSearchParams): Json {

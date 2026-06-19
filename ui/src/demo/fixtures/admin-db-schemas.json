@@ -1,0 +1,8096 @@
+[
+  {
+    "name": "allocation",
+    "tables": [
+      {
+        "name": "allocation_line",
+        "columns": [
+          {
+            "name": "line_alloc_id",
+            "type": "uuid"
+          },
+          {
+            "name": "allocation_id",
+            "type": "uuid"
+          },
+          {
+            "name": "line_no",
+            "type": "integer"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "requested_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "allocated_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "picks",
+            "type": "jsonb"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "flyway_schema_history",
+        "columns": [
+          {
+            "name": "installed_rank",
+            "type": "integer"
+          },
+          {
+            "name": "version",
+            "type": "character varying"
+          },
+          {
+            "name": "description",
+            "type": "character varying"
+          },
+          {
+            "name": "type",
+            "type": "character varying"
+          },
+          {
+            "name": "script",
+            "type": "character varying"
+          },
+          {
+            "name": "checksum",
+            "type": "integer"
+          },
+          {
+            "name": "installed_by",
+            "type": "character varying"
+          },
+          {
+            "name": "installed_on",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "execution_time",
+            "type": "integer"
+          },
+          {
+            "name": "success",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "order_allocation",
+        "columns": [
+          {
+            "name": "allocation_id",
+            "type": "uuid"
+          },
+          {
+            "name": "order_ref",
+            "type": "text"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "cubing_mode",
+            "type": "text"
+          },
+          {
+            "name": "shippers",
+            "type": "jsonb"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "status_detail",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "pick_batch",
+        "columns": [
+          {
+            "name": "batch_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "pick_tote_shipper_id",
+            "type": "uuid"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "members",
+            "type": "jsonb"
+          },
+          {
+            "name": "pick_lines",
+            "type": "jsonb"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "counting",
+    "tables": [
+      {
+        "name": "count_line",
+        "columns": [
+          {
+            "name": "count_line_id",
+            "type": "uuid"
+          },
+          {
+            "name": "count_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "batch_id",
+            "type": "uuid"
+          },
+          {
+            "name": "uom_code",
+            "type": "text"
+          },
+          {
+            "name": "expected_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "counted_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "variance",
+            "type": "numeric"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "adjustment_event_id",
+            "type": "uuid"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "routed",
+            "type": "boolean"
+          },
+          {
+            "name": "station_last_count",
+            "type": "numeric"
+          },
+          {
+            "name": "station_count_state",
+            "type": "text"
+          },
+          {
+            "name": "hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "reserved_by",
+            "type": "text"
+          },
+          {
+            "name": "reserved_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "reserved_by_instance",
+            "type": "text"
+          },
+          {
+            "name": "started_at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      },
+      {
+        "name": "count_schedule",
+        "columns": [
+          {
+            "name": "count_schedule_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "scope_type",
+            "type": "text"
+          },
+          {
+            "name": "scope_ref",
+            "type": "uuid"
+          },
+          {
+            "name": "abc_class",
+            "type": "text"
+          },
+          {
+            "name": "count_type",
+            "type": "text"
+          },
+          {
+            "name": "cadence_days",
+            "type": "integer"
+          },
+          {
+            "name": "tolerance",
+            "type": "numeric"
+          },
+          {
+            "name": "last_run_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "next_due_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "count_task",
+        "columns": [
+          {
+            "name": "count_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "scope_type",
+            "type": "text"
+          },
+          {
+            "name": "scope_ref",
+            "type": "uuid"
+          },
+          {
+            "name": "count_type",
+            "type": "text"
+          },
+          {
+            "name": "origin",
+            "type": "text"
+          },
+          {
+            "name": "schedule_id",
+            "type": "uuid"
+          },
+          {
+            "name": "parent_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "tolerance",
+            "type": "numeric"
+          },
+          {
+            "name": "gtp_station_id",
+            "type": "uuid"
+          },
+          {
+            "name": "process_instance_id",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "assigned_to",
+            "type": "text"
+          },
+          {
+            "name": "counted_by",
+            "type": "text"
+          },
+          {
+            "name": "counted_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "reconciled_by",
+            "type": "text"
+          },
+          {
+            "name": "reconciled_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "routing_status",
+            "type": "text"
+          },
+          {
+            "name": "routing_reason",
+            "type": "text"
+          },
+          {
+            "name": "routing_attempts",
+            "type": "integer"
+          },
+          {
+            "name": "routing_attempt_at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      },
+      {
+        "name": "flyway_schema_history",
+        "columns": [
+          {
+            "name": "installed_rank",
+            "type": "integer"
+          },
+          {
+            "name": "version",
+            "type": "character varying"
+          },
+          {
+            "name": "description",
+            "type": "character varying"
+          },
+          {
+            "name": "type",
+            "type": "character varying"
+          },
+          {
+            "name": "script",
+            "type": "character varying"
+          },
+          {
+            "name": "checksum",
+            "type": "integer"
+          },
+          {
+            "name": "installed_by",
+            "type": "character varying"
+          },
+          {
+            "name": "installed_on",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "execution_time",
+            "type": "integer"
+          },
+          {
+            "name": "success",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "shedlock",
+        "columns": [
+          {
+            "name": "name",
+            "type": "character varying"
+          },
+          {
+            "name": "lock_until",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_at",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_by",
+            "type": "character varying"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "flow",
+    "tables": [
+      {
+        "name": "conveyor_controller",
+        "columns": [
+          {
+            "name": "controller_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "ip_address",
+            "type": "text"
+          },
+          {
+            "name": "port",
+            "type": "integer"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "conveyor_edge",
+        "columns": [
+          {
+            "name": "edge_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "from_node_id",
+            "type": "uuid"
+          },
+          {
+            "name": "to_node_id",
+            "type": "uuid"
+          },
+          {
+            "name": "exit_code",
+            "type": "text"
+          },
+          {
+            "name": "cost",
+            "type": "integer"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "conveyor_loop",
+        "columns": [
+          {
+            "name": "loop_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "max_hus",
+            "type": "integer"
+          },
+          {
+            "name": "when_full",
+            "type": "text"
+          },
+          {
+            "name": "overflow_target_code",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "conveyor_node",
+        "columns": [
+          {
+            "name": "node_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "hardware_address",
+            "type": "text"
+          },
+          {
+            "name": "pos_x",
+            "type": "double precision"
+          },
+          {
+            "name": "pos_y",
+            "type": "double precision"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "loop_code",
+            "type": "text"
+          },
+          {
+            "name": "controller_code",
+            "type": "text"
+          },
+          {
+            "name": "node_address",
+            "type": "text"
+          },
+          {
+            "name": "default_exit_code",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "device_task",
+        "columns": [
+          {
+            "name": "task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "family",
+            "type": "text"
+          },
+          {
+            "name": "equipment_id",
+            "type": "uuid"
+          },
+          {
+            "name": "command",
+            "type": "text"
+          },
+          {
+            "name": "payload",
+            "type": "jsonb"
+          },
+          {
+            "name": "correlation_id",
+            "type": "uuid"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "detail",
+            "type": "text"
+          },
+          {
+            "name": "result",
+            "type": "jsonb"
+          },
+          {
+            "name": "actor",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "edge_traffic",
+        "columns": [
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "from_node",
+            "type": "text"
+          },
+          {
+            "name": "to_node",
+            "type": "text"
+          },
+          {
+            "name": "day",
+            "type": "date"
+          },
+          {
+            "name": "count",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "equipment_connection",
+        "columns": [
+          {
+            "name": "connection_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "from_placed_id",
+            "type": "uuid"
+          },
+          {
+            "name": "to_placed_id",
+            "type": "uuid"
+          },
+          {
+            "name": "from_point_id",
+            "type": "uuid"
+          },
+          {
+            "name": "to_point_id",
+            "type": "uuid"
+          },
+          {
+            "name": "label",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "from_path_index",
+            "type": "integer"
+          },
+          {
+            "name": "to_path_index",
+            "type": "integer"
+          }
+        ]
+      },
+      {
+        "name": "equipment_function_point",
+        "columns": [
+          {
+            "name": "point_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "placed_id",
+            "type": "uuid"
+          },
+          {
+            "name": "function_type",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "offset_m",
+            "type": "numeric"
+          },
+          {
+            "name": "side",
+            "type": "text"
+          },
+          {
+            "name": "node_code",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "default_exit",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "flow_move_chain",
+        "columns": [
+          {
+            "name": "move_chain_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "hu_code",
+            "type": "text"
+          },
+          {
+            "name": "from_location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "to_location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "source_family",
+            "type": "text"
+          },
+          {
+            "name": "dest_family",
+            "type": "text"
+          },
+          {
+            "name": "reason",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "retrieve_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "convey_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "store_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "flyway_schema_history",
+        "columns": [
+          {
+            "name": "installed_rank",
+            "type": "integer"
+          },
+          {
+            "name": "version",
+            "type": "character varying"
+          },
+          {
+            "name": "description",
+            "type": "character varying"
+          },
+          {
+            "name": "type",
+            "type": "character varying"
+          },
+          {
+            "name": "script",
+            "type": "character varying"
+          },
+          {
+            "name": "checksum",
+            "type": "integer"
+          },
+          {
+            "name": "installed_by",
+            "type": "character varying"
+          },
+          {
+            "name": "installed_on",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "execution_time",
+            "type": "integer"
+          },
+          {
+            "name": "success",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "hu_route",
+        "columns": [
+          {
+            "name": "route_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "barcode",
+            "type": "text"
+          },
+          {
+            "name": "targets",
+            "type": "jsonb"
+          },
+          {
+            "name": "current_index",
+            "type": "integer"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "detail",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "current_loop",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "hu_transport_trace",
+        "columns": [
+          {
+            "name": "trace_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "hu_code",
+            "type": "text"
+          },
+          {
+            "name": "ts",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "point",
+            "type": "text"
+          },
+          {
+            "name": "event",
+            "type": "text"
+          },
+          {
+            "name": "decision",
+            "type": "text"
+          },
+          {
+            "name": "from_point",
+            "type": "text"
+          },
+          {
+            "name": "to_point",
+            "type": "text"
+          },
+          {
+            "name": "workplace_id",
+            "type": "uuid"
+          },
+          {
+            "name": "correlation_id",
+            "type": "uuid"
+          },
+          {
+            "name": "task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "induction_entry_id",
+            "type": "uuid"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      },
+      {
+        "name": "induction_queue_entry",
+        "columns": [
+          {
+            "name": "induction_entry_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "workplace_id",
+            "type": "uuid"
+          },
+          {
+            "name": "workplace_kind",
+            "type": "text"
+          },
+          {
+            "name": "hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "hu_code",
+            "type": "text"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_code",
+            "type": "text"
+          },
+          {
+            "name": "qty",
+            "type": "numeric"
+          },
+          {
+            "name": "location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "mode",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "arrival_seq",
+            "type": "bigint"
+          },
+          {
+            "name": "requested_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "in_transit_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "queued_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "done_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "retrieve_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "convey_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "count_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "count_line_id",
+            "type": "uuid"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "return_convey_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "return_store_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "relocate_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "storage_location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "awaiting_slot",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "placed_equipment",
+        "columns": [
+          {
+            "name": "placed_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "level_id",
+            "type": "uuid"
+          },
+          {
+            "name": "equipment_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "pos_x_m",
+            "type": "numeric"
+          },
+          {
+            "name": "pos_y_m",
+            "type": "numeric"
+          },
+          {
+            "name": "pos_z_m",
+            "type": "numeric"
+          },
+          {
+            "name": "rotation_deg",
+            "type": "numeric"
+          },
+          {
+            "name": "tilt_deg",
+            "type": "numeric"
+          },
+          {
+            "name": "length_m",
+            "type": "numeric"
+          },
+          {
+            "name": "width_m",
+            "type": "numeric"
+          },
+          {
+            "name": "height_m",
+            "type": "numeric"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "path",
+            "type": "jsonb"
+          },
+          {
+            "name": "closed",
+            "type": "boolean"
+          },
+          {
+            "name": "sections",
+            "type": "jsonb"
+          },
+          {
+            "name": "category",
+            "type": "text"
+          },
+          {
+            "name": "station_id",
+            "type": "uuid"
+          }
+        ]
+      },
+      {
+        "name": "scan_stat",
+        "columns": [
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "node_code",
+            "type": "text"
+          },
+          {
+            "name": "day",
+            "type": "date"
+          },
+          {
+            "name": "scans",
+            "type": "bigint"
+          },
+          {
+            "name": "no_reads",
+            "type": "bigint"
+          },
+          {
+            "name": "unknowns",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "shedlock",
+        "columns": [
+          {
+            "name": "name",
+            "type": "character varying"
+          },
+          {
+            "name": "lock_until",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_at",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_by",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "topology_observation",
+        "columns": [
+          {
+            "name": "obs_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "node",
+            "type": "text"
+          },
+          {
+            "name": "barcode",
+            "type": "text"
+          },
+          {
+            "name": "source_ip",
+            "type": "text"
+          },
+          {
+            "name": "observed_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "source_port",
+            "type": "integer"
+          }
+        ]
+      },
+      {
+        "name": "warehouse_level",
+        "columns": [
+          {
+            "name": "level_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "number",
+            "type": "integer"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "elevation_m",
+            "type": "numeric"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "gtp",
+    "tables": [
+      {
+        "name": "destination_demand",
+        "columns": [
+          {
+            "name": "destination_demand_id",
+            "type": "uuid"
+          },
+          {
+            "name": "station_node_id",
+            "type": "uuid"
+          },
+          {
+            "name": "order_ref",
+            "type": "text"
+          },
+          {
+            "name": "order_line_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "requested_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "putted_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "flyway_schema_history",
+        "columns": [
+          {
+            "name": "installed_rank",
+            "type": "integer"
+          },
+          {
+            "name": "version",
+            "type": "character varying"
+          },
+          {
+            "name": "description",
+            "type": "character varying"
+          },
+          {
+            "name": "type",
+            "type": "character varying"
+          },
+          {
+            "name": "script",
+            "type": "character varying"
+          },
+          {
+            "name": "checksum",
+            "type": "integer"
+          },
+          {
+            "name": "installed_by",
+            "type": "character varying"
+          },
+          {
+            "name": "installed_on",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "execution_time",
+            "type": "integer"
+          },
+          {
+            "name": "success",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "gtp_station",
+        "columns": [
+          {
+            "name": "gtp_station_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "mode",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "supported_modes",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "max_in_transit_picking",
+            "type": "integer"
+          },
+          {
+            "name": "max_in_transit_other",
+            "type": "integer"
+          },
+          {
+            "name": "accepting_work",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "maintenance_order",
+        "columns": [
+          {
+            "name": "maintenance_order_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "hu_code",
+            "type": "text"
+          },
+          {
+            "name": "gtp_station_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_code",
+            "type": "text"
+          },
+          {
+            "name": "reason",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "put_instruction",
+        "columns": [
+          {
+            "name": "put_instruction_id",
+            "type": "uuid"
+          },
+          {
+            "name": "work_cycle_id",
+            "type": "uuid"
+          },
+          {
+            "name": "destination_node_id",
+            "type": "uuid"
+          },
+          {
+            "name": "destination_demand_id",
+            "type": "uuid"
+          },
+          {
+            "name": "order_ref",
+            "type": "text"
+          },
+          {
+            "name": "order_line_id",
+            "type": "uuid"
+          },
+          {
+            "name": "order_hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "put_light_id",
+            "type": "text"
+          },
+          {
+            "name": "qty",
+            "type": "numeric"
+          },
+          {
+            "name": "confirmed_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "station_node",
+        "columns": [
+          {
+            "name": "station_node_id",
+            "type": "uuid"
+          },
+          {
+            "name": "gtp_station_id",
+            "type": "uuid"
+          },
+          {
+            "name": "role",
+            "type": "text"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "put_light_id",
+            "type": "text"
+          },
+          {
+            "name": "location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "order_hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "position",
+            "type": "integer"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "inbound_distance_m",
+            "type": "numeric"
+          }
+        ]
+      },
+      {
+        "name": "station_queue_entry",
+        "columns": [
+          {
+            "name": "station_queue_entry_id",
+            "type": "uuid"
+          },
+          {
+            "name": "gtp_station_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "hu_code",
+            "type": "text"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_code",
+            "type": "text"
+          },
+          {
+            "name": "qty",
+            "type": "numeric"
+          },
+          {
+            "name": "mode",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "arrival_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "count_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "count_line_id",
+            "type": "uuid"
+          },
+          {
+            "name": "location_id",
+            "type": "uuid"
+          }
+        ]
+      },
+      {
+        "name": "task_line",
+        "columns": [
+          {
+            "name": "task_line_id",
+            "type": "uuid"
+          },
+          {
+            "name": "work_cycle_id",
+            "type": "uuid"
+          },
+          {
+            "name": "line_type",
+            "type": "text"
+          },
+          {
+            "name": "hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "compartment",
+            "type": "text"
+          },
+          {
+            "name": "expected_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "actual_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "variance",
+            "type": "numeric"
+          },
+          {
+            "name": "verdict",
+            "type": "text"
+          },
+          {
+            "name": "put_light_id",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "details",
+            "type": "jsonb"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "work_cycle",
+        "columns": [
+          {
+            "name": "work_cycle_id",
+            "type": "uuid"
+          },
+          {
+            "name": "gtp_station_id",
+            "type": "uuid"
+          },
+          {
+            "name": "stock_node_id",
+            "type": "uuid"
+          },
+          {
+            "name": "stock_hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "presented_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "remaining_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "details",
+            "type": "jsonb"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "operating_mode",
+            "type": "text"
+          },
+          {
+            "name": "target_hu_id",
+            "type": "uuid"
+          }
+        ]
+      },
+      {
+        "name": "workplace_session",
+        "columns": [
+          {
+            "name": "workplace_session_id",
+            "type": "uuid"
+          },
+          {
+            "name": "gtp_station_id",
+            "type": "uuid"
+          },
+          {
+            "name": "operator",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "superseded_reason",
+            "type": "text"
+          },
+          {
+            "name": "claimed_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "last_heartbeat_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "closed_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "host_integration",
+    "tables": [
+      {
+        "name": "flyway_schema_history",
+        "columns": [
+          {
+            "name": "installed_rank",
+            "type": "integer"
+          },
+          {
+            "name": "version",
+            "type": "character varying"
+          },
+          {
+            "name": "description",
+            "type": "character varying"
+          },
+          {
+            "name": "type",
+            "type": "character varying"
+          },
+          {
+            "name": "script",
+            "type": "character varying"
+          },
+          {
+            "name": "checksum",
+            "type": "integer"
+          },
+          {
+            "name": "installed_by",
+            "type": "character varying"
+          },
+          {
+            "name": "installed_on",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "execution_time",
+            "type": "integer"
+          },
+          {
+            "name": "success",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "idempotency_key",
+        "columns": [
+          {
+            "name": "idempotency_key",
+            "type": "text"
+          },
+          {
+            "name": "http_status",
+            "type": "integer"
+          },
+          {
+            "name": "response_body",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      },
+      {
+        "name": "shedlock",
+        "columns": [
+          {
+            "name": "name",
+            "type": "character varying"
+          },
+          {
+            "name": "lock_until",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_at",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_by",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "webhook_subscription",
+        "columns": [
+          {
+            "name": "subscription_id",
+            "type": "uuid"
+          },
+          {
+            "name": "callback_url",
+            "type": "text"
+          },
+          {
+            "name": "cursor",
+            "type": "bigint"
+          },
+          {
+            "name": "active",
+            "type": "boolean"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "iam",
+    "tables": [
+      {
+        "name": "app_user",
+        "columns": [
+          {
+            "name": "user_id",
+            "type": "uuid"
+          },
+          {
+            "name": "username",
+            "type": "text"
+          },
+          {
+            "name": "display_name",
+            "type": "text"
+          },
+          {
+            "name": "external_id",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "language",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "flyway_schema_history",
+        "columns": [
+          {
+            "name": "installed_rank",
+            "type": "integer"
+          },
+          {
+            "name": "version",
+            "type": "character varying"
+          },
+          {
+            "name": "description",
+            "type": "character varying"
+          },
+          {
+            "name": "type",
+            "type": "character varying"
+          },
+          {
+            "name": "script",
+            "type": "character varying"
+          },
+          {
+            "name": "checksum",
+            "type": "integer"
+          },
+          {
+            "name": "installed_by",
+            "type": "character varying"
+          },
+          {
+            "name": "installed_on",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "execution_time",
+            "type": "integer"
+          },
+          {
+            "name": "success",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "role",
+        "columns": [
+          {
+            "name": "role_id",
+            "type": "uuid"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "description",
+            "type": "text"
+          },
+          {
+            "name": "is_system",
+            "type": "boolean"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "role_permission",
+        "columns": [
+          {
+            "name": "role_id",
+            "type": "uuid"
+          },
+          {
+            "name": "permission",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "screen_access",
+        "columns": [
+          {
+            "name": "screen_key",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "screen_access_role",
+        "columns": [
+          {
+            "name": "screen_key",
+            "type": "text"
+          },
+          {
+            "name": "role",
+            "type": "text"
+          },
+          {
+            "name": "access_level",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "screen_access_user",
+        "columns": [
+          {
+            "name": "screen_key",
+            "type": "text"
+          },
+          {
+            "name": "username",
+            "type": "text"
+          },
+          {
+            "name": "access_level",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "user_role",
+        "columns": [
+          {
+            "name": "user_id",
+            "type": "uuid"
+          },
+          {
+            "name": "role_id",
+            "type": "uuid"
+          }
+        ]
+      },
+      {
+        "name": "user_warehouse",
+        "columns": [
+          {
+            "name": "username",
+            "type": "text"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "is_default",
+            "type": "boolean"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "inventory",
+    "tables": [
+      {
+        "name": "batch",
+        "columns": [
+          {
+            "name": "batch_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "batch_number",
+            "type": "text"
+          },
+          {
+            "name": "supplier_lot",
+            "type": "text"
+          },
+          {
+            "name": "production_date",
+            "type": "date"
+          },
+          {
+            "name": "best_before_date",
+            "type": "date"
+          },
+          {
+            "name": "expiry_date",
+            "type": "date"
+          },
+          {
+            "name": "received_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "country_of_origin",
+            "type": "text"
+          },
+          {
+            "name": "quality_status",
+            "type": "text"
+          },
+          {
+            "name": "attributes",
+            "type": "jsonb"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "flyway_schema_history",
+        "columns": [
+          {
+            "name": "installed_rank",
+            "type": "integer"
+          },
+          {
+            "name": "version",
+            "type": "character varying"
+          },
+          {
+            "name": "description",
+            "type": "character varying"
+          },
+          {
+            "name": "type",
+            "type": "character varying"
+          },
+          {
+            "name": "script",
+            "type": "character varying"
+          },
+          {
+            "name": "checksum",
+            "type": "integer"
+          },
+          {
+            "name": "installed_by",
+            "type": "character varying"
+          },
+          {
+            "name": "installed_on",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "execution_time",
+            "type": "integer"
+          },
+          {
+            "name": "success",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "handling_unit",
+        "columns": [
+          {
+            "name": "hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "hu_type_id",
+            "type": "uuid"
+          },
+          {
+            "name": "location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "stored_at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      },
+      {
+        "name": "processed_event",
+        "columns": [
+          {
+            "name": "event_id",
+            "type": "uuid"
+          },
+          {
+            "name": "event_type",
+            "type": "text"
+          },
+          {
+            "name": "stream_id",
+            "type": "text"
+          },
+          {
+            "name": "seq",
+            "type": "bigint"
+          },
+          {
+            "name": "applied_at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      },
+      {
+        "name": "projection_offset",
+        "columns": [
+          {
+            "name": "projection",
+            "type": "text"
+          },
+          {
+            "name": "last_event_id",
+            "type": "uuid"
+          },
+          {
+            "name": "last_seq",
+            "type": "bigint"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      },
+      {
+        "name": "reservation",
+        "columns": [
+          {
+            "name": "reservation_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "batch_id",
+            "type": "uuid"
+          },
+          {
+            "name": "location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "order_ref",
+            "type": "text"
+          },
+          {
+            "name": "correlation_id",
+            "type": "uuid"
+          },
+          {
+            "name": "qty",
+            "type": "numeric"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "expires_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "serial_unit",
+        "columns": [
+          {
+            "name": "serial_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "batch_id",
+            "type": "uuid"
+          },
+          {
+            "name": "serial_number",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "current_location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "current_hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "received_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "attributes",
+            "type": "jsonb"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "shedlock",
+        "columns": [
+          {
+            "name": "name",
+            "type": "character varying"
+          },
+          {
+            "name": "lock_until",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_at",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_by",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "stock",
+        "columns": [
+          {
+            "name": "stock_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "batch_id",
+            "type": "uuid"
+          },
+          {
+            "name": "location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "qty",
+            "type": "numeric"
+          },
+          {
+            "name": "uom_code",
+            "type": "text"
+          },
+          {
+            "name": "last_event_id",
+            "type": "uuid"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "storage_density_snapshot",
+        "columns": [
+          {
+            "name": "snapshot_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "block_id",
+            "type": "uuid"
+          },
+          {
+            "name": "day",
+            "type": "date"
+          },
+          {
+            "name": "occupied_cells",
+            "type": "integer"
+          },
+          {
+            "name": "total_cells",
+            "type": "integer"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "master_data",
+    "tables": [
+      {
+        "name": "area",
+        "columns": [
+          {
+            "name": "area_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "parent_area_id",
+            "type": "uuid"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "attribute_schema",
+        "columns": [
+          {
+            "name": "attribute_schema_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "applies_to",
+            "type": "text"
+          },
+          {
+            "name": "category",
+            "type": "text"
+          },
+          {
+            "name": "json_schema",
+            "type": "jsonb"
+          },
+          {
+            "name": "version",
+            "type": "integer"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      },
+      {
+        "name": "barcode",
+        "columns": [
+          {
+            "name": "barcode_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "uom_id",
+            "type": "uuid"
+          },
+          {
+            "name": "value",
+            "type": "text"
+          },
+          {
+            "name": "barcode_type_id",
+            "type": "uuid"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "barcode_type",
+        "columns": [
+          {
+            "name": "barcode_type_id",
+            "type": "uuid"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "symbology",
+            "type": "text"
+          },
+          {
+            "name": "length_rule",
+            "type": "text"
+          },
+          {
+            "name": "check_digit_rule",
+            "type": "text"
+          },
+          {
+            "name": "gs1_ai_parsing",
+            "type": "boolean"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "dangerous_goods",
+        "columns": [
+          {
+            "name": "dg_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "un_number",
+            "type": "text"
+          },
+          {
+            "name": "hazard_class",
+            "type": "text"
+          },
+          {
+            "name": "packing_group",
+            "type": "text"
+          },
+          {
+            "name": "proper_shipping_name",
+            "type": "text"
+          },
+          {
+            "name": "adr_imdg_iata_codes",
+            "type": "jsonb"
+          },
+          {
+            "name": "flash_point",
+            "type": "numeric"
+          },
+          {
+            "name": "net_explosive_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "storage_segregation_rules",
+            "type": "jsonb"
+          },
+          {
+            "name": "handling_constraints",
+            "type": "jsonb"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "equipment",
+        "columns": [
+          {
+            "name": "equipment_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "family",
+            "type": "text"
+          },
+          {
+            "name": "vendor",
+            "type": "text"
+          },
+          {
+            "name": "model",
+            "type": "text"
+          },
+          {
+            "name": "adapter_endpoint",
+            "type": "text"
+          },
+          {
+            "name": "capabilities",
+            "type": "jsonb"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "type",
+            "type": "text"
+          },
+          {
+            "name": "subtype",
+            "type": "text"
+          },
+          {
+            "name": "default_width_m",
+            "type": "numeric"
+          },
+          {
+            "name": "default_height_m",
+            "type": "numeric"
+          },
+          {
+            "name": "default_length_m",
+            "type": "numeric"
+          },
+          {
+            "name": "process_types",
+            "type": "jsonb"
+          }
+        ]
+      },
+      {
+        "name": "flyway_schema_history",
+        "columns": [
+          {
+            "name": "installed_rank",
+            "type": "integer"
+          },
+          {
+            "name": "version",
+            "type": "character varying"
+          },
+          {
+            "name": "description",
+            "type": "character varying"
+          },
+          {
+            "name": "type",
+            "type": "character varying"
+          },
+          {
+            "name": "script",
+            "type": "character varying"
+          },
+          {
+            "name": "checksum",
+            "type": "integer"
+          },
+          {
+            "name": "installed_by",
+            "type": "character varying"
+          },
+          {
+            "name": "installed_on",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "execution_time",
+            "type": "integer"
+          },
+          {
+            "name": "success",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "handling_unit_type",
+        "columns": [
+          {
+            "name": "hu_type_id",
+            "type": "uuid"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "length_mm",
+            "type": "numeric"
+          },
+          {
+            "name": "width_mm",
+            "type": "numeric"
+          },
+          {
+            "name": "height_mm",
+            "type": "numeric"
+          },
+          {
+            "name": "weight_limit_g",
+            "type": "numeric"
+          },
+          {
+            "name": "nestable",
+            "type": "boolean"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "compartments",
+            "type": "integer"
+          },
+          {
+            "name": "storable_in_automation",
+            "type": "boolean"
+          },
+          {
+            "name": "transportable_on_conveyor",
+            "type": "boolean"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "label_template",
+        "columns": [
+          {
+            "name": "template_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "width_mm",
+            "type": "numeric"
+          },
+          {
+            "name": "height_mm",
+            "type": "numeric"
+          },
+          {
+            "name": "dpi",
+            "type": "integer"
+          },
+          {
+            "name": "elements",
+            "type": "jsonb"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "location",
+        "columns": [
+          {
+            "name": "location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "location_type",
+            "type": "text"
+          },
+          {
+            "name": "purpose",
+            "type": "text"
+          },
+          {
+            "name": "parent_id",
+            "type": "uuid"
+          },
+          {
+            "name": "coordinates",
+            "type": "jsonb"
+          },
+          {
+            "name": "equipment_id",
+            "type": "uuid"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "capacity",
+            "type": "jsonb"
+          },
+          {
+            "name": "allowed_hu_types",
+            "type": "jsonb"
+          },
+          {
+            "name": "allowed_sku_attrs",
+            "type": "jsonb"
+          },
+          {
+            "name": "is_mixed_allowed",
+            "type": "boolean"
+          },
+          {
+            "name": "replenishment_class",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "block_id",
+            "type": "uuid"
+          },
+          {
+            "name": "aisle",
+            "type": "text"
+          },
+          {
+            "name": "rack_level",
+            "type": "integer"
+          },
+          {
+            "name": "lane_depth",
+            "type": "integer"
+          },
+          {
+            "name": "distance_to_exit",
+            "type": "numeric"
+          },
+          {
+            "name": "side",
+            "type": "text"
+          },
+          {
+            "name": "pos_x",
+            "type": "integer"
+          },
+          {
+            "name": "pos_y",
+            "type": "integer"
+          },
+          {
+            "name": "pos_z",
+            "type": "integer"
+          },
+          {
+            "name": "hardware_address",
+            "type": "text"
+          },
+          {
+            "name": "area_id",
+            "type": "uuid"
+          }
+        ]
+      },
+      {
+        "name": "route",
+        "columns": [
+          {
+            "name": "route_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "region",
+            "type": "text"
+          },
+          {
+            "name": "host_ref",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "shipper",
+        "columns": [
+          {
+            "name": "shipper_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "shipper_type",
+            "type": "text"
+          },
+          {
+            "name": "length_mm",
+            "type": "numeric"
+          },
+          {
+            "name": "width_mm",
+            "type": "numeric"
+          },
+          {
+            "name": "height_mm",
+            "type": "numeric"
+          },
+          {
+            "name": "tare_weight_g",
+            "type": "numeric"
+          },
+          {
+            "name": "max_fill_level",
+            "type": "numeric"
+          },
+          {
+            "name": "max_weight_g",
+            "type": "numeric"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "shipping_service",
+        "columns": [
+          {
+            "name": "service_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "carrier",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "label_template_code",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "sku",
+        "columns": [
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "description",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "owner_client",
+            "type": "text"
+          },
+          {
+            "name": "is_batch_tracked",
+            "type": "boolean"
+          },
+          {
+            "name": "is_serial_tracked",
+            "type": "boolean"
+          },
+          {
+            "name": "is_date_tracked",
+            "type": "boolean"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "image_url",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "sku_profile",
+        "columns": [
+          {
+            "name": "sku_profile_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "metadata",
+            "type": "jsonb"
+          },
+          {
+            "name": "storage_strategy",
+            "type": "jsonb"
+          },
+          {
+            "name": "attribute_schema_id",
+            "type": "uuid"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "storage_block",
+        "columns": [
+          {
+            "name": "block_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "storage_type",
+            "type": "text"
+          },
+          {
+            "name": "slotting_granularity",
+            "type": "text"
+          },
+          {
+            "name": "equipment_id",
+            "type": "uuid"
+          },
+          {
+            "name": "is_gtp",
+            "type": "boolean"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "allowed_hu_types",
+            "type": "jsonb"
+          }
+        ]
+      },
+      {
+        "name": "system_configuration",
+        "columns": [
+          {
+            "name": "config_key",
+            "type": "text"
+          },
+          {
+            "name": "config_value",
+            "type": "text"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      },
+      {
+        "name": "unit_of_measure",
+        "columns": [
+          {
+            "name": "uom_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "parent_uom_id",
+            "type": "uuid"
+          },
+          {
+            "name": "qty_in_parent",
+            "type": "numeric"
+          },
+          {
+            "name": "length_mm",
+            "type": "numeric"
+          },
+          {
+            "name": "width_mm",
+            "type": "numeric"
+          },
+          {
+            "name": "height_mm",
+            "type": "numeric"
+          },
+          {
+            "name": "weight_g",
+            "type": "numeric"
+          },
+          {
+            "name": "is_base_unit",
+            "type": "boolean"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "warehouse",
+        "columns": [
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "code",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "timezone",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "address_line1",
+            "type": "text"
+          },
+          {
+            "name": "address_line2",
+            "type": "text"
+          },
+          {
+            "name": "city",
+            "type": "text"
+          },
+          {
+            "name": "region",
+            "type": "text"
+          },
+          {
+            "name": "postal_code",
+            "type": "text"
+          },
+          {
+            "name": "country",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "warehouse_fulfillment_config",
+        "columns": [
+          {
+            "name": "config_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "allowed_pick_types",
+            "type": "jsonb"
+          },
+          {
+            "name": "cubing_mode",
+            "type": "text"
+          },
+          {
+            "name": "default_shipper_id",
+            "type": "uuid"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "batch_enabled",
+            "type": "boolean"
+          },
+          {
+            "name": "batch_max_pieces",
+            "type": "integer"
+          },
+          {
+            "name": "batch_max_orders",
+            "type": "integer"
+          },
+          {
+            "name": "pick_tote_shipper_id",
+            "type": "uuid"
+          },
+          {
+            "name": "default_label_template_code",
+            "type": "text"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "notification",
+    "tables": [
+      {
+        "name": "alert_event",
+        "columns": [
+          {
+            "name": "alert_event_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "area",
+            "type": "text"
+          },
+          {
+            "name": "metric",
+            "type": "text"
+          },
+          {
+            "name": "severity",
+            "type": "text"
+          },
+          {
+            "name": "value",
+            "type": "numeric"
+          },
+          {
+            "name": "threshold",
+            "type": "numeric"
+          },
+          {
+            "name": "state",
+            "type": "text"
+          },
+          {
+            "name": "dedupe_key",
+            "type": "text"
+          },
+          {
+            "name": "opened_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "cleared_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "acked_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "acked_by",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "flyway_schema_history",
+        "columns": [
+          {
+            "name": "installed_rank",
+            "type": "integer"
+          },
+          {
+            "name": "version",
+            "type": "character varying"
+          },
+          {
+            "name": "description",
+            "type": "character varying"
+          },
+          {
+            "name": "type",
+            "type": "character varying"
+          },
+          {
+            "name": "script",
+            "type": "character varying"
+          },
+          {
+            "name": "checksum",
+            "type": "integer"
+          },
+          {
+            "name": "installed_by",
+            "type": "character varying"
+          },
+          {
+            "name": "installed_on",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "execution_time",
+            "type": "integer"
+          },
+          {
+            "name": "success",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "shedlock",
+        "columns": [
+          {
+            "name": "name",
+            "type": "character varying"
+          },
+          {
+            "name": "lock_until",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_at",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_by",
+            "type": "character varying"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "orders",
+    "tables": [
+      {
+        "name": "flyway_schema_history",
+        "columns": [
+          {
+            "name": "installed_rank",
+            "type": "integer"
+          },
+          {
+            "name": "version",
+            "type": "character varying"
+          },
+          {
+            "name": "description",
+            "type": "character varying"
+          },
+          {
+            "name": "type",
+            "type": "character varying"
+          },
+          {
+            "name": "script",
+            "type": "character varying"
+          },
+          {
+            "name": "checksum",
+            "type": "integer"
+          },
+          {
+            "name": "installed_by",
+            "type": "character varying"
+          },
+          {
+            "name": "installed_on",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "execution_time",
+            "type": "integer"
+          },
+          {
+            "name": "success",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "order_line",
+        "columns": [
+          {
+            "name": "line_id",
+            "type": "uuid"
+          },
+          {
+            "name": "order_id",
+            "type": "uuid"
+          },
+          {
+            "name": "line_no",
+            "type": "integer"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "qty",
+            "type": "numeric"
+          },
+          {
+            "name": "allocated_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "reservation_id",
+            "type": "uuid"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "posted_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "pick_location_id",
+            "type": "uuid"
+          }
+        ]
+      },
+      {
+        "name": "order_line_transaction",
+        "columns": [
+          {
+            "name": "txn_id",
+            "type": "uuid"
+          },
+          {
+            "name": "line_id",
+            "type": "uuid"
+          },
+          {
+            "name": "txn_type",
+            "type": "text"
+          },
+          {
+            "name": "qty",
+            "type": "numeric"
+          },
+          {
+            "name": "location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "batch_id",
+            "type": "uuid"
+          },
+          {
+            "name": "event_id",
+            "type": "uuid"
+          },
+          {
+            "name": "actor",
+            "type": "text"
+          },
+          {
+            "name": "posted_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "process_instance_id",
+            "type": "text"
+          },
+          {
+            "name": "order_type",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "order_outbox",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint"
+          },
+          {
+            "name": "line_txn_id",
+            "type": "uuid"
+          },
+          {
+            "name": "stream_id",
+            "type": "text"
+          },
+          {
+            "name": "event_type",
+            "type": "text"
+          },
+          {
+            "name": "correlation_id",
+            "type": "uuid"
+          },
+          {
+            "name": "actor",
+            "type": "text"
+          },
+          {
+            "name": "payload",
+            "type": "jsonb"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "published_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "attempts",
+            "type": "integer"
+          }
+        ]
+      },
+      {
+        "name": "outbound_order",
+        "columns": [
+          {
+            "name": "order_id",
+            "type": "uuid"
+          },
+          {
+            "name": "order_ref",
+            "type": "text"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "customer_ref",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "priority",
+            "type": "integer"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "dispatch_by",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "order_type",
+            "type": "text"
+          },
+          {
+            "name": "status_detail",
+            "type": "text"
+          },
+          {
+            "name": "service_code",
+            "type": "text"
+          },
+          {
+            "name": "route_code",
+            "type": "text"
+          },
+          {
+            "name": "ship_to",
+            "type": "jsonb"
+          },
+          {
+            "name": "label_template_code",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "route_dispatch",
+        "columns": [
+          {
+            "name": "dispatch_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "route_code",
+            "type": "text"
+          },
+          {
+            "name": "cutoff",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "orders_assigned",
+            "type": "integer"
+          },
+          {
+            "name": "orders_ready",
+            "type": "integer"
+          },
+          {
+            "name": "opened_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "first_loaded_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "departed_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "shedlock",
+        "columns": [
+          {
+            "name": "name",
+            "type": "character varying"
+          },
+          {
+            "name": "lock_until",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_at",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_by",
+            "type": "character varying"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "process_designer",
+    "tables": [
+      {
+        "name": "flyway_schema_history",
+        "columns": [
+          {
+            "name": "installed_rank",
+            "type": "integer"
+          },
+          {
+            "name": "version",
+            "type": "character varying"
+          },
+          {
+            "name": "description",
+            "type": "character varying"
+          },
+          {
+            "name": "type",
+            "type": "character varying"
+          },
+          {
+            "name": "script",
+            "type": "character varying"
+          },
+          {
+            "name": "checksum",
+            "type": "integer"
+          },
+          {
+            "name": "installed_by",
+            "type": "character varying"
+          },
+          {
+            "name": "installed_on",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "execution_time",
+            "type": "integer"
+          },
+          {
+            "name": "success",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "process_definition",
+        "columns": [
+          {
+            "name": "id",
+            "type": "uuid"
+          },
+          {
+            "name": "process_key",
+            "type": "text"
+          },
+          {
+            "name": "version",
+            "type": "integer"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "title",
+            "type": "text"
+          },
+          {
+            "name": "icon",
+            "type": "text"
+          },
+          {
+            "name": "json",
+            "type": "jsonb"
+          },
+          {
+            "name": "published_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "published_by",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version_lock",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "process_instance",
+        "columns": [
+          {
+            "name": "id",
+            "type": "uuid"
+          },
+          {
+            "name": "process_key",
+            "type": "text"
+          },
+          {
+            "name": "def_version",
+            "type": "integer"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "data",
+            "type": "jsonb"
+          },
+          {
+            "name": "current_step",
+            "type": "text"
+          },
+          {
+            "name": "started_by",
+            "type": "text"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "started_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version_lock",
+            "type": "bigint"
+          },
+          {
+            "name": "assigned_to",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "process_step_event",
+        "columns": [
+          {
+            "name": "id",
+            "type": "uuid"
+          },
+          {
+            "name": "instance_id",
+            "type": "uuid"
+          },
+          {
+            "name": "seq",
+            "type": "bigint"
+          },
+          {
+            "name": "step_id",
+            "type": "text"
+          },
+          {
+            "name": "step_type",
+            "type": "text"
+          },
+          {
+            "name": "data",
+            "type": "jsonb"
+          },
+          {
+            "name": "entered_by",
+            "type": "text"
+          },
+          {
+            "name": "at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      },
+      {
+        "name": "process_step_result",
+        "columns": [
+          {
+            "name": "instance_id",
+            "type": "uuid"
+          },
+          {
+            "name": "step_id",
+            "type": "text"
+          },
+          {
+            "name": "result_data",
+            "type": "jsonb"
+          },
+          {
+            "name": "next_step",
+            "type": "text"
+          },
+          {
+            "name": "done",
+            "type": "boolean"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "public",
+    "tables": [
+      {
+        "name": "act_evt_log",
+        "columns": [
+          {
+            "name": "log_nr_",
+            "type": "integer"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "time_stamp_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "user_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "data_",
+            "type": "bytea"
+          },
+          {
+            "name": "lock_owner_",
+            "type": "character varying"
+          },
+          {
+            "name": "lock_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "is_processed_",
+            "type": "smallint"
+          }
+        ]
+      },
+      {
+        "name": "act_ge_bytearray",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "deployment_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "bytes_",
+            "type": "bytea"
+          },
+          {
+            "name": "generated_",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "act_ge_property",
+        "columns": [
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "value_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          }
+        ]
+      },
+      {
+        "name": "act_hi_actinst",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "act_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "call_proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "act_name_",
+            "type": "character varying"
+          },
+          {
+            "name": "act_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "assignee_",
+            "type": "character varying"
+          },
+          {
+            "name": "start_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "end_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "transaction_order_",
+            "type": "integer"
+          },
+          {
+            "name": "duration_",
+            "type": "bigint"
+          },
+          {
+            "name": "delete_reason_",
+            "type": "character varying"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_hi_attachment",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "user_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "description_",
+            "type": "character varying"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "url_",
+            "type": "character varying"
+          },
+          {
+            "name": "content_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "time_",
+            "type": "timestamp without time zone"
+          }
+        ]
+      },
+      {
+        "name": "act_hi_comment",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "user_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "action_",
+            "type": "character varying"
+          },
+          {
+            "name": "message_",
+            "type": "character varying"
+          },
+          {
+            "name": "full_msg_",
+            "type": "bytea"
+          }
+        ]
+      },
+      {
+        "name": "act_hi_detail",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "act_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "var_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "bytearray_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "double_",
+            "type": "double precision"
+          },
+          {
+            "name": "long_",
+            "type": "bigint"
+          },
+          {
+            "name": "text_",
+            "type": "character varying"
+          },
+          {
+            "name": "text2_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_hi_entitylink",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "link_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_definition_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "parent_element_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "ref_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "ref_scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "ref_scope_definition_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "root_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "root_scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "hierarchy_type_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_hi_identitylink",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "group_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "user_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_definition_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_hi_procinst",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "business_key_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "start_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "end_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "duration_",
+            "type": "bigint"
+          },
+          {
+            "name": "start_user_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "start_act_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "end_act_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "super_process_instance_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "delete_reason_",
+            "type": "character varying"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "callback_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "callback_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "reference_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "reference_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "propagated_stage_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "business_status_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_hi_taskinst",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_def_key_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_definition_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "propagated_stage_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "state_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "parent_task_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "description_",
+            "type": "character varying"
+          },
+          {
+            "name": "owner_",
+            "type": "character varying"
+          },
+          {
+            "name": "assignee_",
+            "type": "character varying"
+          },
+          {
+            "name": "start_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "in_progress_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "in_progress_started_by_",
+            "type": "character varying"
+          },
+          {
+            "name": "claim_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "claimed_by_",
+            "type": "character varying"
+          },
+          {
+            "name": "suspended_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "suspended_by_",
+            "type": "character varying"
+          },
+          {
+            "name": "end_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "completed_by_",
+            "type": "character varying"
+          },
+          {
+            "name": "duration_",
+            "type": "bigint"
+          },
+          {
+            "name": "delete_reason_",
+            "type": "character varying"
+          },
+          {
+            "name": "priority_",
+            "type": "integer"
+          },
+          {
+            "name": "in_progress_due_date_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "due_date_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "form_key_",
+            "type": "character varying"
+          },
+          {
+            "name": "category_",
+            "type": "character varying"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "last_updated_time_",
+            "type": "timestamp without time zone"
+          }
+        ]
+      },
+      {
+        "name": "act_hi_tsk_log",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "integer"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "time_stamp_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "user_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "data_",
+            "type": "character varying"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_definition_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_hi_varinst",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "var_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "bytearray_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "double_",
+            "type": "double precision"
+          },
+          {
+            "name": "long_",
+            "type": "bigint"
+          },
+          {
+            "name": "text_",
+            "type": "character varying"
+          },
+          {
+            "name": "text2_",
+            "type": "character varying"
+          },
+          {
+            "name": "meta_info_",
+            "type": "character varying"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "last_updated_time_",
+            "type": "timestamp without time zone"
+          }
+        ]
+      },
+      {
+        "name": "act_id_bytearray",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "bytes_",
+            "type": "bytea"
+          }
+        ]
+      },
+      {
+        "name": "act_id_group",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_id_info",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "user_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "key_",
+            "type": "character varying"
+          },
+          {
+            "name": "value_",
+            "type": "character varying"
+          },
+          {
+            "name": "password_",
+            "type": "bytea"
+          },
+          {
+            "name": "parent_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_id_membership",
+        "columns": [
+          {
+            "name": "user_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "group_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_id_priv",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_id_priv_mapping",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "priv_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "user_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "group_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_id_property",
+        "columns": [
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "value_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          }
+        ]
+      },
+      {
+        "name": "act_id_token",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "token_value_",
+            "type": "character varying"
+          },
+          {
+            "name": "token_date_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "ip_address_",
+            "type": "character varying"
+          },
+          {
+            "name": "user_agent_",
+            "type": "character varying"
+          },
+          {
+            "name": "user_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "token_data_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_id_user",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "first_",
+            "type": "character varying"
+          },
+          {
+            "name": "last_",
+            "type": "character varying"
+          },
+          {
+            "name": "display_name_",
+            "type": "character varying"
+          },
+          {
+            "name": "email_",
+            "type": "character varying"
+          },
+          {
+            "name": "pwd_",
+            "type": "character varying"
+          },
+          {
+            "name": "picture_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_procdef_info",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "info_json_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_re_deployment",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "category_",
+            "type": "character varying"
+          },
+          {
+            "name": "key_",
+            "type": "character varying"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "deploy_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "derived_from_",
+            "type": "character varying"
+          },
+          {
+            "name": "derived_from_root_",
+            "type": "character varying"
+          },
+          {
+            "name": "parent_deployment_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "engine_version_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_re_model",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "key_",
+            "type": "character varying"
+          },
+          {
+            "name": "category_",
+            "type": "character varying"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "last_update_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "version_",
+            "type": "integer"
+          },
+          {
+            "name": "meta_info_",
+            "type": "character varying"
+          },
+          {
+            "name": "deployment_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "editor_source_value_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "editor_source_extra_value_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_re_procdef",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "category_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "key_",
+            "type": "character varying"
+          },
+          {
+            "name": "version_",
+            "type": "integer"
+          },
+          {
+            "name": "deployment_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "resource_name_",
+            "type": "character varying"
+          },
+          {
+            "name": "dgrm_resource_name_",
+            "type": "character varying"
+          },
+          {
+            "name": "description_",
+            "type": "character varying"
+          },
+          {
+            "name": "has_start_form_key_",
+            "type": "boolean"
+          },
+          {
+            "name": "has_graphical_notation_",
+            "type": "boolean"
+          },
+          {
+            "name": "suspension_state_",
+            "type": "integer"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "derived_from_",
+            "type": "character varying"
+          },
+          {
+            "name": "derived_from_root_",
+            "type": "character varying"
+          },
+          {
+            "name": "derived_version_",
+            "type": "integer"
+          },
+          {
+            "name": "engine_version_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_ru_actinst",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "act_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "call_proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "act_name_",
+            "type": "character varying"
+          },
+          {
+            "name": "act_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "assignee_",
+            "type": "character varying"
+          },
+          {
+            "name": "start_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "end_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "duration_",
+            "type": "bigint"
+          },
+          {
+            "name": "transaction_order_",
+            "type": "integer"
+          },
+          {
+            "name": "delete_reason_",
+            "type": "character varying"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_ru_deadletter_job",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "category_",
+            "type": "character varying"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "exclusive_",
+            "type": "boolean"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "process_instance_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "element_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "element_name_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_definition_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "correlation_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "exception_stack_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "exception_msg_",
+            "type": "character varying"
+          },
+          {
+            "name": "duedate_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "repeat_",
+            "type": "character varying"
+          },
+          {
+            "name": "handler_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "handler_cfg_",
+            "type": "character varying"
+          },
+          {
+            "name": "custom_values_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_ru_entitylink",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "link_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_definition_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "parent_element_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "ref_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "ref_scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "ref_scope_definition_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "root_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "root_scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "hierarchy_type_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_ru_event_subscr",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "event_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "event_name_",
+            "type": "character varying"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "activity_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "configuration_",
+            "type": "character varying"
+          },
+          {
+            "name": "created_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_definition_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_definition_key_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "lock_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "lock_owner_",
+            "type": "character varying"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_ru_execution",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "business_key_",
+            "type": "character varying"
+          },
+          {
+            "name": "parent_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "super_exec_",
+            "type": "character varying"
+          },
+          {
+            "name": "root_proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "act_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "is_active_",
+            "type": "boolean"
+          },
+          {
+            "name": "is_concurrent_",
+            "type": "boolean"
+          },
+          {
+            "name": "is_scope_",
+            "type": "boolean"
+          },
+          {
+            "name": "is_event_scope_",
+            "type": "boolean"
+          },
+          {
+            "name": "is_mi_root_",
+            "type": "boolean"
+          },
+          {
+            "name": "suspension_state_",
+            "type": "integer"
+          },
+          {
+            "name": "cached_ent_state_",
+            "type": "integer"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "start_act_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "start_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "start_user_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "lock_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "lock_owner_",
+            "type": "character varying"
+          },
+          {
+            "name": "is_count_enabled_",
+            "type": "boolean"
+          },
+          {
+            "name": "evt_subscr_count_",
+            "type": "integer"
+          },
+          {
+            "name": "task_count_",
+            "type": "integer"
+          },
+          {
+            "name": "job_count_",
+            "type": "integer"
+          },
+          {
+            "name": "timer_job_count_",
+            "type": "integer"
+          },
+          {
+            "name": "susp_job_count_",
+            "type": "integer"
+          },
+          {
+            "name": "deadletter_job_count_",
+            "type": "integer"
+          },
+          {
+            "name": "external_worker_job_count_",
+            "type": "integer"
+          },
+          {
+            "name": "var_count_",
+            "type": "integer"
+          },
+          {
+            "name": "id_link_count_",
+            "type": "integer"
+          },
+          {
+            "name": "callback_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "callback_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "reference_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "reference_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "propagated_stage_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "business_status_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_ru_external_job",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "category_",
+            "type": "character varying"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "lock_exp_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "lock_owner_",
+            "type": "character varying"
+          },
+          {
+            "name": "exclusive_",
+            "type": "boolean"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "process_instance_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "element_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "element_name_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_definition_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "correlation_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "retries_",
+            "type": "integer"
+          },
+          {
+            "name": "exception_stack_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "exception_msg_",
+            "type": "character varying"
+          },
+          {
+            "name": "duedate_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "repeat_",
+            "type": "character varying"
+          },
+          {
+            "name": "handler_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "handler_cfg_",
+            "type": "character varying"
+          },
+          {
+            "name": "custom_values_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_ru_history_job",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "lock_exp_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "lock_owner_",
+            "type": "character varying"
+          },
+          {
+            "name": "retries_",
+            "type": "integer"
+          },
+          {
+            "name": "exception_stack_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "exception_msg_",
+            "type": "character varying"
+          },
+          {
+            "name": "handler_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "handler_cfg_",
+            "type": "character varying"
+          },
+          {
+            "name": "custom_values_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "adv_handler_cfg_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_ru_identitylink",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "group_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "user_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_definition_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_ru_job",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "category_",
+            "type": "character varying"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "lock_exp_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "lock_owner_",
+            "type": "character varying"
+          },
+          {
+            "name": "exclusive_",
+            "type": "boolean"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "process_instance_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "element_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "element_name_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_definition_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "correlation_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "retries_",
+            "type": "integer"
+          },
+          {
+            "name": "exception_stack_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "exception_msg_",
+            "type": "character varying"
+          },
+          {
+            "name": "duedate_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "repeat_",
+            "type": "character varying"
+          },
+          {
+            "name": "handler_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "handler_cfg_",
+            "type": "character varying"
+          },
+          {
+            "name": "custom_values_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_ru_suspended_job",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "category_",
+            "type": "character varying"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "exclusive_",
+            "type": "boolean"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "process_instance_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "element_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "element_name_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_definition_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "correlation_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "retries_",
+            "type": "integer"
+          },
+          {
+            "name": "exception_stack_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "exception_msg_",
+            "type": "character varying"
+          },
+          {
+            "name": "duedate_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "repeat_",
+            "type": "character varying"
+          },
+          {
+            "name": "handler_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "handler_cfg_",
+            "type": "character varying"
+          },
+          {
+            "name": "custom_values_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_ru_task",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_definition_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "propagated_stage_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "state_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "parent_task_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "description_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_def_key_",
+            "type": "character varying"
+          },
+          {
+            "name": "owner_",
+            "type": "character varying"
+          },
+          {
+            "name": "assignee_",
+            "type": "character varying"
+          },
+          {
+            "name": "delegation_",
+            "type": "character varying"
+          },
+          {
+            "name": "priority_",
+            "type": "integer"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "in_progress_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "in_progress_started_by_",
+            "type": "character varying"
+          },
+          {
+            "name": "claim_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "claimed_by_",
+            "type": "character varying"
+          },
+          {
+            "name": "suspended_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "suspended_by_",
+            "type": "character varying"
+          },
+          {
+            "name": "in_progress_due_date_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "due_date_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "category_",
+            "type": "character varying"
+          },
+          {
+            "name": "suspension_state_",
+            "type": "integer"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "form_key_",
+            "type": "character varying"
+          },
+          {
+            "name": "is_count_enabled_",
+            "type": "boolean"
+          },
+          {
+            "name": "var_count_",
+            "type": "integer"
+          },
+          {
+            "name": "id_link_count_",
+            "type": "integer"
+          },
+          {
+            "name": "sub_task_count_",
+            "type": "integer"
+          }
+        ]
+      },
+      {
+        "name": "act_ru_timer_job",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "category_",
+            "type": "character varying"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "lock_exp_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "lock_owner_",
+            "type": "character varying"
+          },
+          {
+            "name": "exclusive_",
+            "type": "boolean"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "process_instance_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_def_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "element_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "element_name_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_definition_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "correlation_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "retries_",
+            "type": "integer"
+          },
+          {
+            "name": "exception_stack_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "exception_msg_",
+            "type": "character varying"
+          },
+          {
+            "name": "duedate_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "repeat_",
+            "type": "character varying"
+          },
+          {
+            "name": "handler_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "handler_cfg_",
+            "type": "character varying"
+          },
+          {
+            "name": "custom_values_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "act_ru_variable",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "execution_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "proc_inst_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "task_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "bytearray_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "double_",
+            "type": "double precision"
+          },
+          {
+            "name": "long_",
+            "type": "bigint"
+          },
+          {
+            "name": "text_",
+            "type": "character varying"
+          },
+          {
+            "name": "text2_",
+            "type": "character varying"
+          },
+          {
+            "name": "meta_info_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "flw_channel_definition",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "version_",
+            "type": "integer"
+          },
+          {
+            "name": "key_",
+            "type": "character varying"
+          },
+          {
+            "name": "category_",
+            "type": "character varying"
+          },
+          {
+            "name": "deployment_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "resource_name_",
+            "type": "character varying"
+          },
+          {
+            "name": "description_",
+            "type": "character varying"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "implementation_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "flw_event_definition",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "version_",
+            "type": "integer"
+          },
+          {
+            "name": "key_",
+            "type": "character varying"
+          },
+          {
+            "name": "category_",
+            "type": "character varying"
+          },
+          {
+            "name": "deployment_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "resource_name_",
+            "type": "character varying"
+          },
+          {
+            "name": "description_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "flw_event_deployment",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "category_",
+            "type": "character varying"
+          },
+          {
+            "name": "deploy_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "parent_deployment_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "flw_event_resource",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "name_",
+            "type": "character varying"
+          },
+          {
+            "name": "deployment_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "resource_bytes_",
+            "type": "bytea"
+          }
+        ]
+      },
+      {
+        "name": "flw_ru_batch",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "search_key_",
+            "type": "character varying"
+          },
+          {
+            "name": "search_key2_",
+            "type": "character varying"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "complete_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "status_",
+            "type": "character varying"
+          },
+          {
+            "name": "batch_doc_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "flw_ru_batch_part",
+        "columns": [
+          {
+            "name": "id_",
+            "type": "character varying"
+          },
+          {
+            "name": "rev_",
+            "type": "integer"
+          },
+          {
+            "name": "batch_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "type_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "sub_scope_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "scope_type_",
+            "type": "character varying"
+          },
+          {
+            "name": "search_key_",
+            "type": "character varying"
+          },
+          {
+            "name": "search_key2_",
+            "type": "character varying"
+          },
+          {
+            "name": "create_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "complete_time_",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "status_",
+            "type": "character varying"
+          },
+          {
+            "name": "result_doc_id_",
+            "type": "character varying"
+          },
+          {
+            "name": "tenant_id_",
+            "type": "character varying"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "slotting",
+    "tables": [
+      {
+        "name": "block_policy",
+        "columns": [
+          {
+            "name": "block_policy_id",
+            "type": "uuid"
+          },
+          {
+            "name": "block_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "w_velocity",
+            "type": "numeric"
+          },
+          {
+            "name": "w_consolidation",
+            "type": "numeric"
+          },
+          {
+            "name": "w_redundancy",
+            "type": "numeric"
+          },
+          {
+            "name": "w_balance",
+            "type": "numeric"
+          },
+          {
+            "name": "default_max_aisle_pct",
+            "type": "numeric"
+          },
+          {
+            "name": "min_aisles_a",
+            "type": "integer"
+          },
+          {
+            "name": "min_aisles_b",
+            "type": "integer"
+          },
+          {
+            "name": "min_aisles_c",
+            "type": "integer"
+          },
+          {
+            "name": "reslot_enabled",
+            "type": "boolean"
+          },
+          {
+            "name": "reslot_shift_pct",
+            "type": "numeric"
+          },
+          {
+            "name": "offpeak_cron",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "velocity_half_life_days",
+            "type": "numeric"
+          },
+          {
+            "name": "abc_a_share",
+            "type": "numeric"
+          },
+          {
+            "name": "abc_b_share",
+            "type": "numeric"
+          }
+        ]
+      },
+      {
+        "name": "flyway_schema_history",
+        "columns": [
+          {
+            "name": "installed_rank",
+            "type": "integer"
+          },
+          {
+            "name": "version",
+            "type": "character varying"
+          },
+          {
+            "name": "description",
+            "type": "character varying"
+          },
+          {
+            "name": "type",
+            "type": "character varying"
+          },
+          {
+            "name": "script",
+            "type": "character varying"
+          },
+          {
+            "name": "checksum",
+            "type": "integer"
+          },
+          {
+            "name": "installed_by",
+            "type": "character varying"
+          },
+          {
+            "name": "installed_on",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "execution_time",
+            "type": "integer"
+          },
+          {
+            "name": "success",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "pick_slot",
+        "columns": [
+          {
+            "name": "pick_slot_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "uom_id",
+            "type": "uuid"
+          },
+          {
+            "name": "min_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "max_qty",
+            "type": "numeric"
+          },
+          {
+            "name": "direct_to_pick",
+            "type": "boolean"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "putaway_assignment",
+        "columns": [
+          {
+            "name": "putaway_assignment_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "block_id",
+            "type": "uuid"
+          },
+          {
+            "name": "chosen_location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "mode",
+            "type": "text"
+          },
+          {
+            "name": "score",
+            "type": "numeric"
+          },
+          {
+            "name": "factors",
+            "type": "jsonb"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "sku_ids",
+            "type": "jsonb"
+          }
+        ]
+      },
+      {
+        "name": "replenishment_task",
+        "columns": [
+          {
+            "name": "replenishment_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "uom_id",
+            "type": "uuid"
+          },
+          {
+            "name": "from_location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "to_location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "qty",
+            "type": "numeric"
+          },
+          {
+            "name": "priority",
+            "type": "text"
+          },
+          {
+            "name": "trigger_type",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "device_task_id",
+            "type": "uuid"
+          },
+          {
+            "name": "reserved_by",
+            "type": "text"
+          },
+          {
+            "name": "reserved_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "reserved_by_instance",
+            "type": "text"
+          },
+          {
+            "name": "started_at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      },
+      {
+        "name": "reslot_recommendation",
+        "columns": [
+          {
+            "name": "reslot_recommendation_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "hu_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "from_location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "to_location_id",
+            "type": "uuid"
+          },
+          {
+            "name": "reason",
+            "type": "text"
+          },
+          {
+            "name": "score_gain",
+            "type": "numeric"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "device_task_id",
+            "type": "uuid"
+          }
+        ]
+      },
+      {
+        "name": "shedlock",
+        "columns": [
+          {
+            "name": "name",
+            "type": "character varying"
+          },
+          {
+            "name": "lock_until",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_at",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_by",
+            "type": "character varying"
+          }
+        ]
+      },
+      {
+        "name": "sku_pick_daily",
+        "columns": [
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "day",
+            "type": "date"
+          },
+          {
+            "name": "picks",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "sku_velocity",
+        "columns": [
+          {
+            "name": "sku_velocity_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "score",
+            "type": "numeric"
+          },
+          {
+            "name": "pending_picks",
+            "type": "numeric"
+          },
+          {
+            "name": "velocity_class",
+            "type": "text"
+          },
+          {
+            "name": "decayed_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "last_pick_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          }
+        ]
+      },
+      {
+        "name": "storage_profile",
+        "columns": [
+          {
+            "name": "storage_profile_id",
+            "type": "uuid"
+          },
+          {
+            "name": "warehouse_id",
+            "type": "uuid"
+          },
+          {
+            "name": "sku_id",
+            "type": "uuid"
+          },
+          {
+            "name": "block_id",
+            "type": "uuid"
+          },
+          {
+            "name": "velocity_class",
+            "type": "text"
+          },
+          {
+            "name": "consolidate",
+            "type": "boolean"
+          },
+          {
+            "name": "min_aisles",
+            "type": "integer"
+          },
+          {
+            "name": "max_aisle_pct",
+            "type": "numeric"
+          },
+          {
+            "name": "status",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "version",
+            "type": "bigint"
+          },
+          {
+            "name": "manual_override",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "velocity_offset",
+        "columns": [
+          {
+            "name": "projection",
+            "type": "text"
+          },
+          {
+            "name": "last_event_id",
+            "type": "uuid"
+          },
+          {
+            "name": "last_seq",
+            "type": "bigint"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      },
+      {
+        "name": "velocity_processed_event",
+        "columns": [
+          {
+            "name": "event_id",
+            "type": "uuid"
+          },
+          {
+            "name": "event_type",
+            "type": "text"
+          },
+          {
+            "name": "stream_id",
+            "type": "text"
+          },
+          {
+            "name": "seq",
+            "type": "bigint"
+          },
+          {
+            "name": "applied_at",
+            "type": "timestamp with time zone"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "transaction_log",
+    "tables": [
+      {
+        "name": "events",
+        "columns": [
+          {
+            "name": "position",
+            "type": "bigint"
+          },
+          {
+            "name": "event_id",
+            "type": "uuid"
+          },
+          {
+            "name": "stream_id",
+            "type": "text"
+          },
+          {
+            "name": "seq",
+            "type": "bigint"
+          },
+          {
+            "name": "event_type",
+            "type": "text"
+          },
+          {
+            "name": "occurred_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "recorded_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "actor",
+            "type": "text"
+          },
+          {
+            "name": "correlation_id",
+            "type": "uuid"
+          },
+          {
+            "name": "payload",
+            "type": "jsonb"
+          },
+          {
+            "name": "payload_version",
+            "type": "integer"
+          }
+        ]
+      },
+      {
+        "name": "flyway_schema_history",
+        "columns": [
+          {
+            "name": "installed_rank",
+            "type": "integer"
+          },
+          {
+            "name": "version",
+            "type": "character varying"
+          },
+          {
+            "name": "description",
+            "type": "character varying"
+          },
+          {
+            "name": "type",
+            "type": "character varying"
+          },
+          {
+            "name": "script",
+            "type": "character varying"
+          },
+          {
+            "name": "checksum",
+            "type": "integer"
+          },
+          {
+            "name": "installed_by",
+            "type": "character varying"
+          },
+          {
+            "name": "installed_on",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "execution_time",
+            "type": "integer"
+          },
+          {
+            "name": "success",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "outbox",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint"
+          },
+          {
+            "name": "event_id",
+            "type": "uuid"
+          },
+          {
+            "name": "topic",
+            "type": "text"
+          },
+          {
+            "name": "message_key",
+            "type": "text"
+          },
+          {
+            "name": "payload",
+            "type": "text"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "published_at",
+            "type": "timestamp with time zone"
+          },
+          {
+            "name": "attempts",
+            "type": "integer"
+          }
+        ]
+      },
+      {
+        "name": "shedlock",
+        "columns": [
+          {
+            "name": "name",
+            "type": "character varying"
+          },
+          {
+            "name": "lock_until",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_at",
+            "type": "timestamp without time zone"
+          },
+          {
+            "name": "locked_by",
+            "type": "character varying"
+          }
+        ]
+      }
+    ]
+  }
+]

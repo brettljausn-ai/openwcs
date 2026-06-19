@@ -101,6 +101,19 @@ async function main() {
     'gtp-workplaces': { url: `/api/gtp/workplaces?warehouseId={WID}`, cap: 20 },
 
     'iam-warehouse-access-me': { url: `/api/iam/warehouse-access/me`, cap: 0 },
+
+    // Screens that previously blanked the demo (list endpoints the SPA reads as arrays / objects).
+    'counting-tasks': { url: `/api/counting/tasks?warehouseId={WID}`, cap: 120 },
+    'counting-schedules': { url: `/api/counting/schedules?warehouseId={WID}`, cap: 60 },
+    'flow-device-tasks': { url: `/api/flow/device-tasks?warehouseId={WID}&limit=200`, cap: 200 },
+    'process-designer-defs': { url: `/api/process-designer/defs`, cap: 60 },
+    'slotting-pick-slots': { url: `/api/slotting/pick-slots?warehouseId={WID}`, cap: 120 },
+    'slotting-storage-profiles': { url: `/api/slotting/storage-profiles?warehouseId={WID}`, cap: 120 },
+    'gtp-stations': { url: `/api/gtp/stations?warehouseId={WID}`, cap: 40 },
+    'iam-warehouse-access': { url: `/api/iam/warehouse-access`, cap: 0 },
+    'admin-db-schemas': { url: `/api/master-data/admin/db/schemas`, cap: 0 },
+    'kc-users': { url: `/admin/realms/openwcs/users?first=0&max=20&briefRepresentation=true`, cap: 20 },
+    'kc-users-count': { url: `/admin/realms/openwcs/users/count`, cap: 0 },
   }
 
   let ok = 0

@@ -1,0 +1,81 @@
+[
+  {
+    "id": "9cc435e9-df44-4125-8111-6608b280f664",
+    "username": "admin",
+    "firstName": "Darth",
+    "lastName": "Vader",
+    "email": "admin@example.com",
+    "emailVerified": true,
+    "enabled": true,
+    "access": {
+      "manageGroupMembership": true,
+      "view": true,
+      "mapRoles": true,
+      "impersonate": false,
+      "manage": true
+    }
+  },
+  {
+    "id": "8337d474-9a5a-44b4-8167-64c5d04f0c35",
+    "username": "operator",
+    "firstName": "Oliver",
+    "lastName": "Operator",
+    "email": "contact@brettljausn.ai",
+    "emailVerified": false,
+    "createdTimestamp": 1781426299316,
+    "enabled": true,
+    "access": {
+      "manageGroupMembership": true,
+      "view": true,
+      "mapRoles": true,
+      "impersonate": false,
+      "manage": true
+    }
+  },
+  {
+    "id": "d3246275-bd65-4174-83de-6b2a50988055",
+    "username": "steve",
+    "emailVerified": false,
+    "createdTimestamp": 1781536119552,
+    "enabled": true,
+    "access": {
+      "manageGroupMembership": true,
+      "view": true,
+      "mapRoles": true,
+      "impersonate": false,
+      "manage": true
+    }
+  },
+  {
+    "id": "6ffca9b1-36bd-47f0-8f6f-f0bf26ea0483",
+    "username": "supervisor",
+    "firstName": "Sam",
+    "lastName": "Supervisor",
+    "email": "supervisor@example.com",
+    "emailVerified": true,
+    "enabled": false,
+    "access": {
+      "manageGroupMembership": true,
+      "view": true,
+      "mapRoles": true,
+      "impersonate": false,
+      "manage": true
+    }
+  },
+  {
+    "id": "6c839b41-db75-4886-b2aa-d896ce82e214",
+    "username": "viewer",
+    "firstName": "Vera",
+    "lastName": "Viewer",
+    "email": "viewer@example.com",
+    "emailVerified": true,
+    "enabled": false,
+    "access": {
+      "manageGroupMembership": true,
+      "view": true,
+      "mapRoles": true,
+      "impersonate": false,
+      "manage": true
+    }
+  }
+]

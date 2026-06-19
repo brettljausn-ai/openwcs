@@ -1,0 +1,23 @@
+[
+  {
+    "id": "84af9752-1fd6-4ed7-bff4-c684a9c58b5c",
+    "warehouseId": "394dfd10-f541-48b5-84d8-773322549a3b",
+    "scopeType": "LOCATION",
+    "scopeRef": "c6215096-b8a7-485e-900d-299c6a960cfb",
+    "countType": "BLIND",
+    "origin": "AD_HOC",
+    "scheduleId": null,
+    "parentTaskId": null,
+    "tolerance": 1,
+    "gtpStationId": null,
+    "processInstanceId": null,
+    "status": "RECONCILED",
+    "assignedTo": null,
+    "countedBy": null,
+    "countedAt": null,
+    "reconciledBy": null,
+    "reconciledAt": null,
+    "routingStatus": "ROUTED",
+    "routingReason": "Routed 1 tote(s) to the counting station."
+  }
+]
