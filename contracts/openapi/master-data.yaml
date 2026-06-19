@@ -25,6 +25,7 @@ tags:
   - name: Barcodes
   - name: BarcodeTypes
   - name: Locations
+  - name: Areas
   - name: HandlingUnitTypes
   - name: Equipment
   - name: Dispatch
@@ -839,6 +840,155 @@ paths:
         "204": { description: Archived }
         "404": { $ref: '#/components/responses/NotFound' }
 
+  # ------------------------------------------------------------------- Areas
+  /areas:
+    get:
+      tags: [Areas]
+      summary: List / filter areas
+      description: >
+        Areas in a warehouse. When parentAreaId is given, only that area's direct children are
+        returned; otherwise all areas in the warehouse are returned.
+      operationId: listAreas
+      parameters:
+        - name: warehouseId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: parentAreaId
+          in: query
+          description: When set, return only the direct children of this parent area.
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Area' }
+    post:
+      tags: [Areas]
+      summary: Create an area (admin only)
+      description: >
+        Admin-gated. The parent area (when set) must be in the same warehouse, and may not create a
+        cycle (an area cannot be its own ancestor).
+      operationId: createArea
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Area' }
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Area' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "409": { $ref: '#/components/responses/Conflict' }
+  /areas/resolve:
+    get:
+      tags: [Areas]
+      summary: Resolve an area reference (by code)
+      description: >
+        Resolve ref against area.code (case-insensitive) for the warehouse. Best-effort: a miss
+        returns "found:false" with a null area (still HTTP 200), so callers can branch on it.
+      operationId: resolveArea
+      parameters:
+        - name: warehouseId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: ref
+          in: query
+          required: true
+          description: The area code to resolve (case-insensitive).
+          schema: { type: string }
+      responses:
+        "200":
+          description: Resolve result (hit or miss)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AreaResolveResult' }
+  /areas/{areaId}:
+    parameters:
+      - name: areaId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Areas]
+      summary: Get an area
+      operationId: getArea
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Area' }
+        "404": { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Areas]
+      summary: Update an area (admin only)
+      description: >
+        Admin-gated. The parent area (when set) must be in the same warehouse, and may not create a
+        cycle (an area cannot be its own ancestor).
+      operationId: updateArea
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Area' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Area' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Areas]
+      summary: Archive an area (admin only)
+      operationId: deleteArea
+      responses:
+        "204": { description: Archived }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+  /areas/{areaId}/location-ids:
+    parameters:
+      - name: areaId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Areas]
+      summary: Location ids covered by an area
+      description: >
+        The location ids covered by an area. With recursive=true (default) it expands the area's
+        subtree (the area plus all descendant areas) via a recursive CTE; with recursive=false it
+        returns only locations assigned directly to this area.
+      operationId: getAreaLocationIds
+      parameters:
+        - name: recursive
+          in: query
+          description: Expand to the area's subtree (true, default) or direct locations only (false).
+          schema: { type: boolean, default: true }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: string, format: uuid }
+        "404": { $ref: '#/components/responses/NotFound' }
+
   # ----------------------------------------------------------- HandlingUnitTypes
   /handling-unit-types:
     get:
@@ -1307,6 +1457,11 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
     NotFound:
       description: Resource not found
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Forbidden (e.g. the operation is admin-only, or the warehouse is out of scope)
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
@@ -1783,6 +1938,11 @@ components:
               format: uuid
               nullable: true
               description: Zone / aisle / grid parent.
+            areaId:
+              type: string
+              format: uuid
+              nullable: true
+              description: The area (zone / sub-zone grouping) this location belongs to; null if unassigned.
             coordinates:
               type: object
               additionalProperties: true
@@ -1814,6 +1974,46 @@ components:
             content:
               type: array
               items: { $ref: '#/components/schemas/Location' }
+
+    # ----------------------------------------------------------------- Area
+    Area:
+      allOf:
+        - $ref: '#/components/schemas/AuditFields'
+        - type: object
+          required: [warehouseId, code]
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+            warehouseId: { type: string, format: uuid }
+            code: { type: string, example: ZONE-A }
+            name: { type: string, nullable: true, example: "Fast-mover zone" }
+            parentAreaId:
+              type: string
+              format: uuid
+              nullable: true
+              description: Parent in the area tree (same warehouse); null at the root.
+            status: { $ref: '#/components/schemas/LifecycleStatus' }
+    AreaResolveResult:
+      type: object
+      description: >
+        Result of resolving an area reference (its code, case-insensitive). "found:false" with a
+        null area signals a miss (still HTTP 200) so a caller can branch on it.
+      properties:
+        found:
+          type: boolean
+          description: True when an area was resolved.
+        area:
+          description: The resolved area identity; null on a miss.
+          allOf: [ { $ref: '#/components/schemas/AreaRef' } ]
+          nullable: true
+      required: [found]
+    AreaRef:
+      type: object
+      description: Area identity returned by a resolve.
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string, nullable: true }
+      required: [id, code]
 
     # ----------------------------------------------------------- HandlingUnitType
     HandlingUnitType:
