@@ -118,6 +118,24 @@ app.post('/api/contact', express.json({ limit: '16kb' }), async (req, res) => {
   }
 });
 
+// --- Live-demo SPA (same-origin sandbox) ------------------------------------
+// The /live-demo marketing page embeds the real app as a read-only, in-browser sandbox via
+// <iframe src="/demo-app/">. The demo bundle is GENERATED OUTPUT (treat it like ui/dist): it is not
+// committed. Produce and place it with:
+//     cd ui && npm run build:demo        # builds the VITE_DEMO variant with base path /demo-app/
+//     cp -r ui/dist-demo/* public/static/demo/   # copy the bundle into the served directory
+// public/static/demo/ is gitignored. Until the bundle is copied in, /demo-app/ returns 404 and the
+// /live-demo page shows its "open the full demo box" fallback link, so the page still renders cleanly.
+const demoDir = path.join(__dirname, 'static', 'demo');
+app.use('/demo-app', express.static(demoDir, { maxAge: '1h', index: 'index.html' }));
+// SPA deep-link fallback: any /demo-app/* path the static middleware did not resolve to a real file
+// returns the demo index.html so client-side routing handles it. Skipped if the bundle is absent.
+app.get('/demo-app/*', (req, res, next) => {
+  res.sendFile(path.join(demoDir, 'index.html'), (err) => {
+    if (err) next(); // bundle not built/copied yet → fall through to the 404 handler
+  });
+});
+
 // Legacy .html URLs (the old static-export scheme) 301 to their clean path — so old inbound links,
 // bookmarks and the retired GitHub Pages mirror keep resolving. /index.html → /, /asrs.html → /asrs.
 // The query string is preserved; fragments are client-side and ride along automatically.
