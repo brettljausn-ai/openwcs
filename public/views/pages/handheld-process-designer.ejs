@@ -137,6 +137,44 @@
   <section>
     <div class="wrap">
       <div class="section-head">
+        <p class="eyebrow" data-i18n="hpd.areaEyebrow">Area-scoped mobile work</p>
+        <h2 data-i18n="hpd.areaH">Sign into your level, get only your level's work.</h2>
+        <p data-i18n="hpd.areaLead">
+          Master data carries first-class <strong>areas</strong> that nest: a building, a level, an
+          aisle range, a zone. An operator picks (or scans) the area they are working on the handheld,
+          and the server hands out only the count lines and replenishment tasks whose location sits
+          inside that area, all the way down its sub-areas. No more walking the whole building.
+        </p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.areaTag1">Nested areas</div><span class="pill pill-built" data-i18n="hpd.areaPill1">Built</span></div>
+          <h3 data-i18n="hpd.areaH1">Zone the warehouse as a tree</h3>
+          <p data-i18n="hpd.areaP1">Areas nest inside areas, so a level can contain aisles and an aisle can contain zones. Each location belongs to an area, and an area's scope is itself plus every sub-area beneath it, resolved in one query.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.areaTag2">Per-user reservation</div><span class="pill pill-built" data-i18n="hpd.areaPill2">Built</span></div>
+          <h3 data-i18n="hpd.areaH2">Two operators never grab the same line</h3>
+          <p data-i18n="hpd.areaP2">When the handheld asks for the next piece of work, the server reserves exactly one line for that operator using a database skip-locked claim. Two people counting the same area each get their own line, never the same one. The reservation becomes a firm claim the moment the first count or move is posted.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="tag" data-i18n="hpd.areaTag3">Self-healing reservations</div><span class="pill pill-built" data-i18n="hpd.areaPill3">Built</span></div>
+          <h3 data-i18n="hpd.areaH3">Close the app, the work comes back</h3>
+          <p data-i18n="hpd.areaP3">An explicit release task frees any line the operator picked up but did not start, and a background sweeper reclaims reservations left behind if the app is closed or the device crashes. Abandoned work never stays stuck to one operator.</p>
+        </div>
+      </div>
+      <p class="lead" data-i18n="hpd.areaNote">
+        This is built from curated tasks you drop into your own flow: a step that fetches the next
+        count line or replenishment task for the chosen area, and a release step on the exit branch.
+        A reference "Stock Check by Area" process ships ready to run: pick an area, count line after
+        line, and release on the way out.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
         <p class="eyebrow" data-i18n="hpd.eyebrow4">Two controlled escape hatches</p>
         <h2 data-i18n="hpd.h4">When a curated task is not enough, safely.</h2>
         <p data-i18n="hpd.p12">
