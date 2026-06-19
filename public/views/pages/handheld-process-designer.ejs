@@ -176,6 +176,7 @@
    handheld PWA pulls active version
         │
         ├─ screen   ─► input / acknowledge / question     (walked <b>offline</b>, branches local)
+        ├─ decision ─► if / else-if / else routing        (walked <b>offline</b>, no server call)
         ├─ scan     ─► resolve vs master data ─► confirm exists, pull ids, pick UoM
         ├─ task step ─► <b>checkpoint</b> ─► curated library ─► audited service (forwarded identity, RBAC)
         └─ resume after blip / device swap ─► continue from last checkpoint</pre>
