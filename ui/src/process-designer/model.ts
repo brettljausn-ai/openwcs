@@ -395,6 +395,31 @@ export interface ProcessInstance {
   def: ProcessDefinition
   data: Record<string, unknown>
   currentStep: string
+  /** The operator the instance is assigned to (the resume launcher + reassign read this). Optional
+   *  for older servers that do not yet return it. */
+  assignedTo?: string | null
+  /** The instance lifecycle status (RUNNING while in-flight). Optional for older servers. */
+  status?: string | null
+  processKey?: string
+}
+
+/** One recorded screen-advance step event (GET /instances/{id}/steps). Drives the replay viewer.
+ *  Posted on every screen advance via POST /instances/{id}/step so the server keeps an exact,
+ *  ordered trail and an exact current_step + data for cross-device resume. */
+export interface StepEvent {
+  id?: string
+  /** Per-instance monotonic sequence number (the idempotency key together with the instance id). */
+  seq: number
+  /** The step the operator just left (the screen they entered/confirmed). */
+  stepId: string
+  /** The step kind, mirrored from the definition (screen type / task / compute / decision). */
+  stepType: string
+  /** The data object captured AT this step (the runtime posts the post-write data). */
+  data: Record<string, unknown>
+  /** Who entered the step (server-stamped from the forwarded identity). */
+  enteredBy?: string | null
+  /** When the step was recorded (server timestamp, ISO). */
+  at?: string | null
 }
 
 /** Checkpoint response (POST /instances/{id}/checkpoint). */
@@ -475,6 +500,9 @@ export interface InstanceSummary {
   status: string
   currentStep?: string | null
   startedBy?: string | null
+  /** The operator the instance is assigned to (the RF-Users screen groups by this; the resume
+   *  launcher filters on it). Optional for older servers; falls back to startedBy where absent. */
+  assignedTo?: string | null
   warehouseId?: string | null
   startedAt?: string | null
   updatedAt?: string | null

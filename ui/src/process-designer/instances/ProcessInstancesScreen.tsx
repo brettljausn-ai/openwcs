@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useT } from '../../i18n/useT'
 import { getInstance, listInstances, listProcesses } from '../api'
 import { isComputeStep, isDecisionStep, isScreenStep, type InstanceSummary, type ProcessInstance, type ProcessSummary } from '../model'
+import ReplayDialog from '../replay/ReplayDialog'
 
 const STATUS_OPTIONS = ['', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED']
 
@@ -33,6 +34,7 @@ export default function ProcessInstancesScreen() {
   const [detail, setDetail] = useState<ProcessInstance | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
+  const [replayId, setReplayId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -178,6 +180,9 @@ export default function ProcessInstancesScreen() {
             <div style={{ padding: '1rem' }}>
               <h3 style={{ marginTop: 0 }}>{detail.def?.title || detailKey || selected}</h3>
               <p className="muted" style={{ marginTop: 0, fontSize: '.8rem', wordBreak: 'break-all' }}>{selected}</p>
+              <button className="btn btn-ghost btn-sm" onClick={() => setReplayId(selected)} style={{ marginBottom: '.5rem' }}>
+                {t('replay', 'Replay run')}
+              </button>
 
               <h4>{t('currentStep', 'Current step')}</h4>
               <p><code>{detail.currentStep || t('completed', '(completed)')}</code></p>
@@ -225,6 +230,14 @@ export default function ProcessInstancesScreen() {
           ) : null}
         </aside>
       </div>
+
+      {replayId && (
+        <ReplayDialog
+          instanceId={replayId}
+          title={detail?.def?.title || keyOf(rows, replayId)}
+          onClose={() => setReplayId(null)}
+        />
+      )}
     </div>
   )
 }

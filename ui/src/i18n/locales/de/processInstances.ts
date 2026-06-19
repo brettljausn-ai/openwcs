@@ -22,4 +22,5 @@ export default {
   here: 'hier',
   dataObject: 'Datenobjekt',
   noData: 'Noch keine Daten erfasst.',
+  replay: 'Lauf abspielen',
 }

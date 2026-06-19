@@ -884,6 +884,14 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
   color: #1a1a1a;
 }
 
+/* "Resume in-progress work" launcher: the operator's RUNNING instances above the process tiles. */
+.op-menu-resume { margin-bottom: 28px; }
+.op-menu-resume .op-menu-title { margin-bottom: 4px; }
+.op-menu-resume-sub { color: var(--text-dim); margin: 0 4px 16px; font-size: 14px; }
+.op-tile-resume { border-color: var(--herbal-lime); }
+.op-tile-resume .op-tile-icon { color: var(--herbal-lime); }
+.op-tile-sub { color: var(--text-dim); font-size: 13px; word-break: break-word; }
+
 /* Process "coming soon" placeholder */
 .op-coming {
   display: flex;
@@ -1261,6 +1269,15 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-pd-dataobj-table th { text-align: left; padding: .3rem .5rem; color: var(--text-dim); white-space: nowrap; vertical-align: top; }
 .op-pd-dataobj-table td { padding: .3rem .5rem; word-break: break-word; }
 @media (max-width: 900px) { .op-pd-instances-grid { grid-template-columns: 1fr; } }
+
+/* Replay viewer (supervisor step-through of a recorded run). */
+.op-pd-replay-bar { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .8rem; }
+.op-pd-replay-pos { font-size: .85rem; color: var(--text-dim); }
+.op-pd-replay-meta { display: flex; flex-wrap: wrap; gap: .25rem 1.2rem; font-size: .8rem; margin-bottom: .8rem; }
+.op-pd-replay-meta strong { color: var(--text-dim); font-weight: 600; }
+.op-pd-replay-screen { margin: .4rem 0 .6rem; }
+.op-pd-replay-nonscreen { padding: 1rem; margin: .4rem 0 .6rem; }
+.op-pd-replay-h { margin: 1rem 0 .35rem; font-size: .82rem; text-transform: uppercase; letter-spacing: .03em; color: var(--text-dim); }
 
 /* Phase 3: sandboxed-script editor + AI task-assist */
 .op-pd-script-help { font-size: .72rem; margin: 0 0 .5rem; line-height: 1.35; }

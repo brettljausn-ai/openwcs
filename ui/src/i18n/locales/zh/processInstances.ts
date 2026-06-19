@@ -22,4 +22,5 @@ export default {
   here: '当前',
   dataObject: '数据对象',
   noData: '尚未捕获数据。',
+  replay: '回放运行',
 }

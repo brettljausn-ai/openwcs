@@ -22,4 +22,5 @@ export default {
   here: 'ici',
   dataObject: 'Objet de données',
   noData: 'Aucune donnée capturée pour le moment.',
+  replay: 'Rejouer l\'exécution',
 }
