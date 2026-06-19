@@ -1333,8 +1333,10 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
   padding: .25rem .75rem;
 }
 .op-gtp-side-label { color: var(--text-dim); }
-/* Bare source content (large image + identity stacked), no inner card border. */
-.op-gtp-source-card { display: flex; }
+/* Source side: centre the image + info vertically in the column instead of top-aligning them. */
+.op-gtp-source { justify-content: center; }
+/* Bare source content (image left, identity to the right), no inner card border. */
+.op-gtp-source-card { display: flex; align-items: center; }
 /* Right side (the cycle): stats + carton + confirm, no inner card border. */
 .op-gtp-cycle { display: flex; flex-direction: column; gap: 1rem; min-height: 0; flex: 1; }
 /* Nice-to-have stats anchored on the right. */
