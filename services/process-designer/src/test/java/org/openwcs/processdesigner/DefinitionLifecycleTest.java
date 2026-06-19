@@ -325,6 +325,12 @@ class DefinitionLifecycleTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$[?(@.type=='counting.capture')]").exists())
                 .andExpect(jsonPath("$[?(@.type=='order.lookup')]").exists())
                 .andExpect(jsonPath("$[?(@.type=='inventory.move')]").exists())
+                // Master Data Areas tasks: area work-claim (counting/slotting) + release.
+                .andExpect(jsonPath("$[?(@.type=='stockcheck.next')].inputs[?(@.name=='areaId' && @.required==true)]").exists())
+                .andExpect(jsonPath("$[?(@.type=='stockcheck.next')].outputs[?(@.name=='lineId')]").exists())
+                .andExpect(jsonPath("$[?(@.type=='replenishment.next')].inputs[?(@.name=='areaId' && @.required==true)]").exists())
+                .andExpect(jsonPath("$[?(@.type=='replenishment.next')].outputs[?(@.name=='toLocationId')]").exists())
+                .andExpect(jsonPath("$[?(@.type=='work.release')]").exists())
                 .andExpect(jsonPath("$[?(@.type=='counting.capture')].inputs[?(@.name=='countedQty' && @.required==true)]").exists())
                 .andExpect(jsonPath("$[?(@.type=='order.lookup')].outputs[?(@.name=='orderRef')]").exists())
                 // Each curated task carries a human description, and inputs/outputs are described too.
