@@ -1880,6 +1880,20 @@ function CycleView({
     }
   }
 
+  // Auto-release: once there are no OPEN puts left (every put confirmed, or no demand to put), close
+  // the cycle and send the HU away automatically. No operator "finish" action is needed.
+  const releasingRef = useRef(false)
+  useEffect(() => {
+    if (openPuts.length > 0) {
+      releasingRef.current = false
+      return
+    }
+    if (releasingRef.current) return
+    releasingRef.current = true
+    void finish()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openPuts.length, cycle.id])
+
   // Submit the focused quantity input. Full pick when value === required qty; short pick when less;
   // clamp values above the required qty down to it; reject negatives / non-numbers.
   function submitQty() {
@@ -1965,10 +1979,7 @@ function CycleView({
           )}
         </form>
       )}
-
-      <button className="btn btn-ghost btn-lg op-gtp-close-cycle" onClick={finish}>
-        {done ? t('finishCloseCycle', 'Finish & close cycle') : t('closeCycle', 'Close cycle (send HU away)')}
-      </button>
+      {/* No manual finish/close button: the tote is released automatically once all puts are confirmed. */}
     </div>
   )
 }
@@ -2090,16 +2101,7 @@ function ToteView({
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem', minWidth: 200 }}>
         <span className="eyebrow">{t('activePut', 'Active put')}</span>
-        {sku?.imageUrl && (
-          <img
-            src={sku.imageUrl}
-            alt={sku.code}
-            style={{ width: 132, height: 132, objectFit: 'cover', borderRadius: 12, border: '1px solid var(--glass-border)' }}
-            onError={(e) => {
-              ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-            }}
-          />
-        )}
+        {/* No product image on the target: it is the same SKU as the source tote shown on the left. */}
         <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{sku ? sku.code : 'SKU'}</div>
         {sku?.description && <div style={{ color: 'var(--text-dim)', fontSize: '.85rem' }}>{sku.description}</div>}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem', marginTop: '.25rem' }}>
