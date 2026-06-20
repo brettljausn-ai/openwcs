@@ -37,7 +37,7 @@
 
 - [done] Conveyor routing :: Vendor-neutral topology graph with per-scan next-hop pathfinding, loop limits, PLC controllers, and topology learned from live scan traffic.
 - [done] ASRS storage logic :: Block-level put-away, re-slotting, in-aisle depth and dual-cycle behaviour, WCS-owned multi-deep channel dig-out (relocation chain before a blocked retrieve), plus empty-HU management for shuttle / crane / AutoStore / AMR-GTP.
-- [done] Goods-to-person stations :: Present one stock HU and put-to-light fills many order destinations most-needed-first; ORDER_LOCATION and PUT_WALL share one engine.
+- [done] Goods-to-person stations :: Configurable pick layouts (ONE_TO_ONE, ONE_TO_N batch slots, PUT_WALL) with physical pick-to-light driven through a PTL adapter; one stock HU fans out most-needed-first across destinations, ORDER_LOCATION and PUT_WALL on one engine.
 - [done] Slotting & replenishment :: Weighted, configurable put-away scoring with self-taught ABC velocity, plus min/max refills, off-peak top-off and direct-to-pick cross-docking.
 - [done] Allocation, cubing & batch :: Pick-location allocation with UoM breakdown, largest-first multi-size cubing into shippers, per-shipper dispatch labels, and batch picking.
 - [done] Event-sourced inventory :: Real-time stock projected from an append-only transaction log — location-scoped availability/ATP, reservations under a lock, idempotent and rebuildable.
@@ -47,18 +47,17 @@
 - [done] Horizontal scaling :: Every service is stateless and replica-safe — relays and schedulers run across replicas, with Kubernetes manifests for scaling out behind any load balancer.
 - [done] Hardware emulator mode :: Every device adapter (conveyors, ASRS, AMR, AutoStore) simulates its machines and telemetry behind a single admin toggle — run the full automation flow with zero physical hardware for evaluation, onboarding, or CI.
 - [done] Live 3D digital twin :: The saved layout rendered live in the browser: equipment coloured idle / running / faulted from real device tasks, totes replaying the actual scan trail, storage fill shown at cell level in the ASRS rack, plus a live AMR fleet (robots coloured by status, carried HU), AutoStore ports (busy / idle) with a grid fill % stat, and live ASRS cranes that glide and lift in the rack, all from emulator telemetry. AMR robots and ASRS cranes are interpolated per frame for metre-exact continuous motion.
-- [done] Operator pick confirmation :: A **scanner-first**, keyboard-wedge-ready picking console over the order-management pick queue: a big glove-friendly next-pick card (location, SKU code / name / image, quantity), auto-confirm at full-qty scan with mismatch warning + vibrate, manual Confirm / Short still available, an **offline confirm queue** that survives a Wi-Fi blip, and an **installable PWA** so the app runs standalone on rugged handhelds. Pick-by-light and voice are further hardware seams; the full GTP station picking workflow is in progress.
+- [done] Operator pick confirmation :: A **scanner-first**, keyboard-wedge-ready picking console over the order-management pick queue: a big glove-friendly next-pick card (location, SKU code / name / image, quantity), auto-confirm at full-qty scan with mismatch warning + vibrate, manual Confirm / Short still available, an **offline confirm queue** that survives a Wi-Fi blip, and an **installable PWA** so the app runs standalone on rugged handhelds. Pick-to-light is now live via a PTL adapter; voice guidance is the one remaining planned seam.
 - [done] Cycle counting :: Count tasks with blind and variance modes and ABC-cadence scheduling, at-station blind counting via the GTP console, and a standalone count-capture screen with variances, recounts and reconciliation.
 - [done] Operational reporting :: A Reporting section with five screens: scan quality per scan point with predictive error trends, a 3D conveyor traffic heatmap, ASRS storage density and movements with 90-day history and 14-day forecasts, per-SKU stock availability split, and inbound/outbound flow with hour-of-day peak maps.
 - [done] Multilanguage UI :: The operator and management SPA ships in English, German, French, Spanish and Chinese with a per-user language preference — no add-on required.
 - [done] Dashboards & alerting :: A landing situation dashboard (Stock-blocking, Inbound, Outbound, Dispatch, Automation, Putaway heroes) plus five deeper screens (inbound/outbound/replenishment/stock/ABC movers with SLA metrics, dock-to-stock timing, and a Pareto chart); a full-screen andon board; ISA-18.2 alert-system-health screen; and threshold-based operator alerting (email + webhook delivery, deduped and cleared automatically).
 - [done] AI assistant :: An in-app chat widget answers questions about orders, transports, stock and handling units by calling the WCS's own read-only APIs under the user's permissions — powered by the Anthropic Claude Messages API tool-use loop. Configured via Settings → AI Assistant (Anthropic key, model, enable/disable). Disabled until an admin sets a key.
 - [done] Configurable handheld process designer :: Design multi-step handheld operator processes in a WYSIWYG editor — screen flows (text, number, scan-verify with barcode/SKU/location resolution, acknowledge, choice), branch conditions, curated task steps calling live WCS endpoints, version management with import/export, and a sandboxed JS scripting escape hatch with design-time AI task-assist. The PWA runtime walks steps on-device with offline checkpoint queuing; active processes appear as tiles on the installed handheld operator menu alongside Picking and Stock Check.
+- [done] Pick guidance & GTP workflow :: Three pick layouts (ONE_TO_ONE, ONE_TO_N batch slots, PUT_WALL) with physical pick-to-light driven through a dedicated PTL adapter; the full GTP station pick workflow — present, put-to-light, confirm, auto-release — is live on top of scanner-first RF picking, allocation and planning.
 
 ## In progress
 > Active development
-
-- [active] Pick guidance & GTP workflow :: Pick-by-light / voice / RF guidance and the full goods-to-person station pick workflow on top of today's built operator pick confirmation, allocation and planning.
 
 ## Next up
 > Designed, build queued
@@ -66,5 +65,6 @@
 ## Exploring
 > On the horizon
 
+- [exploring] Voice pick guidance :: Voice prompting for hands-free operator guidance layered on the existing pick workflow; the hardware seam is a planned adapter.
 - [exploring] AMR fleet integration :: Real device adapters and orchestration for autonomous mobile robot fleets over the uniform device contract; the twin already renders a live AMR fleet from emulator telemetry today.
 - [exploring] AutoStore integration :: A native AutoStore adapter so grid storage joins conveyors and ASRS behind the same vendor-neutral contract; the twin already shows AutoStore ports and grid fill from emulator telemetry today.
