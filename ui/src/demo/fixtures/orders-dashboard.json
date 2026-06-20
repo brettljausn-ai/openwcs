@@ -1,16 +1,16 @@
 {
   "inbound": {
-    "open": 8,
-    "expectedToday": 0,
-    "receiveErrorsToday": 0,
-    "projectedFinishIso": null
+    "open": 9,
+    "expectedToday": 14,
+    "receiveErrorsToday": 1,
+    "projectedFinishIso": "2026-06-20T15:40:00Z"
   },
   "outbound": {
-    "open": 24,
-    "releasedToday": 0,
-    "linesPickedToday": 0,
-    "shortsToday": 0,
-    "projectedFinishIso": null
+    "open": 31,
+    "releasedToday": 26,
+    "linesPickedToday": 612,
+    "shortsToday": 7,
+    "projectedFinishIso": "2026-06-20T18:20:00Z"
   },
   "perHour": [
     {
@@ -46,77 +46,77 @@
     {
       "hour": 6,
       "inbound": 0,
-      "outbound": 0
+      "outbound": 2
     },
     {
       "hour": 7,
-      "inbound": 0,
-      "outbound": 0
+      "inbound": 1,
+      "outbound": 5
     },
     {
       "hour": 8,
-      "inbound": 0,
-      "outbound": 0
+      "inbound": 1,
+      "outbound": 10
     },
     {
       "hour": 9,
-      "inbound": 0,
-      "outbound": 0
+      "inbound": 2,
+      "outbound": 7
     },
     {
       "hour": 10,
-      "inbound": 0,
-      "outbound": 0
+      "inbound": 1,
+      "outbound": 4
     },
     {
       "hour": 11,
-      "inbound": 0,
-      "outbound": 0
+      "inbound": 1,
+      "outbound": 3
     },
     {
       "hour": 12,
-      "inbound": 0,
-      "outbound": 0
+      "inbound": 4,
+      "outbound": 17
     },
     {
       "hour": 13,
-      "inbound": 0,
-      "outbound": 0
+      "inbound": 4,
+      "outbound": 4
     },
     {
       "hour": 14,
-      "inbound": 0,
-      "outbound": 0
+      "inbound": 1,
+      "outbound": 10
     },
     {
       "hour": 15,
       "inbound": 0,
-      "outbound": 0
+      "outbound": 5
     },
     {
       "hour": 16,
-      "inbound": 0,
-      "outbound": 0
+      "inbound": 2,
+      "outbound": 2
     },
     {
       "hour": 17,
-      "inbound": 0,
-      "outbound": 0
+      "inbound": 1,
+      "outbound": 10
     },
     {
       "hour": 18,
       "inbound": 0,
-      "outbound": 0
+      "outbound": 3
     },
     {
       "hour": 19,
-      "inbound": 0,
-      "outbound": 0
+      "inbound": 1,
+      "outbound": 1
     },
     {
       "hour": 20,
       "inbound": 0,
-      "outbound": 0
+      "outbound": 1
     },
     {
       "hour": 21,

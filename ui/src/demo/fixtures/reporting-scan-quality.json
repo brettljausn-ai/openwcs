@@ -1,212 +1,345 @@
 [
   {
-    "node": "DIVERT-A",
-    "day": "2026-06-15",
-    "scans": 60,
-    "noReads": 0,
-    "unknowns": 0
+    "node": "SCAN-TUNNEL-1",
+    "day": "2026-06-13",
+    "scans": 237,
+    "noReads": 2,
+    "unknowns": 1
   },
   {
-    "node": "DIVERT-B",
-    "day": "2026-06-15",
-    "scans": 60,
-    "noReads": 0,
+    "node": "SCAN-TUNNEL-2",
+    "day": "2026-06-13",
+    "scans": 135,
+    "noReads": 1,
     "unknowns": 0
   },
   {
     "node": "INDUCT-1",
-    "day": "2026-06-15",
-    "scans": 60,
-    "noReads": 0,
+    "day": "2026-06-13",
+    "scans": 87,
+    "noReads": 4,
+    "unknowns": 1
+  },
+  {
+    "node": "DIVERT-A",
+    "day": "2026-06-13",
+    "scans": 117,
+    "noReads": 1,
+    "unknowns": 0
+  },
+  {
+    "node": "DIVERT-B",
+    "day": "2026-06-13",
+    "scans": 119,
+    "noReads": 1,
     "unknowns": 0
   },
   {
     "node": "MERGE-1",
-    "day": "2026-06-15",
-    "scans": 60,
+    "day": "2026-06-13",
+    "scans": 266,
+    "noReads": 2,
+    "unknowns": 1
+  },
+  {
+    "node": "PP1#0",
+    "day": "2026-06-13",
+    "scans": 118,
     "noReads": 0,
     "unknowns": 0
   },
   {
     "node": "SCAN-TUNNEL-1",
-    "day": "2026-06-15",
-    "scans": 60,
+    "day": "2026-06-14",
+    "scans": 39,
     "noReads": 0,
     "unknowns": 0
   },
   {
     "node": "SCAN-TUNNEL-2",
-    "day": "2026-06-15",
-    "scans": 60,
-    "noReads": 3,
-    "unknowns": 1
-  },
-  {
-    "node": "ASRS-1#0",
-    "day": "2026-06-16",
-    "scans": 1,
+    "day": "2026-06-14",
+    "scans": 86,
     "noReads": 0,
     "unknowns": 0
   },
   {
-    "node": "ASRS-1#1",
-    "day": "2026-06-16",
-    "scans": 1,
+    "node": "INDUCT-1",
+    "day": "2026-06-14",
+    "scans": 74,
+    "noReads": 1,
+    "unknowns": 0
+  },
+  {
+    "node": "DIVERT-A",
+    "day": "2026-06-14",
+    "scans": 69,
+    "noReads": 1,
+    "unknowns": 0
+  },
+  {
+    "node": "DIVERT-B",
+    "day": "2026-06-14",
+    "scans": 42,
     "noReads": 0,
     "unknowns": 0
   },
   {
-    "node": "ASRS-1#2",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 1
-  },
-  {
-    "node": "ASRS-1#3",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#0",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#1",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#10",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#15",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#16",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#17",
-    "day": "2026-06-16",
-    "scans": 2,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#18",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#19",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#2",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#20",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#21",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#3",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#4",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#5",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#6",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#7",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#8",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#9",
-    "day": "2026-06-16",
-    "scans": 1,
-    "noReads": 0,
-    "unknowns": 0
-  },
-  {
-    "node": "BIN_CONVEYOR-1#fp2",
-    "day": "2026-06-16",
-    "scans": 1,
+    "node": "MERGE-1",
+    "day": "2026-06-14",
+    "scans": 28,
     "noReads": 0,
     "unknowns": 0
   },
   {
     "node": "PP1#0",
+    "day": "2026-06-14",
+    "scans": 76,
+    "noReads": 1,
+    "unknowns": 0
+  },
+  {
+    "node": "SCAN-TUNNEL-1",
+    "day": "2026-06-15",
+    "scans": 414,
+    "noReads": 2,
+    "unknowns": 2
+  },
+  {
+    "node": "SCAN-TUNNEL-2",
+    "day": "2026-06-15",
+    "scans": 276,
+    "noReads": 3,
+    "unknowns": 0
+  },
+  {
+    "node": "INDUCT-1",
+    "day": "2026-06-15",
+    "scans": 453,
+    "noReads": 1,
+    "unknowns": 1
+  },
+  {
+    "node": "DIVERT-A",
+    "day": "2026-06-15",
+    "scans": 505,
+    "noReads": 5,
+    "unknowns": 2
+  },
+  {
+    "node": "DIVERT-B",
+    "day": "2026-06-15",
+    "scans": 185,
+    "noReads": 2,
+    "unknowns": 0
+  },
+  {
+    "node": "MERGE-1",
+    "day": "2026-06-15",
+    "scans": 268,
+    "noReads": 2,
+    "unknowns": 0
+  },
+  {
+    "node": "PP1#0",
+    "day": "2026-06-15",
+    "scans": 497,
+    "noReads": 5,
+    "unknowns": 1
+  },
+  {
+    "node": "SCAN-TUNNEL-1",
     "day": "2026-06-16",
-    "scans": 3,
+    "scans": 555,
+    "noReads": 3,
+    "unknowns": 1
+  },
+  {
+    "node": "SCAN-TUNNEL-2",
+    "day": "2026-06-16",
+    "scans": 478,
+    "noReads": 31,
+    "unknowns": 1
+  },
+  {
+    "node": "INDUCT-1",
+    "day": "2026-06-16",
+    "scans": 355,
+    "noReads": 1,
+    "unknowns": 2
+  },
+  {
+    "node": "DIVERT-A",
+    "day": "2026-06-16",
+    "scans": 291,
+    "noReads": 20,
+    "unknowns": 2
+  },
+  {
+    "node": "DIVERT-B",
+    "day": "2026-06-16",
+    "scans": 241,
+    "noReads": 1,
+    "unknowns": 1
+  },
+  {
+    "node": "MERGE-1",
+    "day": "2026-06-16",
+    "scans": 401,
+    "noReads": 4,
+    "unknowns": 0
+  },
+  {
+    "node": "PP1#0",
+    "day": "2026-06-16",
+    "scans": 495,
+    "noReads": 30,
+    "unknowns": 2
+  },
+  {
+    "node": "SCAN-TUNNEL-1",
+    "day": "2026-06-17",
+    "scans": 236,
+    "noReads": 3,
+    "unknowns": 1
+  },
+  {
+    "node": "SCAN-TUNNEL-2",
+    "day": "2026-06-17",
+    "scans": 392,
+    "noReads": 1,
+    "unknowns": 0
+  },
+  {
+    "node": "INDUCT-1",
+    "day": "2026-06-17",
+    "scans": 327,
+    "noReads": 1,
+    "unknowns": 1
+  },
+  {
+    "node": "DIVERT-A",
+    "day": "2026-06-17",
+    "scans": 197,
+    "noReads": 1,
+    "unknowns": 1
+  },
+  {
+    "node": "DIVERT-B",
+    "day": "2026-06-17",
+    "scans": 423,
     "noReads": 0,
+    "unknowns": 2
+  },
+  {
+    "node": "MERGE-1",
+    "day": "2026-06-17",
+    "scans": 236,
+    "noReads": 2,
+    "unknowns": 0
+  },
+  {
+    "node": "PP1#0",
+    "day": "2026-06-17",
+    "scans": 555,
+    "noReads": 5,
+    "unknowns": 1
+  },
+  {
+    "node": "SCAN-TUNNEL-1",
+    "day": "2026-06-18",
+    "scans": 410,
+    "noReads": 3,
+    "unknowns": 0
+  },
+  {
+    "node": "SCAN-TUNNEL-2",
+    "day": "2026-06-18",
+    "scans": 360,
+    "noReads": 1,
+    "unknowns": 1
+  },
+  {
+    "node": "INDUCT-1",
+    "day": "2026-06-18",
+    "scans": 364,
+    "noReads": 4,
+    "unknowns": 1
+  },
+  {
+    "node": "DIVERT-A",
+    "day": "2026-06-18",
+    "scans": 250,
+    "noReads": 2,
+    "unknowns": 1
+  },
+  {
+    "node": "DIVERT-B",
+    "day": "2026-06-18",
+    "scans": 419,
+    "noReads": 2,
+    "unknowns": 1
+  },
+  {
+    "node": "MERGE-1",
+    "day": "2026-06-18",
+    "scans": 495,
+    "noReads": 27,
+    "unknowns": 0
+  },
+  {
+    "node": "PP1#0",
+    "day": "2026-06-18",
+    "scans": 448,
+    "noReads": 3,
+    "unknowns": 2
+  },
+  {
+    "node": "SCAN-TUNNEL-1",
+    "day": "2026-06-19",
+    "scans": 277,
+    "noReads": 18,
+    "unknowns": 1
+  },
+  {
+    "node": "SCAN-TUNNEL-2",
+    "day": "2026-06-19",
+    "scans": 593,
+    "noReads": 27,
+    "unknowns": 2
+  },
+  {
+    "node": "INDUCT-1",
+    "day": "2026-06-19",
+    "scans": 255,
+    "noReads": 1,
+    "unknowns": 0
+  },
+  {
+    "node": "DIVERT-A",
+    "day": "2026-06-19",
+    "scans": 591,
+    "noReads": 6,
+    "unknowns": 3
+  },
+  {
+    "node": "DIVERT-B",
+    "day": "2026-06-19",
+    "scans": 292,
+    "noReads": 19,
+    "unknowns": 1
+  },
+  {
+    "node": "MERGE-1",
+    "day": "2026-06-19",
+    "scans": 588,
+    "noReads": 6,
+    "unknowns": 0
+  },
+  {
+    "node": "PP1#0",
+    "day": "2026-06-19",
+    "scans": 289,
+    "noReads": 1,
     "unknowns": 1
   }
 ]

@@ -1,23 +1,198 @@
 [
   {
+    "equipment": "ASRS-1",
+    "family": "ASRS",
+    "day": "2026-06-13",
+    "completed": 20,
+    "failed": 2
+  },
+  {
     "equipment": "BIN_CONVEYOR-1",
     "family": "CONVEYOR",
-    "day": "2026-06-15",
-    "completed": 0,
+    "day": "2026-06-13",
+    "completed": 95,
+    "failed": 3
+  },
+  {
+    "equipment": "CONVEYOR",
+    "family": "CONVEYOR",
+    "day": "2026-06-13",
+    "completed": 100,
+    "failed": 0
+  },
+  {
+    "equipment": "SCAN-TUNNEL-1",
+    "family": "SCANNER",
+    "day": "2026-06-13",
+    "completed": 98,
+    "failed": 0
+  },
+  {
+    "equipment": "ASRS-1",
+    "family": "ASRS",
+    "day": "2026-06-14",
+    "completed": 21,
+    "failed": 0
+  },
+  {
+    "equipment": "BIN_CONVEYOR-1",
+    "family": "CONVEYOR",
+    "day": "2026-06-14",
+    "completed": 15,
+    "failed": 0
+  },
+  {
+    "equipment": "CONVEYOR",
+    "family": "CONVEYOR",
+    "day": "2026-06-14",
+    "completed": 36,
     "failed": 1
   },
   {
-    "equipment": "ASRS",
+    "equipment": "SCAN-TUNNEL-1",
+    "family": "SCANNER",
+    "day": "2026-06-14",
+    "completed": 39,
+    "failed": 2
+  },
+  {
+    "equipment": "ASRS-1",
+    "family": "ASRS",
+    "day": "2026-06-15",
+    "completed": 69,
+    "failed": 0
+  },
+  {
+    "equipment": "BIN_CONVEYOR-1",
+    "family": "CONVEYOR",
+    "day": "2026-06-15",
+    "completed": 157,
+    "failed": 0
+  },
+  {
+    "equipment": "CONVEYOR",
+    "family": "CONVEYOR",
+    "day": "2026-06-15",
+    "completed": 106,
+    "failed": 0
+  },
+  {
+    "equipment": "SCAN-TUNNEL-1",
+    "family": "SCANNER",
+    "day": "2026-06-15",
+    "completed": 173,
+    "failed": 0
+  },
+  {
+    "equipment": "ASRS-1",
     "family": "ASRS",
     "day": "2026-06-16",
-    "completed": 2,
+    "completed": 46,
+    "failed": 0
+  },
+  {
+    "equipment": "BIN_CONVEYOR-1",
+    "family": "CONVEYOR",
+    "day": "2026-06-16",
+    "completed": 168,
     "failed": 0
   },
   {
     "equipment": "CONVEYOR",
     "family": "CONVEYOR",
     "day": "2026-06-16",
-    "completed": 2,
+    "completed": 148,
+    "failed": 0
+  },
+  {
+    "equipment": "SCAN-TUNNEL-1",
+    "family": "SCANNER",
+    "day": "2026-06-16",
+    "completed": 220,
+    "failed": 2
+  },
+  {
+    "equipment": "ASRS-1",
+    "family": "ASRS",
+    "day": "2026-06-17",
+    "completed": 95,
+    "failed": 0
+  },
+  {
+    "equipment": "BIN_CONVEYOR-1",
+    "family": "CONVEYOR",
+    "day": "2026-06-17",
+    "completed": 206,
+    "failed": 2
+  },
+  {
+    "equipment": "CONVEYOR",
+    "family": "CONVEYOR",
+    "day": "2026-06-17",
+    "completed": 217,
+    "failed": 2
+  },
+  {
+    "equipment": "SCAN-TUNNEL-1",
+    "family": "SCANNER",
+    "day": "2026-06-17",
+    "completed": 259,
+    "failed": 0
+  },
+  {
+    "equipment": "ASRS-1",
+    "family": "ASRS",
+    "day": "2026-06-18",
+    "completed": 226,
+    "failed": 0
+  },
+  {
+    "equipment": "BIN_CONVEYOR-1",
+    "family": "CONVEYOR",
+    "day": "2026-06-18",
+    "completed": 90,
+    "failed": 3
+  },
+  {
+    "equipment": "CONVEYOR",
+    "family": "CONVEYOR",
+    "day": "2026-06-18",
+    "completed": 78,
+    "failed": 0
+  },
+  {
+    "equipment": "SCAN-TUNNEL-1",
+    "family": "SCANNER",
+    "day": "2026-06-18",
+    "completed": 176,
+    "failed": 0
+  },
+  {
+    "equipment": "ASRS-1",
+    "family": "ASRS",
+    "day": "2026-06-19",
+    "completed": 152,
+    "failed": 0
+  },
+  {
+    "equipment": "BIN_CONVEYOR-1",
+    "family": "CONVEYOR",
+    "day": "2026-06-19",
+    "completed": 102,
+    "failed": 0
+  },
+  {
+    "equipment": "CONVEYOR",
+    "family": "CONVEYOR",
+    "day": "2026-06-19",
+    "completed": 122,
+    "failed": 1
+  },
+  {
+    "equipment": "SCAN-TUNNEL-1",
+    "family": "SCANNER",
+    "day": "2026-06-19",
+    "completed": 72,
     "failed": 0
   }
 ]

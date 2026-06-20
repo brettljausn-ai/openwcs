@@ -1,4 +1,37 @@
 {
-  "nextDeparture": null,
-  "routes": []
+  "nextDeparture": {
+    "routeCode": "DPD-EVENING",
+    "cutoffIso": "2026-06-20T16:00:00Z",
+    "secondsToCutoff": 7200
+  },
+  "routes": [
+    {
+      "routeCode": "DPD-EVENING",
+      "cutoffIso": "2026-06-20T16:00:00Z",
+      "ordersAssigned": 48,
+      "ordersReady": 41,
+      "status": "LOADING"
+    },
+    {
+      "routeCode": "DHL-EXPRESS",
+      "cutoffIso": "2026-06-20T17:30:00Z",
+      "ordersAssigned": 22,
+      "ordersReady": 9,
+      "status": "OPEN"
+    },
+    {
+      "routeCode": "UPS-STANDARD",
+      "cutoffIso": "2026-06-20T19:00:00Z",
+      "ordersAssigned": 35,
+      "ordersReady": 12,
+      "status": "OPEN"
+    },
+    {
+      "routeCode": "GLS-NEXTDAY",
+      "cutoffIso": "2026-06-20T14:30:00Z",
+      "ordersAssigned": 18,
+      "ordersReady": 18,
+      "status": "DEPARTED"
+    }
+  ]
 }

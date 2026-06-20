@@ -1,14 +1,362 @@
 [
   {
-    "locationId": "28a2a439-ce98-427e-955e-2ea723b3393f",
-    "day": "2026-06-16",
-    "stores": 1,
+    "locationId": "c6215096-b8a7-485e-900d-299c6a960cfb",
+    "day": "2026-06-15",
+    "stores": 6,
+    "retrieves": 4
+  },
+  {
+    "locationId": "92f5bfed-688d-4f21-916e-4e7c63e29b3e",
+    "day": "2026-06-15",
+    "stores": 6,
+    "retrieves": 7
+  },
+  {
+    "locationId": "a193bb44-258f-42f1-867f-53255da3b778",
+    "day": "2026-06-15",
+    "stores": 0,
+    "retrieves": 7
+  },
+  {
+    "locationId": "d52c72a3-4720-4909-88f8-8d691c3f87fd",
+    "day": "2026-06-15",
+    "stores": 4,
+    "retrieves": 4
+  },
+  {
+    "locationId": "b2bf5ad7-5aae-4878-a2e5-0bce9d7ece73",
+    "day": "2026-06-15",
+    "stores": 6,
+    "retrieves": 5
+  },
+  {
+    "locationId": "85b8a26b-a259-4027-8cd5-7bcadb62095c",
+    "day": "2026-06-15",
+    "stores": 4,
+    "retrieves": 4
+  },
+  {
+    "locationId": "128f49b2-8dbd-4581-8883-c80557de06bb",
+    "day": "2026-06-15",
+    "stores": 2,
+    "retrieves": 8
+  },
+  {
+    "locationId": "0c10cfe0-2f17-44cc-9dc9-43118ab4e67c",
+    "day": "2026-06-15",
+    "stores": 5,
+    "retrieves": 3
+  },
+  {
+    "locationId": "1a82e84b-690a-40df-a786-d4d890746c19",
+    "day": "2026-06-15",
+    "stores": 3,
+    "retrieves": 8
+  },
+  {
+    "locationId": "7c76b8a0-b8f4-45bb-a0a0-3b8e2638218b",
+    "day": "2026-06-15",
+    "stores": 5,
     "retrieves": 0
+  },
+  {
+    "locationId": "293477e5-cf21-452f-9785-39b27d471ddb",
+    "day": "2026-06-15",
+    "stores": 3,
+    "retrieves": 5
+  },
+  {
+    "locationId": "acd1644d-1be4-4b6d-8677-96ec4d9cb55d",
+    "day": "2026-06-15",
+    "stores": 2,
+    "retrieves": 5
   },
   {
     "locationId": "c6215096-b8a7-485e-900d-299c6a960cfb",
     "day": "2026-06-16",
+    "stores": 6,
+    "retrieves": 8
+  },
+  {
+    "locationId": "92f5bfed-688d-4f21-916e-4e7c63e29b3e",
+    "day": "2026-06-16",
+    "stores": 2,
+    "retrieves": 4
+  },
+  {
+    "locationId": "a193bb44-258f-42f1-867f-53255da3b778",
+    "day": "2026-06-16",
+    "stores": 5,
+    "retrieves": 5
+  },
+  {
+    "locationId": "d52c72a3-4720-4909-88f8-8d691c3f87fd",
+    "day": "2026-06-16",
+    "stores": 3,
+    "retrieves": 2
+  },
+  {
+    "locationId": "b2bf5ad7-5aae-4878-a2e5-0bce9d7ece73",
+    "day": "2026-06-16",
+    "stores": 3,
+    "retrieves": 8
+  },
+  {
+    "locationId": "85b8a26b-a259-4027-8cd5-7bcadb62095c",
+    "day": "2026-06-16",
+    "stores": 3,
+    "retrieves": 0
+  },
+  {
+    "locationId": "128f49b2-8dbd-4581-8883-c80557de06bb",
+    "day": "2026-06-16",
+    "stores": 2,
+    "retrieves": 2
+  },
+  {
+    "locationId": "0c10cfe0-2f17-44cc-9dc9-43118ab4e67c",
+    "day": "2026-06-16",
+    "stores": 5,
+    "retrieves": 2
+  },
+  {
+    "locationId": "1a82e84b-690a-40df-a786-d4d890746c19",
+    "day": "2026-06-16",
+    "stores": 3,
+    "retrieves": 8
+  },
+  {
+    "locationId": "7c76b8a0-b8f4-45bb-a0a0-3b8e2638218b",
+    "day": "2026-06-16",
+    "stores": 1,
+    "retrieves": 3
+  },
+  {
+    "locationId": "293477e5-cf21-452f-9785-39b27d471ddb",
+    "day": "2026-06-16",
+    "stores": 5,
+    "retrieves": 8
+  },
+  {
+    "locationId": "acd1644d-1be4-4b6d-8677-96ec4d9cb55d",
+    "day": "2026-06-16",
+    "stores": 3,
+    "retrieves": 7
+  },
+  {
+    "locationId": "c6215096-b8a7-485e-900d-299c6a960cfb",
+    "day": "2026-06-17",
     "stores": 0,
+    "retrieves": 0
+  },
+  {
+    "locationId": "92f5bfed-688d-4f21-916e-4e7c63e29b3e",
+    "day": "2026-06-17",
+    "stores": 1,
+    "retrieves": 0
+  },
+  {
+    "locationId": "a193bb44-258f-42f1-867f-53255da3b778",
+    "day": "2026-06-17",
+    "stores": 0,
+    "retrieves": 1
+  },
+  {
+    "locationId": "d52c72a3-4720-4909-88f8-8d691c3f87fd",
+    "day": "2026-06-17",
+    "stores": 2,
+    "retrieves": 1
+  },
+  {
+    "locationId": "b2bf5ad7-5aae-4878-a2e5-0bce9d7ece73",
+    "day": "2026-06-17",
+    "stores": 4,
+    "retrieves": 3
+  },
+  {
+    "locationId": "85b8a26b-a259-4027-8cd5-7bcadb62095c",
+    "day": "2026-06-17",
+    "stores": 3,
+    "retrieves": 6
+  },
+  {
+    "locationId": "128f49b2-8dbd-4581-8883-c80557de06bb",
+    "day": "2026-06-17",
+    "stores": 4,
+    "retrieves": 2
+  },
+  {
+    "locationId": "0c10cfe0-2f17-44cc-9dc9-43118ab4e67c",
+    "day": "2026-06-17",
+    "stores": 1,
+    "retrieves": 6
+  },
+  {
+    "locationId": "1a82e84b-690a-40df-a786-d4d890746c19",
+    "day": "2026-06-17",
+    "stores": 2,
+    "retrieves": 0
+  },
+  {
+    "locationId": "7c76b8a0-b8f4-45bb-a0a0-3b8e2638218b",
+    "day": "2026-06-17",
+    "stores": 5,
+    "retrieves": 1
+  },
+  {
+    "locationId": "293477e5-cf21-452f-9785-39b27d471ddb",
+    "day": "2026-06-17",
+    "stores": 3,
+    "retrieves": 4
+  },
+  {
+    "locationId": "acd1644d-1be4-4b6d-8677-96ec4d9cb55d",
+    "day": "2026-06-17",
+    "stores": 1,
+    "retrieves": 7
+  },
+  {
+    "locationId": "c6215096-b8a7-485e-900d-299c6a960cfb",
+    "day": "2026-06-18",
+    "stores": 0,
+    "retrieves": 8
+  },
+  {
+    "locationId": "92f5bfed-688d-4f21-916e-4e7c63e29b3e",
+    "day": "2026-06-18",
+    "stores": 2,
+    "retrieves": 7
+  },
+  {
+    "locationId": "a193bb44-258f-42f1-867f-53255da3b778",
+    "day": "2026-06-18",
+    "stores": 3,
+    "retrieves": 1
+  },
+  {
+    "locationId": "d52c72a3-4720-4909-88f8-8d691c3f87fd",
+    "day": "2026-06-18",
+    "stores": 0,
+    "retrieves": 2
+  },
+  {
+    "locationId": "b2bf5ad7-5aae-4878-a2e5-0bce9d7ece73",
+    "day": "2026-06-18",
+    "stores": 6,
+    "retrieves": 1
+  },
+  {
+    "locationId": "85b8a26b-a259-4027-8cd5-7bcadb62095c",
+    "day": "2026-06-18",
+    "stores": 3,
+    "retrieves": 8
+  },
+  {
+    "locationId": "128f49b2-8dbd-4581-8883-c80557de06bb",
+    "day": "2026-06-18",
+    "stores": 0,
+    "retrieves": 2
+  },
+  {
+    "locationId": "0c10cfe0-2f17-44cc-9dc9-43118ab4e67c",
+    "day": "2026-06-18",
+    "stores": 4,
+    "retrieves": 1
+  },
+  {
+    "locationId": "1a82e84b-690a-40df-a786-d4d890746c19",
+    "day": "2026-06-18",
+    "stores": 0,
+    "retrieves": 7
+  },
+  {
+    "locationId": "7c76b8a0-b8f4-45bb-a0a0-3b8e2638218b",
+    "day": "2026-06-18",
+    "stores": 2,
+    "retrieves": 5
+  },
+  {
+    "locationId": "293477e5-cf21-452f-9785-39b27d471ddb",
+    "day": "2026-06-18",
+    "stores": 4,
+    "retrieves": 5
+  },
+  {
+    "locationId": "acd1644d-1be4-4b6d-8677-96ec4d9cb55d",
+    "day": "2026-06-18",
+    "stores": 3,
+    "retrieves": 5
+  },
+  {
+    "locationId": "c6215096-b8a7-485e-900d-299c6a960cfb",
+    "day": "2026-06-19",
+    "stores": 0,
+    "retrieves": 6
+  },
+  {
+    "locationId": "92f5bfed-688d-4f21-916e-4e7c63e29b3e",
+    "day": "2026-06-19",
+    "stores": 6,
+    "retrieves": 0
+  },
+  {
+    "locationId": "a193bb44-258f-42f1-867f-53255da3b778",
+    "day": "2026-06-19",
+    "stores": 4,
+    "retrieves": 2
+  },
+  {
+    "locationId": "d52c72a3-4720-4909-88f8-8d691c3f87fd",
+    "day": "2026-06-19",
+    "stores": 5,
+    "retrieves": 6
+  },
+  {
+    "locationId": "b2bf5ad7-5aae-4878-a2e5-0bce9d7ece73",
+    "day": "2026-06-19",
+    "stores": 3,
+    "retrieves": 3
+  },
+  {
+    "locationId": "85b8a26b-a259-4027-8cd5-7bcadb62095c",
+    "day": "2026-06-19",
+    "stores": 1,
+    "retrieves": 7
+  },
+  {
+    "locationId": "128f49b2-8dbd-4581-8883-c80557de06bb",
+    "day": "2026-06-19",
+    "stores": 6,
+    "retrieves": 0
+  },
+  {
+    "locationId": "0c10cfe0-2f17-44cc-9dc9-43118ab4e67c",
+    "day": "2026-06-19",
+    "stores": 1,
+    "retrieves": 6
+  },
+  {
+    "locationId": "1a82e84b-690a-40df-a786-d4d890746c19",
+    "day": "2026-06-19",
+    "stores": 4,
+    "retrieves": 8
+  },
+  {
+    "locationId": "7c76b8a0-b8f4-45bb-a0a0-3b8e2638218b",
+    "day": "2026-06-19",
+    "stores": 5,
+    "retrieves": 2
+  },
+  {
+    "locationId": "293477e5-cf21-452f-9785-39b27d471ddb",
+    "day": "2026-06-19",
+    "stores": 1,
+    "retrieves": 6
+  },
+  {
+    "locationId": "acd1644d-1be4-4b6d-8677-96ec4d9cb55d",
+    "day": "2026-06-19",
+    "stores": 5,
     "retrieves": 1
   }
 ]

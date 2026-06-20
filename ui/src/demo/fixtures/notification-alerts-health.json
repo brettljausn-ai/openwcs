@@ -11,68 +11,68 @@
     },
     {
       "day": "2026-06-07",
-      "opened": 1,
-      "cleared": 1
+      "opened": 3,
+      "cleared": 3
     },
     {
       "day": "2026-06-08",
-      "opened": 0,
-      "cleared": 0
+      "opened": 2,
+      "cleared": 3
     },
     {
       "day": "2026-06-09",
-      "opened": 1,
-      "cleared": 1
+      "opened": 3,
+      "cleared": 5
     },
     {
       "day": "2026-06-10",
       "opened": 0,
-      "cleared": 0
+      "cleared": 1
     },
     {
       "day": "2026-06-11",
-      "opened": 2,
-      "cleared": 2
+      "opened": 4,
+      "cleared": 4
     },
     {
       "day": "2026-06-12",
-      "opened": 1,
-      "cleared": 1
+      "opened": 0,
+      "cleared": 0
     },
     {
       "day": "2026-06-13",
       "opened": 3,
-      "cleared": 2
+      "cleared": 4
     },
     {
       "day": "2026-06-14",
-      "opened": 1,
-      "cleared": 1
+      "opened": 2,
+      "cleared": 2
     },
     {
       "day": "2026-06-15",
-      "opened": 3,
+      "opened": 1,
       "cleared": 0
     },
     {
       "day": "2026-06-16",
-      "opened": 0,
-      "cleared": 0
+      "opened": 3,
+      "cleared": 4
     },
     {
       "day": "2026-06-17",
-      "opened": 0,
-      "cleared": 0
+      "opened": 4,
+      "cleared": 6
     },
     {
       "day": "2026-06-18",
-      "opened": 0,
-      "cleared": 0
+      "opened": 2,
+      "cleared": 3
     },
     {
       "day": "2026-06-19",
-      "opened": 0,
-      "cleared": 0
+      "opened": 5,
+      "cleared": 4
     }
   ],
   "chattering": [

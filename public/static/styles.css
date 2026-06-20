@@ -661,6 +661,21 @@ footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; g
   .contact-overlay, .contact-dialog { transition: none; }
 }
 
+/* --- Live-demo guide ("where to go" tour above the embed) ------------------ */
+.ld-guide-section .lead { max-width: 760px; margin-bottom: 1.6rem; }
+.ld-guide-list { list-style: none; margin: 0; padding: 0; }
+.ld-guide-list li {
+  position: relative; padding: .55rem 0 .55rem 1.4rem; color: var(--text-dim);
+  border-bottom: 1px solid var(--glass-border);
+}
+.ld-guide-list li:last-child { border-bottom: 0; }
+.ld-guide-list li::before {
+  content: "›"; position: absolute; left: 0; top: .55rem; color: var(--herbal-lime); font-weight: 700;
+}
+.ld-guide-list li strong { color: var(--text); }
+.ld-guide-note { margin-top: 1rem; color: var(--text-faint); font-size: .92rem; }
+.ld-guide-note strong { color: var(--text-dim); }
+
 /* --- Live-demo embed (the same-origin sandbox iframe on /live-demo) --------- */
 .ld-embed-section .wrap { max-width: var(--maxw-wide); }
 .ld-embed-bar {

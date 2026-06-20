@@ -1,58 +1,100 @@
 [
   {
     "blockId": "6d582eab-3865-4da0-9198-6c92685fe771",
-    "day": "2026-06-12",
-    "occupiedCells": 74,
+    "day": "2026-06-06",
+    "occupiedCells": 479,
     "totalCells": 801,
-    "pct": 9.238451935081148
+    "pct": 59.8
+  },
+  {
+    "blockId": "6d582eab-3865-4da0-9198-6c92685fe771",
+    "day": "2026-06-07",
+    "occupiedCells": 476,
+    "totalCells": 801,
+    "pct": 59.43
+  },
+  {
+    "blockId": "6d582eab-3865-4da0-9198-6c92685fe771",
+    "day": "2026-06-08",
+    "occupiedCells": 487,
+    "totalCells": 801,
+    "pct": 60.8
+  },
+  {
+    "blockId": "6d582eab-3865-4da0-9198-6c92685fe771",
+    "day": "2026-06-09",
+    "occupiedCells": 491,
+    "totalCells": 801,
+    "pct": 61.3
+  },
+  {
+    "blockId": "6d582eab-3865-4da0-9198-6c92685fe771",
+    "day": "2026-06-10",
+    "occupiedCells": 496,
+    "totalCells": 801,
+    "pct": 61.92
+  },
+  {
+    "blockId": "6d582eab-3865-4da0-9198-6c92685fe771",
+    "day": "2026-06-11",
+    "occupiedCells": 496,
+    "totalCells": 801,
+    "pct": 61.92
+  },
+  {
+    "blockId": "6d582eab-3865-4da0-9198-6c92685fe771",
+    "day": "2026-06-12",
+    "occupiedCells": 500,
+    "totalCells": 801,
+    "pct": 62.42
   },
   {
     "blockId": "6d582eab-3865-4da0-9198-6c92685fe771",
     "day": "2026-06-13",
-    "occupiedCells": 72,
+    "occupiedCells": 512,
     "totalCells": 801,
-    "pct": 8.98876404494382
+    "pct": 63.92
   },
   {
     "blockId": "6d582eab-3865-4da0-9198-6c92685fe771",
     "day": "2026-06-14",
-    "occupiedCells": 74,
+    "occupiedCells": 515,
     "totalCells": 801,
-    "pct": 9.238451935081148
+    "pct": 64.29
   },
   {
     "blockId": "6d582eab-3865-4da0-9198-6c92685fe771",
     "day": "2026-06-15",
-    "occupiedCells": 74,
+    "occupiedCells": 525,
     "totalCells": 801,
-    "pct": 9.238451935081148
+    "pct": 65.54
   },
   {
     "blockId": "6d582eab-3865-4da0-9198-6c92685fe771",
     "day": "2026-06-16",
-    "occupiedCells": 74,
+    "occupiedCells": 532,
     "totalCells": 801,
-    "pct": 9.238451935081148
+    "pct": 66.42
   },
   {
     "blockId": "6d582eab-3865-4da0-9198-6c92685fe771",
     "day": "2026-06-17",
-    "occupiedCells": 74,
+    "occupiedCells": 541,
     "totalCells": 801,
-    "pct": 9.238451935081148
+    "pct": 67.54
   },
   {
     "blockId": "6d582eab-3865-4da0-9198-6c92685fe771",
     "day": "2026-06-18",
-    "occupiedCells": 74,
+    "occupiedCells": 550,
     "totalCells": 801,
-    "pct": 9.238451935081148
+    "pct": 68.66
   },
   {
     "blockId": "6d582eab-3865-4da0-9198-6c92685fe771",
     "day": "2026-06-19",
-    "occupiedCells": 74,
+    "occupiedCells": 561,
     "totalCells": 801,
-    "pct": 9.238451935081148
+    "pct": 70.04
   }
 ]

@@ -2,145 +2,433 @@
   {
     "fromNode": "ASRS-1#1",
     "toNode": "ASRS-1#0",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 202
   },
   {
     "fromNode": "ASRS-1#2",
     "toNode": "ASRS-1#3",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 157
   },
   {
     "fromNode": "ASRS-1#3",
     "toNode": "BIN_CONVEYOR-1#9",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 177
   },
   {
     "fromNode": "BIN_CONVEYOR-1#0",
     "toNode": "BIN_CONVEYOR-1#1",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 378
   },
   {
     "fromNode": "BIN_CONVEYOR-1#1",
     "toNode": "BIN_CONVEYOR-1#2",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 52
   },
   {
     "fromNode": "BIN_CONVEYOR-1#10",
     "toNode": "BIN_CONVEYOR-1#5",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 378
   },
   {
     "fromNode": "BIN_CONVEYOR-1#15",
     "toNode": "BIN_CONVEYOR-1#16",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 217
   },
   {
     "fromNode": "BIN_CONVEYOR-1#16",
     "toNode": "BIN_CONVEYOR-1#17",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 103
   },
   {
     "fromNode": "BIN_CONVEYOR-1#17",
     "toNode": "BIN_CONVEYOR-1#18",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 203
   },
   {
     "fromNode": "BIN_CONVEYOR-1#17",
     "toNode": "PP1#0",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 334
   },
   {
     "fromNode": "BIN_CONVEYOR-1#18",
     "toNode": "BIN_CONVEYOR-1#19",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 82
   },
   {
     "fromNode": "BIN_CONVEYOR-1#19",
     "toNode": "BIN_CONVEYOR-1#20",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 280
   },
   {
     "fromNode": "BIN_CONVEYOR-1#2",
     "toNode": "BIN_CONVEYOR-1#8",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 77
   },
   {
     "fromNode": "BIN_CONVEYOR-1#20",
     "toNode": "BIN_CONVEYOR-1#21",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 339
   },
   {
     "fromNode": "BIN_CONVEYOR-1#21",
     "toNode": "BIN_CONVEYOR-1#7",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 249
   },
   {
     "fromNode": "BIN_CONVEYOR-1#3",
     "toNode": "BIN_CONVEYOR-1#fp2",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 136
   },
   {
     "fromNode": "BIN_CONVEYOR-1#4",
     "toNode": "BIN_CONVEYOR-1#10",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 299
   },
   {
     "fromNode": "BIN_CONVEYOR-1#5",
     "toNode": "BIN_CONVEYOR-1#6",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 299
   },
   {
     "fromNode": "BIN_CONVEYOR-1#6",
     "toNode": "BIN_CONVEYOR-1#15",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 376
   },
   {
     "fromNode": "BIN_CONVEYOR-1#7",
     "toNode": "BIN_CONVEYOR-1#0",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 331
   },
   {
     "fromNode": "BIN_CONVEYOR-1#8",
     "toNode": "ASRS-1#1",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 96
   },
   {
     "fromNode": "BIN_CONVEYOR-1#9",
     "toNode": "BIN_CONVEYOR-1#3",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 62
   },
   {
     "fromNode": "BIN_CONVEYOR-1#fp2",
     "toNode": "BIN_CONVEYOR-1#4",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 141
   },
   {
     "fromNode": "PP1#0",
     "toNode": "BIN_CONVEYOR-1#17",
-    "day": "2026-06-16",
-    "count": 1
+    "day": "2026-06-17",
+    "count": 278
+  },
+  {
+    "fromNode": "ASRS-1#1",
+    "toNode": "ASRS-1#0",
+    "day": "2026-06-18",
+    "count": 240
+  },
+  {
+    "fromNode": "ASRS-1#2",
+    "toNode": "ASRS-1#3",
+    "day": "2026-06-18",
+    "count": 40
+  },
+  {
+    "fromNode": "ASRS-1#3",
+    "toNode": "BIN_CONVEYOR-1#9",
+    "day": "2026-06-18",
+    "count": 350
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#0",
+    "toNode": "BIN_CONVEYOR-1#1",
+    "day": "2026-06-18",
+    "count": 335
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#1",
+    "toNode": "BIN_CONVEYOR-1#2",
+    "day": "2026-06-18",
+    "count": 279
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#10",
+    "toNode": "BIN_CONVEYOR-1#5",
+    "day": "2026-06-18",
+    "count": 119
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#15",
+    "toNode": "BIN_CONVEYOR-1#16",
+    "day": "2026-06-18",
+    "count": 365
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#16",
+    "toNode": "BIN_CONVEYOR-1#17",
+    "day": "2026-06-18",
+    "count": 341
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#17",
+    "toNode": "BIN_CONVEYOR-1#18",
+    "day": "2026-06-18",
+    "count": 136
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#17",
+    "toNode": "PP1#0",
+    "day": "2026-06-18",
+    "count": 53
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#18",
+    "toNode": "BIN_CONVEYOR-1#19",
+    "day": "2026-06-18",
+    "count": 212
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#19",
+    "toNode": "BIN_CONVEYOR-1#20",
+    "day": "2026-06-18",
+    "count": 65
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#2",
+    "toNode": "BIN_CONVEYOR-1#8",
+    "day": "2026-06-18",
+    "count": 351
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#20",
+    "toNode": "BIN_CONVEYOR-1#21",
+    "day": "2026-06-18",
+    "count": 146
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#21",
+    "toNode": "BIN_CONVEYOR-1#7",
+    "day": "2026-06-18",
+    "count": 316
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#3",
+    "toNode": "BIN_CONVEYOR-1#fp2",
+    "day": "2026-06-18",
+    "count": 85
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#4",
+    "toNode": "BIN_CONVEYOR-1#10",
+    "day": "2026-06-18",
+    "count": 137
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#5",
+    "toNode": "BIN_CONVEYOR-1#6",
+    "day": "2026-06-18",
+    "count": 284
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#6",
+    "toNode": "BIN_CONVEYOR-1#15",
+    "day": "2026-06-18",
+    "count": 170
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#7",
+    "toNode": "BIN_CONVEYOR-1#0",
+    "day": "2026-06-18",
+    "count": 102
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#8",
+    "toNode": "ASRS-1#1",
+    "day": "2026-06-18",
+    "count": 46
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#9",
+    "toNode": "BIN_CONVEYOR-1#3",
+    "day": "2026-06-18",
+    "count": 298
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#fp2",
+    "toNode": "BIN_CONVEYOR-1#4",
+    "day": "2026-06-18",
+    "count": 259
+  },
+  {
+    "fromNode": "PP1#0",
+    "toNode": "BIN_CONVEYOR-1#17",
+    "day": "2026-06-18",
+    "count": 264
+  },
+  {
+    "fromNode": "ASRS-1#1",
+    "toNode": "ASRS-1#0",
+    "day": "2026-06-19",
+    "count": 63
+  },
+  {
+    "fromNode": "ASRS-1#2",
+    "toNode": "ASRS-1#3",
+    "day": "2026-06-19",
+    "count": 249
+  },
+  {
+    "fromNode": "ASRS-1#3",
+    "toNode": "BIN_CONVEYOR-1#9",
+    "day": "2026-06-19",
+    "count": 113
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#0",
+    "toNode": "BIN_CONVEYOR-1#1",
+    "day": "2026-06-19",
+    "count": 284
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#1",
+    "toNode": "BIN_CONVEYOR-1#2",
+    "day": "2026-06-19",
+    "count": 126
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#10",
+    "toNode": "BIN_CONVEYOR-1#5",
+    "day": "2026-06-19",
+    "count": 345
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#15",
+    "toNode": "BIN_CONVEYOR-1#16",
+    "day": "2026-06-19",
+    "count": 247
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#16",
+    "toNode": "BIN_CONVEYOR-1#17",
+    "day": "2026-06-19",
+    "count": 187
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#17",
+    "toNode": "BIN_CONVEYOR-1#18",
+    "day": "2026-06-19",
+    "count": 167
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#17",
+    "toNode": "PP1#0",
+    "day": "2026-06-19",
+    "count": 129
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#18",
+    "toNode": "BIN_CONVEYOR-1#19",
+    "day": "2026-06-19",
+    "count": 303
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#19",
+    "toNode": "BIN_CONVEYOR-1#20",
+    "day": "2026-06-19",
+    "count": 300
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#2",
+    "toNode": "BIN_CONVEYOR-1#8",
+    "day": "2026-06-19",
+    "count": 261
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#20",
+    "toNode": "BIN_CONVEYOR-1#21",
+    "day": "2026-06-19",
+    "count": 139
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#21",
+    "toNode": "BIN_CONVEYOR-1#7",
+    "day": "2026-06-19",
+    "count": 138
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#3",
+    "toNode": "BIN_CONVEYOR-1#fp2",
+    "day": "2026-06-19",
+    "count": 116
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#4",
+    "toNode": "BIN_CONVEYOR-1#10",
+    "day": "2026-06-19",
+    "count": 139
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#5",
+    "toNode": "BIN_CONVEYOR-1#6",
+    "day": "2026-06-19",
+    "count": 254
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#6",
+    "toNode": "BIN_CONVEYOR-1#15",
+    "day": "2026-06-19",
+    "count": 122
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#7",
+    "toNode": "BIN_CONVEYOR-1#0",
+    "day": "2026-06-19",
+    "count": 222
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#8",
+    "toNode": "ASRS-1#1",
+    "day": "2026-06-19",
+    "count": 212
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#9",
+    "toNode": "BIN_CONVEYOR-1#3",
+    "day": "2026-06-19",
+    "count": 368
+  },
+  {
+    "fromNode": "BIN_CONVEYOR-1#fp2",
+    "toNode": "BIN_CONVEYOR-1#4",
+    "day": "2026-06-19",
+    "count": 262
+  },
+  {
+    "fromNode": "PP1#0",
+    "toNode": "BIN_CONVEYOR-1#17",
+    "day": "2026-06-19",
+    "count": 267
   }
 ]

@@ -1,6 +1,6 @@
 {
-  "scanNoReadPctToday": 0,
-  "equipmentAvailabilityPct": 80,
+  "scanNoReadPctToday": 1.8,
+  "equipmentAvailabilityPct": 97,
   "equipmentTotal": 5,
-  "equipmentInFault": 1
+  "equipmentInFault": 0
 }
