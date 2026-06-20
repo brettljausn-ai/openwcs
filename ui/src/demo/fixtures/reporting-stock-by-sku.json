@@ -1,146 +1,242 @@
 [
   {
-    "skuId": "859d7293-287d-4ec5-a9f1-a3d5831eb0fb",
-    "available": 13,
-    "allocated": 0,
-    "unavailable": 0
-  },
-  {
-    "skuId": "a140056b-03f3-4705-83fe-ee12827ac59c",
-    "available": 8,
-    "allocated": 0,
-    "unavailable": 0
-  },
-  {
     "skuId": "a6ad02de-186b-40f5-8b93-b72f64b38c95",
-    "available": 5,
-    "allocated": 0,
+    "available": 62,
+    "allocated": 12,
     "unavailable": 0
   },
   {
     "skuId": "c1d05de0-5bfc-4e2c-a806-53b415f30d0a",
-    "available": 44,
-    "allocated": 0,
-    "unavailable": 0
-  },
-  {
-    "skuId": "d0bc4d35-1cac-4c3a-b46d-7705b68b26f4",
-    "available": 12,
-    "allocated": 0,
-    "unavailable": 0
-  },
-  {
-    "skuId": "dfbbcd09-ba72-4faf-b70a-86ae4b7f0bd2",
-    "available": 18,
-    "allocated": 0,
-    "unavailable": 0
-  },
-  {
-    "skuId": "e1633729-4d10-4d09-aecd-fc25900cf4ff",
-    "available": 16,
-    "allocated": 0,
-    "unavailable": 0
-  },
-  {
-    "skuId": "e3875589-c668-458d-a454-2cb6c42c1677",
-    "available": 46,
+    "available": 43,
     "allocated": 0,
     "unavailable": 0
   },
   {
     "skuId": "ea069315-61c1-4a0f-94e5-3286d340d659",
-    "available": 27,
+    "available": 169,
     "allocated": 0,
     "unavailable": 0
   },
   {
-    "skuId": "ee3c6e66-8f1f-4aad-88ac-281e3711af36",
-    "available": 12,
+    "skuId": "4713fdd4-315d-4655-986c-713493500d7e",
+    "available": 76,
     "allocated": 0,
     "unavailable": 0
   },
   {
-    "skuId": "ee7bdcbb-f4df-404b-8fef-ff4f7f2685e2",
-    "available": 32,
-    "allocated": 0,
+    "skuId": "5c397ef4-7b26-474d-85fa-bc08603d6243",
+    "available": 161,
+    "allocated": 21,
     "unavailable": 0
   },
   {
-    "skuId": "f8c68b6b-7e05-4eec-adc6-5615f1a0ed34",
-    "available": 41,
-    "allocated": 0,
-    "unavailable": 0
-  },
-  {
-    "skuId": "00fa42a4-a1d3-4cf8-9bde-ec8b09e78e46",
-    "available": 9,
-    "allocated": 0,
-    "unavailable": 0
-  },
-  {
-    "skuId": "03916088-bc9f-4c20-8d1e-0aef09c197f6",
-    "available": 12,
+    "skuId": "4c1bcaa3-8808-4000-80f3-abaf99102d81",
+    "available": 89,
     "allocated": 0,
     "unavailable": 0
   },
   {
     "skuId": "2b6b6d5f-6d72-46b1-bdd3-572f9123bf22",
     "available": 34,
-    "allocated": 0,
+    "allocated": 20,
     "unavailable": 0
   },
   {
-    "skuId": "3e178a78-f868-4977-8c61-dea7db36f96f",
-    "available": 39,
-    "allocated": 0,
-    "unavailable": 0
-  },
-  {
-    "skuId": "409412d1-df86-4a8a-8ec4-6132cc485173",
-    "available": 28,
-    "allocated": 0,
-    "unavailable": 0
-  },
-  {
-    "skuId": "4713fdd4-315d-4655-986c-713493500d7e",
-    "available": 7,
-    "allocated": 0,
-    "unavailable": 0
-  },
-  {
-    "skuId": "4c1bcaa3-8808-4000-80f3-abaf99102d81",
-    "available": 7,
-    "allocated": 0,
+    "skuId": "d0bc4d35-1cac-4c3a-b46d-7705b68b26f4",
+    "available": 86,
+    "allocated": 13,
     "unavailable": 0
   },
   {
     "skuId": "55ccdf04-29d4-48c0-81a7-b73fac91d829",
-    "available": 29,
+    "available": 38,
+    "allocated": 2,
+    "unavailable": 0
+  },
+  {
+    "skuId": "ee3c6e66-8f1f-4aad-88ac-281e3711af36",
+    "available": 177,
     "allocated": 0,
     "unavailable": 0
   },
   {
-    "skuId": "59ba5229-d8ad-46b6-b38c-35fe36d2aa18",
-    "available": 26,
-    "allocated": 0,
-    "unavailable": 0
-  },
-  {
-    "skuId": "5c397ef4-7b26-474d-85fa-bc08603d6243",
-    "available": 29,
+    "skuId": "e1633729-4d10-4d09-aecd-fc25900cf4ff",
+    "available": 70,
     "allocated": 0,
     "unavailable": 0
   },
   {
     "skuId": "73fb0d5a-7b92-4563-b53a-852cd52e674d",
-    "available": 28,
+    "available": 55,
     "allocated": 0,
     "unavailable": 0
   },
   {
+    "skuId": "e3875589-c668-458d-a454-2cb6c42c1677",
+    "available": 132,
+    "allocated": 18,
+    "unavailable": 0
+  },
+  {
     "skuId": "7b188d20-25e8-48d4-bab5-91b88b2789a0",
-    "available": 22,
+    "available": 67,
+    "allocated": 7,
+    "unavailable": 0
+  },
+  {
+    "skuId": "f8c68b6b-7e05-4eec-adc6-5615f1a0ed34",
+    "available": 149,
+    "allocated": 7,
+    "unavailable": 0
+  },
+  {
+    "skuId": "859d7293-287d-4ec5-a9f1-a3d5831eb0fb",
+    "available": 73,
+    "allocated": 5,
+    "unavailable": 10
+  },
+  {
+    "skuId": "03916088-bc9f-4c20-8d1e-0aef09c197f6",
+    "available": 147,
+    "allocated": 16,
+    "unavailable": 0
+  },
+  {
+    "skuId": "3e178a78-f868-4977-8c61-dea7db36f96f",
+    "available": 123,
+    "allocated": 22,
+    "unavailable": 0
+  },
+  {
+    "skuId": "a140056b-03f3-4705-83fe-ee12827ac59c",
+    "available": 141,
+    "allocated": 0,
+    "unavailable": 4
+  },
+  {
+    "skuId": "409412d1-df86-4a8a-8ec4-6132cc485173",
+    "available": 94,
     "allocated": 0,
     "unavailable": 0
+  },
+  {
+    "skuId": "59ba5229-d8ad-46b6-b38c-35fe36d2aa18",
+    "available": 111,
+    "allocated": 0,
+    "unavailable": 0
+  },
+  {
+    "skuId": "ee7bdcbb-f4df-404b-8fef-ff4f7f2685e2",
+    "available": 10,
+    "allocated": 3,
+    "unavailable": 0
+  },
+  {
+    "skuId": "00fa42a4-a1d3-4cf8-9bde-ec8b09e78e46",
+    "available": 63,
+    "allocated": 10,
+    "unavailable": 9
+  },
+  {
+    "skuId": "dfbbcd09-ba72-4faf-b70a-86ae4b7f0bd2",
+    "available": 78,
+    "allocated": 0,
+    "unavailable": 11
+  },
+  {
+    "skuId": "922a8a11-e2d9-4a96-8ebd-87e9c800134e",
+    "available": 172,
+    "allocated": 19,
+    "unavailable": 0
+  },
+  {
+    "skuId": "e0f01894-7e2b-4119-a1c5-dbb36077b68b",
+    "available": 64,
+    "allocated": 0,
+    "unavailable": 0
+  },
+  {
+    "skuId": "9b208efb-e1cd-4a66-be7f-b662bf3f6afb",
+    "available": 161,
+    "allocated": 15,
+    "unavailable": 0
+  },
+  {
+    "skuId": "1fb4204a-7c7d-41e3-81c0-48c5c6d914d5",
+    "available": 83,
+    "allocated": 18,
+    "unavailable": 4
+  },
+  {
+    "skuId": "eb6646c2-0da9-4144-89c9-d5fe6d1f884d",
+    "available": 112,
+    "allocated": 0,
+    "unavailable": 0
+  },
+  {
+    "skuId": "9004d7a3-cc4d-46b1-a2c4-697eedf136ec",
+    "available": 147,
+    "allocated": 1,
+    "unavailable": 0
+  },
+  {
+    "skuId": "8cba9a35-59cc-4b6e-af65-b8bb242ece35",
+    "available": 29,
+    "allocated": 0,
+    "unavailable": 0
+  },
+  {
+    "skuId": "f675f3cc-2f7b-4eec-961e-aec279871103",
+    "available": 112,
+    "allocated": 13,
+    "unavailable": 0
+  },
+  {
+    "skuId": "8d49e866-4505-485c-b001-919f3add1079",
+    "available": 179,
+    "allocated": 2,
+    "unavailable": 0
+  },
+  {
+    "skuId": "d13a00ca-870f-414d-a8bd-5d183a3234e7",
+    "available": 98,
+    "allocated": 0,
+    "unavailable": 0
+  },
+  {
+    "skuId": "7f8334b4-72ba-49da-9acd-49526211104a",
+    "available": 21,
+    "allocated": 5,
+    "unavailable": 5
+  },
+  {
+    "skuId": "69c4714f-6cc2-4a6e-b35f-d58e20eeea09",
+    "available": 16,
+    "allocated": 14,
+    "unavailable": 0
+  },
+  {
+    "skuId": "2fbf3058-69b8-416d-a374-3e24cdec264f",
+    "available": 165,
+    "allocated": 0,
+    "unavailable": 0
+  },
+  {
+    "skuId": "f68b3ea1-4347-4458-9a77-be9cf5a2c0f2",
+    "available": 17,
+    "allocated": 0,
+    "unavailable": 0
+  },
+  {
+    "skuId": "ece27e53-79e9-478f-b6fe-86c2add7dc50",
+    "available": 2,
+    "allocated": 0,
+    "unavailable": 0
+  },
+  {
+    "skuId": "d97e3da0-0d7f-4dd0-80fc-d75d9eaae57f",
+    "available": 175,
+    "allocated": 8,
+    "unavailable": 4
   }
 ]

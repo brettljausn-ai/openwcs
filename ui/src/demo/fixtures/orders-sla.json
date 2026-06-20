@@ -1,11 +1,11 @@
 {
-  "onTimeToCutoffPctToday": null,
-  "orderCycleTimeMedianMinToday": null,
+  "onTimeToCutoffPctToday": 97.4,
+  "orderCycleTimeMedianMinToday": 418,
   "perDay": [
     {
       "day": "2026-06-06",
-      "onTimePct": null,
-      "cycleMedianMin": null
+      "onTimePct": 94.1,
+      "cycleMedianMin": 469
     },
     {
       "day": "2026-06-07",
@@ -14,63 +14,63 @@
     },
     {
       "day": "2026-06-08",
-      "onTimePct": null,
-      "cycleMedianMin": null
+      "onTimePct": 94.2,
+      "cycleMedianMin": 488
     },
     {
       "day": "2026-06-09",
-      "onTimePct": null,
-      "cycleMedianMin": null
+      "onTimePct": 93,
+      "cycleMedianMin": 410
     },
     {
       "day": "2026-06-10",
-      "onTimePct": 100,
-      "cycleMedianMin": 840
+      "onTimePct": 94.8,
+      "cycleMedianMin": 483
     },
     {
       "day": "2026-06-11",
-      "onTimePct": null,
-      "cycleMedianMin": null
+      "onTimePct": 92.8,
+      "cycleMedianMin": 447
     },
     {
       "day": "2026-06-12",
-      "onTimePct": null,
-      "cycleMedianMin": null
+      "onTimePct": 98.4,
+      "cycleMedianMin": 486
     },
     {
       "day": "2026-06-13",
-      "onTimePct": null,
-      "cycleMedianMin": null
+      "onTimePct": 97,
+      "cycleMedianMin": 415
     },
     {
       "day": "2026-06-14",
-      "onTimePct": 100,
-      "cycleMedianMin": 960
+      "onTimePct": null,
+      "cycleMedianMin": null
     },
     {
       "day": "2026-06-15",
-      "onTimePct": null,
-      "cycleMedianMin": null
+      "onTimePct": 94.7,
+      "cycleMedianMin": 481
     },
     {
       "day": "2026-06-16",
-      "onTimePct": null,
-      "cycleMedianMin": null
+      "onTimePct": 95.7,
+      "cycleMedianMin": 448
     },
     {
       "day": "2026-06-17",
-      "onTimePct": null,
-      "cycleMedianMin": null
+      "onTimePct": 99,
+      "cycleMedianMin": 518
     },
     {
       "day": "2026-06-18",
-      "onTimePct": null,
-      "cycleMedianMin": null
+      "onTimePct": 95.6,
+      "cycleMedianMin": 390
     },
     {
       "day": "2026-06-19",
-      "onTimePct": null,
-      "cycleMedianMin": null
+      "onTimePct": 97.7,
+      "cycleMedianMin": 410
     }
   ]
 }

@@ -1,6 +1,31 @@
 {
-  "urgent": 2,
-  "openTasks": 6,
-  "oldestAgeMin": 5833,
-  "projectedStockouts": []
+  "urgent": 3,
+  "openTasks": 11,
+  "oldestAgeMin": 96,
+  "projectedStockouts": [
+    {
+      "locationCode": "PF-A-01-02",
+      "minutesToStockout": 18
+    },
+    {
+      "locationCode": "PF-A-03-01",
+      "minutesToStockout": 26
+    },
+    {
+      "locationCode": "PF-B-02-04",
+      "minutesToStockout": 49
+    },
+    {
+      "locationCode": "PF-C-01-03",
+      "minutesToStockout": 64
+    },
+    {
+      "locationCode": "PF-B-04-02",
+      "minutesToStockout": 64
+    },
+    {
+      "locationCode": "PF-D-02-01",
+      "minutesToStockout": 92
+    }
+  ]
 }

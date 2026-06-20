@@ -275,7 +275,11 @@ demo box (`ui/src/demo/fixtures/`), unknown GETs return clean empty states, and 
 except an in-memory pick engine that arms **5 totes at the goods-to-person station** (full pick, short
 pick, exceptions). The demo carries a station of each pick layout (PP1 ONE_TO_ONE, PP2 ONE_TO_N with
 7 slots, PW1 PUT_WALL with 6 cubbies) and renders the slot/light states (the PTL adapter is not in
-the frontend-only demo). A reload restarts it.
+the frontend-only demo). A reload restarts it. The **Dashboards and Reporting areas carry a fuller
+curated sample dataset** (the fixtures are deterministically generated with ids that resolve to the
+demo SKUs/locations) so those screens look populated rather than sparse, and the `/live-demo` page
+opens with a short **"where to go" tour** pointing first-time visitors at the PP1 pick station and the
+data-backed menus.
 
 Build and run it locally:
 ```bash
