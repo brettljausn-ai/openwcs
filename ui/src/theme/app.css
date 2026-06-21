@@ -1500,6 +1500,15 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 .op-gtp-light:not(:disabled):active { transform: scale(.97); }
 .op-gtp-slot:disabled,
 .op-gtp-light:disabled { cursor: default; }
+/* 1-to-N slots stay on ONE row: never wrap, share the width evenly and shrink to fit (S7 no longer
+   drops to a second line). The cells are taller to give the qty + short control room. */
+.op-gtp-slots { flex-wrap: nowrap; }
+.op-gtp-slots .op-gtp-slot {
+  width: auto;
+  flex: 1 1 0;
+  min-width: 5.25rem;
+  min-height: 9.5rem;
+}
 .op-gtp-slot-code,
 .op-gtp-light-id { font-size: .8rem; font-weight: 600; letter-spacing: .03em; opacity: .85; }
 .op-gtp-slot-qty,
@@ -1527,11 +1536,15 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
   background: rgba(141, 198, 63, .12);
   border: 2px solid var(--herbal-lime, #8dc63f);
 }
-/* Inline short stepper inside an orange cell. */
+/* Inline short stepper inside an orange cell. Wraps within the cell so the SHORT button never spills
+   past the cell border: the − N + stepper sits on one row, SHORT drops to a full-width row below. */
 .op-gtp-slot-short {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: .25rem;
+  width: 100%;
   margin-top: .15rem;
 }
 .op-gtp-slot-step {
@@ -1548,8 +1561,11 @@ tbody tr:hover { background: rgba(141, 198, 63, .04); }
 }
 .op-gtp-slot-short-n { min-width: 1.2rem; text-align: center; font-weight: 700; color: var(--text); }
 .op-gtp-slot-short-go {
-  margin-left: .15rem;
-  padding: .1rem .4rem;
+  flex-basis: 100%;
+  margin-left: 0;
+  margin-top: .2rem;
+  padding: .18rem .4rem;
+  text-align: center;
   border-radius: 6px;
   font: inherit;
   font-size: .72rem;
