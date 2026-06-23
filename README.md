@@ -279,7 +279,12 @@ the frontend-only demo). A reload restarts it. The **Dashboards and Reporting ar
 curated sample dataset** (the fixtures are deterministically generated with ids that resolve to the
 demo SKUs/locations) so those screens look populated rather than sparse, and the `/live-demo` page
 opens with a short **"where to go" tour** pointing first-time visitors at the PP1 pick station and the
-data-backed menus.
+data-backed menus. **Operations → Hardware visualisation** is driven too: `ui/src/demo/demoTwin.ts`
+single-sources a fixed layout (a recirculating conveyor loop around an ASRS rack, a sorter and two
+pick stations) and fabricates the automation topology + device-task feed + twin read-models (tote
+paths / AMR fleet / ASRS cranes) as pure functions of the wall clock, so the production 3D twin
+renderer shows **totes driving round the loop**, robots roaming the aisles and a crane working the
+rack, all in-browser.
 
 Build and run it locally:
 ```bash

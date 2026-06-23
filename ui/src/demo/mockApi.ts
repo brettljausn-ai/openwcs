@@ -7,6 +7,14 @@
 // latency keeps spinners and polling feeling live. Everything is module memory: a reload re-seeds.
 
 import * as engine from './pickEngine'
+import {
+  AUTOMATION_TOPOLOGY,
+  EQUIPMENT_LIBRARY,
+  amrFleet,
+  asrsCranes,
+  deviceTasks,
+  totePaths,
+} from './demoTwin'
 
 // --- fixtures (eager imports so they bundle; small snapshot, ~280 KB) -----------------------------
 import warehouses from './fixtures/warehouses.json'
@@ -42,7 +50,6 @@ import ordersFlowInbound from './fixtures/orders-flow-inbound.json'
 import ordersFlowOutbound from './fixtures/orders-flow-outbound.json'
 import countingTasks from './fixtures/counting-tasks.json'
 import countingSchedules from './fixtures/counting-schedules.json'
-import flowDeviceTasks from './fixtures/flow-device-tasks.json'
 import processDesignerDefs from './fixtures/process-designer-defs.json'
 import slottingPickSlots from './fixtures/slotting-pick-slots.json'
 import slottingStorageProfiles from './fixtures/slotting-storage-profiles.json'
@@ -108,7 +115,13 @@ const GET_EXACT: Record<string, Json> = {
   '/api/master-data/storage-blocks': storageBlocks,
   '/api/master-data/alert-thresholds': alertThresholds,
   '/api/master-data/label-templates': [],
-  '/api/master-data/equipment': [],
+  // Automation hardware library + topology drive the Hardware visualisation 3D twin (demoTwin.ts):
+  // a recirculating conveyor loop around an ASRS rack, a sorter and two pick stations.
+  '/api/master-data/equipment': EQUIPMENT_LIBRARY,
+  '/api/flow/automation/topology': AUTOMATION_TOPOLOGY,
+  // Conveyor routing nodes: the twin replays positions from the tote-paths read model, so an empty
+  // node set is fine (it degrades to the path anchors) and keeps the coverage warning quiet.
+  '/api/flow/conveyor/topology': { nodes: [] },
   '/api/master-data/shippers': [],
   '/api/master-data/stock-rules': [],
 
@@ -150,7 +163,6 @@ const GET_EXACT: Record<string, Json> = {
   // (counting / transport / process-designer / slotting / gtp-config / admin database / users).
   '/api/counting/tasks': countingTasks,
   '/api/counting/schedules': countingSchedules,
-  '/api/flow/device-tasks': flowDeviceTasks,
   '/api/process-designer/defs': processDesignerDefs,
   '/api/slotting/pick-slots': slottingPickSlots,
   '/api/slotting/storage-profiles': slottingStorageProfiles,
@@ -206,6 +218,25 @@ function emptyFor(path: string): Json {
 
 function resolveGet(path: string, query: URLSearchParams): Json {
   if (GET_EXACT[path] !== undefined) return GET_EXACT[path]
+
+  // Hardware visualisation live feeds — all generated from the wall clock so the totes drive around
+  // (demoTwin.ts). The device-task feed honours the same filters the real endpoint does.
+  if (path === '/api/flow/device-tasks') {
+    let rows = deviceTasks(Date.now())
+    const status = query.get('status')
+    const family = query.get('family')
+    const equipmentId = query.get('equipmentId')
+    const correlationId = query.get('correlationId')
+    if (status) rows = rows.filter((t) => (t.status || '').toUpperCase() === status.toUpperCase())
+    if (family) rows = rows.filter((t) => t.family === family)
+    if (equipmentId) rows = rows.filter((t) => t.equipmentId === equipmentId)
+    if (correlationId) rows = rows.filter((t) => t.correlationId === correlationId)
+    const limit = Number(query.get('limit'))
+    return Number.isFinite(limit) && limit > 0 ? rows.slice(0, limit) : rows
+  }
+  if (path === '/api/flow/twin/tote-paths') return totePaths(Date.now())
+  if (path === '/api/flow/twin/amr-fleet') return amrFleet(Date.now())
+  if (path === '/api/flow/twin/asrs-cranes') return asrsCranes(Date.now())
 
   // /api/master-data/skus/{id}/card
   const card = path.match(/^\/api\/master-data\/skus\/([^/]+)\/card$/)
@@ -316,6 +347,10 @@ function isKnownDynamicGet(path: string): boolean {
   return (
     /^\/api\/master-data\/skus\/[^/]+\/(card|uoms|barcodes)$/.test(path) ||
     path === '/api/flow/induction/queue' ||
-    path === '/api/gtp/workplaces'
+    path === '/api/gtp/workplaces' ||
+    path === '/api/flow/device-tasks' ||
+    path === '/api/flow/twin/tote-paths' ||
+    path === '/api/flow/twin/amr-fleet' ||
+    path === '/api/flow/twin/asrs-cranes'
   )
 }
