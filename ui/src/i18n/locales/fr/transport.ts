@@ -52,7 +52,7 @@ export default {
   trace: 'Trace',
   correlationLower: 'corrélation',
   huTraceCaption:
-    'Le cycle de vie de l’unité de manutention à travers le pipeline d’induction, par ordre chronologique : chaque ligne est un événement de transport enregistré.',
+    'Le passage de ce transport dans le pipeline d’induction, par ordre chronologique. Chaque ligne est un événement enregistré du transport sélectionné, et non tout l’historique de l’unité de manutention.',
   correlationCaption:
     'Chaque tâche d’équipement partageant l’id de corrélation de ce transport, par ordre d’envoi.',
   noCorrelationCaption:
@@ -65,7 +65,7 @@ export default {
   correlationHelp:
     'L’id de corrélation regroupe chaque tâche d’équipement appartenant à une même instance logique de transport / processus, p. ex. un bac récupéré dans l’ASRS puis acheminé vers une station partagent un même id. Cliquez sur une ligne pour voir la trace complète.',
   huTraceHelp:
-    'La chronologie de transport enregistrée de l’unité de manutention à travers le pipeline d’induction : demandée, récupérée du stockage, induite sur le convoyeur, arrivée au poste, mise en file et terminée. Chaque ligne est un événement écrit par flow au fur et à mesure du déplacement du bac.',
+    'La chronologie de transport enregistrée pour ce passage dans le pipeline d’induction : demandée, récupérée du stockage, induite sur le convoyeur, arrivée au poste, mise en file et terminée. Elle est limitée au transport sélectionné, et non à tout l’historique de l’unité de manutention. Chaque ligne est un événement écrit par flow au fur et à mesure du déplacement du bac.',
   scope_open_today: 'Ouvert + terminé aujourd’hui',
   scope_active: 'Ouvert (actif) uniquement',
   scope_completed: 'Terminés',

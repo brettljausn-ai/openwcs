@@ -52,7 +52,7 @@ export default {
   trace: 'Verfolgung',
   correlationLower: 'Korrelation',
   huTraceCaption:
-    'Der Lebenszyklus der Handhabungseinheit entlang der Einschleusungs-Pipeline, in zeitlicher Reihenfolge: jede Zeile ist ein aufgezeichnetes Transportereignis.',
+    'Der Lauf dieses Transports durch die Einschleusungs-Pipeline, in zeitlicher Reihenfolge. Jede Zeile ist ein aufgezeichnetes Ereignis des ausgewählten Transports, nicht der gesamte Verlauf der Handhabungseinheit.',
   correlationCaption:
     'Jeder Geräteauftrag, der sich die Korrelations-ID dieses Transports teilt, in Beauftragungsreihenfolge.',
   noCorrelationCaption:
@@ -65,7 +65,7 @@ export default {
   correlationHelp:
     'Die Korrelations-ID gruppiert jeden Geräteauftrag, der zu einer logischen Transport-/Prozessinstanz gehört, z. B. teilen sich ein aus dem ASRS entnommener und dann zu einer Station beförderter Behälter eine ID. Klicken Sie auf eine Zeile, um die vollständige Verfolgung zu sehen.',
   huTraceHelp:
-    'Die aufgezeichnete Transport-Zeitachse der Handhabungseinheit entlang der Einschleusungs-Pipeline: angefordert, aus dem Lager entnommen, auf das Förderband eingeschleust, am Arbeitsplatz angekommen, eingereiht und erledigt. Jede Zeile ist ein Ereignis, das Flow beim Bewegen des Behälters geschrieben hat.',
+    'Die aufgezeichnete Transport-Zeitachse für diesen Lauf durch die Einschleusungs-Pipeline: angefordert, aus dem Lager entnommen, auf das Förderband eingeschleust, am Arbeitsplatz angekommen, eingereiht und erledigt. Sie ist auf den ausgewählten Transport beschränkt, nicht auf den gesamten Verlauf der Handhabungseinheit. Jede Zeile ist ein Ereignis, das Flow beim Bewegen des Behälters geschrieben hat.',
   scope_open_today: 'Offen + heute abgeschlossen',
   scope_active: 'Nur offen (aktiv)',
   scope_completed: 'Abgeschlossen',
