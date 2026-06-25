@@ -48,7 +48,7 @@ export default {
   huTimeline: 'HU 时间线',
   trace: '轨迹',
   correlationLower: '关联',
-  huTraceCaption: '搬运单元在导入流水线上的生命周期，按时间排序：每一行是一条已记录的运输事件。',
+  huTraceCaption: '所选运输在导入流水线上的运行过程，按时间排序。每一行是所选运输的一条已记录事件，而非搬运单元的全部历史。',
   correlationCaption: '共享此运输关联 ID 的每个设备任务，按派发顺序排列。',
   noCorrelationCaption: '此任务没有关联 ID，因此独立存在，没有关联步骤。',
   loadingTrace: '正在加载轨迹…',
@@ -59,7 +59,7 @@ export default {
   correlationHelp:
     '关联 ID 将属于同一逻辑运输/流程实例的每个设备任务分组，例如从 ASRS 取出并随后输送到某工作站的料箱共享同一个 ID。点击某一行可查看完整轨迹。',
   huTraceHelp:
-    '搬运单元在导入流水线上的已记录运输时间线：已请求、已从存储取出、已导入输送线、已到达工作站、已排队和已完成。每一行是 flow 在料箱移动时写入的一个事件。',
+    '本次运行在导入流水线上的已记录运输时间线：已请求、已从存储取出、已导入输送线、已到达工作站、已排队和已完成。仅限所选运输，而非搬运单元的全部历史。每一行是 flow 在料箱移动时写入的一个事件。',
   scope_open_today: '开放 + 今日完成',
   scope_active: '仅开放（进行中）',
   scope_completed: '已完成',

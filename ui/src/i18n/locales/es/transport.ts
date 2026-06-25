@@ -52,7 +52,7 @@ export default {
   trace: 'Traza',
   correlationLower: 'correlación',
   huTraceCaption:
-    'El ciclo de vida de la unidad de manipulación a través de la canalización de inducción, en orden temporal: cada fila es un evento de transporte registrado.',
+    'El recorrido de este transporte por la canalización de inducción, en orden temporal. Cada fila es un evento registrado del transporte seleccionado, no todo el historial de la unidad de manipulación.',
   correlationCaption:
     'Cada tarea de equipo que comparte el id de correlación de este transporte, en orden de despacho.',
   noCorrelationCaption:
@@ -65,7 +65,7 @@ export default {
   correlationHelp:
     'El id de correlación agrupa cada tarea de equipo que pertenece a una misma instancia lógica de transporte / proceso, p. ej. un contenedor recuperado del ASRS y luego transportado a una estación comparten un id. Haga clic en una fila para ver la traza completa.',
   huTraceHelp:
-    'La cronología de transporte registrada de la unidad de manipulación a través de la canalización de inducción: solicitada, recuperada del almacenamiento, inducida al transportador, llegada al puesto, en cola y hecha. Cada fila es un evento que flow escribió a medida que el contenedor se movía.',
+    'La cronología de transporte registrada de este recorrido por la canalización de inducción: solicitada, recuperada del almacenamiento, inducida al transportador, llegada al puesto, en cola y hecha. Está limitada al transporte seleccionado, no a todo el historial de la unidad de manipulación. Cada fila es un evento que flow escribió a medida que el contenedor se movía.',
   scope_open_today: 'Abierto + finalizado hoy',
   scope_active: 'Solo abierto (activo)',
   scope_completed: 'Completados',

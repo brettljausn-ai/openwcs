@@ -60,8 +60,9 @@ const CORRELATION_HELP =
 
 // Help for the per-HU transport-trace timeline (ADR-0007 §3.4).
 const HU_TRACE_HELP =
-  'The handling unit’s recorded transport timeline across the induction pipeline — requested, ' +
+  'The recorded transport timeline for this run through the induction pipeline: requested, ' +
   'retrieved from storage, inducted onto the conveyor, arrived at the workplace, queued, and done. ' +
+  'It is scoped to the selected transport, not the handling unit’s whole history. ' +
   'Each row is one event flow wrote as the tote moved.'
 
 function isToday(iso: string): boolean {
@@ -615,6 +616,28 @@ function TransportTraceDialog({
     }
   }, [task, hu, warehouseId])
 
+  // Scope the per-HU timeline to the induction run THIS transport belongs to. An HU accumulates
+  // events across many runs/days, but the user only wants the selected transport's steps. Every
+  // trace row of one round-trip shares an inductionEntryId, and the selected device task joins to
+  // its rows via taskId === task.id — so resolve the run's entry id(s) through the matching rows,
+  // then keep only rows from those runs (plus any directly tagged with this task). When the task
+  // has no linked trace row (e.g. a non-induction transport) we fall back to the full timeline
+  // rather than show nothing.
+  const scopedHuTrace = useMemo(() => {
+    if (!huTrace) return null
+    const entryIds = new Set(
+      huTrace
+        .filter((r) => r.taskId != null && r.taskId === task.id && r.inductionEntryId != null)
+        .map((r) => r.inductionEntryId as string),
+    )
+    if (entryIds.size === 0) return huTrace
+    return huTrace.filter(
+      (r) =>
+        (r.inductionEntryId != null && entryIds.has(r.inductionEntryId)) ||
+        (r.taskId != null && r.taskId === task.id),
+    )
+  }, [huTrace, task.id])
+
   // Close on Escape.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -679,7 +702,7 @@ function TransportTraceDialog({
           </div>
           <p className="muted" style={{ marginTop: '.35rem', fontSize: '.8rem' }}>
             {huTrace
-              ? t('huTraceCaption', 'The handling unit’s lifecycle across the induction pipeline, in time order — each row is a recorded transport event.')
+              ? t('huTraceCaption', 'This transport’s run through the induction pipeline, in time order. Each row is a recorded event for the selected transport, not the handling unit’s whole history.')
               : task.correlationId
                 ? t('correlationCaption', 'Every device task that shares this transport’s correlation id, in dispatch order.')
                 : t('noCorrelationCaption', 'This task has no correlation id, so it stands on its own — no linked steps.')}
@@ -692,10 +715,10 @@ function TransportTraceDialog({
             </div>
           )}
 
-          {/* Preferred: per-HU transport-trace timeline. */}
-          {huTrace && (
+          {/* Preferred: per-HU transport-trace timeline, scoped to this transport's run. */}
+          {scopedHuTrace && (
             <ol style={{ listStyle: 'none', margin: '.5rem 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
-              {huTrace.map((row, i) => {
+              {scopedHuTrace.map((row, i) => {
                 const isCurrent = row.taskId != null && row.taskId === task.id
                 const from = row.fromPoint ? resolveNode(row.fromPoint) : null
                 const to = row.toPoint ? resolveNode(row.toPoint) : null
