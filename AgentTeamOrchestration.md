@@ -14,15 +14,16 @@ hardcoded names, so the rest of the doc stays portable.
 | Tier | Model | Model ID | Use for |
 |---|---|---|---|
 | **Light** | Haiku 4.5 | `claude-haiku-4-5-20251001` | Mechanical, high-volume, low-ambiguity work: search, file-finding, bulk edits |
-| **Standard (default)** | **Opus 4.8** | `claude-opus-4-8` | The default workhorse — research, drafting, docs, routine implementation |
-| **Heavy (escalation)** | **Fable 5** | `claude-fable-5` | Judgment-heavy work: design/architecture, adversarial QA, high-risk gates |
-| _Alt mid-tier_ | Sonnet 4.6 | `claude-sonnet-4-6` | Interchangeable with Standard where preferred |
+| **Standard (default)** | **Sonnet 4.6** | `claude-sonnet-4-6` | The default workhorse — research, drafting, docs, routine well-specified implementation |
+| **Mid (escalation)** | **Opus 4.8** | `claude-opus-4-8` | Moderately hard work: non-trivial implementation, integration, tricky bugs |
+| **Heavy (top)** | **Fable 5** | `claude-fable-5` | Judgment-heavy work: design/architecture, adversarial QA, high-risk gates |
 
-**Default policy: prefer Opus 4.8 for all roles; escalate to Fable 5 only for roles
-that require deep judgment** (design, integration, adversarial verification, and
-any money/safety/security/data-integrity gate). Drop to Light for cheap mechanical
-tasks. If a listed model is unavailable in the environment, fall back up one tier
-(Light→Standard, Standard→Heavy) rather than down.
+**Default policy: prefer Sonnet 4.6 for all roles; escalate to Opus 4.8 for
+moderately hard implementation and integration, and to Fable 5 for deep-judgment
+roles** (design/architecture, adversarial verification, and any money/safety/
+security/data-integrity gate). Drop to Light for cheap mechanical tasks. If a
+listed model is unavailable in the environment, fall back up one tier
+(Light→Standard, Standard→Mid, Mid→Heavy) rather than down.
 
 ## Purpose
 Produce deliverables (code, documents, designs, processes) using a hierarchy of agents. The top-level **Orchestrator** runs one or more **Teams**. Each Team has a **Team Lead** managing **Sub-Agents**.
@@ -76,7 +77,8 @@ Default tier per role (see the Model Catalogue for what each tier maps to):
 | Deep Researcher, exploration, grounding | **Standard** |
 | Documentation Engineer, copy, drafting | **Standard** |
 | Software Developer (well-specified impl) | **Standard** |
-| Design / Process Designer, hard implementation, integration | **Heavy** |
+| Hard implementation, integration, tricky bugs | **Mid** |
+| Design / Process Designer, architecture | **Heavy** |
 | QA Engineer, adversarial verification, high-risk gates | **Heavy** (high/max effort) |
 
 Deviate when a specific task justifies it — a gnarly bug in "routine" code may
