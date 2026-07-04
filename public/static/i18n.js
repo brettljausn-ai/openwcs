@@ -8815,6 +8815,16 @@
       if (nodes[i].tagName === 'IMG') nodes[i].setAttribute('alt', val);
       else nodes[i].innerHTML = val;
     }
+    // Icon-only controls (e.g. the GitHub / Patreon / full-demo nav buttons) carry their label in
+    // the tooltip + accessible name rather than as visible text: data-i18n-title sets both.
+    var titled = document.querySelectorAll('[data-i18n-title]');
+    for (var k = 0; k < titled.length; k++) {
+      var tkey = titled[k].getAttribute('data-i18n-title');
+      var tval = dict[tkey] != null ? dict[tkey] : I18N.en[tkey];
+      if (tval == null) continue;
+      titled[k].setAttribute('title', tval);
+      titled[k].setAttribute('aria-label', tval);
+    }
     if (dict.__title) document.title = dict.__title;
     var code = document.getElementById('lang-code');
     if (code) code.textContent = lang.toUpperCase();

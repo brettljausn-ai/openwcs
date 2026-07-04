@@ -24,7 +24,8 @@ const files = [
   ...fs.readdirSync(pagesDir).filter(f => f.endsWith('.ejs')).map(f => path.join(pagesDir, f)),
 ];
 const keys = new Set();
-const re = /data-i18n="([^"]+)"/g;
+// Match both data-i18n (visible text) and data-i18n-title (tooltip / accessible name on icon buttons).
+const re = /data-i18n(?:-title)?="([^"]+)"/g;
 for (const f of files) {
   const t = fs.readFileSync(f, 'utf8');
   let m;
