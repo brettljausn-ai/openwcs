@@ -1373,7 +1373,11 @@ box's data, and **persists nothing** (a reload resets it). No login, no backend,
   conveyor/asrs/sorter), `/api/flow/automation/topology`, and the time-based `/api/flow/device-tasks`
   (filter-aware), `/api/flow/twin/tote-paths`, `/api/flow/twin/amr-fleet`, `/api/flow/twin/asrs-cranes`.
 - **Demo banner** `ui/src/demo/DemoBanner.tsx`: a persistent strip reading "Live demo, sample data,
-  nothing is saved" with a **Restart** action.
+  nothing is saved" with a **Restart** action; now translated via `useT('demo')` (English inline
+  fallback) instead of hardcoded English. The demo also **opens in the visitor's own language**:
+  the mocked `/api/iam/me/language` response picks the first browser language whose 2-letter code
+  the SPA ships (en/de/fr/es/zh/pt) instead of always returning `en`, mirroring the public site's
+  own detection; the top-bar language switcher still overrides it.
 - **The public page + serving.** `/live-demo` (template `public/views/pages/live-demo.ejs`, route in
   `public/data/pages.json`) frames the demo and embeds it full-bleed via `<iframe src="/demo-app/">`.
   The public Express server (`public/server.js`) serves the demo bundle at **`/demo-app/`** (static +
@@ -1382,7 +1386,7 @@ box's data, and **persists nothing** (a reload resets it). No login, no backend,
   plus the app in one 100vh column (`.demo-root` in `ui/src/App.tsx`) so the banner does not push the
   app-shell past the viewport and fit-to-window screens stay inside the iframe. The primary nav
   **Live demo** now points to the in-site sandbox, with a secondary **Full demo box** link to
-  `https://app.openwcs.ai`. i18n keys (`ld.*`) added in en/de/fr/es with parity (`i18n-check` passes).
+  `https://app.openwcs.ai`. i18n keys (`ld.*`) added in en/de/fr/es/zh/pt with parity (`i18n-check` passes).
   The page also carries a **"where to go" tour** above the embed (`ld.guide*` keys): a numbered
   walkthrough of the PP1 pick station (Operations → GTP workplaces) plus a list of the menus that
   carry sample data, so a first-time visitor knows what to try given the read-only scope. The tour
