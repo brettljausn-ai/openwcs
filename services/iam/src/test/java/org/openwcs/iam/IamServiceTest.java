@@ -54,6 +54,10 @@ class IamServiceTest {
         assertThat(iam.setLanguage("lang-user", "de")).isEqualTo("de");
         assertThat(iam.languageOf("lang-user")).isEqualTo("de");
 
+        // Brazilian Portuguese is an accepted UI language.
+        assertThat(iam.setLanguage("lang-user", "pt")).isEqualTo("pt");
+        assertThat(iam.languageOf("lang-user")).isEqualTo("pt");
+
         // Unknown codes are coerced to English.
         assertThat(iam.setLanguage("lang-user", "xx")).isEqualTo("en");
         assertThat(iam.languageOf("lang-user")).isEqualTo("en");

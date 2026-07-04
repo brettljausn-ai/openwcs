@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* CI guard: every data-i18n key used across the views (public/views/layout.ejs + views/pages/*.ejs)
- * must exist in all four language dictionaries in i18n.js. Exits non-zero if any key is missing. */
+ * must exist in all six language dictionaries in i18n.js. Exits non-zero if any key is missing. */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -17,7 +17,7 @@ const objText = src.slice(start + 'var I18N = '.length, end + '\n  }'.length);
 let I18N;
 eval('I18N=' + objText + ';');
 
-const langs = ['en', 'de', 'fr', 'es'];
+const langs = ['en', 'de', 'fr', 'es', 'zh', 'pt'];
 // Scan the shared layout (nav/footer/contact keys) + every page body view.
 const files = [
   path.join(viewsDir, 'layout.ejs'),
@@ -46,4 +46,4 @@ if (missing.length) {
   for (const x of missing) console.error('  ' + x);
   process.exit(1);
 }
-console.log('\nOK — every data-i18n key resolves in all 4 languages.');
+console.log('\nOK — every data-i18n key resolves in all 6 languages.');
