@@ -3,10 +3,12 @@
 // re-arms the 5 totes and reloads so the whole snapshot is fresh.
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useT } from '../i18n/useT'
 import { reset as resetPickEngine } from './pickEngine'
 
 export default function DemoBanner() {
   const [dismissed, setDismissed] = useState(false)
+  const t = useT('demo')
   if (dismissed) return null
 
   function restart() {
@@ -39,23 +41,28 @@ export default function DemoBanner() {
         ◑
       </span>
       <span>
-        <strong>Live demo</strong>, sample data, nothing is saved.
+        <strong>{t('title', 'Live demo')}</strong>
+        {t('note', ', sample data, nothing is saved.')}
       </span>
       <Link
         to="/gtp"
         style={{ color: 'var(--herbal-lime, #8dc63f)', fontWeight: 600, textDecoration: 'none' }}
       >
-        Try the pick station, 5 totes are arriving.
+        {t('pickCta', 'Try the pick station, 5 totes are arriving.')}
       </Link>
       <span style={{ marginLeft: 'auto', display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-        <button className="btn btn-ghost btn-sm" onClick={restart} title="Re-arm the 5 totes and reset all data">
-          Restart demo
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={restart}
+          title={t('restartTitle', 'Re-arm the 5 totes and reset all data')}
+        >
+          {t('restart', 'Restart demo')}
         </button>
         <button
           className="btn btn-ghost btn-sm"
           onClick={() => setDismissed(true)}
-          aria-label="Dismiss demo banner"
-          title="Dismiss"
+          aria-label={t('dismiss', 'Dismiss demo banner')}
+          title={t('dismissShort', 'Dismiss')}
         >
           ✕
         </button>

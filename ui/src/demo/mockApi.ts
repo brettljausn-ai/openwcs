@@ -6,6 +6,7 @@
 // GTP pick-station endpoints, which are driven by the in-memory pick engine. A small artificial
 // latency keeps spinners and polling feeling live. Everything is module memory: a reload re-seeds.
 
+import { DEFAULT_LANG, LANGS } from '../i18n/config'
 import * as engine from './pickEngine'
 import {
   AUTOMATION_TOPOLOGY,
@@ -103,6 +104,22 @@ async function bodyOf(input: RequestInfo | URL, init?: RequestInit): Promise<unk
   }
 }
 
+// The demo has no real account, so it opens in the visitor's own language: pick the first browser
+// language whose 2-letter code the SPA ships (en/de/fr/es/zh/pt), else English. The user can still
+// switch via the top-bar picker (persisted to localStorage, same as the real app).
+function detectDemoLang(): string {
+  const supported = LANGS.map((l) => l.code) as string[]
+  const prefs =
+    typeof navigator !== 'undefined'
+      ? navigator.languages || [navigator.language]
+      : []
+  for (const pref of prefs) {
+    const two = (pref || '').slice(0, 2).toLowerCase()
+    if (supported.includes(two)) return two
+  }
+  return DEFAULT_LANG
+}
+
 // --- GET resolution -------------------------------------------------------------------------------
 // Exact-path table for the headline read endpoints. Each value is the snapshot to return. Paged
 // list endpoints (master-data/skus, warehouses, locations) already ship in {content:[…]} form.
@@ -157,7 +174,7 @@ const GET_EXACT: Record<string, Json> = {
   // Per-user warehouse-access map (Warehouse access admin screen). Object keyed by username.
   '/api/iam/warehouse-access': iamWarehouseAccess,
   '/api/iam/screen-access': {},
-  '/api/iam/me/language': { language: 'en' },
+  '/api/iam/me/language': { language: detectDemoLang() },
 
   // Screens that previously blanked the demo. Each lists from a service the SPA reads as an array
   // (counting / transport / process-designer / slotting / gtp-config / admin database / users).
