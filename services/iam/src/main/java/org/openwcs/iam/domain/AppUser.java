@@ -39,7 +39,7 @@ public class AppUser extends Auditable {
     @Column(name = "status", nullable = false)
     private String status = "ACTIVE";
 
-    /** The user's chosen UI language (frontend only): en|de|fr|es|zh. Default English. */
+    /** The user's chosen UI language (frontend only): en|de|fr|es|zh|pt. Default English. */
     @Column(name = "language", nullable = false)
     private String language = "en";
 

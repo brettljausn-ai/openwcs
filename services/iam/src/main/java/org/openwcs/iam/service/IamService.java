@@ -42,7 +42,7 @@ public class IamService {
 
     // ------------------------------------------------------------------- Language (frontend only)
     /** The languages the frontend ships; anything else falls back to English. */
-    private static final Set<String> LANGUAGES = Set.of("en", "de", "fr", "es", "zh");
+    private static final Set<String> LANGUAGES = Set.of("en", "de", "fr", "es", "zh", "pt");
     private static final String DEFAULT_LANGUAGE = "en";
 
     /** A user's saved UI language, or {@code en} when the user has no row / no preference. */

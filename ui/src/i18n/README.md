@@ -1,7 +1,8 @@
 # Frontend i18n
 
-The operator/management SPA is translatable into **English, German, French, Spanish, Chinese**.
-English is the source language; backend output, server logs and the **login screen stay English**.
+The operator/management SPA is translatable into **English, German, French, Spanish, Chinese,
+Brazilian Portuguese**. English is the source language; backend output, server logs and the **login
+screen stay English**.
 A user's chosen language is remembered on their IAM account (`AppUser.language`, default `en`).
 
 ## How to translate a string
@@ -24,7 +25,7 @@ A user's chosen language is remembered on their IAM account (`AppUser.language`,
      there before.
    - Do NOT wrap: data values, codes (SKU/HU/location), log text, or anything the backend owns.
 
-2. Add the translations. For each of `de`, `fr`, `es`, `zh`, create/extend
+2. Add the translations. For each of `de`, `fr`, `es`, `zh`, `pt`, create/extend
    `src/i18n/locales/<lang>/<namespace>.ts`:
 
    ```ts
@@ -41,7 +42,7 @@ A user's chosen language is remembered on their IAM account (`AppUser.language`,
 
 ## Rules
 
-- One namespace per screen/area; keep keys consistent across the four language files.
+- One namespace per screen/area; keep keys consistent across the language files.
 - House style: no em dashes in any visible copy (any language).
 - Keep numbers, units and identifiers out of the translated text; interpolate them in the component.
 - The language switcher lives in the top bar (`LanguageSwitcher`), backed by `LanguageContext`

@@ -1,10 +1,11 @@
 // Frontend internationalisation (operator/management SPA only — server logs, the login screen, and
 // all backend output stay English). English is the source language, written inline in the code as
-// the fallback of every t(key, english) call; German / French / Spanish / Chinese live in the
-// translation files under ./locales/<lang>/<namespace>.ts and are looked up by key at render time.
-// A user's chosen language is remembered on their IAM account (AppUser.language); default is English.
+// the fallback of every t(key, english) call; German / French / Spanish / Chinese / Brazilian
+// Portuguese live in the translation files under ./locales/<lang>/<namespace>.ts and are looked up by
+// key at render time. A user's chosen language is remembered on their IAM account (AppUser.language);
+// default is English.
 
-export type Lang = 'en' | 'de' | 'fr' | 'es' | 'zh'
+export type Lang = 'en' | 'de' | 'fr' | 'es' | 'zh' | 'pt'
 
 export const DEFAULT_LANG: Lang = 'en'
 
@@ -15,6 +16,7 @@ export const LANGS: ReadonlyArray<{ code: Lang; english: string; native: string 
   { code: 'fr', english: 'French', native: 'Français' },
   { code: 'es', english: 'Spanish', native: 'Español' },
   { code: 'zh', english: 'Chinese', native: '中文' },
+  { code: 'pt', english: 'Portuguese (Brazil)', native: 'Português (Brasil)' },
 ]
 
 export function isLang(s: string | null | undefined): s is Lang {

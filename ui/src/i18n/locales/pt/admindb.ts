@@ -1,0 +1,20 @@
+// Brazilian Portuguese (Português do Brasil) - database console (namespace 'admindb').
+export default {
+  eyebrow: 'openWCS · Administração',
+  title: 'Banco de dados',
+  subtitle: 'Explore o esquema de cada serviço e execute consultas SELECT somente leitura no banco de dados compartilhado.',
+  schemas: 'Esquemas',
+  loadingSchemas: 'Carregando esquemas…',
+  noTables: 'Sem tabelas',
+  sqlQuery: 'Consulta SQL',
+  running: 'Executando…',
+  run: 'Executar',
+  editorHint: '⌘/Ctrl+Enter executa · somente SELECT · somente leitura',
+  row: 'linha',
+  rows: 'linhas',
+  truncatedTip: 'A consulta retornou mais linhas do que o limite; apenas a primeira página foi obtida.',
+  truncated: 'truncado',
+  filterRows: 'Filtrar linhas do resultado…',
+  noRows: 'A consulta não retornou linhas.',
+  emptyHelp: 'Escolha uma tabela à esquerda ou escreva um SELECT e clique em Executar. Os resultados são limitados (200 linhas por padrão) e cada consulta é executada em uma transação somente leitura com um limite de tempo de 10 segundos.',
+}
