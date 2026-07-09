@@ -20,6 +20,10 @@ function resolveHelp(pathname: string): { key: string; label: string } | null {
 // nothing when the current screen has no help entry.
 export default function HelpButton() {
   const t = useT('help')
+  // The drawer title is the screen name; translate it via the nav namespace (keyed by screen key),
+  // the same source the sidebar uses, so it follows the selected language instead of the English
+  // label baked into the screen catalog.
+  const tNav = useT('nav')
   const { pathname } = useLocation()
   const resolved = resolveHelp(pathname)
   // The specific entry, falling back to the generic master-data help for any sub-page lacking one.
@@ -31,7 +35,7 @@ export default function HelpButton() {
         : null
     : null
   const help = helpKey ? HELP[helpKey] : null
-  const label = resolved?.label ?? t('help', 'Help')
+  const label = resolved ? tNav(resolved.key, resolved.label) : t('help', 'Help')
   const [open, setOpen] = useState(false)
 
   // Close the drawer when navigating to another screen.
